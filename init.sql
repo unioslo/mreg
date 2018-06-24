@@ -27,11 +27,11 @@ CREATE TABLE ns(
 -- og en PTR-record, hvis det er mulig.
 CREATE TABLE hosts(
 	hostid serial PRIMARY KEY not null,
-	name text not null,
-	address inet not null,
+	name text UNIQUE not null,
+	ipaddress inet UNIQUE not null,
 	ttl int,
 	macaddress macaddr,
-	contact text not null,
+	contact text not null, -- constraint: regexp email-format
 	hinfo text,
 	loc text,
 	comment text
@@ -49,7 +49,7 @@ CREATE TABLE subnets(
 CREATE TABLE a_records(
 	hostid int REFERENCES host(hostid),
 	name text,
-	address inet,
+	ipaddress inet,
 	ttl int
 );
 
@@ -57,14 +57,14 @@ CREATE TABLE a_records(
 CREATE TABLE aaaa(
 	hostid int REFERENCES host(hostid),
 	name text,
-	address inet,
+	ipaddress inet,
 	ttl int
 );
 
 -- Ekstra PTR-records legges her
 CREATE TABLE ptr(
 	hostid int REFERENCES host(hostid),
-	address inet,
+	ipaddress inet,
 	name text,
 	ttl int
 );
