@@ -1,7 +1,5 @@
 from django.test import TestCase
-
-from django.test import TestCase
-from api.models import Hosts
+from mreg.models import Hosts
 
 
 class ModelTestCase(TestCase):
