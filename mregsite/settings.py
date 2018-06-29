@@ -68,7 +68,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'mreg.wsgi.application'
+WSGI_APPLICATION = 'mregsite.wsgi.application'
 
 
 # Database
