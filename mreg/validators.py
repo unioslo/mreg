@@ -12,3 +12,10 @@ def validate_mac_address(address):
     adr_regex = "[0-9a-f]{2}([-:]?)[0-9a-f]{2}(\\1[0-9a-f]{2}){4}$"
     validator = RegexValidator(adr_regex)
     validator(address)
+
+
+def validate_loc(location):
+    """Validates that the loc input is on a valid form."""
+    loc_regex = "\d+ \d+ \d+ [NS] \d+ \d+ \d+ [EW] \d+m"
+    validator = RegexValidator(loc_regex)
+    validator(location)

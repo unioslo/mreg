@@ -6,7 +6,7 @@
 #   * Remov` lines if you wish to allow Django to create, modify, and delete the table
 # Feel free to rename the models, but don't rename db_table values or field names.
 from django.db import models
-from mreg.validators import validate_mac_address, validate_ttl
+from mreg.validators import *
 from django.core.exceptions import ValidationError
 
 
@@ -63,7 +63,7 @@ class Hosts(models.Model):
     contact = models.EmailField()
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
     hinfo = models.ForeignKey(HinfoPresets, models.DO_NOTHING, db_column='hinfo', blank=True, null=True)
-    loc = models.TextField(blank=True, null=True)
+    loc = models.TextField(blank=True, null=True, validators=[validate_loc]
     comment = models.TextField(blank=True, null=True)
 
     class Meta:
