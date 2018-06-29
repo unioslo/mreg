@@ -80,8 +80,8 @@ DATABASES = {
         'NAME': 'mreg_sample',
         'USER': 'mreg_user',
         'PASSWORD': 'mregdbpass',
-        'HOST': 'localhost',
-        'PORT': '',
+        'HOST': '158.37.63.59',
+        'PORT': '5432',
     }
 }
 
