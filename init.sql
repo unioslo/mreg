@@ -73,7 +73,7 @@ CREATE TABLE hosts(
 	contact email_type not null,
 	ttl ttl_type,
 	hinfo int REFERENCES hinfo_presets(hinfoid),
-	loc text CHECK(loc ~ '\d+ \d+ \d+ [NS] \d+ \d+ \d+ [EW] \d+m'),
+	loc text CHECK(loc ~ '^\d+ \d+ \d+ [NS] \d+ \d+ \d+ [EW] \d+m$'),
 	comment text
 );
 
@@ -124,9 +124,10 @@ CREATE TABLE subnets(
 DROP TABLE IF EXISTS naptr;
 CREATE TABLE naptr(
 	naptrid serial PRIMARY KEY not null,
+	hostid int REFERENCES hosts(hostid) not null,
 	preference int CHECK (preference >= 0),
 	orderv int CHECK (orderv >= 0),
-	flag char(1) CHECK (flag ~ '[sAUP]'),
+	flag char(1) CHECK (flag ~ '^[sAUP]$'),
 	service text not null,
 	regex text,
 	replacement text not null
@@ -137,7 +138,7 @@ CREATE TABLE naptr(
 DROP TABLE IF EXISTS srv;
 CREATE TABLE srv(
 	srvid serial PRIMARY KEY not null,
-	service text not null CHECK(service ~ '/_[a-z]+._(tcp|udp).(\w+.)+'),
+	service text not null CHECK(service ~ '^_[a-z]+\._(tcp|udp)\.([\w\-]+\.)+$'),
 	priority int,
 	weight int,
 	port int,
