@@ -1,26 +1,23 @@
 from rest_framework import serializers
-from mreg.models import Cname, Hosts
+from mreg.models import *
 
 
 class HostsSerializer(serializers.ModelSerializer):
     class Meta:
         model = Hosts
-        fields = ('hostid', 'name', 'contact', 'ttl', 'hinfo', 'loc', 'comment')
+        fields = '__all__'
 
 
-class CnameSerializer(serializers.Serializer):
-    hostid = serializers.IntegerField(read_only=True)
-    cname = serializers.CharField(read_only=True)
-    ttl = serializers.IntegerField(read_only=True)
+# TODO: cname foreign key stuff
+class CnameSerializer(serializers.ModelSerializer):
+    hostid = models.ForeignKey(Hosts, related_name='hostid', on_delete=models.CASCADE)
 
-    def create(self, validated_data):
-        """ Create and return a new Cname instance, given the validated data """
-        return Cname.objects.create(**validated_data)
+    class Meta:
+        model = Cname
+        fields = ('hostid', 'cname', 'ttl')
 
-    def update(self, instance, validated_data):
-        """ Update and return an existing 'Cname' instance, given the validated data """
-        instance.hostid = validated_data.get('hostid', instance.hostid)
-        instance.cname = validated_data.get('cname', instance.cname)
-        instance.ttl = validated_data.get('ttl', instance.ttl)
-        instance.save()
-        return instance
+
+class NsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Ns
+        fields = '__all__'
