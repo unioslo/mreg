@@ -8,7 +8,7 @@ class Zones(models.Model):
     name = models.TextField(unique=True)
     primary_ns = models.TextField()
     email = models.EmailField(blank=True, null=True)
-    serialno = models.BigIntegerField(blank=True, null=True)
+    serialno = models.BigIntegerField(blank=True, null=True, validators=[validate_zones_serialno])
     refresh = models.IntegerField(blank=True, null=True)
     retry = models.IntegerField(blank=True, null=True)
     expire = models.IntegerField(blank=True, null=True)
@@ -29,8 +29,6 @@ class Zones(models.Model):
             raise ValidationError('Expire must be greater than retry + refresh ({}).'.format(self.refresh+self.retry))
         if not check_retry:
             raise ValidationError('Retry may not be less than 300.')
-
-        #TODO Add check for serialno. 1000000000 <= serialno <= 9999999999
 
 
 class Ns(models.Model):

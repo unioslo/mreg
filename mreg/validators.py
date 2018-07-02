@@ -35,5 +35,8 @@ def validate_srv_service_text(servicetext):
 
 
 def validate_zones_serialno(serialno):
+    """ Validates that the zones serialno is within given parameters."""
     validator_min = MinValueValidator(1000000000)
     validator_max = MaxValueValidator(9999999999)
+    validator_min(serialno)
+    validator_max(serialno)
