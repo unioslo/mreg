@@ -1,10 +1,3 @@
-# This is an auto-generated Django model module.
-# You'll have to do the following manually to clean this up:
-#   * Rearrange models' order
-#   * Make sure each model has one field with primary_key=True
-#   * Make sure each ForeignKey has `on_delete` set to the desired behavior.
-#   * Remov` lines if you wish to allow Django to create, modify, and delete the table
-# Feel free to rename the models, but don't rename db_table values or field names.
 from django.db import models
 from mreg.validators import *
 from django.core.exceptions import ValidationError
@@ -37,6 +30,8 @@ class Zones(models.Model):
         if not check_retry:
             raise ValidationError('Retry may not be less than 300.')
 
+        # Add check for serialno. 1000000000 <= serialno <= 9999999999
+
 
 class Ns(models.Model):
     nsid = models.AutoField(primary_key=True)
@@ -63,7 +58,7 @@ class Hosts(models.Model):
     contact = models.EmailField()
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
     hinfo = models.ForeignKey(HinfoPresets, models.DO_NOTHING, db_column='hinfo', blank=True, null=True)
-    loc = models.TextField(blank=True, null=True, validators=[validate_loc]
+    loc = models.TextField(blank=True, null=True, validators=[validate_loc])
     comment = models.TextField(blank=True, null=True)
 
     class Meta:
@@ -107,7 +102,7 @@ class Cname(models.Model):
 
 class Subnets(models.Model):
     subnetid = models.AutoField(primary_key=True)
-    range = models.TextField()  # This field type is a guess.
+    range = models.TextField()  # Need CIDR support
     description = models.TextField(blank=True, null=True)
     vlan = models.IntegerField(blank=True, null=True)
     dns_delegated = models.NullBooleanField()
@@ -118,9 +113,10 @@ class Subnets(models.Model):
 
 class Naptr(models.Model):
     naptrid = models.AutoField(primary_key=True)
+    hostid = models.ForeignKey('Hosts', models.DO_NOTHING, db_column='hostid')
     preference = models.IntegerField(blank=True, null=True)
     orderv = models.IntegerField(blank=True, null=True)
-    flag = models.CharField(max_length=1, blank=True, null=True)
+    flag = models.CharField(max_length=1, blank=True, null=True, validators=[validate_naptr_flag])
     service = models.TextField()
     regex = models.TextField(blank=True, null=True)
     replacement = models.TextField()
@@ -131,7 +127,7 @@ class Naptr(models.Model):
 
 class Srv(models.Model):
     srvid = models.AutoField(primary_key=True)
-    service = models.TextField()
+    service = models.TextField(validators=[validate_srv_service_text])
     priority = models.IntegerField(blank=True, null=True)
     weight = models.IntegerField(blank=True, null=True)
     port = models.IntegerField(blank=True, null=True)

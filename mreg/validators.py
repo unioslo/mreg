@@ -3,7 +3,7 @@ from django.core.validators import RegexValidator, MinValueValidator
 
 def validate_ttl(value):
     """Validates that the ttl value is greater than or equal to a certain value."""
-    validator = MinValueValidator(300)
+    validator = MinValueValidator(0)
     validator(value)
 
 
@@ -19,3 +19,17 @@ def validate_loc(location):
     loc_regex = "\d+ \d+ \d+ [NS] \d+ \d+ \d+ [EW] \d+m"
     validator = RegexValidator(loc_regex)
     validator(location)
+
+
+def validate_naptr_flag(flag):
+    """Validates that the naptr model flag input is valid."""
+    flag_regex = "^[sAUP]$"
+    validator = RegexValidator(flag_regex)
+    validator(flag)
+
+
+def validate_srv_service_text(servicetext):
+    """Validates that the srv service text input is valid."""
+    servicetext_regex = '^_[a-z]+\._(tcp|udp)\.([\w\-]+\.)+$'
+    validator = RegexValidator(servicetext_regex)
+    validator(servicetext)
