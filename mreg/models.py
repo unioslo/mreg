@@ -4,7 +4,7 @@ from django.core.exceptions import ValidationError
 
 
 class Zones(models.Model):
-    zoneid = models.AutoField(primary_key=True)
+    zoneid = models.AutoField(primary_key=True, serialize=True)
     name = models.TextField(unique=True)
     primary_ns = models.TextField()
     email = models.EmailField(blank=True, null=True)
@@ -30,11 +30,11 @@ class Zones(models.Model):
         if not check_retry:
             raise ValidationError('Retry may not be less than 300.')
 
-        # Add check for serialno. 1000000000 <= serialno <= 9999999999
+        #TODO Add check for serialno. 1000000000 <= serialno <= 9999999999
 
 
 class Ns(models.Model):
-    nsid = models.AutoField(primary_key=True)
+    nsid = models.AutoField(primary_key=True, serialize=True)
     zoneid = models.ForeignKey('Zones', models.DO_NOTHING, db_column='zoneid')
     name = models.TextField()
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
@@ -44,7 +44,7 @@ class Ns(models.Model):
 
 
 class HinfoPresets(models.Model):
-    hinfoid = models.AutoField(primary_key=True)
+    hinfoid = models.AutoField(primary_key=True, serialize=True)
     cpu = models.TextField()
     os = models.TextField()
 
@@ -53,7 +53,7 @@ class HinfoPresets(models.Model):
 
 
 class Hosts(models.Model):
-    hostid = models.AutoField(primary_key=True)
+    hostid = models.AutoField(primary_key=True, serialize=True)
     name = models.TextField(unique=True)
     contact = models.EmailField()
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
@@ -83,7 +83,7 @@ class PtrOverride(models.Model):
 
 
 class Txt(models.Model):
-    txtid = models.AutoField(primary_key=True)
+    txtid = models.AutoField(primary_key=True, serialize=True)
     hostid = models.ForeignKey(Hosts, models.DO_NOTHING, db_column='hostid')
     txt = models.TextField()
 
@@ -101,8 +101,8 @@ class Cname(models.Model):
 
 
 class Subnets(models.Model):
-    subnetid = models.AutoField(primary_key=True)
-    range = models.TextField()  # Need CIDR support
+    subnetid = models.AutoField(primary_key=True, serialize=True)
+    range = models.TextField()  #TODO Need CIDR support
     description = models.TextField(blank=True, null=True)
     vlan = models.IntegerField(blank=True, null=True)
     dns_delegated = models.NullBooleanField()
@@ -112,7 +112,7 @@ class Subnets(models.Model):
 
 
 class Naptr(models.Model):
-    naptrid = models.AutoField(primary_key=True)
+    naptrid = models.AutoField(primary_key=True, serialize=True)
     hostid = models.ForeignKey('Hosts', models.DO_NOTHING, db_column='hostid')
     preference = models.IntegerField(blank=True, null=True)
     orderv = models.IntegerField(blank=True, null=True)
@@ -126,7 +126,7 @@ class Naptr(models.Model):
 
 
 class Srv(models.Model):
-    srvid = models.AutoField(primary_key=True)
+    srvid = models.AutoField(primary_key=True, serialize=True)
     service = models.TextField(validators=[validate_srv_service_text])
     priority = models.IntegerField(blank=True, null=True)
     weight = models.IntegerField(blank=True, null=True)

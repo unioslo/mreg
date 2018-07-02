@@ -1,5 +1,4 @@
-from django.core.validators import RegexValidator, MinValueValidator
-
+from django.core.validators import RegexValidator, MinValueValidator, MaxValueValidator
 
 def validate_ttl(value):
     """Validates that the ttl value is greater than or equal to a certain value."""
@@ -33,3 +32,8 @@ def validate_srv_service_text(servicetext):
     servicetext_regex = '^_[a-z]+\._(tcp|udp)\.([\w\-]+\.)+$'
     validator = RegexValidator(servicetext_regex)
     validator(servicetext)
+
+
+def validate_zones_serialno(serialno):
+    validator_min = MinValueValidator(1000000000)
+    validator_max = MaxValueValidator(9999999999)
