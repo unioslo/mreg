@@ -2,10 +2,7 @@ from rest_framework import serializers
 from mreg.models import *
 
 
-# TODO: cname foreign key
 class CnameSerializer(serializers.ModelSerializer):
-    hostid = models.ForeignKey(Hosts, related_name='hostid', on_delete=models.CASCADE)
-
     class Meta:
         model = Cname
         fields = '__all__'
@@ -23,7 +20,6 @@ class HostsSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-# TODO: Ipaddress foreign key
 class IpaddressSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ipaddress
@@ -42,7 +38,6 @@ class NsSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-# TODO: PtrOverride foreign key
 class PtrOverrideSerializer(serializers.ModelSerializer):
     class Meta:
         model = PtrOverride
