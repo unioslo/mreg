@@ -1,6 +1,7 @@
 from rest_framework import generics
 from mreg.models import *
 from mreg.api.v1.serializers import *
+from rest_framework_extensions.etag.mixins import ETAGMixin
 
 
 class CnameList(generics.ListCreateAPIView):
@@ -28,7 +29,7 @@ class HostList(generics.ListCreateAPIView):
     serializer_class = HostsSerializer
 
 
-class HostDetail(generics.RetrieveUpdateDestroyAPIView):
+class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Hosts.objects.all()
     serializer_class = HostsSerializer
 
@@ -108,6 +109,6 @@ class ZonesList(generics.ListCreateAPIView):
     serializer_class = ZonesSerializer
 
 
-class ZonesDetail(generics.RetrieveUpdateDestroyAPIView):
+class ZonesDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Zones.objects.all()
     serializer_class = ZonesSerializer
