@@ -1,7 +1,9 @@
 from rest_framework import generics
+from django.http import Http404
 from mreg.models import *
 from mreg.api.v1.serializers import *
 from rest_framework_extensions.etag.mixins import ETAGMixin
+import ipaddress
 
 
 class CnameList(generics.ListCreateAPIView):
@@ -32,6 +34,23 @@ class HostList(generics.ListCreateAPIView):
 class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Hosts.objects.all()
     serializer_class = HostsSerializer
+
+    def get_object(self, queryset=queryset):
+        query = self.kwargs['pk']
+        try:
+            ipaddress.ip_address(query)
+            try:
+                ip = Ipaddress.objects.get(ipaddress=query)
+                host = ip.hostid
+                return host
+            except Ipaddress.DoesNotExist:
+                raise Http404
+        except ValueError:
+            try:
+                host = queryset.get(name=query)
+                return host
+            except Hosts.DoesNotExist:
+                raise Http404
 
 
 class IpaddressList(generics.ListCreateAPIView):
