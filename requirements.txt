@@ -2,4 +2,4 @@ Django==2.0.6
 djangorestframework==3.8.2
 psycopg2==2.7.5
 pytz==2018.4
-drf-extensions=0.3.1
+drf-extensions==0.3.1
