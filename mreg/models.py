@@ -18,6 +18,7 @@ class Zones(models.Model):
         db_table = 'zones'
 
     def clean(self):
+        # TODO: Implement as validation with signal
         # Make sure refresh, retry, and expire values adhere to database constraints
         check_refresh = self.refresh > self.retry
         check_expire = self.expire > self.refresh + self.retry

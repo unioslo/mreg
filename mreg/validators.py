@@ -1,5 +1,7 @@
 from django.core.validators import RegexValidator, MinValueValidator, MaxValueValidator
 
+
+# TODO: Rewrite validators to use signals
 def validate_ttl(value):
     """Validates that the ttl value is greater than or equal to a certain value."""
     validator = MinValueValidator(0)
