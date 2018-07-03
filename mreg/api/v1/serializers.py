@@ -20,7 +20,7 @@ class HinfoPresetsSerializer(serializers.ModelSerializer):
 class HostsSerializer(serializers.ModelSerializer):
     class Meta:
         model = Hosts
-        fields = ('hostid', 'name', 'contact', 'ttl', 'hinfo', 'loc', 'comment')
+        fields = '__all__'
 
 
 # TODO: Ipaddress foreign key
