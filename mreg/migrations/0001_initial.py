@@ -38,7 +38,7 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='Hosts',
             fields=[
-                ('hostid', models.AutoField(primary_key=True, serialize=False)),
+                ('hostid', models.AutoField(primary_key=True, serialize=True)),
                 ('name', models.TextField(unique=True)),
                 ('contact', models.EmailField(max_length=254)),
                 ('ttl', models.IntegerField(blank=True, null=True, validators=[mreg.validators.validate_ttl])),
