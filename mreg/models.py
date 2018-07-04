@@ -120,7 +120,7 @@ class Naptr(models.Model):
         db_table = 'naptr'
 
 
-models.signals.pre_save.connect(validate_naptr_flag sender=Naptr)
+models.signals.pre_save.connect(validate_naptr_flag, sender=Naptr)
 
 
 class Srv(models.Model):
