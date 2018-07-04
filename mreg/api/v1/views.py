@@ -54,7 +54,6 @@ class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
             except Hosts.DoesNotExist:
                 raise Http404
 
-    @etag(rebuild_after_method_evaluation=True)
     def patch(self, request, *args, **kwargs):
         query = self.kwargs['pk']
         try:
