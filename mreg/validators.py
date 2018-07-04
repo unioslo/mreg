@@ -24,7 +24,7 @@ def validate_loc(sender, instance, **kwargs):
     """Validates that the loc input is on a valid form."""
     loc_regex = "\d+ \d+ \d+ [NS] \d+ \d+ \d+ [EW] \d+m"
     validator = RegexValidator(loc_regex)
-    validator(instance.location)
+    validator(instance.loc)
 
 
 def validate_naptr_flag(sender, instance, **kwargs):
@@ -43,7 +43,6 @@ def validate_srv_service_text(sender, instance, **kwargs):
 
 def validate_zones_serialno(sender, instance, **kwargs):
     """ Validates that the zones serialno is within given parameters."""
-    # TODO: Should probably be moved to client.
     validator_min = MinValueValidator(1000000000)
     validator_max = MaxValueValidator(9999999999)
     validator_min(instance.serialno)

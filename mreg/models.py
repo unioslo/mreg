@@ -1,5 +1,5 @@
 from django.db import models
-from mreg.signals import *
+from mreg.validators import *
 
 
 class Zones(models.Model):
@@ -47,7 +47,7 @@ class Hosts(models.Model):
     contact = models.EmailField()
     ttl = models.IntegerField(blank=True, null=True)
     hinfo = models.ForeignKey(HinfoPresets, models.DO_NOTHING, db_column='hinfo', blank=True, null=True)
-    loc = models.TextField(blank=True, null=True, validators=[validate_loc])
+    loc = models.TextField(blank=True, null=True)
     comment = models.TextField(blank=True, null=True)
 
     class Meta:
