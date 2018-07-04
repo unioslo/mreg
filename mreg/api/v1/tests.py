@@ -98,21 +98,10 @@ class APIHostsTestCase(TestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_hosts_patch_204_no_content(self):
-        """Patching an existing and valid entry should return 204"""
+        """Patching an existing and valid entry should return 204 and Location"""
         self.host_sample.save()
         client = APIClient()
         response = client.patch('/hosts/dette-er-en-host/', self.patch_data)
         self.assertEqual(response.status_code, 204)
-        self.assertContains(response['Location'], '/hosts/nytt-navn')
-
-    def test_hosts_patch_412_precondition_failed(self):
-        """Patching an entry that has been modified should return 412"""
-        self.host_sample.save()
-        client = APIClient()
-        response = client.get('/hosts/dette-er-en-host/')
-        etag = response['ETag']
-        self.host_sample.contact = 'changed@data.com'
-        response = client.patch('/hosts/dette-er-en-host', self.patch_data, headers={'Match-If': etag})
-        self.assertEqual(response.status_code, 412)
-
+        self.assertEqual(response['Location'], '/hosts/nytt-navn')
 

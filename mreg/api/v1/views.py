@@ -4,6 +4,7 @@ from mreg.models import *
 from mreg.api.v1.serializers import *
 from rest_framework_extensions.etag.mixins import ETAGMixin
 from rest_framework.response import Response
+from rest_framework_extensions.etag.decorators import etag
 import ipaddress
 
 
@@ -53,6 +54,7 @@ class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
             except Hosts.DoesNotExist:
                 raise Http404
 
+    @etag(rebuild_after_method_evaluation=True)
     def patch(self, request, *args, **kwargs):
         query = self.kwargs['pk']
         try:
@@ -61,7 +63,8 @@ class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
             if serializer.is_valid():
                 serializer.save()
                 location = '/hosts/' + host.name
-                return Response(serializer.data, status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
+                response = Response(serializer.data, status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
+                return response
         except Hosts.DoesNotExist:
             raise Http404
 
