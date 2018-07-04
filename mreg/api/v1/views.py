@@ -62,8 +62,9 @@ class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
             if serializer.is_valid():
                 serializer.save()
                 location = '/hosts/' + host.name
-                response = Response(serializer.data, status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
-                return response
+                return Response(serializer.data, status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
+            else:
+                return Response(serializer.data, status=status.HTTP_400_BAD_REQUEST)
         except Hosts.DoesNotExist:
             raise Http404
 
