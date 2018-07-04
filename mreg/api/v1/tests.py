@@ -42,7 +42,7 @@ class ModelHostsTestCase(TestCase):
 
 class ModelZonesTestCase(TestCase):
     """This class defines the test suite for the Zones model."""
-    # TODO: test this for sub-zones (usit.uio.no) and "top"-zones (usit.no)
+    # TODO: test this for sub-zones (usit.uio.no) and "top"-zones (usit.no)?
     def setUp(self):
         """Define the test client and other test variables."""
         self.zone_sample = Zones(name='some-zone',
