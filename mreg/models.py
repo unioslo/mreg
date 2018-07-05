@@ -66,7 +66,7 @@ class Ipaddress(models.Model):
         db_table = 'ipaddress'
 
 
-models.signals.pre_save.connect(validate_mac_address, sender=Ipaddress)
+#models.signals.pre_save.connect(validate_mac_address, sender=Ipaddress)
 
 
 class PtrOverride(models.Model):
