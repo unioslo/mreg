@@ -54,7 +54,7 @@ class Hosts(models.Model):
         db_table = 'hosts'
 
 
-models.signals.pre_save.connect(validate_loc, sender=Hosts)
+#models.signals.pre_save.connect(validate_loc, sender=Hosts)
 
 
 class Ipaddress(models.Model):

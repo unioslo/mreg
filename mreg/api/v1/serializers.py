@@ -22,7 +22,7 @@ class HostsSerializer(serializers.ModelSerializer):
     def validate(self, data):
         invalid_keys = set(self.initial_data.keys()) - set(self.fields.keys())
         if invalid_keys:
-            raise serializers.ValidationError()
+            raise serializers.ValidationError('invalid keys passed into serializer: {0}'.format(invalid_keys))
         return data
 
 
