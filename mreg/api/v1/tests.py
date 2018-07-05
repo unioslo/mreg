@@ -105,3 +105,12 @@ class APIHostsTestCase(TestCase):
         self.assertEqual(response.status_code, 204)
         self.assertEqual(response['Location'], '/hosts/nytt-navn')
 
+    def test_hosts_patch_400_bad_request(self):
+        """Patching with invalid data should return 400"""
+        self.host_sample.save()
+        client = APIClient()
+        response = client.patch('/hosts/dette-er-en-host/', data={'this': 'is', 'so': 'wrong'})
+        resp = client.get('/hosts/dette-er-en-host/')
+        host = Hosts.objects.get(contact='ulvik@usit.uio.no')
+        print(host.name)
+        self.assertEqual(response.status_code, 400)

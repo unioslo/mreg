@@ -19,6 +19,13 @@ class HostsSerializer(serializers.ModelSerializer):
         model = Hosts
         fields = '__all__'
 
+    def validate(self, data):
+        invalid_keys = set(self.initial_data.keys()) - set(self.fields.keys())
+        if invalid_keys:
+            raise serializers.ValidationError()
+        return data
+
+
 
 class IpaddressSerializer(serializers.ModelSerializer):
     class Meta:
