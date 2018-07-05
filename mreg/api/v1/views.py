@@ -30,7 +30,7 @@ class HinfoPresetsDetail(generics.RetrieveUpdateDestroyAPIView):
 
 class HostList(generics.ListCreateAPIView):
     queryset = Hosts.objects.all()
-    serializer_class = HostsSerializer
+    serializer_class = HostsListSerializer
 
 
 class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
