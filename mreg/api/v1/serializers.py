@@ -26,7 +26,7 @@ class HostsSerializer(serializers.ModelSerializer):
         return data
 
 
-class HostsListSerializer(serializers.ModelSerializer):
+class HostsNameSerializer(serializers.ModelSerializer):
     class Meta:
         model = Hosts
         fields = ('name',)
