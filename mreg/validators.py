@@ -1,10 +1,13 @@
 from django.core.validators import RegexValidator, MinValueValidator, MaxValueValidator
 
 
-# TODO: Rewrite validators to use signals
+# TODO: Move some validators to client
+# TODO: Implement validation for retry, refresh, expire
+
+
 def validate_ttl(value):
     """Validates that the ttl value is greater than or equal to a certain value."""
-    validator = MinValueValidator(0)
+    validator = MinValueValidator(300)
     validator(value)
 
 
