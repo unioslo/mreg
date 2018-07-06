@@ -66,15 +66,14 @@ class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
             try:
                 ip = Ipaddress.objects.get(ipaddress=query)
                 host = ip.hostid
-                return host
             except Ipaddress.DoesNotExist:
                 raise Http404
         except ValueError:
             try:
                 host = queryset.get(name=query)
-                return host
             except Hosts.DoesNotExist:
                 raise Http404
+        return host
 
     def patch(self, request, *args, **kwargs):
         query = self.kwargs['pk']
