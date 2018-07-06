@@ -1,10 +1,12 @@
 from rest_framework import generics, status, mixins
-from django.http import Http404
+from django.http import Http404, QueryDict
 from mreg.models import *
 from mreg.api.v1.serializers import *
 from rest_framework_extensions.etag.mixins import ETAGMixin
 from rest_framework.response import Response
-import ipaddress
+from rest_framework.parsers import JSONParser
+from rest_framework import status
+import ipaddress, time
 
 
 class CnameList(generics.ListCreateAPIView):
@@ -138,8 +140,67 @@ class TxtDetail(generics.RetrieveUpdateDestroyAPIView):
 class ZonesList(generics.ListCreateAPIView):
     queryset = Zones.objects.all()
     serializer_class = ZonesSerializer
+    count_day = int(time.strftime('%Y%m%d'))
+    count = 0
+
+    # TODO: Implement authentication
+    def post(self, request, *args, **kwargs):
+        if ZonesList.count_day < int(time.strftime('%Y%m%d')):
+            ZonesList.count_day = int(time.strftime('%Y%m%d'))
+            ZonesList.count = 0
+
+        if self.queryset.filter(name=request.data["name"]).exists():
+            content = {'ERROR': 'Zone name already in use'}
+            return Response(content, status=status.HTTP_409_CONFLICT)
+
+        data = request.data.copy()
+        data['primary_ns'] = request.data['ns'][0]
+        data['serialno'] = "%s%02d" % (time.strftime('%Y%m%d'), self.count)
+        ZonesList.count += 1
+
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers={'Location': '/zones/%s' % data['name']})
 
 
 class ZonesDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Zones.objects.all()
     serializer_class = ZonesSerializer
+
+    # TODO: Implement authentication
+    def get_object(self, queryset=queryset):
+        query=self.kwargs['pk']
+        try:
+            zone = queryset.get(name=query)
+            return zone
+        except Zones.DoesNotExist:
+            raise Http404
+
+    # TODO: Implement authentication
+    def patch(self, request, *args, **kwargs):
+        query = self.kwargs['pk']
+
+        if "name" in request.data:
+            content = {'ERROR': 'Not allowed to changed name'}
+            return Response(content, status=status.HTTP_403_FORBIDDEN)
+
+        if "zoneid" in request.data:
+            if self.queryset.filter(zoneid=request.data["zoneid"]).exists() :
+                content = {'ERROR': 'zoneid already in use'}
+                return Response(content, status=status.HTTP_409_CONFLICT)
+
+        if "serialno" in request.data:
+            if self.queryset.filter(serialno=request.data["serialno"]).exists():
+                content = {'ERROR': 'serialno already in use'}
+                return Response(content, status=status.HTTP_409_CONFLICT)
+        try:
+            zone = Zones.objects.get(name=query)
+            serializer = ZonesSerializer(zone, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                location = '/zones/' + zone.name
+                return Response(serializer.data, status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
+        except Zones.DoesNotExist:
+            raise Http404
+
