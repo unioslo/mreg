@@ -20,7 +20,7 @@ class Zones(models.Model):
 
 class Ns(models.Model):
     nsid = models.AutoField(primary_key=True, serialize=True)
-    zoneid = models.ForeignKey('Zones', models.DO_NOTHING, db_column='zoneid')
+    zoneid = models.ForeignKey(Zones, models.DO_NOTHING, db_column='zoneid')
     name = models.TextField()
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
 
@@ -52,7 +52,7 @@ class Hosts(models.Model):
 
 class Ipaddress(models.Model):
     # TODO: Add ForeignKey field for subnet
-    hostid = models.ForeignKey(Hosts, models.DO_NOTHING, db_column='hostid')
+    hostid = models.ForeignKey(Hosts, models.DO_NOTHING, db_column='hostid', related_name='ipaddress')
     ipaddress = models.GenericIPAddressField(unique=True)
     macaddress = models.TextField(blank=True, null=True, validators=[validate_mac_address])
 
@@ -61,7 +61,7 @@ class Ipaddress(models.Model):
 
 
 class PtrOverride(models.Model):
-    hostid = models.ForeignKey(Hosts, models.DO_NOTHING, db_column='hostid')
+    hostid = models.ForeignKey(Hosts, models.DO_NOTHING, db_column='hostid', related_name='ptr_override')
     ipaddress = models.GenericIPAddressField(unique=True)
 
     class Meta:
@@ -70,7 +70,7 @@ class PtrOverride(models.Model):
 
 class Txt(models.Model):
     txtid = models.AutoField(primary_key=True, serialize=True)
-    hostid = models.ForeignKey(Hosts, models.DO_NOTHING, db_column='hostid')
+    hostid = models.ForeignKey(Hosts, models.DO_NOTHING, db_column='hostid', related_name='txt')
     txt = models.TextField()
 
     class Meta:
@@ -78,7 +78,7 @@ class Txt(models.Model):
 
 
 class Cname(models.Model):
-    hostid = models.ForeignKey('Hosts', models.DO_NOTHING, db_column='hostid')
+    hostid = models.ForeignKey(Hosts, models.DO_NOTHING, db_column='hostid', related_name='cname')
     cname = models.TextField()
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
 
@@ -99,7 +99,7 @@ class Subnets(models.Model):
 
 class Naptr(models.Model):
     naptrid = models.AutoField(primary_key=True, serialize=True)
-    hostid = models.ForeignKey('Hosts', models.DO_NOTHING, db_column='hostid')
+    hostid = models.ForeignKey(Hosts, models.DO_NOTHING, db_column='hostid', related_name='naptr')
     preference = models.IntegerField(blank=True, null=True)
     orderv = models.IntegerField(blank=True, null=True)
     flag = models.CharField(max_length=1, blank=True, null=True, validators=[validate_naptr_flag])

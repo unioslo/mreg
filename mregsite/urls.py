@@ -1,6 +1,5 @@
 from django.contrib import admin
 from django.urls import path
-from django.conf.urls import url
 from mreg.api.v1 import views
 from rest_framework.urlpatterns import format_suffix_patterns
 

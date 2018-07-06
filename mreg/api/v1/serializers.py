@@ -14,10 +14,26 @@ class HinfoPresetsSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+class IpaddressSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Ipaddress
+        fields = '__all__'
+
+
+class TxtSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Txt
+        fields = '__all__'
+
+
 class HostsSerializer(serializers.ModelSerializer):
+    ipaddress = IpaddressSerializer(many=True, read_only=True)
+    cname = CnameSerializer(many=True, read_only=True)
+    txt = TxtSerializer(many=True, read_only=True)
+
     class Meta:
         model = Hosts
-        fields = '__all__'
+        fields = ('hostid', 'name', 'contact', 'ttl', 'hinfo', 'loc', 'comment', 'cname', 'ipaddress', 'txt')
 
     def validate(self, data):
         invalid_keys = set(self.initial_data.keys()) - set(self.fields.keys())
@@ -30,12 +46,6 @@ class HostsNameSerializer(serializers.ModelSerializer):
     class Meta:
         model = Hosts
         fields = ('name',)
-
-
-class IpaddressSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Ipaddress
-        fields = '__all__'
 
 
 class NaptrSerializer(serializers.ModelSerializer):
@@ -65,12 +75,6 @@ class SrvSerializer(serializers.ModelSerializer):
 class SubnetsSerializer(serializers.ModelSerializer):
     class Meta:
         model = Subnets
-        fields = '__all__'
-
-
-class TxtSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Txt
         fields = '__all__'
 
 
