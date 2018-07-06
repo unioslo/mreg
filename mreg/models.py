@@ -17,20 +17,6 @@ class Zones(models.Model):
     class Meta:
         db_table = 'zones'
 
-    def clean(self):
-        # TODO: Implement as validation with signal
-        # Make sure refresh, retry, and expire values adhere to database constraints
-        check_refresh = self.refresh > self.retry
-        check_expire = self.expire > self.refresh + self.retry
-        check_retry = self.retry >= 300
-
-        if not check_refresh:
-            raise ValidationError('Refresh may not be less than or equal to retry.')
-        if not check_expire:
-            raise ValidationError('Expire must be greater than retry + refresh ({}).'.format(self.refresh+self.retry))
-        if not check_retry:
-            raise ValidationError('Retry may not be less than 300.')
-
 
 class Ns(models.Model):
     nsid = models.AutoField(primary_key=True, serialize=True)
@@ -65,6 +51,7 @@ class Hosts(models.Model):
 
 
 class Ipaddress(models.Model):
+    # TODO: Add ForeignKey field for subnet
     hostid = models.ForeignKey(Hosts, models.DO_NOTHING, db_column='hostid')
     ipaddress = models.GenericIPAddressField(unique=True)
     macaddress = models.TextField(blank=True, null=True, validators=[validate_mac_address])
@@ -101,7 +88,7 @@ class Cname(models.Model):
 
 class Subnets(models.Model):
     subnetid = models.AutoField(primary_key=True, serialize=True)
-    range = models.TextField()  #TODO Need CIDR support
+    range = models.TextField()  #TODO Need CIDR support?
     description = models.TextField(blank=True, null=True)
     vlan = models.IntegerField(blank=True, null=True)
     dns_delegated = models.NullBooleanField()

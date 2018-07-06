@@ -4,9 +4,10 @@ from mreg.models import *
 from mreg.api.v1.serializers import *
 from rest_framework_extensions.etag.mixins import ETAGMixin
 from rest_framework.response import Response
-from rest_framework.parsers import JSONParser
 from rest_framework import status
 import ipaddress, time
+
+
 
 
 class CnameList(generics.ListCreateAPIView):
@@ -29,9 +30,29 @@ class HinfoPresetsDetail(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = HinfoPresetsSerializer
 
 
-class HostList(generics.ListCreateAPIView):
+class HostList(generics.GenericAPIView):
     queryset = Hosts.objects.all()
     serializer_class = HostsSerializer
+
+    def get(self, request):
+        serializer = HostsNameSerializer(self.get_queryset(), many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        ipaddress = request.data['ipaddress']
+        hostdata = QueryDict.copy(request.data)
+        del hostdata['ipaddress']
+        host = Hosts()
+        hostserializer = HostsSerializer(host, data=hostdata)
+        if hostserializer.is_valid(raise_exception=True):
+            hostserializer.save()
+            location = '/hosts/' + host.name
+            ipdata = {'hostid': host.pk, 'ipaddress': ipaddress}
+            ip = Ipaddress()
+            ipserializer = IpaddressSerializer(ip, data=ipdata)
+            if ipserializer.is_valid(raise_exception=True):
+                ipserializer.save()
+            return Response(hostserializer.data, status=status.HTTP_201_CREATED, headers={'Location': location})
 
 
 class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
@@ -60,7 +81,7 @@ class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
         try:
             host = Hosts.objects.get(name=query)
             serializer = HostsSerializer(host, data=request.data, partial=True)
-            if serializer.is_valid():
+            if serializer.is_valid(raise_exception=True):
                 serializer.save()
                 location = '/hosts/' + host.name
                 return Response(serializer.data, status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
