@@ -3,10 +3,22 @@ from mreg.validators import *
 from django.core.exceptions import ValidationError
 
 
+class Ns(models.Model):
+    # TODO: zoneid-field is likey not necessary at all, since addition of
+    # TODO: nameservers field to Zones model.
+    nsid = models.AutoField(primary_key=True, serialize=True)
+    name = models.TextField()
+    ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
+
+    class Meta:
+        db_table = 'ns'
+
+
 class Zones(models.Model):
     zoneid = models.AutoField(primary_key=True, serialize=True)
     name = models.TextField(unique=True)
     primary_ns = models.TextField()
+    nameservers = models.ManyToManyField(Ns)
     email = models.EmailField(blank=True, null=True)
     serialno = models.BigIntegerField(blank=True, null=True, validators=[validate_zones_serialno])
     refresh = models.IntegerField(blank=True, null=True)
@@ -16,16 +28,6 @@ class Zones(models.Model):
 
     class Meta:
         db_table = 'zones'
-
-
-class Ns(models.Model):
-    nsid = models.AutoField(primary_key=True, serialize=True)
-    zoneid = models.ForeignKey(Zones, models.DO_NOTHING, db_column='zoneid')
-    name = models.TextField()
-    ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
-
-    class Meta:
-        db_table = 'ns'
 
 
 class HinfoPresets(models.Model):
@@ -87,6 +89,7 @@ class Cname(models.Model):
 
 
 class Subnets(models.Model):
+    # TODO: Add boolean field for 'frozen' subnet.
     subnetid = models.AutoField(primary_key=True, serialize=True)
     range = models.TextField()  #TODO Need CIDR support?
     description = models.TextField(blank=True, null=True)

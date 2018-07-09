@@ -513,6 +513,26 @@ class APIHostsTestCase(TestCase):
         response = client.patch('/hosts/%s/' % (self.host_one.name), data)
         self.assertEqual(response.status_code, 409)
 
+class APIIPAddressTestCase(TestCase):
+    """This class defines the test suite for api/hosts"""
+
+    def setUp(self):
+        """Define the test client and other test variables."""
+        self.host_sample = Hosts(name='dette-er-en-host',
+                                 ipaddress='127.0.0.1',
+                                 contact='noen@domene.uio.no')
+        self.patch_data = {'ipaddress': '127.0.0.2'}
+
+    def test_hosts_patch_existing_ipaddress(self):
+        """Patching a specific resource should return 204 and Location"""
+        self.host_sample.save()
+        client = APIClient()
+        response = client.patch('/hosts/127.0.0.1/ipaddress/', data=self.patch_data)
+        control_response = client.get('/hosts/dette-er-en-host/')
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(control_response.data, {'ipaddress': new_ip})
+
+
 class APIZonesTestCase(TestCase):
     """"This class defines the test suite for api/zones """
     def setUp(self):
