@@ -38,7 +38,13 @@ class HostList(generics.GenericAPIView):
         serializer = HostsNameSerializer(self.get_queryset(), many=True)
         return Response(serializer.data)
 
+    # TODO Authentication
     def post(self, request):
+        if "name" in request.data:
+            if self.queryset.filter(name=request.data["name"]).exists():
+                content = {'ERROR': 'name already in use'}
+                return Response(content, status=status.HTTP_409_CONFLICT)
+
         ipaddress = request.data['ipaddress']
         hostdata = QueryDict.copy(request.data)
         del hostdata['ipaddress']
@@ -59,6 +65,7 @@ class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Hosts.objects.all()
     serializer_class = HostsSerializer
 
+    # TODO Authentication
     def get_object(self, queryset=queryset):
         query = self.kwargs['pk']
         try:
@@ -75,8 +82,20 @@ class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
                 raise Http404
         return host
 
+    # TODO Authentication
     def patch(self, request, *args, **kwargs):
         query = self.kwargs['pk']
+
+        if "hostid" in request.data:
+            if self.queryset.filter(hostid=request.data["hostid"]).exists():
+                content = {'ERROR': 'hostid already in use'}
+                return Response(content, status=status.HTTP_409_CONFLICT)
+
+        if "name" in request.data:
+            if self.queryset.filter(name=request.data["name"]).exists():
+                content = {'ERROR': 'name already in use'}
+                return Response(content, status=status.HTTP_409_CONFLICT)
+
         try:
             host = Hosts.objects.get(name=query)
             serializer = HostsSerializer(host, data=request.data, partial=True)

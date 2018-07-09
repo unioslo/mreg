@@ -8,7 +8,7 @@ class ModelHostsTestCase(TestCase):
     """This class defines the test suite for the Host model."""
     def setUp(self):
         """Define the test client and other test variables."""
-        self.host_sample = Hosts(name='some-host',
+        self.host_one = Hosts(name='some-host',
                                  contact='some.email@some.domain.no',
                                  ttl=300,
                                  loc='23 58 23 N 10 43 50 E 80m',
@@ -17,26 +17,26 @@ class ModelHostsTestCase(TestCase):
     def test_model_can_create_a_host(self):
         """Test that the model is able to create a host."""
         old_count = Hosts.objects.count()
-        self.host_sample.save()
+        self.host_one.save()
         new_count = Hosts.objects.count()
         self.assertNotEqual(old_count, new_count)
 
     def test_model_can_change_a_host(self):
         """Test that the model is able to change a host."""
-        self.host_sample.save()
-        old_name = self.host_sample.name
+        self.host_one.save()
+        old_name = self.host_one.name
         new_name = 'some-new-host'
         host_sample_id = Hosts.objects.get(name=old_name).hostid
-        self.host_sample.name = new_name
-        self.host_sample.save()
+        self.host_one.name = new_name
+        self.host_one.save()
         updated_name = Hosts.objects.get(pk=host_sample_id).name
         self.assertEqual(new_name, updated_name)
 
     def test_model_can_delete_a_host(self):
         """Test that the model is able to delete a host."""
-        self.host_sample.save()
+        self.host_one.save()
         old_count = Hosts.objects.count()
-        self.host_sample.delete()
+        self.host_one.delete()
         new_count = Hosts.objects.count()
         self.assertNotEqual(old_count, new_count)
 
@@ -171,7 +171,7 @@ class ModelIpaddressTestCase(TestCase):
     def setUp(self):
         """Define the test client and other test variables."""
         # Needs sample host and sample subnet to test properly
-        self.host_sample = Hosts(name='some-host',
+        self.host_one = Hosts(name='some-host',
                                  contact='some.email@some.domain.no',
                                  ttl=300,
                                  loc='23 58 23 N 10 43 50 E 80m',
@@ -182,7 +182,7 @@ class ModelIpaddressTestCase(TestCase):
                                      vlan=123,
                                      dns_delegated=False)
 
-        self.host_sample.save()
+        self.host_one.save()
         #self.subnet_sample.save() # Needed when subnet ForeignKey is implemented.
 
         self.ipaddress_sample = Ipaddress(hostid=Hosts.objects.get(name='some-host'),
@@ -220,13 +220,13 @@ class ModelPtrOverrideTestCase(TestCase):
     def setUp(self):
         """Define the test client and other test variables."""
         # Needs sample host to test
-        self.host_sample = Hosts(name='some-host',
+        self.host_one = Hosts(name='some-host',
                                  contact='some.email@some.domain.no',
                                  ttl=300,
                                  loc='23 58 23 N 10 43 50 E 80m',
                                  comment='some comment')
 
-        self.host_sample.save()
+        self.host_one.save()
 
         self.ptr_sample = PtrOverride(hostid=Hosts.objects.get(name='some-host'),
                                       ipaddress='129.240.202.123')
@@ -262,13 +262,13 @@ class ModelTxtTestCase(TestCase):
     def setUp(self):
         """Define the test client and other test variables."""
         # Needs sample host to test properly
-        self.host_sample = Hosts(name='some-host',
+        self.host_one = Hosts(name='some-host',
                                  contact='some.email@some.domain.no',
                                  ttl=300,
                                  loc='23 58 23 N 10 43 50 E 80m',
                                  comment='some comment')
 
-        self.host_sample.save()
+        self.host_one.save()
 
         self.txt_sample = Txt(hostid=Hosts.objects.get(name='some-host'),
                               txt='some-text')
@@ -305,13 +305,13 @@ class ModelCnameTestCase(TestCase):
     def setUp(self):
         """Define the test client and other test variables."""
         # Needs sample host to test properly
-        self.host_sample = Hosts(name='some-host',
+        self.host_one = Hosts(name='some-host',
                                  contact='some.email@some.domain.no',
                                  ttl=300,
                                  loc='23 58 23 N 10 43 50 E 80m',
                                  comment='some comment')
 
-        self.host_sample.save()
+        self.host_one.save()
 
         self.cname_sample = Cname(hostid=Hosts.objects.get(name='some-host'),
                                   cname='some-cname',
@@ -348,13 +348,13 @@ class ModelNaptrTestCase(TestCase):
     def setUp(self):
         """Define the test client and other test variables."""
         # Needs sample host to test properly
-        self.host_sample = Hosts(name='some-host',
+        self.host_one = Hosts(name='some-host',
                                  contact='some.email@some.domain.no',
                                  ttl=300,
                                  loc='23 58 23 N 10 43 50 E 80m',
                                  comment='some comment')
 
-        self.host_sample.save()
+        self.host_one.save()
 
         self.naptr_sample = Naptr(hostid=Hosts.objects.get(name='some-host'),
                                   preference=1,
@@ -395,13 +395,13 @@ class ModelSrvTestCase(TestCase):
     def setUp(self):
         """Define the test client and other test variables."""
         # Needs sample host to test properly
-        self.host_sample = Hosts(name='some-host',
+        self.host_one = Hosts(name='some-host',
                                  contact='some.email@some.domain.no',
                                  ttl=300,
                                  loc='23 58 23 N 10 43 50 E 80m',
                                  comment='some comment')
 
-        self.host_sample.save()
+        self.host_one.save()
 
         self.srv_sample = Srv(service='_abc_udp_def',
                               priority=3,
@@ -439,36 +439,79 @@ class APIHostsTestCase(TestCase):
     """This class defines the test suite for api/hosts"""
     def setUp(self):
         """Define the test client and other test variables."""
-        self.host_sample = Hosts(name='dette-er-en-host',
-                                 ipaddress='127.0.0.1',
-                                 contact='ulvik@usit.uio.no')
+        self.host_one = Hosts(name='skrutrekker.uio.no', contact='ulvik@usit.uio.no')
+        self.host_two = Hosts(name='maursluker.uio.no', contact='ulvik@usit.uio.no')
         self.patch_data = {'name': 'nytt-navn', 'contact': 'updated@mail.com'}
+        self.patch_data_name = {'name': 'maursluker.uio.no', 'contact': 'updated@mail.com'}
+        self.post_data = {'name': 'hiquality.uio.no', "ipaddress" : '127.0.0.2', 'contact': 'hostmaster@uio.no'}
+        self.post_data_name = {'name': 'skrutrekker.uio.no', "ipaddress" : '127.0.0.2', 'contact': 'hostmaster@uio.no'}
+
+    def test_hosts_get_200_ok(self):
+        """"Getting an existing entry should return 200"""
+        self.host_one.save()
+        client = APIClient()
+        response = client.get('/hosts/%s/' % (self.host_one.name))
+        self.assertEqual(response.status_code, 200)
+
+    def test_hosts_get_404_not_found(self):
+        """"Getting a non-existing entry should return 404"""
+        self.host_one.save()
+        client = APIClient()
+        response = client.get('/hosts/nonexistent.uio.no/')
+        self.assertEqual(response.status_code, 404)
+
+    def test_hosts_post_201_created(self):
+        """"Posting a new host should return 201 and location"""
+        client = APIClient()
+        response = client.post('/hosts/', self.post_data)
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response['Location'], '/hosts/%s' % (self.post_data['name']))
+
+    def test_hosts_post_409_conflict_name(self):
+        """"Posting a new host with a name already in use should return 409"""
+        self.host_one.save()
+        client = APIClient()
+        response = client.post('/hosts/', self.post_data_name)
+        self.assertEqual(response.status_code, 409)
+
+    def test_hosts_patch_204_no_content(self):
+        """Patching an existing and valid entry should return 204 and Location"""
+        self.host_one.save()
+        client = APIClient()
+        response = client.patch('/hosts/%s/' % (self.host_one.name), self.patch_data)
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(response['Location'], '/hosts/%s' % (self.patch_data['name']))
+
+    def test_hosts_patch_400_bad_request(self):
+        """Patching with invalid data should return 400"""
+        self.host_one.save()
+        client = APIClient()
+        response = client.patch('/hosts/%s/' % (self.host_one.name), data={'this': 'is', 'so': 'wrong'})
+        self.assertEqual(response.status_code, 400)
 
     def test_hosts_patch_404_not_found(self):
         """Patching a non-existing entry should return 404"""
-        self.host_sample.save()
+        self.host_one.save()
         client = APIClient()
         response = client.patch('/hosts/feil-navn/', self.patch_data)
         self.assertEqual(response.status_code, 404)
 
-    def test_hosts_patch_204_no_content(self):
-        """Patching an existing and valid entry should return 204 and Location"""
-        self.host_sample.save()
+    def test_hosts_patch_409_conflict_name(self):
+        """Patching an entry with a name that already exists should return 409"""
+        self.host_one.save()
+        self.host_two.save()
         client = APIClient()
-        response = client.patch('/hosts/dette-er-en-host/', self.patch_data)
-        self.assertEqual(response.status_code, 204)
-        self.assertEqual(response['Location'], '/hosts/nytt-navn')
+        response = client.patch('/hosts/%s/' % (self.host_one.name), self.patch_data_name)
+        self.assertEqual(response.status_code, 409)
 
-    def test_hosts_patch_400_bad_request(self):
-        """Patching with invalid data should return 400"""
-        self.host_sample.save()
+    def test_hosts_patch_409_conflict_hostid(self):
+        """"Patching a host with a name already in use should return 409"""
+        self.host_one.save()
         client = APIClient()
-        response = client.patch('/hosts/dette-er-en-host/', data={'this': 'is', 'so': 'wrong'})
-        resp = client.get('/hosts/dette-er-en-host/')
-        host = Hosts.objects.get(contact='ulvik@usit.uio.no')
-        print(host.name)
-        self.assertEqual(response.status_code, 400)
-
+        response = client.get('/hosts/%s/' % (self.host_one.name))
+        data = {'hostid': response.data['hostid']}
+        response = client.patch('/hosts/%s/' % (self.host_one.name), data)
+        self.assertEqual(response.status_code, 409)
 
 class APIZonesTestCase(TestCase):
     """"This class defines the test suite for api/zones """
@@ -526,25 +569,25 @@ class APIZonesTestCase(TestCase):
         self.assertEqual(response.status_code, 409)
 
     def test_zones_post_201_created(self):
-        """"Posting a new zone should return 201"""
+        """"Posting a new zone should return 201 and location"""
         client = APIClient()
         response = client.post('/zones/', self.post_data_one)
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(response['Location'], '/zones/hf.uio.no')
+        self.assertEqual(response['Location'], '/zones/%s' % (self.post_data_one['name']))
 
     def test_zones_post_serialno(self):
         """serialno should be based on the current date and a sequential number"""
         client = APIClient()
         client.post('/zones/', self.post_data_one)
         client.post('/zones/', self.post_data_two)
-        response = client.get('/zones/sv.uio.no/')
+        response = client.get('/zones/%s/' % (self.post_data_two['name']))
         self.assertEqual(response.data['serialno'], int("%s%02d" % (time.strftime('%Y%m%d'), 2)))
 
     def test_zones_patch_403_forbidden_name(self):
         """"Trying to patch the name of an entry should return 403"""
         self.zone_one.save()
         client = APIClient()
-        response = client.patch('/zones/matnat.uio.no/', self.patch_data_with_name)
+        response = client.patch('/zones/%s/' % (self.zone_one.name), self.patch_data_with_name)
         self.assertEqual(response.status_code, 403)
 
     def test_zones_patch_404_not_found(self):
@@ -558,28 +601,28 @@ class APIZonesTestCase(TestCase):
         """"Patching a entry with a zoneid already in use should return 409"""
         self.zone_one.save()
         client = APIClient()
-        response = client.patch('/zones/matnat.uio.no/', self.patch_data_with_zoneid_in_use)
+        response = client.patch('/zones/%s/' % (self.zone_one.name), self.patch_data_with_zoneid_in_use)
         self.assertEqual(response.status_code, 409)
 
     def test_zones_patch_409_conflict_serialno(self):
         """"Patching a entry with a serialno already in use should return 409"""
         self.zone_one.save()
         client = APIClient()
-        response = client.patch('/zones/matnat.uio.no/', self.patch_data_with_serialno_in_use)
+        response = client.patch('/zones/%s/' % (self.zone_one.name), self.patch_data_with_serialno_in_use)
         self.assertEqual(response.status_code, 409)
 
     def test_zones_patch_204_no_content(self):
         """"Patching an existing entry with valid data should return 204"""
         self.zone_one.save()
         client = APIClient()
-        response = client.patch('/zones/matnat.uio.no/', self.patch_data)
+        response = client.patch('/zones/%s/' % (self.zone_one.name), self.patch_data)
         self.assertEqual(response.status_code, 204)
 
     def test_zones_delete_204_no_content(self):
         """"Deleting an existing entry with no conflicts should return 204"""
         self.zone_one.save()
         client = APIClient()
-        response = client.delete('/zones/matnat.uio.no/')
+        response = client.delete('/zones/%s/' % (self.zone_one.name))
         self.assertEqual(response.status_code, 204)
 
     def test_zones_404_not_found(self):
