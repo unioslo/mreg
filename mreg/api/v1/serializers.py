@@ -1,3 +1,4 @@
+from django.contrib.sessions.backends.base import CreateError
 from rest_framework import serializers
 from mreg.models import *
 
@@ -79,6 +80,15 @@ class SubnetsSerializer(serializers.ModelSerializer):
 
 
 class ZonesSerializer(serializers.ModelSerializer):
+    nameservers = NsSerializer(read_only=True, many=True)
+
     class Meta:
         model = Zones
         fields = '__all__'
+
+    def create(self):
+        return Zones(**self.validated_data)
+
+
+
+

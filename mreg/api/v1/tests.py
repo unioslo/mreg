@@ -98,8 +98,7 @@ class ModelNsTestCase(TestCase):
 
         self.zone_sample.save()
 
-        self.ns_sample = Ns(zoneid=Zones.objects.get(name='some-zone'),
-                            name='some-ns-server.uio.no',
+        self.ns_sample = Ns(name='some-ns-server.uio.no',
                             ttl=300)
 
     def test_model_can_create_ns(self):
@@ -445,17 +444,17 @@ class APIHostsTestCase(TestCase):
         self.patch_data_name = {'name': 'maursluker.uio.no', 'contact': 'updated@mail.com'}
         self.post_data = {'name': 'hiquality.uio.no', "ipaddress" : '127.0.0.2', 'contact': 'hostmaster@uio.no'}
         self.post_data_name = {'name': 'skrutrekker.uio.no', "ipaddress" : '127.0.0.2', 'contact': 'hostmaster@uio.no'}
+        self.host_one.save()
+        self.host_two.save()
 
     def test_hosts_get_200_ok(self):
         """"Getting an existing entry should return 200"""
-        self.host_one.save()
         client = APIClient()
         response = client.get('/hosts/%s/' % (self.host_one.name))
         self.assertEqual(response.status_code, 200)
 
     def test_hosts_get_404_not_found(self):
         """"Getting a non-existing entry should return 404"""
-        self.host_one.save()
         client = APIClient()
         response = client.get('/hosts/nonexistent.uio.no/')
         self.assertEqual(response.status_code, 404)
@@ -469,76 +468,47 @@ class APIHostsTestCase(TestCase):
 
     def test_hosts_post_409_conflict_name(self):
         """"Posting a new host with a name already in use should return 409"""
-        self.host_one.save()
         client = APIClient()
         response = client.post('/hosts/', self.post_data_name)
         self.assertEqual(response.status_code, 409)
 
     def test_hosts_patch_204_no_content(self):
         """Patching an existing and valid entry should return 204 and Location"""
-        self.host_one.save()
         client = APIClient()
         response = client.patch('/hosts/%s/' % (self.host_one.name), self.patch_data)
         self.assertEqual(response.status_code, 204)
-        self.assertEqual(response['Location'], '/hosts/%s' % (self.patch_data['name']))
+        self.assertEqual(response['Location'], '/hosts/%s' % (response.data['name']))
 
     def test_hosts_patch_400_bad_request(self):
         """Patching with invalid data should return 400"""
-        self.host_one.save()
         client = APIClient()
         response = client.patch('/hosts/%s/' % (self.host_one.name), data={'this': 'is', 'so': 'wrong'})
         self.assertEqual(response.status_code, 400)
 
     def test_hosts_patch_404_not_found(self):
         """Patching a non-existing entry should return 404"""
-        self.host_one.save()
         client = APIClient()
         response = client.patch('/hosts/feil-navn/', self.patch_data)
         self.assertEqual(response.status_code, 404)
 
     def test_hosts_patch_409_conflict_name(self):
         """Patching an entry with a name that already exists should return 409"""
-        self.host_one.save()
-        self.host_two.save()
         client = APIClient()
-        response = client.patch('/hosts/%s/' % (self.host_one.name), self.patch_data_name)
+        response = client.patch('/hosts/%s/' % (self.host_one.name), {'name': self.host_two.name})
         self.assertEqual(response.status_code, 409)
 
     def test_hosts_patch_409_conflict_hostid(self):
         """"Patching a host with a name already in use should return 409"""
-        self.host_one.save()
         client = APIClient()
         response = client.get('/hosts/%s/' % (self.host_one.name))
-        data = {'hostid': response.data['hostid']}
-        response = client.patch('/hosts/%s/' % (self.host_one.name), data)
+        response = client.patch('/hosts/%s/' % (self.host_one.name), {'hostid': response.data['hostid']})
         self.assertEqual(response.status_code, 409)
-
-class APIIPAddressTestCase(TestCase):
-    """This class defines the test suite for api/hosts"""
-
-    def setUp(self):
-        """Define the test client and other test variables."""
-        self.host_sample = Hosts(name='dette-er-en-host',
-                                 ipaddress='127.0.0.1',
-                                 contact='noen@domene.uio.no')
-        self.patch_data = {'ipaddress': '127.0.0.2'}
-
-    def test_hosts_patch_existing_ipaddress(self):
-        """Patching a specific resource should return 204 and Location"""
-        self.host_sample.save()
-        client = APIClient()
-        response = client.patch('/hosts/127.0.0.1/ipaddress/', data=self.patch_data)
-        control_response = client.get('/hosts/dette-er-en-host/')
-        self.assertEqual(response.status_code, 204)
-        self.assertEqual(control_response.data, {'ipaddress': new_ip})
-
 
 class APIZonesTestCase(TestCase):
     """"This class defines the test suite for api/zones """
     def setUp(self):
         """Define the test client ant other variables."""
         self.zone_one = Zones(
-            zoneid=1,
             name="matnat.uio.no",
             primary_ns="ns1.uio.no",
             email="hostmaster@uio.no",
@@ -548,44 +518,32 @@ class APIZonesTestCase(TestCase):
             expire=800,
             ttl=300
         )
-        self.zone_two = Zones(
-            zoneid=2,
-            name="uv.uio.no",
-            primary_ns="ns1.uio.no",
-            email="hostmaster@uio.no",
-            serialno="2018070501",
-            refresh=400,
-            retry=300,
-            expire=800,
-            ttl=300
-        )
-        self.post_data_with_taken_name = {'name': 'matnat.uio.no', 'ns': ['ns1.uio.no'], 'email': 'hostmaster@uio.no', 'refresh': 400, 'retry': 300, 'expire': 800, 'ttl': 350}
-        self.post_data_one = {'name': 'hf.uio.no', 'ns': ['ns1.uio.no'], 'email': 'hostmaster@uio.no', 'refresh': 400, 'retry': 300, 'expire': 800, 'ttl': 350}
-        self.post_data_two = {'name': 'sv.uio.no', 'ns': ['ns1.uio.no'], 'email': 'hostmaster@uio.no', 'refresh': 400, 'retry': 300, 'expire': 800, 'ttl': 350}
-        self.patch_data_with_name = {'name': 'new-name', 'contact': 'updated@mail.com'}
-        self.patch_data_with_serialno_in_use = {'serialno': '2018070500', 'contact': 'updated@mail.com'}
-        self.patch_data_with_zoneid_in_use = {'zoneid': '1', 'contact': 'updated@mail.com'}
+        self.ns_one = Ns(name='ns1.uio.no', ttl=400)
+        self.ns_two = Ns(name='ns2.uio.no', ttl=400)
+        self.post_data_one = {'name': 'hf.uio.no', 'nameservers': ['ns1.uio.no', 'ns2.uio.no'], 'email': 'hostmaster@uio.no', 'refresh': 400, 'retry': 300, 'expire': 800, 'ttl': 350}
+        self.post_data_two = {'name': 'sv.uio.no', 'nameservers': ['ns1.uio.no', 'ns2.uio.no'], 'email': 'hostmaster@uio.no', 'refresh': 400, 'retry': 300, 'expire': 800, 'ttl': 350}
         self.patch_data = {'refresh': '500', 'expire': '1000'}
+        self.ns_one.save()
+        self.ns_two.save()
+        self.zone_one.save()
 
     def test_zones_get_404_not_found(self):
         """"Getting a non-existing entry should return 404"""
-        self.zone_one.save()
         client = APIClient()
         response = client.get('/zones/nonexisting.uio.no/')
         self.assertEqual(response.status_code, 404)
 
     def test_zones_get_200_ok(self):
         """"Getting an existing entry should return 200"""
-        self.zone_one.save()
         client = APIClient()
-        response = client.get('/zones/matnat.uio.no/')
+        response = client.get('/zones/%s/' % (self.zone_one.name))
         self.assertEqual(response.status_code, 200)
 
     def test_zones_post_409_name_conflict(self):
         """"Posting a entry that uses a name that is already taken should return 409"""
-        self.zone_one.save()
         client = APIClient()
-        response = client.post('/zones/', self.post_data_with_taken_name)
+        response = client.patch('/zones/%s/' % (self.zone_one.name))
+        response = client.post('/zones/', {'name' : response.data['name']})
         self.assertEqual(response.status_code, 409)
 
     def test_zones_post_201_created(self):
@@ -605,42 +563,39 @@ class APIZonesTestCase(TestCase):
 
     def test_zones_patch_403_forbidden_name(self):
         """"Trying to patch the name of an entry should return 403"""
-        self.zone_one.save()
         client = APIClient()
-        response = client.patch('/zones/%s/' % (self.zone_one.name), self.patch_data_with_name)
+        response = client.patch('/zones/%s/' % (self.zone_one.name))
+        response = client.patch('/zones/%s/' % (self.zone_one.name), {'name' : response.data['name']})
         self.assertEqual(response.status_code, 403)
 
     def test_zones_patch_404_not_found(self):
         """"Patching a non-existing entry should return 404"""
-        self.zone_one.save()
         client = APIClient()
         response = client.patch('/zones/nonexisting.uio.no/', self.patch_data)
         self.assertEqual(response.status_code, 404)
 
     def test_zones_patch_409_conflict_zoneid(self):
         """"Patching a entry with a zoneid already in use should return 409"""
-        self.zone_one.save()
         client = APIClient()
-        response = client.patch('/zones/%s/' % (self.zone_one.name), self.patch_data_with_zoneid_in_use)
+        response = client.patch('/zones/%s/' % (self.zone_one.name))
+        response = client.patch('/zones/%s/' % (self.zone_one.name), {'zoneid' : response.data['zoneid']})
         self.assertEqual(response.status_code, 409)
 
     def test_zones_patch_409_conflict_serialno(self):
         """"Patching a entry with a serialno already in use should return 409"""
-        self.zone_one.save()
         client = APIClient()
-        response = client.patch('/zones/%s/' % (self.zone_one.name), self.patch_data_with_serialno_in_use)
+        response = client.patch('/zones/%s/' % (self.zone_one.name))
+        response = client.patch('/zones/%s/' % (self.zone_one.name), {'serialno' : response.data['serialno']})
         self.assertEqual(response.status_code, 409)
 
     def test_zones_patch_204_no_content(self):
         """"Patching an existing entry with valid data should return 204"""
-        self.zone_one.save()
         client = APIClient()
         response = client.patch('/zones/%s/' % (self.zone_one.name), self.patch_data)
         self.assertEqual(response.status_code, 204)
 
     def test_zones_delete_204_no_content(self):
         """"Deleting an existing entry with no conflicts should return 204"""
-        self.zone_one.save()
         client = APIClient()
         response = client.delete('/zones/%s/' % (self.zone_one.name))
         self.assertEqual(response.status_code, 204)
