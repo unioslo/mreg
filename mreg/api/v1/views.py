@@ -32,8 +32,22 @@ class HostList(generics.GenericAPIView):
     queryset = Hosts.objects.all()
     serializer_class = HostsSerializer
 
-    def get(self, request):
-        serializer = HostsNameSerializer(self.get_queryset(), many=True)
+    def get(self, request, *args, **kwargs):
+        hosts = self.get_queryset()
+        if request.GET.get('hostid'):
+            hosts = hosts.filter(hostid=request.GET.get('hostid'))
+        if request.GET.get('contact'):
+            hosts = hosts.filter(contact=request.GET.get('contact'))
+        if request.GET.get('ttl'):
+            hosts = hosts.filter(ttl=request.GET.get('ttl'))
+        if request.GET.get('loc'):
+            hosts = hosts.filter(loc=request.GET.get('loc'))
+        if request.GET.get('comment'):
+            hosts = hosts.filter(comment=request.GET.get('comment'))
+        if request.GET.get('hinfo'):
+            hosts = hosts.filter(hinfo__hinfoid=request.GET.get('comment'))
+
+        serializer = HostsNameSerializer(hosts, many=True)
         return Response(serializer.data)
 
     # TODO Authentication
@@ -65,6 +79,7 @@ class HostList(generics.GenericAPIView):
                 hostserializer.save()
                 location = '/hosts/' + host.name
                 return Response(hostserializer.data, status=status.HTTP_201_CREATED, headers={'Location': location})
+
 
 class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Hosts.objects.all()
