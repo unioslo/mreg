@@ -8,9 +8,6 @@ from rest_framework.response import Response
 from rest_framework import status
 import ipaddress, time
 
-
-
-
 class CnameList(generics.ListCreateAPIView):
     queryset = Cname.objects.all()
     serializer_class = CnameSerializer
@@ -46,21 +43,28 @@ class HostList(generics.GenericAPIView):
                 content = {'ERROR': 'name already in use'}
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
-        ipaddress = request.data['ipaddress']
-        hostdata = QueryDict.copy(request.data)
-        del hostdata['ipaddress']
-        host = Hosts()
-        hostserializer = HostsSerializer(host, data=hostdata)
-        if hostserializer.is_valid(raise_exception=True):
-            hostserializer.save()
-            location = '/hosts/' + host.name
-            ipdata = {'hostid': host.pk, 'ipaddress': ipaddress}
-            ip = Ipaddress()
-            ipserializer = IpaddressSerializer(ip, data=ipdata)
-            if ipserializer.is_valid(raise_exception=True):
-                ipserializer.save()
-            return Response(hostserializer.data, status=status.HTTP_201_CREATED, headers={'Location': location})
-
+        if 'ipaddress' in request.data:
+            ipaddress = request.data['ipaddress']
+            hostdata = QueryDict.copy(request.data)
+            del hostdata['ipaddress']
+            host = Hosts()
+            hostserializer = HostsSerializer(host, data=hostdata)
+            if hostserializer.is_valid(raise_exception=True):
+                hostserializer.save()
+                location = '/hosts/' + host.name
+                ipdata = {'hostid': host.pk, 'ipaddress': ipaddress}
+                ip = Ipaddress()
+                ipserializer = IpaddressSerializer(ip, data=ipdata)
+                if ipserializer.is_valid(raise_exception=True):
+                    ipserializer.save()
+                return Response(hostserializer.data, status=status.HTTP_201_CREATED, headers={'Location': location})
+        else:
+            host = Hosts()
+            hostserializer = HostsSerializer(host, data=request.data)
+            if hostserializer.is_valid(raise_exception=True):
+                hostserializer.save()
+                location = '/hosts/' + host.name
+                return Response(hostserializer.data, status=status.HTTP_201_CREATED, headers={'Location': location})
 
 class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Hosts.objects.all()
