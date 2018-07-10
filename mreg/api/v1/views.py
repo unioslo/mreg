@@ -111,6 +111,7 @@ class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
         except Hosts.DoesNotExist:
             raise Http404
 
+
 class IpaddressList(generics.ListCreateAPIView):
     queryset = Ipaddress.objects.all()
     serializer_class = IpaddressSerializer
