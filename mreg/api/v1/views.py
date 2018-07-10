@@ -1,4 +1,5 @@
-from rest_framework import generics, status, mixins
+from rest_framework import generics
+from rest_framework.renderers import JSONRenderer
 from django.http import Http404, QueryDict
 from mreg.models import *
 from mreg.api.v1.serializers import *
@@ -178,6 +179,7 @@ class TxtDetail(generics.RetrieveUpdateDestroyAPIView):
 
 class ZonesList(generics.ListCreateAPIView):
     queryset = Zones.objects.all()
+    ns_set = Ns.objects.all()
     serializer_class = ZonesSerializer
     count_day = int(time.strftime('%Y%m%d'))
     count = 0
@@ -193,14 +195,24 @@ class ZonesList(generics.ListCreateAPIView):
             return Response(content, status=status.HTTP_409_CONFLICT)
 
         data = request.data.copy()
-        data['primary_ns'] = request.data['ns'][0]
+        data['primary_ns'] = data['nameservers'] if isinstance(request.data['nameservers'], str) else data['nameservers'][0]
         data['serialno'] = "%s%02d" % (time.strftime('%Y%m%d'), self.count)
         ZonesList.count += 1
 
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers={'Location': '/zones/%s' % data['name']})
+        zone = serializer.create()
+        zone.save()
+
+        for nameserver in request.POST.getlist('nameservers'):
+            try:
+                ns = self.ns_set.get(name=nameserver)
+                zone.nameservers.add(ns.nsid)
+            except Ns.DoesNotExist:
+                print('ERROR Could not find NS: %s\n' % (nameserver))
+                return Response({'ERROR': 'Could not find NS: %s' % (nameserver)}, status=status.HTTP_404_NOT_FOUND)
+        zone.save()
+        return Response(self.get_serializer(zone).data, status=status.HTTP_201_CREATED, headers={'Location': '/zones/%s' % data['name']})
 
 
 class ZonesDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
