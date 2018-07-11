@@ -1,6 +1,5 @@
 from django.db import models
 from mreg.validators import *
-from django.core.exceptions import ValidationError
 
 
 class Ns(models.Model):
