@@ -26,12 +26,12 @@ urlpatterns = [
     path('srvs/', views.SrvList.as_view()),
     path('srvs/<pk>/', views.SrvDetail.as_view()),
     path('subnets/', views.SubnetsList.as_view()),
-    path('subnets/<pk>/', views.SubnetsDetail.as_view()),
+    path('subnets/<range>/', views.SubnetsDetail.as_view()),
     path('txts/', views.TxtList.as_view()),
     path('txts/<pk>/', views.TxtDetail.as_view()),
     path('zones/', views.ZonesList.as_view()),
-    path('zones/<pk>/', views.ZonesDetail.as_view()),
-    path('zones/<pk>/nameservers/', views.ZonesNsDetail.as_view()),
+    path('zones/<name>/', views.ZonesDetail.as_view()),
+    path('zones/<name>/nameservers/', views.ZonesNsDetail.as_view()),
     path('admin/', admin.site.urls),
 ]
 
