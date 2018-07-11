@@ -684,6 +684,7 @@ class APIZonesNsTestCase(TestCase):
         response = client.delete('/zones/%s/nameservers/' % (self.post_data['name']), {'name' : 'ns3.uio.no'} )
         self.assertEqual(response.status_code, 404)
 
+
 class APINameserversTestCase(TestCase):
     """"This class defines the test suite for api/zones """
     def setUp(self):
