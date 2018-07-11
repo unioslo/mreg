@@ -8,7 +8,7 @@ class Ns(models.Model):
     # TODO: nameservers field to Zones model.
     nsid = models.AutoField(primary_key=True, serialize=True)
     name = models.TextField(unique=True)
-    ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
+    ttl = models.IntegerField(blank=True, null=True)
 
     class Meta:
         db_table = 'ns'
@@ -24,7 +24,7 @@ class Zones(models.Model):
     refresh = models.IntegerField(blank=True, null=True)
     retry = models.IntegerField(blank=True, null=True)
     expire = models.IntegerField(blank=True, null=True)
-    ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
+    ttl = models.IntegerField(blank=True, null=True)
 
     class Meta:
         db_table = 'zones'
@@ -43,7 +43,7 @@ class Hosts(models.Model):
     hostid = models.AutoField(primary_key=True, serialize=True)
     name = models.TextField(unique=True)
     contact = models.EmailField()
-    ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
+    ttl = models.IntegerField(blank=True, null=True)
     hinfo = models.ForeignKey(HinfoPresets, models.DO_NOTHING, db_column='hinfo', blank=True, null=True)
     loc = models.TextField(blank=True, null=True, validators=[validate_loc])
     comment = models.TextField(blank=True, null=True)
@@ -82,7 +82,7 @@ class Txt(models.Model):
 class Cname(models.Model):
     hostid = models.ForeignKey(Hosts, models.DO_NOTHING, db_column='hostid', related_name='cname')
     cname = models.TextField()
-    ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
+    ttl = models.IntegerField(blank=True, null=True)
 
     class Meta:
         db_table = 'cname'
@@ -120,7 +120,7 @@ class Srv(models.Model):
     priority = models.IntegerField(blank=True, null=True)
     weight = models.IntegerField(blank=True, null=True)
     port = models.IntegerField(blank=True, null=True)
-    ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
+    ttl = models.IntegerField(blank=True, null=True)
     target = models.TextField(blank=True, null=True)
 
     class Meta:

@@ -45,7 +45,7 @@ class HostList(generics.GenericAPIView):
         if request.GET.get('comment'):
             hosts = hosts.filter(comment=request.GET.get('comment'))
         if request.GET.get('hinfo'):
-            hosts = hosts.filter(hinfo__hinfoid=request.GET.get('comment'))
+            hosts = hosts.filter(hinfo__hinfoid=request.GET.get('hinfo'))
 
         serializer = HostsNameSerializer(hosts, many=True)
         return Response(serializer.data)
