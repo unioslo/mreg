@@ -31,6 +31,7 @@ urlpatterns = [
     path('txts/<pk>/', views.TxtDetail.as_view()),
     path('zones/', views.ZonesList.as_view()),
     path('zones/<pk>/', views.ZonesDetail.as_view()),
+    path('zones/<pk>/nameservers/', views.ZonesNsDetail.as_view()),
     path('admin/', admin.site.urls),
 ]
 

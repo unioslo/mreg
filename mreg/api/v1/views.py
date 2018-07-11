@@ -155,7 +155,6 @@ class NsDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = Ns.objects.all()
     serializer_class = NsSerializer
 
-
 class PtrOverrideList(generics.ListCreateAPIView):
     queryset = PtrOverride.objects.all()
     serializer_class = PtrOverrideSerializer
@@ -198,7 +197,7 @@ class TxtDetail(generics.RetrieveUpdateDestroyAPIView):
 
 class ZonesList(generics.ListCreateAPIView):
     queryset = Zones.objects.all()
-    ns_set = Ns.objects.all()
+    queryset_ns = Ns.objects.all()
     serializer_class = ZonesSerializer
     count_day = int(time.strftime('%Y%m%d'))
     count = 0
@@ -225,7 +224,7 @@ class ZonesList(generics.ListCreateAPIView):
 
         for nameserver in request.POST.getlist('nameservers'):
             try:
-                ns = self.ns_set.get(name=nameserver)
+                ns = self.queryset_ns.get(name=nameserver)
                 zone.nameservers.add(ns.nsid)
             except Ns.DoesNotExist:
                 print('ERROR Could not find NS: %s\n' % (nameserver))
@@ -266,7 +265,7 @@ class ZonesDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
                 return Response(content, status=status.HTTP_409_CONFLICT)
         try:
             zone = Zones.objects.get(name=query)
-            serializer = ZonesSerializer(zone, data=request.data, partial=True)
+            serializer = self.get_serializer(zone, data=request.data, partial=True)
             if serializer.is_valid():
                 serializer.save()
                 location = '/zones/' + zone.name
@@ -274,3 +273,49 @@ class ZonesDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
         except Zones.DoesNotExist:
             raise Http404
 
+class ZonesNsDetail(ETAGMixin, generics.GenericAPIView):
+    queryset_zones = Zones.objects.all()
+    queryset_ns = Ns.objects.all()
+
+    # TODO Authorization
+    def get(self, request, *args, **kwargs):
+        query = self.kwargs['pk']
+        try:
+            zone = self.queryset_zones.get(name=query)
+            return Response(NsSerializer(zone.nameservers.all(), many=True).data, status=status.HTTP_200_OK)
+        except Zones.DoesNotExist:
+            raise Http404
+
+    # TODO Authorization
+    def patch(self, request, *args, **kwargs):
+        query = self.kwargs['pk']
+        try:
+            zone = self.queryset_zones.get(name=query)
+            try:
+                if 'name' not in request.data:
+                    return Response({'ERROR': 'No NS name found in body'}, status=status.HTTP_400_BAD_REQUEST)
+                ns = self.queryset_ns.get(name=request.data['name'])
+                zone.nameservers.add(ns)
+                zone.save()
+                return Response(ZonesSerializer(zone).data, status=status.HTTP_204_NO_CONTENT)
+            except Ns.DoesNotExist:
+                return Response({'ERROR': 'Could not find Zone'}, status=status.HTTP_404_NOT_FOUND)
+        except Zones.DoesNotExist:
+            raise Http404
+
+    # TODO Authorization
+    def delete(self, request, *args, **kwargs):
+        query = self.kwargs['pk']
+        try:
+            zone = self.queryset_zones.get(name=query)
+            try:
+                if 'name' not in request.data:
+                    return Response({'ERROR': 'No NS name found in body'}, status=status.HTTP_400_BAD_REQUEST)
+                ns = self.queryset_ns.get(name=request.data['name'])
+                zone.nameservers.add(ns)
+                zone.save()
+                return Response(ZonesSerializer(zone).data, status=status.HTTP_204_NO_CONTENT)
+            except Ns.DoesNotExist:
+                return Response({'ERROR': 'Could not find NS'}, status=status.HTTP_404_NOT_FOUND)
+        except Zones.DoesNotExist:
+            raise Http404
