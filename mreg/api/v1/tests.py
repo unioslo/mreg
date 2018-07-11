@@ -704,3 +704,44 @@ class APINameserversTestCase(TestCase):
         self.assertEqual(response.status_code, 204)
         response = client.get('/zones/%s/' % (self.post_data['name']))
         self.assertEqual(response.data['nameservers'], [])
+
+class APISubnetsTestCase(TestCase):
+    """"This class defines the test suite for api/subnets """
+    def setUp(self):
+        """Define the test client and other variables."""
+        self.post_data = {
+            'range': '192.0.2.0/29',
+            'description': 'Test subnet',
+            'vlan': '435',
+            'dns_delegated': 'False',
+        }
+        self.post_data_bad_ip = {
+            'range': '192.0.2.0.95/29',
+            'description': 'Test subnet',
+            'vlan': '435',
+            'dns_delegated': 'False',
+        }
+        self.post_data_bad_mask = {
+            'range': '192.0.2.0/2549',
+            'description': 'Test subnet',
+            'vlan': '435',
+            'dns_delegated': 'False',
+        }
+
+    def test_subnests_post_204_no_content(self):
+        """Posting a subnet should return 201"""
+        client = APIClient()
+        response = client.post('/subnets/', self.post_data)
+        self.assertEqual(response.status_code, 201)
+
+    def test_subnests_post_400_bad_request_ip(self):
+        """Posting a subnet with a range that has a malformed IP should return 400"""
+        client = APIClient()
+        response = client.post('/subnets/', self.post_data_bad_ip)
+        self.assertEqual(response.status_code, 400)
+
+    def test_subnests_post_400_bad_request_mask(self):
+        """Posting a subnet with a range that has a malformed mask should return 400"""
+        client = APIClient()
+        response = client.post('/subnets/', self.post_data_bad_mask)
+        self.assertEqual(response.status_code, 400)
