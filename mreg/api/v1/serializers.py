@@ -42,6 +42,7 @@ class CnameSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         key_validate(self)
+        data = {key: nonify(value) for key, value in data.items()}
         return data
 
     def validate_ttl(self, value):
@@ -59,6 +60,7 @@ class HinfoPresetsSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         key_validate(self)
+        data = {key: nonify(value) for key, value in data.items()}
         return data
 
 class IpaddressSerializer(serializers.ModelSerializer):
@@ -68,6 +70,7 @@ class IpaddressSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         key_validate(self)
+        data = {key: nonify(value) for key, value in data.items()}
         return data
 
 
@@ -78,6 +81,7 @@ class TxtSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         key_validate(self)
+        data = {key: nonify(value) for key, value in data.items()}
         return data
 
 
@@ -92,6 +96,7 @@ class HostsSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         key_validate(self)
+        data = {key: nonify(value) for key, value in data.items()}
         return data
 
     def validate_ttl(self, value):
@@ -110,6 +115,7 @@ class HostsNameSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         key_validate(self)
+        data = {key: nonify(value) for key, value in data.items()}
         return data
 
 
@@ -120,6 +126,7 @@ class NaptrSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         key_validate(self)
+        data = {key: nonify(value) for key, value in data.items()}
         return data
 
 
@@ -143,6 +150,7 @@ class PtrOverrideSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         key_validate(self)
+        data = {key: nonify(value) for key, value in data.items()}
         return data
 
 
@@ -166,6 +174,7 @@ class SubnetsSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         key_validate(self)
+        data = {key: nonify(value) for key, value in data.items()}
         return data
 
 
@@ -178,6 +187,7 @@ class ZonesSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         key_validate(self)
+        data = {key: nonify(value) for key, value in data.items()}
         return data
 
     def create(self):
