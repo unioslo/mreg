@@ -232,7 +232,7 @@ class SrvDetail(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = SrvSerializer
 
 
-class SubnetsList(generics.CreateAPIView):
+class SubnetsList(generics.ListCreateAPIView):
     queryset = Subnets.objects.all()
     serializer_class = SubnetsSerializer
 
@@ -249,7 +249,41 @@ class SubnetsList(generics.CreateAPIView):
 class SubnetsDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = Subnets.objects.all()
     serializer_class = SubnetsSerializer
-    lookup_field = 'range'
+
+    def get_object(self, queryset=queryset):
+        ip = self.kwargs['ip']
+        mask = self.kwargs['mask']
+        range_in = ip + '/' + mask
+        try:
+            ipaddress.IPv4Network(range_in)
+            try:
+                found_subnet = Subnets.objects.get(range=range_in)
+                return found_subnet
+            except Subnets.DoesNotExist:
+                raise Http404
+        except ipaddress.AddressValueError:
+            raise ValueError
+        except ipaddress.NetmaskValueError:
+            raise ValueError
+
+    def get(self, queryset=queryset, *args, **kwargs):
+        ip = self.kwargs['ip']
+        mask = self.kwargs['mask']
+        range_in = ip + '/' + mask
+        try:
+            ipaddress.IPv4Network(range_in)
+            try:
+
+                found_subnet = Subnets.objects.get(range=range_in)
+                serializer = self.get_serializer(data=found_subnet)
+                serializer.is_valid(raise_exception=True)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            except Subnets.DoesNotExist:
+                raise Http404
+        except ipaddress.AddressValueError:
+            return Response({'ERROR': 'Not a valid IP address'}, status=status.HTTP_400_BAD_REQUEST)
+        except ipaddress.NetmaskValueError:
+            return Response({'ERROR': 'Not a valid net mask'}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class TxtList(generics.ListCreateAPIView):

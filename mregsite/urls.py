@@ -3,11 +3,6 @@ from django.urls import path
 from mreg.api.v1 import views
 from rest_framework.urlpatterns import format_suffix_patterns
 
-# Ex: Making a new IP address is a POST request to /ipaddresses
-#     Changing an existing IP address is a PATCH request to /ipaddresses/<ip>/
-#
-# Equivalent for other fields.
-
 urlpatterns = [
     path('cnames/', views.CnameList.as_view()),
     path('cnames/<pk>/', views.CnameDetail.as_view()),
@@ -26,7 +21,7 @@ urlpatterns = [
     path('srvs/', views.SrvList.as_view()),
     path('srvs/<pk>/', views.SrvDetail.as_view()),
     path('subnets/', views.SubnetsList.as_view()),
-    path('subnets/<range>/', views.SubnetsDetail.as_view()),
+    path('subnets/<ip>/<mask>/', views.SubnetsDetail.as_view()),
     path('txts/', views.TxtList.as_view()),
     path('txts/<pk>/', views.TxtDetail.as_view()),
     path('zones/', views.ZonesList.as_view()),
