@@ -504,6 +504,7 @@ class APIHostsTestCase(TestCase):
         response = client.patch('/hosts/%s/' % (self.host_one.name), {'hostid': response.data['hostid']})
         self.assertEqual(response.status_code, 409)
 
+
 class APIZonesTestCase(TestCase):
     """"This class defines the test suite for api/zones """
     def setUp(self):
@@ -610,6 +611,7 @@ class APIZonesTestCase(TestCase):
     def test_zones_403_forbidden(self):
         """"Deleting an entry with registered entries should require force"""
 
+
 class APIZonesNsTestCase(TestCase):
     """"This class defines the test suite for api/zones/<name>/nameservers/ """
     def setUp(self):
@@ -706,6 +708,92 @@ class APINameserversTestCase(TestCase):
         response = client.get('/zones/%s/' % (self.post_data['name']))
         self.assertEqual(response.data['nameservers'], [])
 
+
+class APIIPaddressesTestCase(TestCase):
+    """This class defines the test suite for api/ipaddresses
+    """
+
+    def setUp(self):
+        """Define the test client and other test variables."""
+        self.client = APIClient()
+        self.host_one = Hosts(name='some-host',
+                              contact='some.email@some.domain.no',
+                              ttl=300,
+                              loc='23 58 23 N 10 43 50 E 80m',
+                              comment='some comment')
+
+        self.host_two = Hosts(name='some-other-host',
+                              contact='some.email@some.domain.no',
+                              ttl=300,
+                              loc='23 56 23 N 10 43 50 E 80m',
+                              comment='some comment')
+
+        self.host_one.save()
+        self.host_two.save()
+
+        self.ipaddress_one = Ipaddress(hostid=self.host_one,
+                                       ipaddress='129.240.111.111')
+
+        self.ipaddress_two = Ipaddress(hostid=self.host_two,
+                                       ipaddress='129.240.111.112')
+
+        self.ipaddress_one.save()
+        self.ipaddress_two.save()
+
+        self.post_data_ip = {'ipaddress': '129.240.203.197'}
+
+        self.post_data_full = {'hostid': self.host_one.hostid,
+                               'ipaddress': '129.240.203.197'}
+        self.post_data_full_conflict = {'hostid': self.host_one.hostid,
+                                        'ipaddress': '129.240.111.112'}
+
+        self.patch_data_ip = {'ipaddress': '129.240.203.198'}
+
+    def test_ipaddress_get_200_ok(self):
+        """"Getting an existing entry should return 200"""
+        response = self.client.get('/ipaddresses/%s/' % self.ipaddress_one.ipaddress)
+        self.assertEqual(response.status_code, 200)
+
+    def test_ipaddress_get_404_not_found(self):
+        """"Getting a non-existing entry should return 404"""
+        response = self.client.get('/ipaddresses/193.101.168.2/')
+        self.assertEqual(response.status_code, 404)
+
+    def test_ipaddress_post_201_created(self):
+        """"Posting a new ip should return 201 and location"""
+        response = self.client.post('/ipaddresses/', self.post_data_full)
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response['Location'], '/ipaddresses/%s' % self.post_data_full['ipaddress'])
+
+    def test_ipaddress_post_409_conflict_ip(self):
+        """"Posting a new ipaddress with an ip already in use should return 409"""
+        response = self.client.post('/ipaddresses/', self.post_data_full_conflict)
+        self.assertEqual(response.status_code, 409)
+
+    def test_ipaddress_patch_204_no_content(self):
+        """Patching an existing and valid entry should return 204 and Location"""
+        response = self.client.patch('/ipaddresses/%s/' % self.ipaddress_one.ipaddress, self.patch_data_ip)
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(response['Location'], '/ipaddresses/%s' % (response.data['ipaddress']))
+
+    def test_ipaddress_patch_400_bad_request(self):
+        """Patching with invalid data should return 400"""
+        response = self.client.patch('/ipaddresses/%s/' % self.ipaddress_one.ipaddress,
+                                     data={'this': 'is', 'so': 'wrong'})
+        self.assertEqual(response.status_code, 400)
+
+    def test_ipaddress_patch_404_not_found(self):
+        """Patching a non-existing entry should return 404"""
+        response = self.client.patch('/ipaddresses/193.101.168.2/', self.patch_data_ip)
+        self.assertEqual(response.status_code, 404)
+
+    def test_ipaddress_patch_409_conflict_ip(self):
+        """Patching an entry with an ip that already exists should return 409"""
+        response = self.client.patch('/ipaddresses/%s/' % self.ipaddress_one.ipaddress,
+                                {'ipaddress': self.ipaddress_two.ipaddress})
+        self.assertEqual(response.status_code, 409)
+
+
 class APISubnetsTestCase(TestCase):
     """"This class defines the test suite for api/subnets """
     def setUp(self):
@@ -729,20 +817,21 @@ class APISubnetsTestCase(TestCase):
             'dns_delegated': 'False',
         }
 
-    def test_subnests_post_204_no_content(self):
+    def test_subnets_post_204_no_content(self):
         """Posting a subnet should return 201"""
         client = APIClient()
         response = client.post('/subnets/', self.post_data)
         self.assertEqual(response.status_code, 201)
 
-    def test_subnests_post_400_bad_request_ip(self):
+    def test_subnets_post_400_bad_request_ip(self):
         """Posting a subnet with a range that has a malformed IP should return 400"""
         client = APIClient()
         response = client.post('/subnets/', self.post_data_bad_ip)
         self.assertEqual(response.status_code, 400)
 
-    def test_subnests_post_400_bad_request_mask(self):
+    def test_subnets_post_400_bad_request_mask(self):
         """Posting a subnet with a range that has a malformed mask should return 400"""
         client = APIClient()
         response = client.post('/subnets/', self.post_data_bad_mask)
         self.assertEqual(response.status_code, 400)
+
