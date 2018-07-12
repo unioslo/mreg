@@ -94,9 +94,9 @@ class Subnets(models.Model):
     description = models.TextField(blank=True, null=True)
     vlan = models.IntegerField(blank=True, null=True)
     dns_delegated = models.NullBooleanField()
-#    category = models.TextField(blank=True, null=True)
-#    location = models.TextField(blank=True, null=True)
-#    frozen = models.NullBooleanField()
+    category = models.TextField(blank=True, null=True)
+    location = models.TextField(blank=True, null=True)
+    frozen = models.NullBooleanField()
 
     class Meta:
         db_table = 'subnets'

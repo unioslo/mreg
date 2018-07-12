@@ -131,10 +131,65 @@ class IpaddressList(generics.ListCreateAPIView):
     queryset = Ipaddress.objects.all()
     serializer_class = IpaddressSerializer
 
+    def get(self, request, *args, **kwargs):
+        serializer = IpaddressSerializer(self.get_queryset(), many=True)
+        return Response(serializer.data)
+
+    def post(self, request, *args, **kwargs):
+        if "ipaddress" in request.data:
+            if self.queryset.filter(ipaddress=request.data["ipaddress"]).exists():
+                content = {'ERROR': 'ip already already in use'}
+                return Response(content, status=status.HTTP_409_CONFLICT)
+
+            else:
+                ip = Ipaddress()
+                serializer = IpaddressSerializer(ip, data=request.data)
+                if serializer.is_valid(raise_exception=True):
+                    serializer.save()
+                    location = '/ipaddresses/' + ip.ipaddress
+                    return Response(serializer.data, status=status.HTTP_201_CREATED, headers={'Location': location})
+
 
 class IpaddressDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = Ipaddress.objects.all()
     serializer_class = IpaddressSerializer
+
+    def get_object(self, queryset=queryset):
+        query = self.kwargs['pk']
+        try:
+            ipaddress.ip_address(query)
+            try:
+                found_ip = Ipaddress.objects.get(ipaddress=query)
+            except Ipaddress.DoesNotExist:
+                raise Http404
+        except ValueError:
+            content = {'ERROR': 'Not a valid IP address'}
+            return Response(content, status=status.HTTP_400_BAD_REQUEST)
+        return found_ip
+
+    def patch(self, request, *args, **kwargs):
+        query = self.kwargs['pk']
+
+        if "ipaddress" in request.data:
+            if self.queryset.filter(ipaddress=request.data["ipaddress"]).exists():
+                content = {'ERROR': 'ipaddress already in use'}
+                return Response(content, status=status.HTTP_409_CONFLICT)
+
+        if "macaddress" in request.data:
+            if self.queryset.filter(name=request.data["macaddress"]).exists():
+                content = {'ERROR': 'macaddress already registered',
+                           'ipaddress': self.queryset.filter(macaddress=request.data['macaddress'])}
+                return Response(content, status=status.HTTP_409_CONFLICT)
+
+        try:
+            ip = Ipaddress.objects.get(ipaddress=query)
+            serializer = IpaddressSerializer(ip, data=request.data, partial=True)
+            if serializer.is_valid(raise_exception=True):
+                serializer.save()
+                location = '/ipaddresses/' + ip.ipaddress
+                return Response(serializer.data, status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
+        except Ipaddress.DoesNotExist:
+            raise Http404
 
 
 class NaptrList(generics.ListCreateAPIView):
@@ -155,6 +210,7 @@ class NsList(generics.ListCreateAPIView):
 class NsDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = Ns.objects.all()
     serializer_class = NsSerializer
+
 
 class PtrOverrideList(generics.ListCreateAPIView):
     queryset = PtrOverride.objects.all()
@@ -189,14 +245,17 @@ class SubnetsList(generics.CreateAPIView):
         except ipaddress.NetmaskValueError:
             return Response({'ERROR': 'Not a valid net mask'}, status=status.HTTP_400_BAD_REQUEST)
 
+
 class SubnetsDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = Subnets.objects.all()
     serializer_class = SubnetsSerializer
     lookup_field = 'range'
 
+
 class TxtList(generics.ListCreateAPIView):
     queryset = Txt.objects.all()
     serializer_class = TxtSerializer
+
 
 class TxtDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = Txt.objects.all()
@@ -272,6 +331,7 @@ class ZonesDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
                 return Response(serializer.data, status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
         except Zones.DoesNotExist:
             raise Http404
+
 
 class ZonesNsDetail(ETAGMixin, generics.GenericAPIView):
     queryset_zones = Zones.objects.all()

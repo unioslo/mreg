@@ -136,7 +136,10 @@ class ModelSubnetsTestCase(TestCase):
         self.subnet_sample = Subnets(range='129.240.202.0/20',
                                      description='some description',
                                      vlan=123,
-                                     dns_delegated=False)
+                                     dns_delegated=False,
+                                     category='so',
+                                     location='silurveien',
+                                     frozen=False)
 
     def test_model_can_create_ns(self):
         """Test that the model is able to create a Subnet."""
