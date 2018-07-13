@@ -21,7 +21,7 @@ urlpatterns = [
     path('srvs/', views.SrvList.as_view()),
     path('srvs/<pk>/', views.SrvDetail.as_view()),
     path('subnets/', views.SubnetsList.as_view()),
-    path('subnets/<ip>/<mask>/', views.SubnetsDetail.as_view()),
+    path('subnets/<ip>/<range>/', views.SubnetsDetail.as_view()),
     path('txts/', views.TxtList.as_view()),
     path('txts/<pk>/', views.TxtDetail.as_view()),
     path('zones/', views.ZonesList.as_view()),
