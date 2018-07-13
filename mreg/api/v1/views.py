@@ -73,7 +73,7 @@ class CnameList(generics.ListCreateAPIView):
         return CnameFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class CnameDetail(generics.RetrieveUpdateDestroyAPIView):
+class CnameDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Cname.objects.all()
     serializer_class = CnameSerializer
 
@@ -87,7 +87,7 @@ class HinfoPresetsList(generics.ListCreateAPIView):
         return HinfoFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class HinfoPresetsDetail(generics.RetrieveUpdateDestroyAPIView):
+class HinfoPresetsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = HinfoPresets.objects.all()
     serializer_class = HinfoPresetsSerializer
 
@@ -208,7 +208,7 @@ class IpaddressList(generics.ListCreateAPIView):
                     return Response(serializer.data, status=status.HTTP_201_CREATED, headers={'Location': location})
 
 
-class IpaddressDetail(generics.RetrieveUpdateDestroyAPIView):
+class IpaddressDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Ipaddress.objects.all()
     serializer_class = IpaddressSerializer
 
@@ -259,7 +259,7 @@ class NaptrList(generics.ListCreateAPIView):
         return NaptrFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class NaptrDetail(generics.RetrieveUpdateDestroyAPIView):
+class NaptrDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Naptr.objects.all()
     serializer_class = NaptrSerializer
 
@@ -273,7 +273,7 @@ class NsList(generics.ListCreateAPIView):
         return NameserverFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class NsDetail(generics.RetrieveUpdateDestroyAPIView):
+class NsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Ns.objects.all()
     serializer_class = NsSerializer
 
@@ -287,7 +287,7 @@ class PtrOverrideList(generics.ListCreateAPIView):
         return PtroverrideFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class PtrOverrideDetail(generics.RetrieveUpdateDestroyAPIView):
+class PtrOverrideDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = PtrOverride.objects.all()
     serializer_class = PtrOverrideSerializer
 
@@ -301,7 +301,7 @@ class SrvList(generics.ListCreateAPIView):
         return SrvFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class SrvDetail(generics.RetrieveUpdateDestroyAPIView):
+class SrvDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Srv.objects.all()
     serializer_class = SrvSerializer
 
@@ -315,7 +315,7 @@ class SubnetsList(generics.ListCreateAPIView):
         return SubnetFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class SubnetsDetail(generics.RetrieveUpdateDestroyAPIView):
+class SubnetsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Subnets.objects.all()
     serializer_class = SubnetsSerializer
 
@@ -329,7 +329,7 @@ class TxtList(generics.ListCreateAPIView):
         return TxtFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class TxtDetail(generics.RetrieveUpdateDestroyAPIView):
+class TxtDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Txt.objects.all()
     serializer_class = TxtSerializer
 
