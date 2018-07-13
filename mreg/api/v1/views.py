@@ -239,7 +239,8 @@ class SubnetsList(generics.ListCreateAPIView):
     def post(self, request, *args, **kwargs):
         try:
             ipaddress.IPv4Network(request.data['range'])
-            return self.create(request, *args, **kwargs)
+            res = self.create(request, *args, **kwargs)
+            return res
         except ipaddress.AddressValueError:
             return Response({'ERROR': 'Not a valid IP address'}, status=status.HTTP_400_BAD_REQUEST)
         except ipaddress.NetmaskValueError:
@@ -249,41 +250,47 @@ class SubnetsList(generics.ListCreateAPIView):
 class SubnetsDetail(generics.RetrieveUpdateDestroyAPIView):
     queryset = Subnets.objects.all()
     serializer_class = SubnetsSerializer
-
-    def get_object(self, queryset=queryset):
-        ip = self.kwargs['ip']
-        mask = self.kwargs['mask']
-        range_in = ip + '/' + mask
-        try:
-            ipaddress.IPv4Network(range_in)
-            try:
-                found_subnet = Subnets.objects.get(range=range_in)
-                return found_subnet
-            except Subnets.DoesNotExist:
-                raise Http404
-        except ipaddress.AddressValueError:
-            raise ValueError
-        except ipaddress.NetmaskValueError:
-            raise ValueError
+    lookup_field = 'range'
 
     def get(self, queryset=queryset, *args, **kwargs):
         ip = self.kwargs['ip']
-        mask = self.kwargs['mask']
-        range_in = ip + '/' + mask
+        mask = self.kwargs['range']
+        range = '%s/%s' % (ip, mask)
+        invalid_range = self.isnt_range(range)
+        if invalid_range: return invalid_range
         try:
-            ipaddress.IPv4Network(range_in)
-            try:
+            found_subnet = Subnets.objects.get(range=range)
+            serializer = self.get_serializer(found_subnet)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Subnets.DoesNotExist:
+            raise Http404
 
-                found_subnet = Subnets.objects.get(range=range_in)
-                serializer = self.get_serializer(data=found_subnet)
-                serializer.is_valid(raise_exception=True)
-                return Response(serializer.data, status=status.HTTP_200_OK)
-            except Subnets.DoesNotExist:
-                raise Http404
+    def patch(self, request, *args, **kwargs):
+        ip = self.kwargs['ip']
+        mask = self.kwargs['range']
+        range = '%s/%s' % (ip, mask)
+        invalid_range = self.isnt_range(range)
+        if invalid_range: return invalid_range
+        try:
+            subnet = Subnets.objects.get(range=range)
+            serializer = self.get_serializer(subnet, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            print(serializer.data)
+            location = '/subnets/%s/' % subnet.range
+            return Response(serializer.data, status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
+        except Subnets.DoesNotExist:
+            raise Http404
+
+    def isnt_range(self, range):
+        try:
+            ipaddress.IPv4Network(range)
+            return None
         except ipaddress.AddressValueError:
             return Response({'ERROR': 'Not a valid IP address'}, status=status.HTTP_400_BAD_REQUEST)
         except ipaddress.NetmaskValueError:
             return Response({'ERROR': 'Not a valid net mask'}, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 class TxtList(generics.ListCreateAPIView):
@@ -359,10 +366,10 @@ class ZonesDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
         try:
             zone = Zones.objects.get(name=query)
             serializer = self.get_serializer(zone, data=request.data, partial=True)
-            if serializer.is_valid():
-                serializer.save()
-                location = '/zones/' + zone.name
-                return Response(serializer.data, status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            location = '/zones/%s' % zone.name
+            return Response(serializer.data, status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
         except Zones.DoesNotExist:
             raise Http404
 

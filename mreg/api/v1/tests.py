@@ -849,11 +849,11 @@ class APISubnetsTestCase(TestCase):
             'dns_delegated': 'False',
         }
 
-    def test_subnets_post_204_no_content(self):
-        """Posting a subnet should return 204"""
+    def test_subnets_post_201_createdt(self):
+        """Posting a subnet should return 201"""
         client = APIClient()
         response = client.post('/subnets/', self.post_data)
-        self.assertEqual(response.status_code, 204)
+        self.assertEqual(response.status_code, 201)
 
     def test_subnets_post_400_bad_request_ip(self):
         """Posting a subnet with a range that has a malformed IP should return 400"""
@@ -869,30 +869,33 @@ class APISubnetsTestCase(TestCase):
 
     def test_subnets_get_200_ok(self):
         """GET on an existing ip-range should return 200 OK."""
-        response = self.client.get('/subnets/%s/' % self.subnet_sample.range)
-        print(response.data)
+        client = APIClient()
+        response = client.get('/subnets/%s/' % self.subnet_sample.range)
         self.assertEqual(response.status_code, 200)
         
     def test_subnets_patch_204_no_content(self):
         """Patching an existing and valid entry should return 204 and Location"""
-        response = self.client.patch('/subnets/%s/' % self.subnet_sample.range, self.patch_data_vlan)
-        print(response.data)
+        client = APIClient()
+        response = client.patch('/subnets/%s/' % self.subnet_sample.range, self.patch_data)
         self.assertEqual(response.status_code, 204)
         self.assertEqual(response['Location'], '/subnets/%s/' % (response.data['range']))
 
     def test_subnets_patch_400_bad_request(self):
         """Patching with invalid data should return 400"""
-        response = self.client.patch('/subnets/%s/' % self.subnet_sample.range,
+        client = APIClient()
+        response = client.patch('/subnets/%s/' % self.subnet_sample.range,
                                      data={'this': 'is', 'so': 'wrong'})
         self.assertEqual(response.status_code, 400)
 
     def test_subnets_patch_404_not_found(self):
         """Patching a non-existing entry should return 404"""
-        response = self.client.patch('/subnets/193.101.168.0/29/', self.patch_data)
+        client = APIClient()
+        response = client.patch('/subnets/193.101.168.0/29/', self.patch_data)
         self.assertEqual(response.status_code, 404)
 
     def test_subnets_patch_409_conflict_range(self):
         """Patching an entry with a range that is already in use should return 409"""
-        response = self.client.patch('/subnets/%s/' % self.subnet_sample.range, data=self.patch_data_range)
+        client = APIClient()
+        response = client.patch('/subnets/%s/' % self.subnet_sample.range, data=self.patch_data_range)
         self.assertEqual(response.status_code, 409)
 
