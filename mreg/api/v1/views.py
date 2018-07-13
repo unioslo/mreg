@@ -243,13 +243,35 @@ class SubnetsList(generics.ListCreateAPIView):
 
     def post(self, request, *args, **kwargs):
         try:
-            ipaddress.IPv4Network(request.data['range'])
-            res = self.create(request, *args, **kwargs)
-            return res
+            subnet = ipaddress.IPv4Network(request.data['range'])
+            overlap = self.overlap_check(subnet)
+            if overlap:
+                return Response({'ERROR': 'Subnet overlaps with: {}'.format(subnet.supernet().with_prefixlen)},
+                                status=status.HTTP_409_CONFLICT)
+
         except ipaddress.AddressValueError:
             return Response({'ERROR': 'Not a valid IP address'}, status=status.HTTP_400_BAD_REQUEST)
+
         except ipaddress.NetmaskValueError:
             return Response({'ERROR': 'Not a valid net mask'}, status=status.HTTP_400_BAD_REQUEST)
+
+        result = self.create(request, *args, **kwargs)
+        return result
+
+    def overlap_check(self, subnet):
+        """
+        Recursively checks supernets for current subnet to look for existing entries.
+        If an entry is found it returns True (Overlap = True).
+        It will keep searching until it reaches a prefix length of 16 bits, after which there is
+        no point searching unless you own an ridiculous amount of IPv4 addresses.
+        Can of course be changed at will.
+        """
+        if subnet.prefixlen < 16:
+            return False
+        if self.queryset.filter(range=subnet.supernet().with_prefixlen).exists():
+            return True
+
+        return self.overlap_check(subnet.supernet())
 
 
 class SubnetsDetail(generics.RetrieveUpdateDestroyAPIView):
@@ -262,7 +284,9 @@ class SubnetsDetail(generics.RetrieveUpdateDestroyAPIView):
         mask = self.kwargs['range']
         range = '%s/%s' % (ip, mask)
         invalid_range = self.isnt_range(range)
-        if invalid_range: return invalid_range
+        if invalid_range:
+            return invalid_range
+
         try:
             found_subnet = Subnets.objects.get(range=range)
             serializer = self.get_serializer(found_subnet)
@@ -275,7 +299,14 @@ class SubnetsDetail(generics.RetrieveUpdateDestroyAPIView):
         mask = self.kwargs['range']
         range = '%s/%s' % (ip, mask)
         invalid_range = self.isnt_range(range)
-        if invalid_range: return invalid_range
+        if invalid_range:
+            return invalid_range
+
+        if 'range' in request.data:
+            if self.queryset.filter(range=request.data['range']).exists():
+                content = {'ERROR': 'subnet already in use'}
+                return Response(content, status=status.HTTP_409_CONFLICT)
+
         try:
             subnet = Subnets.objects.get(range=range)
             serializer = self.get_serializer(subnet, data=request.data, partial=True)
@@ -291,10 +322,9 @@ class SubnetsDetail(generics.RetrieveUpdateDestroyAPIView):
             ipaddress.IPv4Network(range)
             return None
         except ipaddress.AddressValueError:
-            return Response({'ERROR': 'Not a valid IP address'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'ERROR': 'Not a valid network address'}, status=status.HTTP_400_BAD_REQUEST)
         except ipaddress.NetmaskValueError:
-            return Response({'ERROR': 'Not a valid net mask'}, status=status.HTTP_400_BAD_REQUEST)
-
+            return Response({'ERROR': 'Not a valid net mask or prefix'}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class TxtList(generics.ListCreateAPIView):
