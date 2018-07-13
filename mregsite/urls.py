@@ -3,6 +3,16 @@ from django.urls import path
 from mreg.api.v1 import views
 from rest_framework.urlpatterns import format_suffix_patterns
 
+# Ex: Making a new IP address is a POST request to /ipaddresses | NB! Requires HOSTNAME (ForeignKey)
+#     Changing an existing IP address is a PATCH request to /ipaddresses/<ip>/
+#     Deleting an existing IP address is a DELETE request to /ipaddresses/<ip>/
+#
+# Equivalent for other fields.
+#
+# To access specific field for a given host <hostname>, use queries:
+# /hosts/<hostname>?ipaddress
+#
+
 urlpatterns = [
     path('cnames/', views.CnameList.as_view()),
     path('cnames/<pk>/', views.CnameDetail.as_view()),

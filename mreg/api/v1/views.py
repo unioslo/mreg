@@ -1,16 +1,31 @@
 from rest_framework import generics
-from rest_framework.renderers import JSONRenderer
 from django.http import Http404, QueryDict
 from mreg.models import *
 from mreg.api.v1.serializers import *
 from rest_framework_extensions.etag.mixins import ETAGMixin
 from rest_framework.response import Response
 from rest_framework import status
+from url_filter.filtersets import ModelFilterSet
 import ipaddress, time
+
+
+class HostsFilterSet(ModelFilterSet):
+    class Meta(object):
+        model = Hosts
+
+
+class CnameFilterSet(ModelFilterSet):
+    class Meta(object):
+        model = Cname
+
 
 class CnameList(generics.ListCreateAPIView):
     queryset = Cname.objects.all()
     serializer_class = CnameSerializer
+
+    def get_queryset(self):
+        qs = super(CnameList, self).get_queryset()
+        return CnameFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
 class CnameDetail(generics.RetrieveUpdateDestroyAPIView):
@@ -32,22 +47,12 @@ class HostList(generics.GenericAPIView):
     queryset = Hosts.objects.all()
     serializer_class = HostsSerializer
 
-    def get(self, request, *args, **kwargs):
-        hosts = self.get_queryset()
-        if request.GET.get('hostid'):
-            hosts = hosts.filter(hostid=request.GET.get('hostid'))
-        if request.GET.get('contact'):
-            hosts = hosts.filter(contact=request.GET.get('contact'))
-        if request.GET.get('ttl'):
-            hosts = hosts.filter(ttl=request.GET.get('ttl'))
-        if request.GET.get('loc'):
-            hosts = hosts.filter(loc=request.GET.get('loc'))
-        if request.GET.get('comment'):
-            hosts = hosts.filter(comment=request.GET.get('comment'))
-        if request.GET.get('hinfo'):
-            hosts = hosts.filter(hinfo__hinfoid=request.GET.get('hinfo'))
+    def get_queryset(self):
+        qs = super(HostList, self).get_queryset()
+        return HostsFilterSet(data=self.request.GET, queryset=qs).filter()
 
-        serializer = HostsNameSerializer(hosts, many=True)
+    def get(self, request, *args, **kwargs):
+        serializer = HostsNameSerializer(self.get_queryset(), many=True)
         return Response(serializer.data)
 
     # TODO Authentication
@@ -276,7 +281,6 @@ class SubnetsDetail(generics.RetrieveUpdateDestroyAPIView):
             serializer = self.get_serializer(subnet, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)
             serializer.save()
-            print(serializer.data)
             location = '/subnets/%s/' % subnet.range
             return Response(serializer.data, status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
         except Subnets.DoesNotExist:
