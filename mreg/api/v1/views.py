@@ -9,14 +9,59 @@ from url_filter.filtersets import ModelFilterSet
 import ipaddress, time
 
 
+class CnameFilterSet(ModelFilterSet):
+    class Meta(object):
+        model = Cname
+
+
+class HinfoFilterSet(ModelFilterSet):
+    class Meta(object):
+        model = HinfoPresets
+
+
 class HostsFilterSet(ModelFilterSet):
     class Meta(object):
         model = Hosts
 
 
-class CnameFilterSet(ModelFilterSet):
+class IpaddressFilterSet(ModelFilterSet):
     class Meta(object):
-        model = Cname
+        model = Ipaddress
+
+
+class NaptrFilterSet(ModelFilterSet):
+    class Meta(object):
+        model = Naptr
+
+
+class NameserverFilterSet(ModelFilterSet):
+    class Meta(object):
+        model = Ns
+
+
+class PtroverrideFilterSet(ModelFilterSet):
+    class Meta(object):
+        model = PtrOverride
+
+
+class SrvFilterSet(ModelFilterSet):
+    class Meta(object):
+        model = Srv
+
+
+class SubnetFilterSet(ModelFilterSet):
+    class Meta(object):
+        model = Subnets
+
+
+class TxtFilterSet(ModelFilterSet):
+    class Meta(object):
+        model = Txt
+
+
+class ZoneFilterSet(ModelFilterSet):
+    class Meta(object):
+        model = Zones
 
 
 class CnameList(generics.ListCreateAPIView):
@@ -28,7 +73,7 @@ class CnameList(generics.ListCreateAPIView):
         return CnameFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class CnameDetail(generics.RetrieveUpdateDestroyAPIView):
+class CnameDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Cname.objects.all()
     serializer_class = CnameSerializer
 
@@ -37,8 +82,12 @@ class HinfoPresetsList(generics.ListCreateAPIView):
     queryset = HinfoPresets.objects.all()
     serializer_class = HinfoPresetsSerializer
 
+    def get_queryset(self):
+        qs = super(HinfoPresetsList, self).get_queryset()
+        return HinfoFilterSet(data=self.request.GET, queryset=qs).filter()
 
-class HinfoPresetsDetail(generics.RetrieveUpdateDestroyAPIView):
+
+class HinfoPresetsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = HinfoPresets.objects.all()
     serializer_class = HinfoPresetsSerializer
 
@@ -136,6 +185,10 @@ class IpaddressList(generics.ListCreateAPIView):
     queryset = Ipaddress.objects.all()
     serializer_class = IpaddressSerializer
 
+    def get_queryset(self):
+        qs = super(IpaddressList, self).get_queryset()
+        return IpaddressFilterSet(data=self.request.GET, queryset=qs).filter()
+
     def get(self, request, *args, **kwargs):
         serializer = IpaddressSerializer(self.get_queryset(), many=True)
         return Response(serializer.data)
@@ -155,7 +208,7 @@ class IpaddressList(generics.ListCreateAPIView):
                     return Response(serializer.data, status=status.HTTP_201_CREATED, headers={'Location': location})
 
 
-class IpaddressDetail(generics.RetrieveUpdateDestroyAPIView):
+class IpaddressDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Ipaddress.objects.all()
     serializer_class = IpaddressSerializer
 
@@ -201,8 +254,12 @@ class NaptrList(generics.ListCreateAPIView):
     queryset = Naptr.objects.all()
     serializer_class = NaptrSerializer
 
+    def get_queryset(self):
+        qs = super(NaptrList, self).get_queryset()
+        return NaptrFilterSet(data=self.request.GET, queryset=qs).filter()
 
-class NaptrDetail(generics.RetrieveUpdateDestroyAPIView):
+
+class NaptrDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Naptr.objects.all()
     serializer_class = NaptrSerializer
 
@@ -211,8 +268,12 @@ class NsList(generics.ListCreateAPIView):
     queryset = Ns.objects.all()
     serializer_class = NsSerializer
 
+    def get_queryset(self):
+        qs = super(NsList, self).get_queryset()
+        return NameserverFilterSet(data=self.request.GET, queryset=qs).filter()
 
-class NsDetail(generics.RetrieveUpdateDestroyAPIView):
+
+class NsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Ns.objects.all()
     serializer_class = NsSerializer
 
@@ -221,8 +282,12 @@ class PtrOverrideList(generics.ListCreateAPIView):
     queryset = PtrOverride.objects.all()
     serializer_class = PtrOverrideSerializer
 
+    def get_queryset(self):
+        qs = super(PtrOverrideList, self).get_queryset()
+        return PtroverrideFilterSet(data=self.request.GET, queryset=qs).filter()
 
-class PtrOverrideDetail(generics.RetrieveUpdateDestroyAPIView):
+
+class PtrOverrideDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = PtrOverride.objects.all()
     serializer_class = PtrOverrideSerializer
 
@@ -231,8 +296,12 @@ class SrvList(generics.ListCreateAPIView):
     queryset = Srv.objects.all()
     serializer_class = SrvSerializer
 
+    def get_queryset(self):
+        qs = super(SrvList, self).get_queryset()
+        return SrvFilterSet(data=self.request.GET, queryset=qs).filter()
 
-class SrvDetail(generics.RetrieveUpdateDestroyAPIView):
+
+class SrvDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Srv.objects.all()
     serializer_class = SrvSerializer
 
@@ -251,8 +320,13 @@ class SubnetsList(generics.ListCreateAPIView):
         except ipaddress.NetmaskValueError:
             return Response({'ERROR': 'Not a valid net mask'}, status=status.HTTP_400_BAD_REQUEST)
 
+    def get_queryset(self):
+        qs = super(SubnetsList, self).get_queryset()
+        return SubnetFilterSet(data=self.request.GET, queryset=qs).filter()
 
-class SubnetsDetail(generics.RetrieveUpdateDestroyAPIView):
+
+
+class SubnetsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Subnets.objects.all()
     serializer_class = SubnetsSerializer
     lookup_field = 'range'
@@ -301,8 +375,12 @@ class TxtList(generics.ListCreateAPIView):
     queryset = Txt.objects.all()
     serializer_class = TxtSerializer
 
+    def get_queryset(self):
+        qs = super(TxtList, self).get_queryset()
+        return TxtFilterSet(data=self.request.GET, queryset=qs).filter()
 
-class TxtDetail(generics.RetrieveUpdateDestroyAPIView):
+
+class TxtDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Txt.objects.all()
     serializer_class = TxtSerializer
 
@@ -313,6 +391,10 @@ class ZonesList(generics.ListCreateAPIView):
     serializer_class = ZonesSerializer
     count_day = int(time.strftime('%Y%m%d'))
     count = 0
+
+    def get_queryset(self):
+        qs = super(ZonesList, self).get_queryset()
+        return ZoneFilterSet(data=self.request.GET, queryset=qs).filter()
 
     # TODO: Implement authentication
     def post(self, request, *args, **kwargs):
