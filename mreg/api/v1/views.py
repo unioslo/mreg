@@ -310,14 +310,65 @@ class SubnetsList(generics.ListCreateAPIView):
     queryset = Subnets.objects.all()
     serializer_class = SubnetsSerializer
 
+    def post(self, request, *args, **kwargs):
+        try:
+            ipaddress.IPv4Network(request.data['range'])
+            res = self.create(request, *args, **kwargs)
+            return res
+        except ipaddress.AddressValueError:
+            return Response({'ERROR': 'Not a valid IP address'}, status=status.HTTP_400_BAD_REQUEST)
+        except ipaddress.NetmaskValueError:
+            return Response({'ERROR': 'Not a valid net mask'}, status=status.HTTP_400_BAD_REQUEST)
+
     def get_queryset(self):
         qs = super(SubnetsList, self).get_queryset()
         return SubnetFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
+
 class SubnetsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Subnets.objects.all()
     serializer_class = SubnetsSerializer
+    lookup_field = 'range'
+
+    def get(self, queryset=queryset, *args, **kwargs):
+        ip = self.kwargs['ip']
+        mask = self.kwargs['range']
+        range = '%s/%s' % (ip, mask)
+        invalid_range = self.isnt_range(range)
+        if invalid_range: return invalid_range
+        try:
+            found_subnet = Subnets.objects.get(range=range)
+            serializer = self.get_serializer(found_subnet)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Subnets.DoesNotExist:
+            raise Http404
+
+    def patch(self, request, *args, **kwargs):
+        ip = self.kwargs['ip']
+        mask = self.kwargs['range']
+        range = '%s/%s' % (ip, mask)
+        invalid_range = self.isnt_range(range)
+        if invalid_range: return invalid_range
+        try:
+            subnet = Subnets.objects.get(range=range)
+            serializer = self.get_serializer(subnet, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            location = '/subnets/%s/' % subnet.range
+            return Response(serializer.data, status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
+        except Subnets.DoesNotExist:
+            raise Http404
+
+    def isnt_range(self, range):
+        try:
+            ipaddress.IPv4Network(range)
+            return None
+        except ipaddress.AddressValueError:
+            return Response({'ERROR': 'Not a valid IP address'}, status=status.HTTP_400_BAD_REQUEST)
+        except ipaddress.NetmaskValueError:
+            return Response({'ERROR': 'Not a valid net mask'}, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 class TxtList(generics.ListCreateAPIView):
@@ -379,22 +430,14 @@ class ZonesList(generics.ListCreateAPIView):
 class ZonesDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Zones.objects.all()
     serializer_class = ZonesSerializer
-
-    # TODO: Implement authentication
-    def get_object(self, queryset=queryset):
-        query=self.kwargs['pk']
-        try:
-            zone = queryset.get(name=query)
-            return zone
-        except Zones.DoesNotExist:
-            raise Http404
+    lookup_field = 'name'
 
     # TODO: Implement authentication
     def patch(self, request, *args, **kwargs):
-        query = self.kwargs['pk']
+        query = self.kwargs[self.lookup_field]
 
         if "name" in request.data:
-            content = {'ERROR': 'Not allowed to changed name'}
+            content = {'ERROR': 'Not allowed to change name'}
             return Response(content, status=status.HTTP_403_FORBIDDEN)
 
         if "zoneid" in request.data:
@@ -409,10 +452,10 @@ class ZonesDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
         try:
             zone = Zones.objects.get(name=query)
             serializer = self.get_serializer(zone, data=request.data, partial=True)
-            if serializer.is_valid():
-                serializer.save()
-                location = '/zones/' + zone.name
-                return Response(serializer.data, status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            location = '/zones/%s' % zone.name
+            return Response(serializer.data, status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
         except Zones.DoesNotExist:
             raise Http404
 
@@ -420,10 +463,11 @@ class ZonesDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
 class ZonesNsDetail(ETAGMixin, generics.GenericAPIView):
     queryset_zones = Zones.objects.all()
     queryset_ns = Ns.objects.all()
+    lookup_field = 'name'
 
     # TODO Authorization
     def get(self, request, *args, **kwargs):
-        query = self.kwargs['pk']
+        query = self.kwargs[self.lookup_field]
         try:
             zone = self.queryset_zones.get(name=query)
             return Response(NsSerializer(zone.nameservers.all(), many=True).data, status=status.HTTP_200_OK)
@@ -432,13 +476,13 @@ class ZonesNsDetail(ETAGMixin, generics.GenericAPIView):
 
     # TODO Authorization
     def patch(self, request, *args, **kwargs):
-        query = self.kwargs['pk']
+        query = self.kwargs[self.lookup_field]
         try:
             zone = self.queryset_zones.get(name=query)
             try:
-                if 'name' not in request.data:
+                if self.lookup_field not in request.data:
                     return Response({'ERROR': 'No NS name found in body'}, status=status.HTTP_400_BAD_REQUEST)
-                ns = self.queryset_ns.get(name=request.data['name'])
+                ns = self.queryset_ns.get(name=request.data[self.lookup_field])
                 zone.nameservers.add(ns)
                 zone.save()
                 return Response(ZonesSerializer(zone).data, status=status.HTTP_204_NO_CONTENT)
@@ -449,14 +493,14 @@ class ZonesNsDetail(ETAGMixin, generics.GenericAPIView):
 
     # TODO Authorization
     def delete(self, request, *args, **kwargs):
-        query = self.kwargs['pk']
+        query = self.kwargs['name']
         try:
             zone = self.queryset_zones.get(name=query)
             try:
-                if 'name' not in request.data:
+                if self.lookup_field not in request.data:
                     return Response({'ERROR': 'No NS name found in body'}, status=status.HTTP_400_BAD_REQUEST)
-                ns = self.queryset_ns.get(name=request.data['name'])
-                zone.nameservers.add(ns)
+                ns = self.queryset_ns.get(name=request.data[self.lookup_field])
+                zone.nameservers.remove(ns)
                 zone.save()
                 return Response(ZonesSerializer(zone).data, status=status.HTTP_204_NO_CONTENT)
             except Ns.DoesNotExist:

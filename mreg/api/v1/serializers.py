@@ -69,6 +69,9 @@ class IpaddressSerializer(serializers.ModelSerializer):
         fields = ('hostid', 'ipaddress', 'macaddress')
 
     def validate(self, data):
+        invalid_keys = set(self.initial_data.keys()) - set(self.fields.keys())
+        if invalid_keys:
+            raise serializers.ValidationError('invalid keys passed into serializer: {0}'.format(invalid_keys))
         key_validate(self)
         data = {key: nonify(value) for key, value in data.items()}
         return data
