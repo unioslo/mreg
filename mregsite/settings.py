@@ -15,7 +15,6 @@ import os
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/2.0/howto/deployment/checklist/
 
@@ -37,7 +36,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'api',
+    'rest_framework',
+    'mreg',
 ]
 
 MIDDLEWARE = [
@@ -50,7 +50,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'mreg.urls'
+ROOT_URLCONF = 'mregsite.urls'
 
 TEMPLATES = [
     {
@@ -68,7 +68,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'mreg.wsgi.application'
+WSGI_APPLICATION = 'mregsite.wsgi.application'
 
 
 # Database
@@ -80,8 +80,8 @@ DATABASES = {
         'NAME': 'mreg_sample',
         'USER': 'mreg_user',
         'PASSWORD': 'mregdbpass',
-        'HOST': 'localhost',
-        'PORT': '',
+        'HOST': '158.37.63.59',
+        'PORT': '5432',
     }
 }
 
@@ -123,3 +123,15 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/2.0/howto/static-files/
 
 STATIC_URL = '/static/'
+
+try:
+    from .local_settings import *
+except ImportError:
+    pass
+
+REST_FRAMEWORK_EXTENSIONS = {
+    'DEFAULT_OBJECT_ETAG_FUNC':
+        'rest_framework_extensions.utils.default_object_etag_func',
+    'DEFAULT_LIST_ETAG_FUNC':
+        'rest_framework_extensions.utils.default_list_etag_func',
+}
