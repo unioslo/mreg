@@ -363,7 +363,7 @@ class SubnetsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
         # TODO: Return hostnames?
         if request.META.get('QUERY_STRING') == 'used_list':
             used_ipaddresses = self.get_used_ipaddresses_on_subnet(range)
-            return Response({'used_list': used_ipaddresses}, status=status.HTTP_200_OK)
+            return Response(used_ipaddresses, status=status.HTTP_200_OK)
 
 
         try:

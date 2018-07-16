@@ -884,7 +884,7 @@ class APISubnetsTestCase(TestCase):
         self.assertEqual(response.status_code, 409)
 
     def test_subnets_get_usedlist_200_ok(self):
-        """GET on /subnets/<ip/mask> with QUERY_STRING header 'used_list' should return 200 ok"""
+        """GET on /subnets/<ip/mask> with QUERY_STRING header 'used_list' should return 200 ok and data."""
         host_one = Hosts(name='some-host',
                          contact='some.email@some.domain.no',
                          ttl=300,
@@ -897,3 +897,4 @@ class APISubnetsTestCase(TestCase):
 
         response = self.client.get('/subnets/%s/' % self.subnet_sample.range, QUERY_STRING='used_list')
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, ['129.240.204.17'])
