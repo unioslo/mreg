@@ -796,7 +796,7 @@ class APISubnetsTestCase(TestCase):
         }
 
         self.patch_data_vlan = {'vlan': '435'}
-        self.patch_data_range = {'range': '129.240.205.0/29'}
+        self.patch_data_range = {'range': '129.240.205.0/28'}
 
         self.post_data = {
             'range': '192.0.2.0/29',
@@ -816,9 +816,15 @@ class APISubnetsTestCase(TestCase):
             'vlan': '435',
             'dns_delegated': 'False',
         }
+        self.post_data_overlap = {
+            'range': '129.240.205.0/29',
+            'description': 'Test subnet',
+            'vlan': '435',
+            'dns_delegated': 'False',
+        }
         self.client = APIClient()
 
-    def test_subnets_post_201_createdt(self):
+    def test_subnets_post_201_created(self):
         """Posting a subnet should return 201"""
         response = self.client.post('/subnets/', self.post_data)
         self.assertEqual(response.status_code, 201)
@@ -837,7 +843,7 @@ class APISubnetsTestCase(TestCase):
         """GET on an existing ip-range should return 200 OK."""
         response = self.client.get('/subnets/%s' % self.subnet_sample.range)
         self.assertEqual(response.status_code, 200)
-        
+
     def test_subnets_patch_204_no_content(self):
         """Patching an existing and valid entry should return 204 and Location"""
         response = self.client.patch('/subnets/%s' % self.subnet_sample.range, self.patch_data)
@@ -857,5 +863,23 @@ class APISubnetsTestCase(TestCase):
 
     def test_subnets_patch_409_conflict_range(self):
         """Patching an entry with a range that is already in use should return 409"""
+        
         response = self.client.patch('/subnets/%s' % self.subnet_sample.range, data=self.patch_data_range)
         self.assertEqual(response.status_code, 409)
+
+    def test_subnets_get_usedlist_200_ok(self):
+        """GET on /subnets/<ip/mask> with QUERY_STRING header 'used_list' should return 200 ok and data."""
+        host_one = Hosts(name='some-host',
+                         contact='some.email@some.domain.no',
+                         ttl=300,
+                         loc='23 58 23 N 10 43 50 E 80m',
+                         comment='some comment')
+        host_one.save()
+        ip_sample = Ipaddress(hostid=host_one,
+                              ipaddress='129.240.204.17')
+        ip_sample.save()
+
+        response = self.client.get('/subnets/%s/' % self.subnet_sample.range, QUERY_STRING='used_list')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, ['129.240.204.17'])
+
