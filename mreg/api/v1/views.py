@@ -1,5 +1,7 @@
 from rest_framework import generics
 from django.http import Http404, QueryDict
+from django.core.exceptions import ObjectDoesNotExist
+from django.urls import reverse
 from mreg.models import *
 from mreg.api.v1.serializers import *
 from rest_framework_extensions.etag.mixins import ETAGMixin
@@ -64,6 +66,26 @@ class ZoneFilterSet(ModelFilterSet):
         model = Zones
 
 
+class StrictCRUDMixin(object):
+    """Applies stricter handling of HTTP requests and responses"""
+
+    """PATCH should return empty body, 204 - No Content, and location of object"""
+    def patch(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer_class = self.get_serializer_class()
+        query = self.kwargs['pk']
+        entryname = self.kwargs['entryname']
+        try:
+            obj = queryset.get(pk=query)
+            serializer = serializer_class(obj, data=request.data, partial=True)
+            if serializer.is_valid(raise_exception=True):
+                serializer.save()
+                location = '/%s/%s/' % (entryname, obj.pk)
+                return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
+        except ObjectDoesNotExist:
+            raise Http404
+
+
 class CnameList(generics.ListCreateAPIView):
     queryset = Cname.objects.all()
     serializer_class = CnameSerializer
@@ -73,7 +95,7 @@ class CnameList(generics.ListCreateAPIView):
         return CnameFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class CnameDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+class CnameDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Cname.objects.all()
     serializer_class = CnameSerializer
 
@@ -87,7 +109,7 @@ class HinfoPresetsList(generics.ListCreateAPIView):
         return HinfoFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class HinfoPresetsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+class HinfoPresetsDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = HinfoPresets.objects.all()
     serializer_class = HinfoPresetsSerializer
 
@@ -176,7 +198,7 @@ class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
             if serializer.is_valid(raise_exception=True):
                 serializer.save()
                 location = '/hosts/' + host.name
-                return Response(serializer.data, status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
+                return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
         except Hosts.DoesNotExist:
             raise Http404
 
@@ -259,7 +281,7 @@ class NaptrList(generics.ListCreateAPIView):
         return NaptrFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class NaptrDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+class NaptrDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Naptr.objects.all()
     serializer_class = NaptrSerializer
 
@@ -273,7 +295,7 @@ class NsList(generics.ListCreateAPIView):
         return NameserverFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class NsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+class NsDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Ns.objects.all()
     serializer_class = NsSerializer
 
@@ -287,7 +309,7 @@ class PtrOverrideList(generics.ListCreateAPIView):
         return PtroverrideFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class PtrOverrideDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+class PtrOverrideDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = PtrOverride.objects.all()
     serializer_class = PtrOverrideSerializer
 
@@ -301,7 +323,7 @@ class SrvList(generics.ListCreateAPIView):
         return SrvFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class SrvDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+class SrvDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Srv.objects.all()
     serializer_class = SrvSerializer
 
@@ -380,7 +402,7 @@ class TxtList(generics.ListCreateAPIView):
         return TxtFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class TxtDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+class TxtDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Txt.objects.all()
     serializer_class = TxtSerializer
 
