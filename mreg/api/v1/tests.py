@@ -629,7 +629,8 @@ class APIZonesNsTestCase(TestCase):
     def test_zones_ns_patch_204_no_content(self):
         """"Patching the list of nameservers with an existing nameserver should return 204"""
         self.client.post('/zones/', self.post_data)
-        response = self.client.patch('/zones/%s/nameservers' % self.post_data['name'], {'name': self.ns_one.name})
+        response = self.client.patch('/zones/%s/nameservers' % self.post_data['name'], {'nameservers': self.post_data['nameservers'].append(self.ns_one.name)})
+        print(response.data)
         self.assertEqual(response.status_code, 204)
 
     def test_zones_ns_patch_400_bad_request(self):
@@ -641,33 +642,20 @@ class APIZonesNsTestCase(TestCase):
     def test_zones_ns_patch_404_not_found(self):
         """"Patching the list of nameservers with a non-existing nameserver should return 404"""
         self.client.post('/zones/', self.post_data)
-        response = self.client.patch('/zones/%s/nameservers' % self.post_data['name'], {'name': 'nonexisting-ns.uio.no'})
+        response = self.client.patch('/zones/%s/nameservers' % self.post_data['name'], {'nameservers': ['nonexisting-ns.uio.no']})
         self.assertEqual(response.status_code, 404)
 
     def test_zones_ns_delete_204_no_content_zone(self):
         """Deleting a nameserver from an existing zone should return 204"""
         self.client.post('/zones/', self.post_data)
-        response = self.client.patch('/zones/%s/nameservers' % self.post_data['name'], {'name': self.ns_one.name})
+        response = self.client.patch('/zones/%s/nameservers' % self.post_data['name'], {'nameservers': [self.post_data['nameservers'], self.ns_one.name]})
         self.assertEqual(response.status_code, 204)
-        response = self.client.delete('/zones/%s/nameservers' % self.post_data['name'], {'name': self.ns_one.name })
+        response = self.client.get('/zones/%s/nameservers' % self.post_data['name'])
+        self.assertEqual(response.status_code, 200)
+        response = self.client.patch('/zones/%s/nameservers' % self.post_data['name'], {'nameservers': response.data['nameservers'].remove(self.ns_one.name)})
         self.assertEqual(response.status_code, 204)
-
-    def test_zones_ns_delete_400_bad_request(self):
-        """Deleting a nameserver from an existing zone should return 204"""
-        self.client.post('/zones/', self.post_data)
-        response = self.client.delete('/zones/%s/nameservers' % self.post_data['name'], {'garbage': self.ns_one.name})
-        self.assertEqual(response.status_code, 400)
-
-    def test_zones_ns_delete_404_not_found_zone(self):
-        """Deleting a nameserver from a non-existing zone should return 404"""
-        response = self.client.delete('/zones/nonexisting.uio.no/nameservers', {'name': self.ns_one.name})
-        self.assertEqual(response.status_code, 404)
-
-    def test_zones_ns_delete_404_not_found_ns(self):
-        """Deleting a non-existing nameserver from a zone should return 404"""
-        self.client.post('/zones/', self.post_data)
-        response = self.client.delete('/zones/%s/nameservers' % self.post_data['name'], {'name' : 'ns3.uio.no'})
-        self.assertEqual(response.status_code, 404)
+        response = self.client.get('/zones/%s/nameservers' % self.post_data['name'])
+        self.assertEqual(response.data['nameservers'], self.post_data['nameservers'])
 
 
 class APINameserversTestCase(TestCase):
