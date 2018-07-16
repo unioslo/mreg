@@ -875,3 +875,18 @@ class APISubnetsTestCase(TestCase):
         """Patching an entry with a range that is already in use should return 409"""
         response = self.client.patch('/subnets/%s/' % self.subnet_sample.range, data=self.patch_data_range)
         self.assertEqual(response.status_code, 409)
+
+    def test_subnets_get_usedlist_200_ok(self):
+        """GET on /subnets/<ip/mask> with QUERY_STRING header 'used_list' should return 200 ok"""
+        host_one = Hosts(name='some-host',
+                         contact='some.email@some.domain.no',
+                         ttl=300,
+                         loc='23 58 23 N 10 43 50 E 80m',
+                         comment='some comment')
+        host_one.save()
+        ip_sample = Ipaddress(hostid=host_one,
+                              ipaddress='129.240.204.17')
+        ip_sample.save()
+
+        response = self.client.get('/subnets/%s/' % self.subnet_sample.range, QUERY_STRING='used_list')
+        self.assertEqual(response.status_code, 200)

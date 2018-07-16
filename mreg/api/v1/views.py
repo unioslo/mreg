@@ -279,13 +279,22 @@ class SubnetsDetail(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = SubnetsSerializer
     lookup_field = 'range'
 
-    def get(self, queryset=queryset, *args, **kwargs):
+    def get(self, request, queryset=queryset, *args, **kwargs):
         ip = self.kwargs['ip']
         mask = self.kwargs['range']
         range = '%s/%s' % (ip, mask)
         invalid_range = self.isnt_range(range)
         if invalid_range:
             return invalid_range
+
+        # Returns a list of used ipaddresses on a given subnet.
+        # TODO: Add funcitonality for reserved addresses
+        # TODO: Serialize output?
+        # TODO: Return hostnames?
+        if request.META.get('QUERY_STRING') == 'used_list':
+            used_ipaddresses = self.get_used_ipaddresses_on_subnet(range)
+            return Response({'used_list': used_ipaddresses}, status=status.HTTP_200_OK)
+
 
         try:
             found_subnet = Subnets.objects.get(range=range)
@@ -325,6 +334,16 @@ class SubnetsDetail(generics.RetrieveUpdateDestroyAPIView):
             return Response({'ERROR': 'Not a valid network address'}, status=status.HTTP_400_BAD_REQUEST)
         except ipaddress.NetmaskValueError:
             return Response({'ERROR': 'Not a valid net mask or prefix'}, status=status.HTTP_400_BAD_REQUEST)
+
+    def get_used_ipaddresses_on_subnet(self, subnet):
+        all_ipaddresses = Ipaddress.objects.all()
+        used_ipaddresses = []
+        for host_ip in ipaddress.IPv4Network(subnet).hosts():
+            address = str(host_ip)
+            if all_ipaddresses.filter(ipaddress=address).exists():
+                used_ipaddresses.append(address)
+
+        return used_ipaddresses
 
 
 class TxtList(generics.ListCreateAPIView):
