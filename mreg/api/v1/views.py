@@ -1,5 +1,7 @@
 from rest_framework import generics
 from django.http import Http404, QueryDict
+from django.core.exceptions import ObjectDoesNotExist
+from django.urls import reverse
 from mreg.models import *
 from mreg.api.v1.serializers import *
 from rest_framework_extensions.etag.mixins import ETAGMixin
@@ -64,6 +66,25 @@ class ZoneFilterSet(ModelFilterSet):
         model = Zones
 
 
+class StrictCRUDMixin(object):
+    """Applies stricter handling of HTTP requests and responses"""
+
+    """PATCH should return empty body, 204 - No Content, and location of object"""
+    def patch(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer_class = self.get_serializer_class()
+        resource = self.kwargs['resource']
+        try:
+            obj = queryset.get(self.lookup_field)
+            serializer = serializer_class(obj, data=request.data, partial=True)
+            if serializer.is_valid(raise_exception=True):
+                serializer.save()
+                location = '/%s/%s' % (resource, obj.pk)
+                return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
+        except ObjectDoesNotExist:
+            raise Http404
+
+
 class CnameList(generics.ListCreateAPIView):
     queryset = Cname.objects.all()
     serializer_class = CnameSerializer
@@ -73,7 +94,7 @@ class CnameList(generics.ListCreateAPIView):
         return CnameFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class CnameDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+class CnameDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Cname.objects.all()
     serializer_class = CnameSerializer
 
@@ -87,7 +108,7 @@ class HinfoPresetsList(generics.ListCreateAPIView):
         return HinfoFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class HinfoPresetsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+class HinfoPresetsDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = HinfoPresets.objects.all()
     serializer_class = HinfoPresetsSerializer
 
@@ -105,7 +126,7 @@ class HostList(generics.GenericAPIView):
         return Response(serializer.data)
 
     # TODO Authentication
-    def post(self, request):
+    def post(self, request, *args, **kwargs):
         if "name" in request.data:
             if self.queryset.filter(name=request.data["name"]).exists():
                 content = {'ERROR': 'name already in use'}
@@ -119,20 +140,20 @@ class HostList(generics.GenericAPIView):
             hostserializer = HostsSerializer(host, data=hostdata)
             if hostserializer.is_valid(raise_exception=True):
                 hostserializer.save()
-                location = '/hosts/' + host.name
+                location = '/hosts/%s' % host.name
                 ipdata = {'hostid': host.pk, 'ipaddress': ipaddress}
                 ip = Ipaddress()
                 ipserializer = IpaddressSerializer(ip, data=ipdata)
                 if ipserializer.is_valid(raise_exception=True):
                     ipserializer.save()
-                return Response(hostserializer.data, status=status.HTTP_201_CREATED, headers={'Location': location})
+                return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
         else:
             host = Hosts()
             hostserializer = HostsSerializer(host, data=request.data)
             if hostserializer.is_valid(raise_exception=True):
                 hostserializer.save()
-                location = '/hosts/' + host.name
-                return Response(hostserializer.data, status=status.HTTP_201_CREATED, headers={'Location': location})
+                location = '/hosts/%s' % host.name
+                return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
 
 
 class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
@@ -175,8 +196,8 @@ class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
             serializer = HostsSerializer(host, data=request.data, partial=True)
             if serializer.is_valid(raise_exception=True):
                 serializer.save()
-                location = '/hosts/' + host.name
-                return Response(serializer.data, status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
+                location = '/hosts/%s' % host.name
+                return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
         except Hosts.DoesNotExist:
             raise Http404
 
@@ -204,8 +225,8 @@ class IpaddressList(generics.ListCreateAPIView):
                 serializer = IpaddressSerializer(ip, data=request.data)
                 if serializer.is_valid(raise_exception=True):
                     serializer.save()
-                    location = '/ipaddresses/' + ip.ipaddress
-                    return Response(serializer.data, status=status.HTTP_201_CREATED, headers={'Location': location})
+                    location = '/ipaddresses/%s' % ip.ipaddress
+                    return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
 
 
 class IpaddressDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
@@ -244,8 +265,8 @@ class IpaddressDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
             serializer = IpaddressSerializer(ip, data=request.data, partial=True)
             if serializer.is_valid(raise_exception=True):
                 serializer.save()
-                location = '/ipaddresses/' + ip.ipaddress
-                return Response(serializer.data, status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
+                location = '/ipaddresses/%s' % ip.ipaddress
+                return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
         except Ipaddress.DoesNotExist:
             raise Http404
 
@@ -259,7 +280,7 @@ class NaptrList(generics.ListCreateAPIView):
         return NaptrFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class NaptrDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+class NaptrDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Naptr.objects.all()
     serializer_class = NaptrSerializer
 
@@ -273,7 +294,7 @@ class NsList(generics.ListCreateAPIView):
         return NameserverFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class NsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+class NsDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Ns.objects.all()
     serializer_class = NsSerializer
 
@@ -287,7 +308,7 @@ class PtrOverrideList(generics.ListCreateAPIView):
         return PtroverrideFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class PtrOverrideDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+class PtrOverrideDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = PtrOverride.objects.all()
     serializer_class = PtrOverrideSerializer
 
@@ -301,7 +322,7 @@ class SrvList(generics.ListCreateAPIView):
         return SrvFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class SrvDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+class SrvDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Srv.objects.all()
     serializer_class = SrvSerializer
 
@@ -342,7 +363,6 @@ class SubnetsList(generics.ListCreateAPIView):
             return True
 
         return self.overlap_check(subnet.supernet())
-
 
 class SubnetsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Subnets.objects.all()
@@ -391,8 +411,8 @@ class SubnetsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
             serializer = self.get_serializer(subnet, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)
             serializer.save()
-            location = '/subnets/%s/' % subnet.range
-            return Response(serializer.data, status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
+            location = '/subnets/%s' % subnet.range
+            return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
         except Subnets.DoesNotExist:
             raise Http404
 
@@ -415,7 +435,6 @@ class SubnetsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
 
         return used_ipaddresses
 
-
 class TxtList(generics.ListCreateAPIView):
     queryset = Txt.objects.all()
     serializer_class = TxtSerializer
@@ -425,7 +444,7 @@ class TxtList(generics.ListCreateAPIView):
         return TxtFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class TxtDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+class TxtDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Txt.objects.all()
     serializer_class = TxtSerializer
 
@@ -449,7 +468,7 @@ class ZonesList(generics.ListCreateAPIView):
 
         if self.queryset.filter(name=request.data["name"]).exists():
             content = {'ERROR': 'Zone name already in use'}
-            return Response(content, status=status.HTTP_409_CONFLICT)
+            return Response(status=status.HTTP_409_CONFLICT)
 
         data = request.data.copy()
         data['primary_ns'] = data['nameservers'] if isinstance(request.data['nameservers'], str) else data['nameservers'][0]
@@ -469,7 +488,7 @@ class ZonesList(generics.ListCreateAPIView):
                 print('ERROR Could not find NS: %s\n' % (nameserver))
                 return Response({'ERROR': 'Could not find NS: %s' % (nameserver)}, status=status.HTTP_404_NOT_FOUND)
         zone.save()
-        return Response(self.get_serializer(zone).data, status=status.HTTP_201_CREATED, headers={'Location': '/zones/%s' % data['name']})
+        return Response(status=status.HTTP_201_CREATED, headers={'Location': '/zones/%s' % data['name']})
 
 
 class ZonesDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
@@ -500,13 +519,13 @@ class ZonesDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
             serializer.is_valid(raise_exception=True)
             serializer.save()
             location = '/zones/%s' % zone.name
-            return Response(serializer.data, status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
+            return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
         except Zones.DoesNotExist:
             raise Http404
 
 
 class ZonesNsDetail(ETAGMixin, generics.GenericAPIView):
-    queryset_zones = Zones.objects.all()
+    queryset = Zones.objects.all()
     queryset_ns = Ns.objects.all()
     lookup_field = 'name'
 
@@ -514,7 +533,7 @@ class ZonesNsDetail(ETAGMixin, generics.GenericAPIView):
     def get(self, request, *args, **kwargs):
         query = self.kwargs[self.lookup_field]
         try:
-            zone = self.queryset_zones.get(name=query)
+            zone = self.get_queryset().get(name=query)
             return Response(NsSerializer(zone.nameservers.all(), many=True).data, status=status.HTTP_200_OK)
         except Zones.DoesNotExist:
             raise Http404
@@ -523,32 +542,18 @@ class ZonesNsDetail(ETAGMixin, generics.GenericAPIView):
     def patch(self, request, *args, **kwargs):
         query = self.kwargs[self.lookup_field]
         try:
-            zone = self.queryset_zones.get(name=query)
-            try:
-                if self.lookup_field not in request.data:
-                    return Response({'ERROR': 'No NS name found in body'}, status=status.HTTP_400_BAD_REQUEST)
-                ns = self.queryset_ns.get(name=request.data[self.lookup_field])
-                zone.nameservers.add(ns)
-                zone.save()
-                return Response(ZonesSerializer(zone).data, status=status.HTTP_204_NO_CONTENT)
-            except Ns.DoesNotExist:
-                return Response({'ERROR': 'Could not find Zone'}, status=status.HTTP_404_NOT_FOUND)
-        except Zones.DoesNotExist:
-            raise Http404
-
-    # TODO Authorization
-    def delete(self, request, *args, **kwargs):
-        query = self.kwargs['name']
-        try:
-            zone = self.queryset_zones.get(name=query)
-            try:
-                if self.lookup_field not in request.data:
-                    return Response({'ERROR': 'No NS name found in body'}, status=status.HTTP_400_BAD_REQUEST)
-                ns = self.queryset_ns.get(name=request.data[self.lookup_field])
-                zone.nameservers.remove(ns)
-                zone.save()
-                return Response(ZonesSerializer(zone).data, status=status.HTTP_204_NO_CONTENT)
-            except Ns.DoesNotExist:
-                return Response({'ERROR': 'Could not find NS'}, status=status.HTTP_404_NOT_FOUND)
+            zone = self.get_queryset().get(name=query)
+            if 'nameservers' not in request.data:
+                return Response({'ERROR': 'No NS name found in body'}, status=status.HTTP_400_BAD_REQUEST)
+            zone.nameservers.clear()
+            for nameserver in request.data['nameservers']:
+                try:
+                    ns = self.queryset_ns.get(name=nameserver)
+                    zone.nameservers.add(ns)
+                except Ns.DoesNotExist:
+                    raise Http404
+            zone.save()
+            location = 'zones/%s/nameservers' % query
+            return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
         except Zones.DoesNotExist:
             raise Http404
