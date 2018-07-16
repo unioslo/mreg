@@ -339,6 +339,13 @@ class SubnetsList(generics.ListCreateAPIView):
                 return Response({'ERROR': 'Subnet overlaps with: {}'.format(subnet.supernet().with_prefixlen)},
                                 status=status.HTTP_409_CONFLICT)
 
+            new_subnet = Subnets()
+            serializer = SubnetsSerializer(new_subnet, data=request.data)
+            if serializer.is_valid(raise_exception=True):
+                serializer.save()
+                location = '/subnets/%s' % request.data
+                return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
+
         except ipaddress.AddressValueError:
             return Response({'ERROR': 'Not a valid IP address'}, status=status.HTTP_400_BAD_REQUEST)
 

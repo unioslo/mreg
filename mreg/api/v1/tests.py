@@ -879,7 +879,7 @@ class APISubnetsTestCase(TestCase):
                               ipaddress='129.240.204.17')
         ip_sample.save()
 
-        response = self.client.get('/subnets/%s/' % self.subnet_sample.range, QUERY_STRING='used_list')
+        response = self.client.get('/subnets/%s' % self.subnet_sample.range, QUERY_STRING='used_list')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, ['129.240.204.17'])
 
