@@ -110,7 +110,6 @@ class HostsSerializer(serializers.ModelSerializer):
         return value
 
 
-
 class HostsNameSerializer(serializers.ModelSerializer):
     class Meta:
         model = Hosts

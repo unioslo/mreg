@@ -340,7 +340,7 @@ class SubnetsList(generics.ListCreateAPIView):
                                 status=status.HTTP_409_CONFLICT)
 
             new_subnet = Subnets()
-            serializer = SubnetsSerializer(new_subnet, data=request.data)
+            serializer = self.get_serializer(new_subnet, data=request.data)
             if serializer.is_valid(raise_exception=True):
                 serializer.save()
                 location = '/subnets/%s' % request.data
@@ -371,6 +371,7 @@ class SubnetsList(generics.ListCreateAPIView):
 
         return self.overlap_check(subnet.supernet())
 
+
 class SubnetsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Subnets.objects.all()
     serializer_class = SubnetsSerializer
@@ -391,7 +392,6 @@ class SubnetsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
         if request.META.get('QUERY_STRING') == 'used_list':
             used_ipaddresses = self.get_used_ipaddresses_on_subnet(range)
             return Response(used_ipaddresses, status=status.HTTP_200_OK)
-
 
         try:
             found_subnet = Subnets.objects.get(range=range)
@@ -442,6 +442,7 @@ class SubnetsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
 
         return used_ipaddresses
 
+
 class TxtList(generics.ListCreateAPIView):
     queryset = Txt.objects.all()
     serializer_class = TxtSerializer
@@ -475,7 +476,7 @@ class ZonesList(generics.ListCreateAPIView):
 
         if self.queryset.filter(name=request.data["name"]).exists():
             content = {'ERROR': 'Zone name already in use'}
-            return Response(status=status.HTTP_409_CONFLICT)
+            return Response(content, status=status.HTTP_409_CONFLICT)
 
         data = request.data.copy()
         data['primary_ns'] = data['nameservers'] if isinstance(request.data['nameservers'], str) else data['nameservers'][0]
@@ -492,8 +493,7 @@ class ZonesList(generics.ListCreateAPIView):
                 ns = self.queryset_ns.get(name=nameserver)
                 zone.nameservers.add(ns.nsid)
             except Ns.DoesNotExist:
-                print('ERROR Could not find NS: %s\n' % (nameserver))
-                return Response({'ERROR': 'Could not find NS: %s' % (nameserver)}, status=status.HTTP_404_NOT_FOUND)
+                return Response({'ERROR': 'Could not find NS: %s' % nameserver}, status=status.HTTP_404_NOT_FOUND)
         zone.save()
         return Response(status=status.HTTP_201_CREATED, headers={'Location': '/zones/%s' % data['name']})
 
@@ -506,13 +506,12 @@ class ZonesDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     # TODO: Implement authentication
     def patch(self, request, *args, **kwargs):
         query = self.kwargs[self.lookup_field]
-
         if "name" in request.data:
             content = {'ERROR': 'Not allowed to change name'}
             return Response(content, status=status.HTTP_403_FORBIDDEN)
 
         if "zoneid" in request.data:
-            if self.queryset.filter(zoneid=request.data["zoneid"]).exists() :
+            if self.queryset.filter(zoneid=request.data["zoneid"]).exists():
                 content = {'ERROR': 'zoneid already in use'}
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
@@ -553,7 +552,7 @@ class ZonesNsDetail(ETAGMixin, generics.GenericAPIView):
             if 'nameservers' not in request.data:
                 return Response({'ERROR': 'No NS name found in body'}, status=status.HTTP_400_BAD_REQUEST)
             zone.nameservers.clear()
-            for nameserver in request.data['nameservers']:
+            for nameserver in request.data.getlist('nameservers'):
                 try:
                     ns = self.queryset_ns.get(name=nameserver)
                     zone.nameservers.add(ns)
