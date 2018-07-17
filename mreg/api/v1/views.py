@@ -386,9 +386,6 @@ class SubnetsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
             return invalid_range
 
         # Returns a list of used ipaddresses on a given subnet.
-        # TODO: Add funcitonality for reserved addresses
-        # TODO: Serialize output?
-        # TODO: Return hostnames?
         if request.META.get('QUERY_STRING') == 'used_list':
             used_ipaddresses = self.get_used_ipaddresses_on_subnet(range)
             return Response(used_ipaddresses, status=status.HTTP_200_OK)
@@ -433,6 +430,11 @@ class SubnetsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
             return Response({'ERROR': 'Not a valid net mask or prefix'}, status=status.HTTP_400_BAD_REQUEST)
 
     def get_used_ipaddresses_on_subnet(self, subnet):
+        """
+        Takes a valid subnet (ip-range), and checks which ip-addresses on the subnet are used.
+        IPv4Network.hosts() automatically ignores the network and broadcast addresses of the subnet,
+        unless the subnet consists of only these two addresses.
+        """
         all_ipaddresses = Ipaddress.objects.all()
         used_ipaddresses = []
         for host_ip in ipaddress.IPv4Network(subnet).hosts():
@@ -540,7 +542,10 @@ class ZonesNsDetail(ETAGMixin, generics.GenericAPIView):
         query = self.kwargs[self.lookup_field]
         try:
             zone = self.get_queryset().get(name=query)
-            return Response(NsSerializer(zone.nameservers.all(), many=True).data, status=status.HTTP_200_OK)
+            ns_list = []
+            for ns in zone.nameservers.values():
+                ns_list.append(ns['name'])
+            return Response(ns_list, status=status.HTTP_200_OK)
         except Zones.DoesNotExist:
             raise Http404
 

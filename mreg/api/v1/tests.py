@@ -664,10 +664,8 @@ class APIZonesNsTestCase(TestCase):
                                      {'nameservers': self.ns_two.name})
         self.assertEqual(response.status_code, 204)
 
-        # This response object is a list containing a single OrderedDict, hence the indexing for checking.
-        # Needs to be looked at.
         response = self.client.get('/zones/%s/nameservers' % self.post_data['name'])
-        self.assertEqual(response.data[0]['name'], self.post_data['nameservers'][0])
+        self.assertEqual(response.data, self.post_data['nameservers'])
 
 
 class APINameserversTestCase(TestCase):
@@ -891,7 +889,7 @@ class APISubnetsTestCase(TestCase):
                               ipaddress='129.240.204.17')
         ip_sample.save()
 
-        response = self.client.get('/subnets/%s' % self.subnet_sample.range, QUERY_STRING='used_list')
+        response = self.client.get('/subnets/%s?used_list' % self.subnet_sample.range)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, ['129.240.204.17'])
 

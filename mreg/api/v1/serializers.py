@@ -63,6 +63,7 @@ class HinfoPresetsSerializer(serializers.ModelSerializer):
         data = {key: nonify(value) for key, value in data.items()}
         return data
 
+
 class IpaddressSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ipaddress
