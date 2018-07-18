@@ -75,7 +75,7 @@ class StrictCRUDMixin(object):
         serializer_class = self.get_serializer_class()
         resource = self.kwargs['resource']
         try:
-            obj = queryset.get(self.lookup_field)
+            obj = queryset.get(pk=self.kwargs[self.lookup_field])
             serializer = serializer_class(obj, data=request.data, partial=True)
             if serializer.is_valid(raise_exception=True):
                 serializer.save()
