@@ -93,6 +93,7 @@ class HostsSerializer(serializers.ModelSerializer):
     ipaddress = IpaddressSerializer(many=True, read_only=True)
     cname = CnameSerializer(many=True, read_only=True)
     txt = TxtSerializer(many=True, read_only=True)
+    hinfo = serializers.IntegerField(required=False)
 
     class Meta:
         model = Hosts
