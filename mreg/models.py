@@ -96,6 +96,7 @@ class Subnets(models.Model):
     category = models.TextField(blank=True, null=True)
     location = models.TextField(blank=True, null=True)
     frozen = models.NullBooleanField()
+    reserved = models.IntegerField(default=3)
 
     class Meta:
         db_table = 'subnets'

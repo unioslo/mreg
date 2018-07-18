@@ -180,6 +180,9 @@ class SubnetsSerializer(serializers.ModelSerializer):
         data = {key: nonify(value) for key, value in data.items()}
         return data
 
+    def create(self):
+        return Subnets(**self.validated_data)
+
 
 class ZonesSerializer(serializers.ModelSerializer):
     nameservers = NsSerializer(read_only=True, many=True)

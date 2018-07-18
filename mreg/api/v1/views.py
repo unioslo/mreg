@@ -333,18 +333,22 @@ class SubnetsList(generics.ListCreateAPIView):
 
     def post(self, request, *args, **kwargs):
         try:
-            subnet = ipaddress.IPv4Network(request.data['range'])
-            overlap = self.overlap_check(subnet)
+            network = ipaddress.IPv4Network(request.data['range'])
+            hosts  = network.num_addresses
+
+            overlap = self.overlap_check(network)
             if overlap:
-                return Response({'ERROR': 'Subnet overlaps with: {}'.format(subnet.supernet().with_prefixlen)},
+                return Response({'ERROR': 'Subnet overlaps with: {}'.format(network.supernet().with_prefixlen)},
                                 status=status.HTTP_409_CONFLICT)
 
-            new_subnet = Subnets()
-            serializer = self.get_serializer(new_subnet, data=request.data)
-            if serializer.is_valid(raise_exception=True):
-                serializer.save()
-                location = '/subnets/%s' % request.data
-                return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            subnet = serializer.create()
+            if hosts <= 4:
+                subnet.reserved = 2
+            subnet.save()
+            location = '/subnets/%s' % request.data
+            return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
 
         except ipaddress.AddressValueError:
             return Response({'ERROR': 'Not a valid IP address'}, status=status.HTTP_400_BAD_REQUEST)
@@ -417,6 +421,25 @@ class SubnetsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
             serializer.save()
             location = '/subnets/%s' % subnet.range
             return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
+        except Subnets.DoesNotExist:
+            raise Http404
+
+    def delete(self, request, *args, **kwargs):
+        ip = self.kwargs['ip']
+        mask = self.kwargs['range']
+        range = '%s/%s' % (ip, mask)
+        invalid_range = self.isnt_range(range)
+        if invalid_range:
+            return invalid_range
+
+        used_ipaddresses = self.get_used_ipaddresses_on_subnet(range)
+        if used_ipaddresses:
+            return Response({'ERROR': 'Subnet contains IP addresses that are in use'}, status=status.HTTP_409_CONFLICT)
+
+        try:
+            found_subnet = Subnets.objects.get(range=range)
+            found_subnet.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
         except Subnets.DoesNotExist:
             raise Http404
 
