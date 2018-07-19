@@ -93,6 +93,29 @@ class HostsSerializer(serializers.ModelSerializer):
     ipaddress = IpaddressSerializer(many=True, read_only=True)
     cname = CnameSerializer(many=True, read_only=True)
     txt = TxtSerializer(many=True, read_only=True)
+    hinfo = HinfoPresetsSerializer(required=False)['hinfoid']
+
+    class Meta:
+        model = Hosts
+        fields = ('hostid', 'name', 'contact', 'ttl', 'hinfo', 'loc', 'comment', 'cname', 'ipaddress', 'txt')
+
+    def validate(self, data):
+        key_validate(self)
+        data = {key: nonify(value) for key, value in data.items()}
+        return data
+
+    def validate_ttl(self, value):
+        """Ensures ttl is within range. -1 equals None/Null"""
+        value = nonify(value)
+        if value:
+            ttl_validate(value)
+        return value
+
+
+class HostsSaveSerializer(serializers.ModelSerializer):
+    ipaddress = IpaddressSerializer(many=True, read_only=True)
+    cname = CnameSerializer(many=True, read_only=True)
+    txt = TxtSerializer(many=True, read_only=True)
     hinfo = serializers.IntegerField(required=False)
 
     class Meta:
@@ -109,6 +132,12 @@ class HostsSerializer(serializers.ModelSerializer):
         value = nonify(value)
         if value:
             ttl_validate(value)
+        return value
+
+    def validate_hinfo(self, value):
+        value = nonify(value)
+        if value != None:
+            value = HinfoPresets.objects.get(pk=value)
         return value
 
 
