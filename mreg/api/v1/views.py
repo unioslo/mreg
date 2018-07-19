@@ -193,7 +193,7 @@ class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
 
         try:
             host = Hosts.objects.get(name=query)
-            serializer = HostsSerializer(host, data=request.data, partial=True)
+            serializer = HostsSaveSerializer(host, data=request.data, partial=True)
             if serializer.is_valid(raise_exception=True):
                 serializer.save()
                 location = '/hosts/%s' % host.name
