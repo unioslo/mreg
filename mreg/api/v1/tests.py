@@ -793,6 +793,13 @@ class APISubnetsTestCase(TestCase):
                                          category='so',
                                          location='silurveien',
                                          frozen=False)
+
+        self.host_one = Hosts(name='some-host',
+                         contact='some.email@some.domain.no',
+                         ttl=300,
+                         loc='23 58 23 N 10 43 50 E 80m',
+                         comment='some comment')
+        self.host_one.save()
         self.subnet_sample.save()
         self.subnet_sample_two.save()
 
@@ -873,23 +880,33 @@ class APISubnetsTestCase(TestCase):
 
     def test_subnets_patch_409_conflict_range(self):
         """Patching an entry with a range that is already in use should return 409"""
-        
         response = self.client.patch('/subnets/%s' % self.subnet_sample.range, data=self.patch_data_range)
         self.assertEqual(response.status_code, 409)
 
     def test_subnets_get_usedlist_200_ok(self):
         """GET on /subnets/<ip/mask> with QUERY_STRING header 'used_list' should return 200 ok and data."""
-        host_one = Hosts(name='some-host',
-                         contact='some.email@some.domain.no',
-                         ttl=300,
-                         loc='23 58 23 N 10 43 50 E 80m',
-                         comment='some comment')
-        host_one.save()
-        ip_sample = Ipaddress(hostid=host_one,
-                              ipaddress='129.240.204.17')
+        ip_sample = Ipaddress(hostid=self.host_one, ipaddress='129.240.204.17')
         ip_sample.save()
 
         response = self.client.get('/subnets/%s?used_list' % self.subnet_sample.range)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, ['129.240.204.17'])
+
+    def test_subnets_delete_204_no_content(self):
+        """Deleting an existing entry with no adresses in use should return 204"""
+        response = self.client.post('/subnets/', self.post_data)
+        self.assertEqual(response.status_code, 201)
+        response = self.client.delete('/subnets/%s' % self.post_data['range'])
+        self.assertEqual(response.status_code, 204)
+
+    def test_subnets_delete_409_conflict(self):
+        """Deleting an existing entry with  adresses in use should return 409"""
+        response = self.client.post('/subnets/', self.post_data)
+        self.assertEqual(response.status_code, 201)
+
+        ip_sample = Ipaddress(hostid=self.host_one, ipaddress='192.0.2.1')
+        ip_sample.save()
+
+        response = self.client.delete('/subnets/%s' % self.post_data['range'])
+        self.assertEqual(response.status_code, 409)
 

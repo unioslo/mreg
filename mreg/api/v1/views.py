@@ -333,7 +333,7 @@ class SubnetsList(generics.ListCreateAPIView):
 
     def post(self, request, *args, **kwargs):
         try:
-            network = ipaddress.IPv4Network(request.data['range'])
+            network = ipaddress.ip_network(request.data['range'])
             hosts  = network.num_addresses
 
             overlap = self.overlap_check(network)
@@ -346,15 +346,13 @@ class SubnetsList(generics.ListCreateAPIView):
             subnet = serializer.create()
             if hosts <= 4:
                 subnet.reserved = 2
+            print(subnet.range)
             subnet.save()
             location = '/subnets/%s' % request.data
             return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
 
-        except ipaddress.AddressValueError:
-            return Response({'ERROR': 'Not a valid IP address'}, status=status.HTTP_400_BAD_REQUEST)
-
-        except ipaddress.NetmaskValueError:
-            return Response({'ERROR': 'Not a valid net mask'}, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError as error:
+            return Response({'ERROR': str(error)}, status=status.HTTP_400_BAD_REQUEST)
 
     def get_queryset(self):
         qs = super(SubnetsList, self).get_queryset()
@@ -385,6 +383,8 @@ class SubnetsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
         ip = self.kwargs['ip']
         mask = self.kwargs['range']
         range = '%s/%s' % (ip, mask)
+        print(range)
+
         invalid_range = self.isnt_range(range)
         if invalid_range:
             return invalid_range
@@ -396,10 +396,11 @@ class SubnetsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
 
         try:
             found_subnet = Subnets.objects.get(range=range)
-            serializer = self.get_serializer(found_subnet)
-            return Response(serializer.data, status=status.HTTP_200_OK)
         except Subnets.DoesNotExist:
             raise Http404
+
+        serializer = self.get_serializer(found_subnet)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def patch(self, request, *args, **kwargs):
         ip = self.kwargs['ip']
@@ -445,22 +446,20 @@ class SubnetsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
 
     def isnt_range(self, range):
         try:
-            ipaddress.IPv4Network(range)
+            ipaddress.ip_network(range)
             return None
-        except ipaddress.AddressValueError:
-            return Response({'ERROR': 'Not a valid network address'}, status=status.HTTP_400_BAD_REQUEST)
-        except ipaddress.NetmaskValueError:
-            return Response({'ERROR': 'Not a valid net mask or prefix'}, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError as error:
+            return Response({'ERROR': str(error)}, status=status.HTTP_400_BAD_REQUEST)
 
     def get_used_ipaddresses_on_subnet(self, subnet):
         """
         Takes a valid subnet (ip-range), and checks which ip-addresses on the subnet are used.
-        IPv4Network.hosts() automatically ignores the network and broadcast addresses of the subnet,
+        ip_network.hosts() automatically ignores the network and broadcast addresses of the subnet,
         unless the subnet consists of only these two addresses.
         """
         all_ipaddresses = Ipaddress.objects.all()
         used_ipaddresses = []
-        for host_ip in ipaddress.IPv4Network(subnet).hosts():
+        for host_ip in ipaddress.ip_network(subnet).hosts():
             address = str(host_ip)
             if all_ipaddresses.filter(ipaddress=address).exists():
                 used_ipaddresses.append(address)
