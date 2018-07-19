@@ -1,5 +1,6 @@
 from django.db import models
 from mreg.validators import *
+import ipaddress
 
 
 class Ns(models.Model):
@@ -60,6 +61,20 @@ class Ipaddress(models.Model):
     class Meta:
         db_table = 'ipaddress'
 
+    def zf_string(self):
+        if ipaddress.ip_address(self.ipaddress) is ipaddress.IPv4Address:
+            iptype = 'A'
+        else:
+            iptype = 'AAAA'
+        host = Hosts.objects.get(pk=self.hostid)
+        data = {
+            'name': host.name,
+            'ttl': host.ttl,
+            'record_type': iptype,
+            'record_data': self.ipaddress
+        }
+        return '{name} {ttl} {record_type} {record_data}'.format_map(data)
+
 
 class PtrOverride(models.Model):
     hostid = models.ForeignKey(Hosts, on_delete=models.CASCADE, db_column='hostid', related_name='ptr_override')
@@ -67,6 +82,14 @@ class PtrOverride(models.Model):
 
     class Meta:
         db_table = 'ptr_override'
+
+    def zf_string(self):
+        host = Hosts.object.get(pk=self.hostid)
+        data = {
+            'name': self.ipaddress,
+            'record_data': host.name
+        }
+        return '{name} PTR {record_data}'.format_map(data)
 
 
 class Txt(models.Model):
@@ -77,6 +100,14 @@ class Txt(models.Model):
     class Meta:
         db_table = 'txt'
 
+    def zf_string(self):
+        host = Hosts.objects.get(pk=self.hostid)
+        data = {
+            'name': host.name,
+            'record_data': self.txt
+        }
+        return '{name} TXT {record_data}'.format_map(data)
+
 
 class Cname(models.Model):
     hostid = models.ForeignKey(Hosts, on_delete=models.CASCADE, db_column='hostid', related_name='cname')
@@ -85,6 +116,15 @@ class Cname(models.Model):
 
     class Meta:
         db_table = 'cname'
+
+    def zf_string(self):
+        host = Hosts.objects.get(pk=self.hostid)
+        data = {
+            'name': host.name,
+            'ttl': self.ttl,
+            'record_data': self.cname
+        }
+        return '{name} {ttl} CNAME {record_data}'.format_map(data)
 
 
 class Subnets(models.Model):
@@ -115,6 +155,17 @@ class Naptr(models.Model):
     class Meta:
         db_table = 'naptr'
 
+    def zf_string(self):
+        data = {
+            'order': self.orderv,
+            'preference': self.preference,
+            'flag': self.flag,
+            'service': self.service,
+            'regex': self.regex,
+            'replacement': self.replacement
+        }
+        return 'NAPTR {order} {preference} \"{flag}\" \"{service}\" \"{regex}\" {replacement}'.format_map(data)
+
 
 class Srv(models.Model):
     srvid = models.AutoField(primary_key=True, serialize=True)
@@ -127,3 +178,14 @@ class Srv(models.Model):
 
     class Meta:
         db_table = 'srv'
+
+    def zf_string(self):
+        data = {
+            'service': self.service,
+            'ttl': self.ttl,
+            'priority': self.priority,
+            'weight': self.weight,
+            'port': self.port,
+            'target': self.target
+        }
+        return '{service} {ttl} SRV {priority} {weight} {port} {target}'.format_map(data)
