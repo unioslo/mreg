@@ -127,3 +127,16 @@ class Srv(models.Model):
 
     class Meta:
         db_table = 'srv'
+
+
+# TODO: Add user_id functionality when auth is implemented
+class ModelChangeLogs(models.Model):
+    # user_id = models.BigIntegerField(db_index=True)
+    table_name = models.CharField(max_length=132)
+    table_row = models.BigIntegerField()
+    data = models.TextField()
+    action = models.CharField(max_length=16)  # saved or deleted
+    timestamp = models.DateTimeField()
+
+    class Meta:
+        db_table = "model_change_logs"
