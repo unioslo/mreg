@@ -133,20 +133,29 @@ class HostList(generics.GenericAPIView):
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
         if 'ipaddress' in request.data:
-            ipaddress = request.data['ipaddress']
+            ipkey = request.data['ipaddress']
             hostdata = QueryDict.copy(request.data)
             del hostdata['ipaddress']
             host = Hosts()
             hostserializer = HostsSerializer(host, data=hostdata)
             if hostserializer.is_valid(raise_exception=True):
-                hostserializer.save()
-                location = '/hosts/%s' % host.name
-                ipdata = {'hostid': host.pk, 'ipaddress': ipaddress}
-                ip = Ipaddress()
-                ipserializer = IpaddressSerializer(ip, data=ipdata)
-                if ipserializer.is_valid(raise_exception=True):
-                    ipserializer.save()
-                return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
+                try:
+                    ipaddress.ip_address(ipkey)
+                    try:
+                        Ipaddress.objects.get(ipaddress=ipkey)
+                        return Response(status=status.HTTP_409_CONFLICT, data={'ERROR': "IP address already exists"})
+                    except Ipaddress.DoesNotExist:
+                        # This is good to go
+                        hostserializer.save()
+                        ipdata = {'hostid': host.pk, 'ipaddress': ipkey}
+                        ip = Ipaddress()
+                        ipserializer = IpaddressSerializer(ip, data=ipdata)
+                        if ipserializer.is_valid(raise_exception=True):
+                            ipserializer.save()
+                            location = '/hosts/%s' % host.name
+                            return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
+                except ValueError:
+                    return Response(status=status.HTTP_400_BAD_REQUEST)
         else:
             host = Hosts()
             hostserializer = HostsSerializer(host, data=request.data)
@@ -346,7 +355,6 @@ class SubnetsList(generics.ListCreateAPIView):
             subnet = serializer.create()
             if hosts <= 4:
                 subnet.reserved = 2
-            print(subnet.range)
             subnet.save()
             location = '/subnets/%s' % request.data
             return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
@@ -383,7 +391,6 @@ class SubnetsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
         ip = self.kwargs['ip']
         mask = self.kwargs['range']
         range = '%s/%s' % (ip, mask)
-        print(range)
 
         invalid_range = self.isnt_range(range)
         if invalid_range:
