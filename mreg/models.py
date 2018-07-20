@@ -3,6 +3,52 @@ from mreg.validators import *
 import ipaddress
 
 
+def clean(value):
+    """
+    Cleans up potential Nones into empty strings instead
+    :param value: Value to check
+    :return: Unmodified value or empty string
+    """
+    if value is None:
+        value = ""
+    return value
+
+
+def comment(string):
+    """
+    Turns not-empty string into comments
+    :param string: String to check
+    :return: Commented or empty string
+    """
+    if string != "":
+        string = ' ; %s' % string
+    return string
+
+
+def reverse_ip(ip):
+    """
+    Reverses an IP-adddress
+    :param ip: IP-address to reverse
+    :return: IP-address in reverse
+    """
+    if isinstance(ipaddress.ip_address(ip), ipaddress.IPv6Address):
+        return ':'.join(reversed(ip.split(':')))
+    else:
+        return '.'.join(reversed(ip.split('.')))
+
+
+def qualify(name, zone):
+    """
+    Appends a punctuation mark to fully qualified names within a given zone
+    :param name: Name to check
+    :param zone: Zone where name might be
+    :return: String with punctuation appended or unchanged
+    """
+    if name.endswith(zone):
+        name += '.'
+    return name
+
+
 class Ns(models.Model):
     # TODO: zoneid-field is likey not necessary at all, since addition of
     # TODO: nameservers field to Zones model.
@@ -62,18 +108,19 @@ class Ipaddress(models.Model):
         db_table = 'ipaddress'
 
     def zf_string(self):
-        if ipaddress.ip_address(self.ipaddress) is ipaddress.IPv4Address:
+        if isinstance(ipaddress.ip_address(self.ipaddress), ipaddress.IPv4Address):
             iptype = 'A'
         else:
             iptype = 'AAAA'
-        host = Hosts.objects.get(pk=self.hostid)
+        #TODO: Make this generic for other zones than uio.no
         data = {
-            'name': host.name,
-            'ttl': host.ttl,
+            'name': qualify(self.hostid.name, 'uio.no'),
+            'ttl': clean(self.hostid.ttl),
             'record_type': iptype,
-            'record_data': self.ipaddress
+            'record_data': self.ipaddress,
+            'comment': comment(clean(self.hostid.comment))
         }
-        return '{name} {ttl} {record_type} {record_data}'.format_map(data)
+        return '{name} {ttl} {record_type} {record_data}{comment}'.format_map(data)
 
 
 class PtrOverride(models.Model):
@@ -84,12 +131,12 @@ class PtrOverride(models.Model):
         db_table = 'ptr_override'
 
     def zf_string(self):
-        host = Hosts.object.get(pk=self.hostid)
         data = {
-            'name': self.ipaddress,
-            'record_data': host.name
+            'name': reverse_ip(self.ipaddress) + '.in-addr.arpa.',
+            'record_data': self.hostid.name,
+            'comment': comment(clean(self.hostid.comment))
         }
-        return '{name} PTR {record_data}'.format_map(data)
+        return '{name} IN PTR {record_data}{comment}'.format_map(data)
 
 
 class Txt(models.Model):
@@ -104,9 +151,10 @@ class Txt(models.Model):
         host = Hosts.objects.get(pk=self.hostid)
         data = {
             'name': host.name,
-            'record_data': self.txt
+            'record_data': self.txt,
+            'comment': ' ;%s' % host.comment
         }
-        return '{name} TXT {record_data}'.format_map(data)
+        return '{name} TXT {record_data}{comment}'.format_map(data)
 
 
 class Cname(models.Model):
@@ -122,9 +170,10 @@ class Cname(models.Model):
         data = {
             'name': host.name,
             'ttl': self.ttl,
-            'record_data': self.cname
+            'record_data': self.cname,
+            'comment': comment(clean(self.hostid.comment))
         }
-        return '{name} {ttl} CNAME {record_data}'.format_map(data)
+        return '{name} {ttl} IN CNAME {record_data}{comment}'.format_map(data)
 
 
 class Subnets(models.Model):
@@ -156,15 +205,17 @@ class Naptr(models.Model):
         db_table = 'naptr'
 
     def zf_string(self):
+        host = Hosts.objects.get(pk=self.hostid)
         data = {
             'order': self.orderv,
             'preference': self.preference,
             'flag': self.flag,
             'service': self.service,
             'regex': self.regex,
-            'replacement': self.replacement
+            'replacement': self.replacement,
+            'comment': ' ;%s' % host.comment
         }
-        return 'NAPTR {order} {preference} \"{flag}\" \"{service}\" \"{regex}\" {replacement}'.format_map(data)
+        return 'NAPTR {order} {preference} \"{flag}\" \"{service}\" \"{regex}\" {replacement}{comment}'.format_map(data)
 
 
 class Srv(models.Model):
@@ -186,6 +237,6 @@ class Srv(models.Model):
             'priority': self.priority,
             'weight': self.weight,
             'port': self.port,
-            'target': self.target
+            'target': self.target,
         }
         return '{service} {ttl} SRV {priority} {weight} {port} {target}'.format_map(data)
