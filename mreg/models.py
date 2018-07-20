@@ -3,8 +3,6 @@ from mreg.validators import *
 
 
 class Ns(models.Model):
-    # TODO: zoneid-field is likey not necessary at all, since addition of
-    # TODO: nameservers field to Zones model.
     nsid = models.AutoField(primary_key=True, serialize=True)
     name = models.TextField(unique=True)
     ttl = models.IntegerField(blank=True, null=True)
@@ -52,7 +50,6 @@ class Hosts(models.Model):
 
 
 class Ipaddress(models.Model):
-    # TODO: Add ForeignKey field for subnet
     hostid = models.ForeignKey(Hosts, on_delete=models.CASCADE, db_column='hostid', related_name='ipaddress')
     ipaddress = models.GenericIPAddressField(unique=True)
     macaddress = models.TextField(blank=True, null=True, validators=[validate_mac_address])
