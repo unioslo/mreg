@@ -457,11 +457,11 @@ class SubnetsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
         ip_network.hosts() automatically ignores the network and broadcast addresses of the subnet,
         unless the subnet consists of only these two addresses.
         """
-        all_ipaddresses = Ipaddress.objects.all()
+        all_ipaddresses = [ip.ipaddress for ip in Ipaddress.objects.all()]
         used_ipaddresses = []
         for host_ip in ipaddress.ip_network(subnet).hosts():
             address = str(host_ip)
-            if all_ipaddresses.filter(ipaddress=address).exists():
+            if address in all_ipaddresses:
                 used_ipaddresses.append(address)
 
         return used_ipaddresses
