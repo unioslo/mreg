@@ -464,12 +464,12 @@ class SubnetsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
         ip_network.hosts() automatically ignores the network and broadcast addresses of the subnet,
         unless the subnet consists of only these two addresses.
         """
-        all_ipaddresses = [ip.ipaddress for ip in Ipaddress.objects.all()]
+        all_ipaddresses = [ipaddress.ip_address(ip_db.ipaddress) for ip_db in Ipaddress.objects.all()]
+        network = ipaddress.ip_network(subnet)
         used_ipaddresses = []
-        for host_ip in ipaddress.ip_network(subnet).hosts():
-            address = str(host_ip)
-            if address in all_ipaddresses:
-                used_ipaddresses.append(address)
+        for ip in all_ipaddresses:
+            if ip in network:
+                used_ipaddresses.append(str(ip))
 
         return used_ipaddresses
 
