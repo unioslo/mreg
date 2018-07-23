@@ -264,7 +264,7 @@ class IpaddressDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
         if "macaddress" in request.data:
-            if self.queryset.filter(name=request.data["macaddress"]).exists():
+            if self.queryset.filter(macaddress=request.data["macaddress"]).exists():
                 content = {'ERROR': 'macaddress already registered',
                            'ipaddress': self.queryset.filter(macaddress=request.data['macaddress'])}
                 return Response(content, status=status.HTTP_409_CONFLICT)
