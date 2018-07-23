@@ -255,9 +255,9 @@ class IpaddressDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
         if "macaddress" in request.data:
-            if self.queryset.filter(name=request.data["macaddress"]).exists():
+            if self.queryset.filter(macaddress=request.data["macaddress"]).exists():
                 content = {'ERROR': 'macaddress already registered',
-                           'ipaddress': self.queryset.filter(macaddress=request.data['macaddress'])}
+                           'ipaddress': self.queryset.get(macaddress=request.data['macaddress']).ipaddress}
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
         try:
@@ -346,7 +346,6 @@ class SubnetsList(generics.ListCreateAPIView):
             subnet = serializer.create()
             if hosts <= 4:
                 subnet.reserved = 2
-            print(subnet.range)
             subnet.save()
             location = '/subnets/%s' % request.data
             return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
@@ -383,7 +382,6 @@ class SubnetsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
         ip = self.kwargs['ip']
         mask = self.kwargs['range']
         range = '%s/%s' % (ip, mask)
-        print(range)
 
         invalid_range = self.isnt_range(range)
         if invalid_range:
@@ -592,15 +590,31 @@ class ZonesNsDetail(ETAGMixin, generics.GenericAPIView):
             raise Http404
 
 
-class ModelChangeLogsList(generics.ListCreateAPIView):
+class ModelChangeLogsList(generics.ListAPIView):
     queryset = ModelChangeLogs.objects.all()
     serializer_class = ModelChangeLogsSerializer
 
-    def get_queryset(self):
-        qs = super(ModelChangeLogsList, self).get_queryset()
-        return ModelChangeLogsFilterSet(data=self.request.GET, queryset=qs).filter()
+    def get(self, request, *args, **kwargs):
+        # Return a list of available tables there are logged histories for.
+        tables = set([value['table_name'] for value in self.queryset.values('table_name')])
+        return Response(tables, status=status.HTTP_200_OK)
 
 
-class ModelChangeLogsDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+class ModelChangeLogsDetail(StrictCRUDMixin, generics.RetrieveAPIView):
     queryset = ModelChangeLogs.objects.all()
     serializer_class = ModelChangeLogsSerializer
+
+    def get(self, request, *args, **kwargs):
+        query_table = self.kwargs['table']
+        query_row = self.kwargs['pk']
+        try:
+            logs_by_date = [vals for vals in self.queryset.filter(table_name=query_table,
+                                                                  table_row=query_row).order_by('timestamp').values()]
+
+            return Response(logs_by_date, status=status.HTTP_200_OK)
+        except ModelChangeLogs.DoesNotExist:
+            raise Http404
+
+
+
+

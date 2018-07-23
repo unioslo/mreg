@@ -14,7 +14,7 @@ from mreg.api.v1.serializers import *
 #
 # Currently saves a snapshot of the entire host.
 # TODO: Figure out what to do with PtrOverride records. Not currently part of HostsSerializer.
-# TODO: Figure out what to do on host delete.,
+# TODO: Figure out what to do on host delete.
 
 
 # @receiver(post_save, sender=PtrOverride)
@@ -31,7 +31,7 @@ def save_host_history_on_save(sender, instance, created, **kwargs):
     hostdata['txt'] = [record['txt'] for record in hostdata['txt']]
     hostdata['cname'] = [record['cname'] for record in hostdata['cname']]
 
-    new_log_entry = ModelChangeLogs(table_name="Hosts",
+    new_log_entry = ModelChangeLogs(table_name='hosts',
                                     table_row=hostdata['hostid'],
                                     data=hostdata,
                                     action='saved',
@@ -53,7 +53,7 @@ def save_host_history_on_delete(sender, instance, **kwargs):
     hostdata['txt'] = [record['txt'] for record in hostdata['txt']]
     hostdata['cname'] = [record['cname'] for record in hostdata['cname']]
 
-    new_log_entry = ModelChangeLogs(table_name="Hosts",
+    new_log_entry = ModelChangeLogs(table_name='hosts',
                                     table_row=hostdata['hostid'],
                                     data=hostdata,
                                     action='deleted',

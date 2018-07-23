@@ -830,10 +830,10 @@ class APISubnetsTestCase(TestCase):
                                          frozen=False)
 
         self.host_one = Hosts(name='some-host',
-                         contact='some.email@some.domain.no',
-                         ttl=300,
-                         loc='23 58 23 N 10 43 50 E 80m',
-                         comment='some comment')
+                              contact='some.email@some.domain.no',
+                              ttl=300,
+                              loc='23 58 23 N 10 43 50 E 80m',
+                              comment='some comment')
         self.host_one.save()
         self.subnet_sample.save()
         self.subnet_sample_two.save()

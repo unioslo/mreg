@@ -18,9 +18,9 @@ class Zones(models.Model):
     nameservers = models.ManyToManyField(Ns, db_column='ns')
     email = models.EmailField(blank=True, null=True)
     serialno = models.BigIntegerField(blank=True, null=True, validators=[validate_zones_serialno])
-    refresh = models.IntegerField(blank=True, null=True)
-    retry = models.IntegerField(blank=True, null=True)
-    expire = models.IntegerField(blank=True, null=True)
+    refresh = models.IntegerField(blank=True, null=True, default=7200)
+    retry = models.IntegerField(blank=True, null=True, default=3600)
+    expire = models.IntegerField(blank=True, null=True, default=604800)
     ttl = models.IntegerField(blank=True, null=True)
 
     class Meta:

@@ -237,5 +237,19 @@ class ZonesSerializer(serializers.ModelSerializer):
         return value
 
 
+class ModelChangeLogsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ModelChangeLogs
+        fields = '__all__'
+
+    def validate(self, data):
+        key_validate(self)
+        data = {key: nonify(value) for key, value in data.items()}
+        return data
+
+    def create(self):
+        return ModelChangeLogs(**self.validated_data)
+
+
 
 
