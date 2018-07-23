@@ -597,3 +597,30 @@ class ZonesNsDetail(ETAGMixin, generics.GenericAPIView):
             return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
         except Zones.DoesNotExist:
             raise Http404
+
+
+class ModelChangeLogsList(generics.ListAPIView):
+    queryset = ModelChangeLogs.objects.all()
+    serializer_class = ModelChangeLogsSerializer
+
+    def get(self, request, *args, **kwargs):
+        # Return a list of available tables there are logged histories for.
+        tables = list(set([value['table_name'] for value in self.queryset.values('table_name')]))
+        return Response(data=tables, status=status.HTTP_200_OK)
+
+
+class ModelChangeLogsDetail(StrictCRUDMixin, generics.RetrieveAPIView):
+    queryset = ModelChangeLogs.objects.all()
+    serializer_class = ModelChangeLogsSerializer
+
+    def get(self, request, *args, **kwargs):
+        query_table = self.kwargs['table']
+        query_row = self.kwargs['pk']
+        try:
+            logs_by_date = [vals for vals in self.queryset.filter(table_name=query_table,
+                                                                  table_row=query_row).order_by('timestamp').values()]
+
+            return Response(logs_by_date, status=status.HTTP_200_OK)
+        except ModelChangeLogs.DoesNotExist:
+            raise Http404
+
