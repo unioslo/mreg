@@ -590,3 +590,17 @@ class ZonesNsDetail(ETAGMixin, generics.GenericAPIView):
             return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
         except Zones.DoesNotExist:
             raise Http404
+
+
+class ModelChangeLogsList(generics.ListCreateAPIView):
+    queryset = ModelChangeLogs.objects.all()
+    serializer_class = ModelChangeLogsSerializer
+
+    def get_queryset(self):
+        qs = super(ModelChangeLogsList, self).get_queryset()
+        return ModelChangeLogsFilterSet(data=self.request.GET, queryset=qs).filter()
+
+
+class ModelChangeLogsDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+    queryset = ModelChangeLogs.objects.all()
+    serializer_class = ModelChangeLogsSerializer

@@ -1,6 +1,8 @@
 from django.test import TestCase
+from django.utils import timezone
 from mreg.models import *
 from rest_framework.test import APIClient
+
 import time
 
 
@@ -436,6 +438,39 @@ class ModelSrvTestCase(TestCase):
         old_count = Srv.objects.count()
         self.srv_sample.delete()
         new_count = Srv.objects.count()
+        self.assertNotEqual(old_count, new_count)
+
+
+class ModelChangeLogsTestCase(TestCase):
+    """This class defines the test suite for the ModelChangeLogs model."""
+
+    def setUp(self):
+        """Define the test client and other test variables."""
+        self.host_one = Hosts(name='some-host',
+                              contact='some.email@some.domain.no',
+                              ttl=300,
+                              loc='23 58 23 N 10 43 50 E 80m',
+                              comment='some comment')
+        self.host_one.save()
+
+        self.log_data = {'hostid': self.host_one.hostid,
+                         'name': self.host_one.name,
+                         'contact': self.host_one.contact,
+                         'ttl': self.host_one.ttl,
+                         'loc': self.host_one.loc,
+                         'comment': self.host_one.comment}
+
+        self.log_entry_one = ModelChangeLogs(table_name='Hosts',
+                                             table_row=self.host_one.hostid,
+                                             data=self.log_data,
+                                             action='saved',
+                                             timestamp=timezone.now())
+
+    def test_model_can_create_a_log_entry(self):
+        """Test that the model is able to create a host."""
+        old_count = ModelChangeLogs.objects.count()
+        self.log_entry_one.save()
+        new_count = ModelChangeLogs.objects.count()
         self.assertNotEqual(old_count, new_count)
 
 
