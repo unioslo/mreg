@@ -1,6 +1,8 @@
 from django.test import TestCase
+from django.utils import timezone
 from mreg.models import *
 from rest_framework.test import APIClient
+
 import time
 
 
@@ -439,6 +441,39 @@ class ModelSrvTestCase(TestCase):
         self.assertNotEqual(old_count, new_count)
 
 
+class ModelChangeLogsTestCase(TestCase):
+    """This class defines the test suite for the ModelChangeLogs model."""
+
+    def setUp(self):
+        """Define the test client and other test variables."""
+        self.host_one = Hosts(name='some-host',
+                              contact='some.email@some.domain.no',
+                              ttl=300,
+                              loc='23 58 23 N 10 43 50 E 80m',
+                              comment='some comment')
+        self.host_one.save()
+
+        self.log_data = {'hostid': self.host_one.hostid,
+                         'name': self.host_one.name,
+                         'contact': self.host_one.contact,
+                         'ttl': self.host_one.ttl,
+                         'loc': self.host_one.loc,
+                         'comment': self.host_one.comment}
+
+        self.log_entry_one = ModelChangeLogs(table_name='Hosts',
+                                             table_row=self.host_one.hostid,
+                                             data=self.log_data,
+                                             action='saved',
+                                             timestamp=timezone.now())
+
+    def test_model_can_create_a_log_entry(self):
+        """Test that the model is able to create a host."""
+        old_count = ModelChangeLogs.objects.count()
+        self.log_entry_one.save()
+        new_count = ModelChangeLogs.objects.count()
+        self.assertNotEqual(old_count, new_count)
+
+
 class APIHostsTestCase(TestCase):
     """This class defines the test suite for api/hosts"""
 
@@ -664,10 +699,8 @@ class APIZonesNsTestCase(TestCase):
                                      {'nameservers': self.ns_two.name})
         self.assertEqual(response.status_code, 204)
 
-        # This response object is a list containing a single OrderedDict, hence the indexing for checking.
-        # Needs to be looked at.
         response = self.client.get('/zones/%s/nameservers' % self.post_data['name'])
-        self.assertEqual(response.data[0]['name'], self.post_data['nameservers'][0])
+        self.assertEqual(response.data, self.post_data['nameservers'])
 
 
 class APINameserversTestCase(TestCase):
@@ -795,6 +828,13 @@ class APISubnetsTestCase(TestCase):
                                          category='so',
                                          location='silurveien',
                                          frozen=False)
+
+        self.host_one = Hosts(name='some-host',
+                              contact='some.email@some.domain.no',
+                              ttl=300,
+                              loc='23 58 23 N 10 43 50 E 80m',
+                              comment='some comment')
+        self.host_one.save()
         self.subnet_sample.save()
         self.subnet_sample_two.save()
 
@@ -875,23 +915,72 @@ class APISubnetsTestCase(TestCase):
 
     def test_subnets_patch_409_conflict_range(self):
         """Patching an entry with a range that is already in use should return 409"""
-        
         response = self.client.patch('/subnets/%s' % self.subnet_sample.range, data=self.patch_data_range)
         self.assertEqual(response.status_code, 409)
 
     def test_subnets_get_usedlist_200_ok(self):
         """GET on /subnets/<ip/mask> with QUERY_STRING header 'used_list' should return 200 ok and data."""
-        host_one = Hosts(name='some-host',
-                         contact='some.email@some.domain.no',
-                         ttl=300,
-                         loc='23 58 23 N 10 43 50 E 80m',
-                         comment='some comment')
-        host_one.save()
-        ip_sample = Ipaddress(hostid=host_one,
-                              ipaddress='129.240.204.17')
+        ip_sample = Ipaddress(hostid=self.host_one, ipaddress='129.240.204.17')
         ip_sample.save()
 
-        response = self.client.get('/subnets/%s' % self.subnet_sample.range, QUERY_STRING='used_list')
+        response = self.client.get('/subnets/%s?used_list' % self.subnet_sample.range)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, ['129.240.204.17'])
 
+    def test_subnets_delete_204_no_content(self):
+        """Deleting an existing entry with no adresses in use should return 204"""
+        response = self.client.post('/subnets/', self.post_data)
+        self.assertEqual(response.status_code, 201)
+        response = self.client.delete('/subnets/%s' % self.post_data['range'])
+        self.assertEqual(response.status_code, 204)
+
+    def test_subnets_delete_409_conflict(self):
+        """Deleting an existing entry with  adresses in use should return 409"""
+        response = self.client.post('/subnets/', self.post_data)
+        self.assertEqual(response.status_code, 201)
+
+        ip_sample = Ipaddress(hostid=self.host_one, ipaddress='192.0.2.1')
+        ip_sample.save()
+
+        response = self.client.delete('/subnets/%s' % self.post_data['range'])
+        self.assertEqual(response.status_code, 409)
+
+
+class APIModelChangeLogsTestCase(TestCase):
+    """"This class defines the test suite for api/history """
+
+    def setUp(self):
+        """Define the test client and other variables."""
+        self.host_one = Hosts(name='some-host',
+                              contact='some.email@some.domain.no',
+                              ttl=300,
+                              loc='23 58 23 N 10 43 50 E 80m',
+                              comment='some comment')
+        self.host_one.save()
+
+        self.log_data = {'hostid': self.host_one.hostid,
+                         'name': self.host_one.name,
+                         'contact': self.host_one.contact,
+                         'ttl': self.host_one.ttl,
+                         'loc': self.host_one.loc,
+                         'comment': self.host_one.comment}
+
+        self.log_entry_one = ModelChangeLogs(table_name='hosts',
+                                             table_row=self.host_one.hostid,
+                                             data=self.log_data,
+                                             action='saved',
+                                             timestamp=timezone.now())
+        self.log_entry_one.save()
+        self.client = APIClient()
+
+    def test_history_get_200_OK(self):
+        """Get on /history/ should return a list of table names that have entries, and 200 OK."""
+        response = self.client.get('/history/')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('hosts', response.data)
+
+    def test_history_host_get_200_OK(self):
+        """Get on /history/hosts/<pk> should return a list of dicts containing entries for that host"""
+        response = self.client.get('/history/hosts/{}'.format(self.host_one.hostid))
+        self.assertEqual(response.status_code, 200)
+        self.assertIsInstance(response.data, list)

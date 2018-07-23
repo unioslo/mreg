@@ -3,8 +3,6 @@ from mreg.validators import *
 
 
 class Ns(models.Model):
-    # TODO: zoneid-field is likey not necessary at all, since addition of
-    # TODO: nameservers field to Zones model.
     nsid = models.AutoField(primary_key=True, serialize=True)
     name = models.TextField(unique=True)
     ttl = models.IntegerField(blank=True, null=True)
@@ -20,9 +18,9 @@ class Zones(models.Model):
     nameservers = models.ManyToManyField(Ns, db_column='ns')
     email = models.EmailField(blank=True, null=True)
     serialno = models.BigIntegerField(blank=True, null=True, validators=[validate_zones_serialno])
-    refresh = models.IntegerField(blank=True, null=True)
-    retry = models.IntegerField(blank=True, null=True)
-    expire = models.IntegerField(blank=True, null=True)
+    refresh = models.IntegerField(blank=True, null=True, default=7200)
+    retry = models.IntegerField(blank=True, null=True, default=3600)
+    expire = models.IntegerField(blank=True, null=True, default=604800)
     ttl = models.IntegerField(blank=True, null=True)
 
     class Meta:
@@ -52,7 +50,6 @@ class Hosts(models.Model):
 
 
 class Ipaddress(models.Model):
-    # TODO: Add ForeignKey field for subnet
     hostid = models.ForeignKey(Hosts, on_delete=models.CASCADE, db_column='hostid', related_name='ipaddress')
     ipaddress = models.GenericIPAddressField(unique=True)
     macaddress = models.TextField(blank=True, null=True, validators=[validate_mac_address])
@@ -96,6 +93,7 @@ class Subnets(models.Model):
     category = models.TextField(blank=True, null=True)
     location = models.TextField(blank=True, null=True)
     frozen = models.NullBooleanField()
+    reserved = models.IntegerField(default=3)
 
     class Meta:
         db_table = 'subnets'
@@ -126,3 +124,16 @@ class Srv(models.Model):
 
     class Meta:
         db_table = 'srv'
+
+
+# TODO: Add user_id functionality when auth is implemented
+class ModelChangeLogs(models.Model):
+    # user_id = models.BigIntegerField(db_index=True)
+    table_name = models.CharField(max_length=132)
+    table_row = models.BigIntegerField()
+    data = models.TextField()
+    action = models.CharField(max_length=16)  # saved or deleted
+    timestamp = models.DateTimeField()
+
+    class Meta:
+        db_table = "model_change_logs"

@@ -37,6 +37,8 @@ urlpatterns = [
     path('zones/', views.ZonesList.as_view(), kwargs={'resource': 'zones'}),
     path('zones/<name>', views.ZonesDetail.as_view(), kwargs={'resource': 'zones'}),
     path('zones/<name>/nameservers', views.ZonesNsDetail.as_view(), kwargs={'resource': 'zones'}),
+    path('history/', views.ModelChangeLogsList.as_view(), kwargs={'resource': 'model_change_logs'}),
+    path('history/<table>/<pk>', views.ModelChangeLogsDetail.as_view(), kwargs={'resource': 'model_change_logs'}),
     path('admin/', admin.site.urls),
 ]
 

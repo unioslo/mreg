@@ -75,7 +75,7 @@ class StrictCRUDMixin(object):
         serializer_class = self.get_serializer_class()
         resource = self.kwargs['resource']
         try:
-            obj = queryset.get(self.lookup_field)
+            obj = queryset.get(pk=self.kwargs[self.lookup_field])
             serializer = serializer_class(obj, data=request.data, partial=True)
             if serializer.is_valid(raise_exception=True):
                 serializer.save()
@@ -133,20 +133,29 @@ class HostList(generics.GenericAPIView):
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
         if 'ipaddress' in request.data:
-            ipaddress = request.data['ipaddress']
+            ipkey = request.data['ipaddress']
             hostdata = QueryDict.copy(request.data)
             del hostdata['ipaddress']
             host = Hosts()
             hostserializer = HostsSerializer(host, data=hostdata)
             if hostserializer.is_valid(raise_exception=True):
-                hostserializer.save()
-                location = '/hosts/%s' % host.name
-                ipdata = {'hostid': host.pk, 'ipaddress': ipaddress}
-                ip = Ipaddress()
-                ipserializer = IpaddressSerializer(ip, data=ipdata)
-                if ipserializer.is_valid(raise_exception=True):
-                    ipserializer.save()
-                return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
+                try:
+                    ipaddress.ip_address(ipkey)
+                    try:
+                        Ipaddress.objects.get(ipaddress=ipkey)
+                        return Response(status=status.HTTP_409_CONFLICT, data={'ERROR': "IP address already exists"})
+                    except Ipaddress.DoesNotExist:
+                        # This is good to go
+                        hostserializer.save()
+                        ipdata = {'hostid': host.pk, 'ipaddress': ipkey}
+                        ip = Ipaddress()
+                        ipserializer = IpaddressSerializer(ip, data=ipdata)
+                        if ipserializer.is_valid(raise_exception=True):
+                            ipserializer.save()
+                            location = '/hosts/%s' % host.name
+                            return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
+                except ValueError:
+                    return Response(status=status.HTTP_400_BAD_REQUEST)
         else:
             host = Hosts()
             hostserializer = HostsSerializer(host, data=request.data)
@@ -193,7 +202,7 @@ class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
 
         try:
             host = Hosts.objects.get(name=query)
-            serializer = HostsSerializer(host, data=request.data, partial=True)
+            serializer = HostsSaveSerializer(host, data=request.data, partial=True)
             if serializer.is_valid(raise_exception=True):
                 serializer.save()
                 location = '/hosts/%s' % host.name
@@ -255,9 +264,9 @@ class IpaddressDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
         if "macaddress" in request.data:
-            if self.queryset.filter(name=request.data["macaddress"]).exists():
+            if self.queryset.filter(macaddress=request.data["macaddress"]).exists():
                 content = {'ERROR': 'macaddress already registered',
-                           'ipaddress': self.queryset.filter(macaddress=request.data['macaddress'])}
+                           'ipaddress': self.queryset.get(macaddress=request.data['macaddress']).ipaddress}
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
         try:
@@ -333,24 +342,25 @@ class SubnetsList(generics.ListCreateAPIView):
 
     def post(self, request, *args, **kwargs):
         try:
-            subnet = ipaddress.IPv4Network(request.data['range'])
-            overlap = self.overlap_check(subnet)
+            network = ipaddress.ip_network(request.data['range'])
+            hosts  = network.num_addresses
+
+            overlap = self.overlap_check(network)
             if overlap:
-                return Response({'ERROR': 'Subnet overlaps with: {}'.format(subnet.supernet().with_prefixlen)},
+                return Response({'ERROR': 'Subnet overlaps with: {}'.format(network.supernet().with_prefixlen)},
                                 status=status.HTTP_409_CONFLICT)
 
-            new_subnet = Subnets()
-            serializer = self.get_serializer(new_subnet, data=request.data)
-            if serializer.is_valid(raise_exception=True):
-                serializer.save()
-                location = '/subnets/%s' % request.data
-                return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            subnet = serializer.create()
+            if hosts <= 4:
+                subnet.reserved = 2
+            subnet.save()
+            location = '/subnets/%s' % request.data
+            return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
 
-        except ipaddress.AddressValueError:
-            return Response({'ERROR': 'Not a valid IP address'}, status=status.HTTP_400_BAD_REQUEST)
-
-        except ipaddress.NetmaskValueError:
-            return Response({'ERROR': 'Not a valid net mask'}, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError as error:
+            return Response({'ERROR': str(error)}, status=status.HTTP_400_BAD_REQUEST)
 
     def get_queryset(self):
         qs = super(SubnetsList, self).get_queryset()
@@ -381,24 +391,23 @@ class SubnetsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
         ip = self.kwargs['ip']
         mask = self.kwargs['range']
         range = '%s/%s' % (ip, mask)
+
         invalid_range = self.isnt_range(range)
         if invalid_range:
             return invalid_range
 
         # Returns a list of used ipaddresses on a given subnet.
-        # TODO: Add funcitonality for reserved addresses
-        # TODO: Serialize output?
-        # TODO: Return hostnames?
         if request.META.get('QUERY_STRING') == 'used_list':
             used_ipaddresses = self.get_used_ipaddresses_on_subnet(range)
             return Response(used_ipaddresses, status=status.HTTP_200_OK)
 
         try:
             found_subnet = Subnets.objects.get(range=range)
-            serializer = self.get_serializer(found_subnet)
-            return Response(serializer.data, status=status.HTTP_200_OK)
         except Subnets.DoesNotExist:
             raise Http404
+
+        serializer = self.get_serializer(found_subnet)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def patch(self, request, *args, **kwargs):
         ip = self.kwargs['ip']
@@ -423,22 +432,44 @@ class SubnetsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
         except Subnets.DoesNotExist:
             raise Http404
 
+    def delete(self, request, *args, **kwargs):
+        ip = self.kwargs['ip']
+        mask = self.kwargs['range']
+        range = '%s/%s' % (ip, mask)
+        invalid_range = self.isnt_range(range)
+        if invalid_range:
+            return invalid_range
+
+        used_ipaddresses = self.get_used_ipaddresses_on_subnet(range)
+        if used_ipaddresses:
+            return Response({'ERROR': 'Subnet contains IP addresses that are in use'}, status=status.HTTP_409_CONFLICT)
+
+        try:
+            found_subnet = Subnets.objects.get(range=range)
+            found_subnet.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except Subnets.DoesNotExist:
+            raise Http404
+
     def isnt_range(self, range):
         try:
-            ipaddress.IPv4Network(range)
+            ipaddress.ip_network(range)
             return None
-        except ipaddress.AddressValueError:
-            return Response({'ERROR': 'Not a valid network address'}, status=status.HTTP_400_BAD_REQUEST)
-        except ipaddress.NetmaskValueError:
-            return Response({'ERROR': 'Not a valid net mask or prefix'}, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError as error:
+            return Response({'ERROR': str(error)}, status=status.HTTP_400_BAD_REQUEST)
 
     def get_used_ipaddresses_on_subnet(self, subnet):
-        all_ipaddresses = Ipaddress.objects.all()
+        """
+        Takes a valid subnet (ip-range), and checks which ip-addresses on the subnet are used.
+        ip_network.hosts() automatically ignores the network and broadcast addresses of the subnet,
+        unless the subnet consists of only these two addresses.
+        """
+        all_ipaddresses = [ipaddress.ip_address(ip_db.ipaddress) for ip_db in Ipaddress.objects.all()]
+        network = ipaddress.ip_network(subnet)
         used_ipaddresses = []
-        for host_ip in ipaddress.IPv4Network(subnet).hosts():
-            address = str(host_ip)
-            if all_ipaddresses.filter(ipaddress=address).exists():
-                used_ipaddresses.append(address)
+        for ip in all_ipaddresses:
+            if ip in network:
+                used_ipaddresses.append(str(ip))
 
         return used_ipaddresses
 
@@ -540,7 +571,10 @@ class ZonesNsDetail(ETAGMixin, generics.GenericAPIView):
         query = self.kwargs[self.lookup_field]
         try:
             zone = self.get_queryset().get(name=query)
-            return Response(NsSerializer(zone.nameservers.all(), many=True).data, status=status.HTTP_200_OK)
+            ns_list = []
+            for ns in zone.nameservers.values():
+                ns_list.append(ns['name'])
+            return Response(ns_list, status=status.HTTP_200_OK)
         except Zones.DoesNotExist:
             raise Http404
 
@@ -563,3 +597,30 @@ class ZonesNsDetail(ETAGMixin, generics.GenericAPIView):
             return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
         except Zones.DoesNotExist:
             raise Http404
+
+
+class ModelChangeLogsList(generics.ListAPIView):
+    queryset = ModelChangeLogs.objects.all()
+    serializer_class = ModelChangeLogsSerializer
+
+    def get(self, request, *args, **kwargs):
+        # Return a list of available tables there are logged histories for.
+        tables = list(set([value['table_name'] for value in self.queryset.values('table_name')]))
+        return Response(data=tables, status=status.HTTP_200_OK)
+
+
+class ModelChangeLogsDetail(StrictCRUDMixin, generics.RetrieveAPIView):
+    queryset = ModelChangeLogs.objects.all()
+    serializer_class = ModelChangeLogsSerializer
+
+    def get(self, request, *args, **kwargs):
+        query_table = self.kwargs['table']
+        query_row = self.kwargs['pk']
+        try:
+            logs_by_date = [vals for vals in self.queryset.filter(table_name=query_table,
+                                                                  table_row=query_row).order_by('timestamp').values()]
+
+            return Response(logs_by_date, status=status.HTTP_200_OK)
+        except ModelChangeLogs.DoesNotExist:
+            raise Http404
+

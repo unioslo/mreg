@@ -1,0 +1,4164 @@
+--
+-- PostgreSQL database cluster dump
+--
+
+SET default_transaction_read_only = off;
+
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+
+--
+-- Roles
+--
+
+CREATE ROLE mreg_user;
+ALTER ROLE mreg_user WITH NOSUPERUSER INHERIT NOCREATEROLE CREATEDB LOGIN NOREPLICATION NOBYPASSRLS PASSWORD 'md5f86f8dd6302844fa0feb0b373175e657';
+CREATE ROLE postgres;
+ALTER ROLE postgres WITH SUPERUSER INHERIT CREATEROLE CREATEDB LOGIN REPLICATION BYPASSRLS PASSWORD 'md5d870fdc733701e62d2e02d9ab278c235';
+ALTER ROLE mreg_user SET client_encoding TO 'utf8';
+ALTER ROLE mreg_user SET default_transaction_isolation TO 'read committed';
+ALTER ROLE mreg_user SET "TimeZone" TO 'Europe/Oslo';
+
+
+
+
+
+
+--
+-- Database creation
+--
+
+CREATE DATABASE mreg_sample WITH TEMPLATE = template0 OWNER = mreg_user;
+REVOKE CONNECT,TEMPORARY ON DATABASE template1 FROM PUBLIC;
+GRANT CONNECT ON DATABASE template1 TO PUBLIC;
+CREATE DATABASE test_mreg_sample WITH TEMPLATE = template0 OWNER = mreg_user;
+
+
+\connect mreg_sample
+
+SET default_transaction_read_only = off;
+
+--
+-- PostgreSQL database dump
+--
+
+-- Dumped from database version 9.6.9
+-- Dumped by pg_dump version 9.6.9
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET client_min_messages = warning;
+SET row_security = off;
+
+--
+-- Name: plpgsql; Type: EXTENSION; Schema: -; Owner: 
+--
+
+CREATE EXTENSION IF NOT EXISTS plpgsql WITH SCHEMA pg_catalog;
+
+
+--
+-- Name: EXTENSION plpgsql; Type: COMMENT; Schema: -; Owner: 
+--
+
+COMMENT ON EXTENSION plpgsql IS 'PL/pgSQL procedural language';
+
+
+SET default_tablespace = '';
+
+SET default_with_oids = false;
+
+--
+-- Name: auth_group; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.auth_group (
+    id integer NOT NULL,
+    name character varying(80) NOT NULL
+);
+
+
+ALTER TABLE public.auth_group OWNER TO mreg_user;
+
+--
+-- Name: auth_group_id_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.auth_group_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.auth_group_id_seq OWNER TO mreg_user;
+
+--
+-- Name: auth_group_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.auth_group_id_seq OWNED BY public.auth_group.id;
+
+
+--
+-- Name: auth_group_permissions; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.auth_group_permissions (
+    id integer NOT NULL,
+    group_id integer NOT NULL,
+    permission_id integer NOT NULL
+);
+
+
+ALTER TABLE public.auth_group_permissions OWNER TO mreg_user;
+
+--
+-- Name: auth_group_permissions_id_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.auth_group_permissions_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.auth_group_permissions_id_seq OWNER TO mreg_user;
+
+--
+-- Name: auth_group_permissions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.auth_group_permissions_id_seq OWNED BY public.auth_group_permissions.id;
+
+
+--
+-- Name: auth_permission; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.auth_permission (
+    id integer NOT NULL,
+    name character varying(255) NOT NULL,
+    content_type_id integer NOT NULL,
+    codename character varying(100) NOT NULL
+);
+
+
+ALTER TABLE public.auth_permission OWNER TO mreg_user;
+
+--
+-- Name: auth_permission_id_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.auth_permission_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.auth_permission_id_seq OWNER TO mreg_user;
+
+--
+-- Name: auth_permission_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.auth_permission_id_seq OWNED BY public.auth_permission.id;
+
+
+--
+-- Name: auth_user; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.auth_user (
+    id integer NOT NULL,
+    password character varying(128) NOT NULL,
+    last_login timestamp with time zone,
+    is_superuser boolean NOT NULL,
+    username character varying(150) NOT NULL,
+    first_name character varying(30) NOT NULL,
+    last_name character varying(150) NOT NULL,
+    email character varying(254) NOT NULL,
+    is_staff boolean NOT NULL,
+    is_active boolean NOT NULL,
+    date_joined timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.auth_user OWNER TO mreg_user;
+
+--
+-- Name: auth_user_groups; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.auth_user_groups (
+    id integer NOT NULL,
+    user_id integer NOT NULL,
+    group_id integer NOT NULL
+);
+
+
+ALTER TABLE public.auth_user_groups OWNER TO mreg_user;
+
+--
+-- Name: auth_user_groups_id_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.auth_user_groups_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.auth_user_groups_id_seq OWNER TO mreg_user;
+
+--
+-- Name: auth_user_groups_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.auth_user_groups_id_seq OWNED BY public.auth_user_groups.id;
+
+
+--
+-- Name: auth_user_id_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.auth_user_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.auth_user_id_seq OWNER TO mreg_user;
+
+--
+-- Name: auth_user_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.auth_user_id_seq OWNED BY public.auth_user.id;
+
+
+--
+-- Name: auth_user_user_permissions; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.auth_user_user_permissions (
+    id integer NOT NULL,
+    user_id integer NOT NULL,
+    permission_id integer NOT NULL
+);
+
+
+ALTER TABLE public.auth_user_user_permissions OWNER TO mreg_user;
+
+--
+-- Name: auth_user_user_permissions_id_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.auth_user_user_permissions_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.auth_user_user_permissions_id_seq OWNER TO mreg_user;
+
+--
+-- Name: auth_user_user_permissions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.auth_user_user_permissions_id_seq OWNED BY public.auth_user_user_permissions.id;
+
+
+--
+-- Name: cname; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.cname (
+    id integer NOT NULL,
+    cname text NOT NULL,
+    ttl integer,
+    hostid integer NOT NULL
+);
+
+
+ALTER TABLE public.cname OWNER TO mreg_user;
+
+--
+-- Name: cname_id_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.cname_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.cname_id_seq OWNER TO mreg_user;
+
+--
+-- Name: cname_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.cname_id_seq OWNED BY public.cname.id;
+
+
+--
+-- Name: django_admin_log; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.django_admin_log (
+    id integer NOT NULL,
+    action_time timestamp with time zone NOT NULL,
+    object_id text,
+    object_repr character varying(200) NOT NULL,
+    action_flag smallint NOT NULL,
+    change_message text NOT NULL,
+    content_type_id integer,
+    user_id integer NOT NULL,
+    CONSTRAINT django_admin_log_action_flag_check CHECK ((action_flag >= 0))
+);
+
+
+ALTER TABLE public.django_admin_log OWNER TO mreg_user;
+
+--
+-- Name: django_admin_log_id_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.django_admin_log_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.django_admin_log_id_seq OWNER TO mreg_user;
+
+--
+-- Name: django_admin_log_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.django_admin_log_id_seq OWNED BY public.django_admin_log.id;
+
+
+--
+-- Name: django_content_type; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.django_content_type (
+    id integer NOT NULL,
+    app_label character varying(100) NOT NULL,
+    model character varying(100) NOT NULL
+);
+
+
+ALTER TABLE public.django_content_type OWNER TO mreg_user;
+
+--
+-- Name: django_content_type_id_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.django_content_type_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.django_content_type_id_seq OWNER TO mreg_user;
+
+--
+-- Name: django_content_type_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.django_content_type_id_seq OWNED BY public.django_content_type.id;
+
+
+--
+-- Name: django_migrations; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.django_migrations (
+    id integer NOT NULL,
+    app character varying(255) NOT NULL,
+    name character varying(255) NOT NULL,
+    applied timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.django_migrations OWNER TO mreg_user;
+
+--
+-- Name: django_migrations_id_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.django_migrations_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.django_migrations_id_seq OWNER TO mreg_user;
+
+--
+-- Name: django_migrations_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.django_migrations_id_seq OWNED BY public.django_migrations.id;
+
+
+--
+-- Name: django_session; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.django_session (
+    session_key character varying(40) NOT NULL,
+    session_data text NOT NULL,
+    expire_date timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.django_session OWNER TO mreg_user;
+
+--
+-- Name: hinfo_presets; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.hinfo_presets (
+    hinfoid integer NOT NULL,
+    cpu text NOT NULL,
+    os text NOT NULL
+);
+
+
+ALTER TABLE public.hinfo_presets OWNER TO mreg_user;
+
+--
+-- Name: hinfo_presets_hinfoid_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.hinfo_presets_hinfoid_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.hinfo_presets_hinfoid_seq OWNER TO mreg_user;
+
+--
+-- Name: hinfo_presets_hinfoid_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.hinfo_presets_hinfoid_seq OWNED BY public.hinfo_presets.hinfoid;
+
+
+--
+-- Name: hosts; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.hosts (
+    hostid integer NOT NULL,
+    name text NOT NULL,
+    contact character varying(254) NOT NULL,
+    ttl integer,
+    loc text,
+    comment text,
+    hinfo integer
+);
+
+
+ALTER TABLE public.hosts OWNER TO mreg_user;
+
+--
+-- Name: hosts_hostid_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.hosts_hostid_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.hosts_hostid_seq OWNER TO mreg_user;
+
+--
+-- Name: hosts_hostid_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.hosts_hostid_seq OWNED BY public.hosts.hostid;
+
+
+--
+-- Name: ipaddress; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.ipaddress (
+    id integer NOT NULL,
+    ipaddress inet NOT NULL,
+    macaddress text,
+    hostid integer NOT NULL
+);
+
+
+ALTER TABLE public.ipaddress OWNER TO mreg_user;
+
+--
+-- Name: ipaddress_id_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.ipaddress_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.ipaddress_id_seq OWNER TO mreg_user;
+
+--
+-- Name: ipaddress_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.ipaddress_id_seq OWNED BY public.ipaddress.id;
+
+
+--
+-- Name: naptr; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.naptr (
+    naptrid integer NOT NULL,
+    preference integer,
+    orderv integer,
+    flag character varying(1),
+    service text NOT NULL,
+    regex text,
+    replacement text NOT NULL,
+    hostid integer NOT NULL
+);
+
+
+ALTER TABLE public.naptr OWNER TO mreg_user;
+
+--
+-- Name: naptr_naptrid_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.naptr_naptrid_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.naptr_naptrid_seq OWNER TO mreg_user;
+
+--
+-- Name: naptr_naptrid_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.naptr_naptrid_seq OWNED BY public.naptr.naptrid;
+
+
+--
+-- Name: ns; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.ns (
+    nsid integer NOT NULL,
+    name text NOT NULL,
+    ttl integer
+);
+
+
+ALTER TABLE public.ns OWNER TO mreg_user;
+
+--
+-- Name: ns_nsid_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.ns_nsid_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.ns_nsid_seq OWNER TO mreg_user;
+
+--
+-- Name: ns_nsid_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.ns_nsid_seq OWNED BY public.ns.nsid;
+
+
+--
+-- Name: ptr_override; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.ptr_override (
+    id integer NOT NULL,
+    ipaddress inet NOT NULL,
+    hostid integer NOT NULL
+);
+
+
+ALTER TABLE public.ptr_override OWNER TO mreg_user;
+
+--
+-- Name: ptr_override_id_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.ptr_override_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.ptr_override_id_seq OWNER TO mreg_user;
+
+--
+-- Name: ptr_override_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.ptr_override_id_seq OWNED BY public.ptr_override.id;
+
+
+--
+-- Name: srv; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.srv (
+    srvid integer NOT NULL,
+    service text NOT NULL,
+    priority integer,
+    weight integer,
+    port integer,
+    ttl integer,
+    target text
+);
+
+
+ALTER TABLE public.srv OWNER TO mreg_user;
+
+--
+-- Name: srv_srvid_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.srv_srvid_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.srv_srvid_seq OWNER TO mreg_user;
+
+--
+-- Name: srv_srvid_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.srv_srvid_seq OWNED BY public.srv.srvid;
+
+
+--
+-- Name: subnets; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.subnets (
+    subnetid integer NOT NULL,
+    range text NOT NULL,
+    description text,
+    vlan integer,
+    dns_delegated boolean,
+    category text,
+    frozen boolean,
+    location text,
+    reserved integer NOT NULL
+);
+
+
+ALTER TABLE public.subnets OWNER TO mreg_user;
+
+--
+-- Name: subnets_subnetid_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.subnets_subnetid_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.subnets_subnetid_seq OWNER TO mreg_user;
+
+--
+-- Name: subnets_subnetid_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.subnets_subnetid_seq OWNED BY public.subnets.subnetid;
+
+
+--
+-- Name: txt; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.txt (
+    txtid integer NOT NULL,
+    txt text NOT NULL,
+    hostid integer NOT NULL
+);
+
+
+ALTER TABLE public.txt OWNER TO mreg_user;
+
+--
+-- Name: txt_txtid_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.txt_txtid_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.txt_txtid_seq OWNER TO mreg_user;
+
+--
+-- Name: txt_txtid_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.txt_txtid_seq OWNED BY public.txt.txtid;
+
+
+--
+-- Name: zones; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.zones (
+    zoneid integer NOT NULL,
+    name text NOT NULL,
+    primary_ns text NOT NULL,
+    email character varying(254),
+    serialno bigint,
+    refresh integer,
+    retry integer,
+    expire integer,
+    ttl integer
+);
+
+
+ALTER TABLE public.zones OWNER TO mreg_user;
+
+--
+-- Name: zones_nameservers; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.zones_nameservers (
+    id integer NOT NULL,
+    zones_id integer NOT NULL,
+    ns_id integer NOT NULL
+);
+
+
+ALTER TABLE public.zones_nameservers OWNER TO mreg_user;
+
+--
+-- Name: zones_nameservers_id_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.zones_nameservers_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.zones_nameservers_id_seq OWNER TO mreg_user;
+
+--
+-- Name: zones_nameservers_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.zones_nameservers_id_seq OWNED BY public.zones_nameservers.id;
+
+
+--
+-- Name: zones_zoneid_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.zones_zoneid_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.zones_zoneid_seq OWNER TO mreg_user;
+
+--
+-- Name: zones_zoneid_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.zones_zoneid_seq OWNED BY public.zones.zoneid;
+
+
+--
+-- Name: auth_group id; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_group ALTER COLUMN id SET DEFAULT nextval('public.auth_group_id_seq'::regclass);
+
+
+--
+-- Name: auth_group_permissions id; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_group_permissions ALTER COLUMN id SET DEFAULT nextval('public.auth_group_permissions_id_seq'::regclass);
+
+
+--
+-- Name: auth_permission id; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_permission ALTER COLUMN id SET DEFAULT nextval('public.auth_permission_id_seq'::regclass);
+
+
+--
+-- Name: auth_user id; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_user ALTER COLUMN id SET DEFAULT nextval('public.auth_user_id_seq'::regclass);
+
+
+--
+-- Name: auth_user_groups id; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_user_groups ALTER COLUMN id SET DEFAULT nextval('public.auth_user_groups_id_seq'::regclass);
+
+
+--
+-- Name: auth_user_user_permissions id; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_user_user_permissions ALTER COLUMN id SET DEFAULT nextval('public.auth_user_user_permissions_id_seq'::regclass);
+
+
+--
+-- Name: cname id; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.cname ALTER COLUMN id SET DEFAULT nextval('public.cname_id_seq'::regclass);
+
+
+--
+-- Name: django_admin_log id; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.django_admin_log ALTER COLUMN id SET DEFAULT nextval('public.django_admin_log_id_seq'::regclass);
+
+
+--
+-- Name: django_content_type id; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.django_content_type ALTER COLUMN id SET DEFAULT nextval('public.django_content_type_id_seq'::regclass);
+
+
+--
+-- Name: django_migrations id; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.django_migrations ALTER COLUMN id SET DEFAULT nextval('public.django_migrations_id_seq'::regclass);
+
+
+--
+-- Name: hinfo_presets hinfoid; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.hinfo_presets ALTER COLUMN hinfoid SET DEFAULT nextval('public.hinfo_presets_hinfoid_seq'::regclass);
+
+
+--
+-- Name: hosts hostid; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.hosts ALTER COLUMN hostid SET DEFAULT nextval('public.hosts_hostid_seq'::regclass);
+
+
+--
+-- Name: ipaddress id; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.ipaddress ALTER COLUMN id SET DEFAULT nextval('public.ipaddress_id_seq'::regclass);
+
+
+--
+-- Name: naptr naptrid; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.naptr ALTER COLUMN naptrid SET DEFAULT nextval('public.naptr_naptrid_seq'::regclass);
+
+
+--
+-- Name: ns nsid; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.ns ALTER COLUMN nsid SET DEFAULT nextval('public.ns_nsid_seq'::regclass);
+
+
+--
+-- Name: ptr_override id; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.ptr_override ALTER COLUMN id SET DEFAULT nextval('public.ptr_override_id_seq'::regclass);
+
+
+--
+-- Name: srv srvid; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.srv ALTER COLUMN srvid SET DEFAULT nextval('public.srv_srvid_seq'::regclass);
+
+
+--
+-- Name: subnets subnetid; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.subnets ALTER COLUMN subnetid SET DEFAULT nextval('public.subnets_subnetid_seq'::regclass);
+
+
+--
+-- Name: txt txtid; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.txt ALTER COLUMN txtid SET DEFAULT nextval('public.txt_txtid_seq'::regclass);
+
+
+--
+-- Name: zones zoneid; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.zones ALTER COLUMN zoneid SET DEFAULT nextval('public.zones_zoneid_seq'::regclass);
+
+
+--
+-- Name: zones_nameservers id; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.zones_nameservers ALTER COLUMN id SET DEFAULT nextval('public.zones_nameservers_id_seq'::regclass);
+
+
+--
+-- Data for Name: auth_group; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.auth_group (id, name) FROM stdin;
+\.
+
+
+--
+-- Name: auth_group_id_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.auth_group_id_seq', 1, false);
+
+
+--
+-- Data for Name: auth_group_permissions; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.auth_group_permissions (id, group_id, permission_id) FROM stdin;
+\.
+
+
+--
+-- Name: auth_group_permissions_id_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.auth_group_permissions_id_seq', 1, false);
+
+
+--
+-- Data for Name: auth_permission; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.auth_permission (id, name, content_type_id, codename) FROM stdin;
+1	Can add log entry	1	add_logentry
+2	Can change log entry	1	change_logentry
+3	Can delete log entry	1	delete_logentry
+4	Can add permission	2	add_permission
+5	Can change permission	2	change_permission
+6	Can delete permission	2	delete_permission
+7	Can add group	3	add_group
+8	Can change group	3	change_group
+9	Can delete group	3	delete_group
+10	Can add user	4	add_user
+11	Can change user	4	change_user
+12	Can delete user	4	delete_user
+13	Can add content type	5	add_contenttype
+14	Can change content type	5	change_contenttype
+15	Can delete content type	5	delete_contenttype
+16	Can add session	6	add_session
+17	Can change session	6	change_session
+18	Can delete session	6	delete_session
+19	Can add cname	7	add_cname
+20	Can change cname	7	change_cname
+21	Can delete cname	7	delete_cname
+22	Can add hinfo presets	8	add_hinfopresets
+23	Can change hinfo presets	8	change_hinfopresets
+24	Can delete hinfo presets	8	delete_hinfopresets
+25	Can add hosts	9	add_hosts
+26	Can change hosts	9	change_hosts
+27	Can delete hosts	9	delete_hosts
+28	Can add ipaddress	10	add_ipaddress
+29	Can change ipaddress	10	change_ipaddress
+30	Can delete ipaddress	10	delete_ipaddress
+31	Can add naptr	11	add_naptr
+32	Can change naptr	11	change_naptr
+33	Can delete naptr	11	delete_naptr
+34	Can add ns	12	add_ns
+35	Can change ns	12	change_ns
+36	Can delete ns	12	delete_ns
+37	Can add ptr override	13	add_ptroverride
+38	Can change ptr override	13	change_ptroverride
+39	Can delete ptr override	13	delete_ptroverride
+40	Can add srv	14	add_srv
+41	Can change srv	14	change_srv
+42	Can delete srv	14	delete_srv
+43	Can add subnets	15	add_subnets
+44	Can change subnets	15	change_subnets
+45	Can delete subnets	15	delete_subnets
+46	Can add txt	16	add_txt
+47	Can change txt	16	change_txt
+48	Can delete txt	16	delete_txt
+49	Can add zones	17	add_zones
+50	Can change zones	17	change_zones
+51	Can delete zones	17	delete_zones
+\.
+
+
+--
+-- Name: auth_permission_id_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.auth_permission_id_seq', 51, true);
+
+
+--
+-- Data for Name: auth_user; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.auth_user (id, password, last_login, is_superuser, username, first_name, last_name, email, is_staff, is_active, date_joined) FROM stdin;
+\.
+
+
+--
+-- Data for Name: auth_user_groups; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.auth_user_groups (id, user_id, group_id) FROM stdin;
+\.
+
+
+--
+-- Name: auth_user_groups_id_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.auth_user_groups_id_seq', 1, false);
+
+
+--
+-- Name: auth_user_id_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.auth_user_id_seq', 1, false);
+
+
+--
+-- Data for Name: auth_user_user_permissions; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.auth_user_user_permissions (id, user_id, permission_id) FROM stdin;
+\.
+
+
+--
+-- Name: auth_user_user_permissions_id_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.auth_user_user_permissions_id_seq', 1, false);
+
+
+--
+-- Data for Name: cname; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.cname (id, cname, ttl, hostid) FROM stdin;
+1	carla.uio.no.	300	10
+2	ns1.uio.no.	300	14
+3	asklepios.uio.no.	300	17
+4	asklepios.uio.no.	300	18
+5	asklepios.uio.no.	300	19
+\.
+
+
+--
+-- Name: cname_id_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.cname_id_seq', 5, true);
+
+
+--
+-- Data for Name: django_admin_log; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.django_admin_log (id, action_time, object_id, object_repr, action_flag, change_message, content_type_id, user_id) FROM stdin;
+\.
+
+
+--
+-- Name: django_admin_log_id_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.django_admin_log_id_seq', 1, false);
+
+
+--
+-- Data for Name: django_content_type; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.django_content_type (id, app_label, model) FROM stdin;
+1	admin	logentry
+2	auth	permission
+3	auth	group
+4	auth	user
+5	contenttypes	contenttype
+6	sessions	session
+7	mreg	cname
+8	mreg	hinfopresets
+9	mreg	hosts
+10	mreg	ipaddress
+11	mreg	naptr
+12	mreg	ns
+13	mreg	ptroverride
+14	mreg	srv
+15	mreg	subnets
+16	mreg	txt
+17	mreg	zones
+\.
+
+
+--
+-- Name: django_content_type_id_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.django_content_type_id_seq', 17, true);
+
+
+--
+-- Data for Name: django_migrations; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.django_migrations (id, app, name, applied) FROM stdin;
+1	contenttypes	0001_initial	2018-07-02 14:15:55.596901+00
+2	auth	0001_initial	2018-07-02 14:15:55.8506+00
+3	admin	0001_initial	2018-07-02 14:15:55.924235+00
+4	admin	0002_logentry_remove_auto_add	2018-07-02 14:15:55.942323+00
+5	contenttypes	0002_remove_content_type_name	2018-07-02 14:15:55.975662+00
+6	auth	0002_alter_permission_name_max_length	2018-07-02 14:15:55.988263+00
+7	auth	0003_alter_user_email_max_length	2018-07-02 14:15:56.006014+00
+8	auth	0004_alter_user_username_opts	2018-07-02 14:15:56.020189+00
+9	auth	0005_alter_user_last_login_null	2018-07-02 14:15:56.039361+00
+10	auth	0006_require_contenttypes_0002	2018-07-02 14:15:56.043735+00
+11	auth	0007_alter_validators_add_error_messages	2018-07-02 14:15:56.055203+00
+12	auth	0008_alter_user_username_max_length	2018-07-02 14:15:56.080558+00
+13	auth	0009_alter_user_last_name_max_length	2018-07-02 14:15:56.094935+00
+14	mreg	0001_initial	2018-07-02 14:15:56.622275+00
+15	sessions	0001_initial	2018-07-02 14:15:56.675714+00
+16	mreg	0002_auto_20180706_1055	2018-07-06 11:29:46.576858+00
+17	mreg	0003_auto_20180706_1327	2018-07-06 11:29:46.698678+00
+18	mreg	0004_auto_20180711_1142	2018-07-11 09:54:04.414398+00
+19	mreg	0005_auto_20180713_1525	2018-07-18 12:32:18.933473+00
+20	mreg	0006_subnets_reserved	2018-07-18 12:32:19.026207+00
+\.
+
+
+--
+-- Name: django_migrations_id_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.django_migrations_id_seq', 20, true);
+
+
+--
+-- Data for Name: django_session; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.django_session (session_key, session_data, expire_date) FROM stdin;
+\.
+
+
+--
+-- Data for Name: hinfo_presets; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.hinfo_presets (hinfoid, cpu, os) FROM stdin;
+1	IBM-PC	LINUX
+2	IBM-PC	WINDOWS
+3	NET	NET
+\.
+
+
+--
+-- Name: hinfo_presets_hinfoid_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.hinfo_presets_hinfoid_seq', 3, true);
+
+
+--
+-- Data for Name: hosts; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.hosts (hostid, name, contact, ttl, loc, comment, hinfo) FROM stdin;
+1	ns1.uio.no	hostmaster@uio.no	43200	\N	primary ns for uio.no	1
+4	uio.no	hostmaster@uio.no	43200	\N	\N	\N
+5	sid-lc.forsbring.no	hostmaster@uio.no	43200	\N	ptr override	\N
+6	www.nakmi.no	hostmaster@uio.no	43200	\N	ptr override	\N
+7	uio-gw8.uio.no	hostmaster@uio.no	3600	59 56 23 N 10 43 50 E 80m	\N	3
+8	carla.uio.no	hostmaster@uio.no	3600	\N	\N	1
+9	gid-win2012.uio.no	hostmaster@uio.no	3600	\N	\N	2
+10	priss.uio.no	hostmaster@uio.no	3600	\N	\N	\N
+11	callisto.uio.no	hostmaster@uio.no	3600	\N	\N	1
+12	voip2-sbc2.uio.no	hostmaster@uio.no	3600	\N	\N	1
+13	voip1-sbc2.uio.no	hostmaster@uio.no	3600	\N	\N	1
+14	ntp.uio.no	hostmaster@uio.no	3600	\N	\N	\N
+15	apollon.uio.no	hostmaster@uio.no	3600	\N	\N	\N
+16	math.uio.no	hostmaster@uio.no	3600	\N	\N	\N
+17	hydrolab.math.uio.no	hostmaster@uio.no	3600	\N	\N	\N
+18	git.math.uio.no	hostmaster@uio.no	3600	\N	\N	\N
+19	cvs.math.uio.no	hostmaster@uio.no	3600	\N	\N	\N
+20	asklepios.uio.no	hostmaster@uio.no	3600	\N	\N	1
+21	myrsnipa.uio.no	hostmaster@uio.no	3600	\N	\N	1
+22	bac.uio.no	hostmaster@uio.no	3600	\N	\N	\N
+23	symfoni.uio.no	hostmaster@uio.no	3600	\N	\N	1
+24	fuge.uio.no	hostmaster@uio.no	3600	\N	\N	1
+25	flax.uio.no	hostmaster@uio.no	3600	\N	\N	1
+26	timelord.uio.no	hostmaster@uio.no	3600	\N	\N	2
+27	clara.uio.no	hostmaster@uio.no	3600	\N	\N	2
+28	rocinante.uio.no	hostmaster@uio.no	3600	\N	\N	1
+30	josefine.uio.no	hostmaster@uio.no	3600	\N	\N	1
+31	ladon.uio.no	hostmaster@uio.no	3600	\N	\N	1
+32	cassandra.uio.no	hostmaster@uio.no	3600	\N	\N	2
+33	tux.uio.no	hostmaster@uio.no	3600	\N	\N	1
+34	kaffekopp.uio.no	hostmaster@uio.no	3600	\N	\N	1
+35	peter.griffin	peter@griffin.yo	3600		Family Guy er awesome	\N
+2	ns2.uio.no	hostmaster@uio.no	43200	\N	secondary ns for uio.no	1
+29	amaterasu.uio.no	hostmaster@uio.com	3600	\N	\N	\N
+36	louis.griffin	louis@griffin.fy	666	\N	\N	\N
+37	chris.griffin	chris@griffin.yo	\N	\N	\N	\N
+3	ifi.uio.no	postmaster@uio.nope	511	\N	glue record for ifi.uio.no	1
+38	stewie	stewie@griffin.no	\N	\N		\N
+39	beer.uio.no		\N	\N	\N	\N
+\.
+
+
+--
+-- Name: hosts_hostid_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.hosts_hostid_seq', 39, true);
+
+
+--
+-- Data for Name: ipaddress; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.ipaddress (id, ipaddress, macaddress, hostid) FROM stdin;
+1	129.240.2.6	\N	1
+2	2001:700:100:2::6	\N	1
+3	129.240.2.42	\N	2
+4	2001:700:100:425::42	\N	2
+5	129.240.64.2	\N	3
+6	128.39.65.18	\N	7
+7	129.240.24.177	\N	7
+8	129.240.24.229	\N	7
+9	129.240.24.253	\N	7
+10	129.240.25.13	\N	7
+11	129.240.25.45	\N	7
+12	129.240.25.53	\N	7
+13	129.240.25.69	\N	7
+14	129.240.25.101	\N	7
+15	129.240.25.165	\N	7
+16	129.240.25.177	\N	7
+17	129.240.25.182	\N	7
+18	129.240.25.190	\N	7
+19	129.240.25.193	\N	7
+20	129.240.25.217	\N	7
+21	129.240.100.29	\N	7
+22	129.240.100.41	\N	7
+23	129.240.100.45	\N	7
+24	129.240.100.129	\N	7
+25	129.240.100.188	\N	7
+26	129.240.2.8	\N	8
+27	129.240.15.61	\N	9
+28	129.240.202.63	\N	11
+29	129.240.254.68	\N	12
+30	129.240.254.4	\N	13
+31	129.240.171.55	\N	15
+32	129.240.75.234	\N	16
+33	129.240.75.233	\N	20
+34	129.240.202.34	\N	21
+35	129.240.202.21	\N	23
+36	129.240.202.16	\N	24
+37	129.240.202.98	\N	25
+38	129.240.202.22	\N	26
+39	129.240.202.118	\N	27
+40	129.240.202.156	\N	28
+41	129.240.202.187	\N	29
+42	129.240.202.168	\N	30
+43	129.240.202.203	\N	31
+44	129.240.202.143	\N	32
+45	129.240.202.12	\N	33
+46	129.240.202.110	\N	34
+\.
+
+
+--
+-- Name: ipaddress_id_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.ipaddress_id_seq', 46, true);
+
+
+--
+-- Data for Name: naptr; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.naptr (naptrid, preference, orderv, flag, service, regex, replacement, hostid) FROM stdin;
+1	3	10	s	SIP+D2U		_sip._udp.sbc2.voip.uio.no.	15
+2	2	10	s	SIP+D2T		_sip._tcp.sbc2.voip.uio.no.	15
+3	1	10	s	SIPS+D2T		_sips._tcp.sbc2.voip.uio.no.	15
+4	3	10	s	SIP+D2U		_sip._udp.sbc2.voip.uio.no.	16
+5	2	10	s	SIP+D2T		_sip._tcp.sbc2.voip.uio.no.	16
+6	1	10	s	SIPS+D2T		_sips._tcp.sbc2.voip.uio.no.	16
+\.
+
+
+--
+-- Name: naptr_naptrid_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.naptr_naptrid_seq', 6, true);
+
+
+--
+-- Data for Name: ns; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.ns (nsid, name, ttl) FROM stdin;
+1	ns1.uio.no	43200
+2	ns2.uio.no	43200
+3	nn.uninett.no	43200
+4	server.nordu.net	43200
+5	ifi.uio.no	300
+8	abc.def.gh	666
+\.
+
+
+--
+-- Name: ns_nsid_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.ns_nsid_seq', 8, true);
+
+
+--
+-- Data for Name: ptr_override; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.ptr_override (id, ipaddress, hostid) FROM stdin;
+1	129.240.187.49	5
+2	129.240.171.57	6
+\.
+
+
+--
+-- Name: ptr_override_id_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.ptr_override_id_seq', 2, true);
+
+
+--
+-- Data for Name: srv; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.srv (srvid, service, priority, weight, port, ttl, target) FROM stdin;
+1	_sip._udp.apollon.uio.no.	10	50	7060	43200	voip1-sbc2.uio.no.
+2	_sip._udp.apollon.uio.no.	10	50	7060	43200	voip2-sbc2.uio.no.
+3	_sip._tcp.apollon.uio.no.	8	50	7060	43200	voip1-sbc2.uio.no.
+4	_sip._tcp.apollon.uio.no.	8	50	7060	43200	voip2-sbc2.uio.no.
+5	_sips._tcp.apollon.uio.no.	6	50	7061	43200	voip1-sbc2.uio.no.
+6	_sips._tcp.apollon.uio.no.	6	50	7061	43200	voip2-sbc2.uio.no.
+7	_sip._udp.math.uio.no.	10	50	7060	43200	voip1-sbc2.uio.no.
+8	_sip._udp.math.uio.no.	10	50	7060	43200	voip2-sbc2.uio.no.
+9	_sip._tcp.math.uio.no.	8	50	7060	43200	voip1-sbc2.uio.no.
+10	_sip._tcp.math.uio.no.	8	50	7060	43200	voip2-sbc2.uio.no.
+11	_sips._tcp.math.uio.no.	6	50	7061	43200	voip1-sbc2.uio.no.
+12	_sips._tcp.math.uio.no.	6	50	7061	43200	voip2-sbc2.uio.no.
+\.
+
+
+--
+-- Name: srv_srvid_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.srv_srvid_seq', 12, true);
+
+
+--
+-- Data for Name: subnets; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.subnets (subnetid, range, description, vlan, dns_delegated, category, frozen, location, reserved) FROM stdin;
+1	129.240.202.0/23	:kn:usit:|USIT-internt klientnett, secondary paa 200-nettet	\N	\N	\N	\N	\N	3
+2	129.240.199.16/28	:bi:|AAK abel-gw, VLAN 602 (koo)	602	\N	\N	\N	\N	3
+3	129.240.150.0/28	:kn:|installasjonsnett abel-gw, vlan 1245 (andreas)	1245	\N	\N	\N	\N	3
+4	129.240.161.128/30	:nn:|Budsentralen - frankeringsmaskin, vlan 833 (alj)	833	\N	\N	\N	\N	3
+\.
+
+
+--
+-- Name: subnets_subnetid_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.subnets_subnetid_seq', 4, true);
+
+
+--
+-- Data for Name: txt; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.txt (txtid, txt, hostid) FROM stdin;
+1	University of Oslo, Norway	4
+2	google-site-verification=cDsrExFpfrxrzZukaw2Pyi4J7nQ4-hxfVOsIrZa34YY	4
+3	v=spf1 mx ip4:129.240.10.0/25 ip6:2001:700:100:10::/64 ip6:2001:700:100:8210::/64 include:spf.uio.no ?all	4
+4	dropbox-domain-verification=eovcv1nrw2n5	4
+5	v=spf1 mx ip4:129.240.10.0/25 ip6:2001:700:100:10::/64 ip6:2001:700:100:8210::/64 include:spf.uio.no ?all	15
+6	v=spf1 mx ip4:129.240.10.0/25 ip6:2001:700:100:10::/64 ip6:2001:700:100:8210::/64 include:spf.uio.no ?all	16
+\.
+
+
+--
+-- Name: txt_txtid_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.txt_txtid_seq', 6, true);
+
+
+--
+-- Data for Name: zones; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.zones (zoneid, name, primary_ns, email, serialno, refresh, retry, expire, ttl) FROM stdin;
+1	uio.no	ns1.uio.no	hostmaster@uio.no	2018062703	10800	3600	1814400	43200
+2	ifi.uio.no	bestemor.ifi.uio.no	hostmaster@ifi.uio.no	2018062903	1800	900	960000	86400
+\.
+
+
+--
+-- Data for Name: zones_nameservers; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.zones_nameservers (id, zones_id, ns_id) FROM stdin;
+\.
+
+
+--
+-- Name: zones_nameservers_id_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.zones_nameservers_id_seq', 1, false);
+
+
+--
+-- Name: zones_zoneid_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.zones_zoneid_seq', 4, true);
+
+
+--
+-- Name: auth_group auth_group_name_key; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_group
+    ADD CONSTRAINT auth_group_name_key UNIQUE (name);
+
+
+--
+-- Name: auth_group_permissions auth_group_permissions_group_id_permission_id_0cd325b0_uniq; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_group_permissions
+    ADD CONSTRAINT auth_group_permissions_group_id_permission_id_0cd325b0_uniq UNIQUE (group_id, permission_id);
+
+
+--
+-- Name: auth_group_permissions auth_group_permissions_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_group_permissions
+    ADD CONSTRAINT auth_group_permissions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: auth_group auth_group_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_group
+    ADD CONSTRAINT auth_group_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: auth_permission auth_permission_content_type_id_codename_01ab375a_uniq; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_permission
+    ADD CONSTRAINT auth_permission_content_type_id_codename_01ab375a_uniq UNIQUE (content_type_id, codename);
+
+
+--
+-- Name: auth_permission auth_permission_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_permission
+    ADD CONSTRAINT auth_permission_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: auth_user_groups auth_user_groups_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_user_groups
+    ADD CONSTRAINT auth_user_groups_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: auth_user_groups auth_user_groups_user_id_group_id_94350c0c_uniq; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_user_groups
+    ADD CONSTRAINT auth_user_groups_user_id_group_id_94350c0c_uniq UNIQUE (user_id, group_id);
+
+
+--
+-- Name: auth_user auth_user_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_user
+    ADD CONSTRAINT auth_user_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: auth_user_user_permissions auth_user_user_permissions_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_user_user_permissions
+    ADD CONSTRAINT auth_user_user_permissions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: auth_user_user_permissions auth_user_user_permissions_user_id_permission_id_14a6b632_uniq; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_user_user_permissions
+    ADD CONSTRAINT auth_user_user_permissions_user_id_permission_id_14a6b632_uniq UNIQUE (user_id, permission_id);
+
+
+--
+-- Name: auth_user auth_user_username_key; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_user
+    ADD CONSTRAINT auth_user_username_key UNIQUE (username);
+
+
+--
+-- Name: cname cname_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.cname
+    ADD CONSTRAINT cname_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: django_admin_log django_admin_log_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.django_admin_log
+    ADD CONSTRAINT django_admin_log_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: django_content_type django_content_type_app_label_model_76bd3d3b_uniq; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.django_content_type
+    ADD CONSTRAINT django_content_type_app_label_model_76bd3d3b_uniq UNIQUE (app_label, model);
+
+
+--
+-- Name: django_content_type django_content_type_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.django_content_type
+    ADD CONSTRAINT django_content_type_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: django_migrations django_migrations_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.django_migrations
+    ADD CONSTRAINT django_migrations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: django_session django_session_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.django_session
+    ADD CONSTRAINT django_session_pkey PRIMARY KEY (session_key);
+
+
+--
+-- Name: hinfo_presets hinfo_presets_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.hinfo_presets
+    ADD CONSTRAINT hinfo_presets_pkey PRIMARY KEY (hinfoid);
+
+
+--
+-- Name: hosts hosts_name_key; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.hosts
+    ADD CONSTRAINT hosts_name_key UNIQUE (name);
+
+
+--
+-- Name: hosts hosts_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.hosts
+    ADD CONSTRAINT hosts_pkey PRIMARY KEY (hostid);
+
+
+--
+-- Name: ipaddress ipaddress_ipaddress_key; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.ipaddress
+    ADD CONSTRAINT ipaddress_ipaddress_key UNIQUE (ipaddress);
+
+
+--
+-- Name: ipaddress ipaddress_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.ipaddress
+    ADD CONSTRAINT ipaddress_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: naptr naptr_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.naptr
+    ADD CONSTRAINT naptr_pkey PRIMARY KEY (naptrid);
+
+
+--
+-- Name: ns ns_name_75da8ee2_uniq; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.ns
+    ADD CONSTRAINT ns_name_75da8ee2_uniq UNIQUE (name);
+
+
+--
+-- Name: ns ns_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.ns
+    ADD CONSTRAINT ns_pkey PRIMARY KEY (nsid);
+
+
+--
+-- Name: ptr_override ptr_override_ipaddress_key; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.ptr_override
+    ADD CONSTRAINT ptr_override_ipaddress_key UNIQUE (ipaddress);
+
+
+--
+-- Name: ptr_override ptr_override_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.ptr_override
+    ADD CONSTRAINT ptr_override_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: srv srv_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.srv
+    ADD CONSTRAINT srv_pkey PRIMARY KEY (srvid);
+
+
+--
+-- Name: subnets subnets_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.subnets
+    ADD CONSTRAINT subnets_pkey PRIMARY KEY (subnetid);
+
+
+--
+-- Name: subnets subnets_range_3367bb13_uniq; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.subnets
+    ADD CONSTRAINT subnets_range_3367bb13_uniq UNIQUE (range);
+
+
+--
+-- Name: txt txt_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.txt
+    ADD CONSTRAINT txt_pkey PRIMARY KEY (txtid);
+
+
+--
+-- Name: zones zones_name_key; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.zones
+    ADD CONSTRAINT zones_name_key UNIQUE (name);
+
+
+--
+-- Name: zones_nameservers zones_nameservers_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.zones_nameservers
+    ADD CONSTRAINT zones_nameservers_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: zones_nameservers zones_nameservers_zones_id_ns_id_55432030_uniq; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.zones_nameservers
+    ADD CONSTRAINT zones_nameservers_zones_id_ns_id_55432030_uniq UNIQUE (zones_id, ns_id);
+
+
+--
+-- Name: zones zones_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.zones
+    ADD CONSTRAINT zones_pkey PRIMARY KEY (zoneid);
+
+
+--
+-- Name: auth_group_name_a6ea08ec_like; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX auth_group_name_a6ea08ec_like ON public.auth_group USING btree (name varchar_pattern_ops);
+
+
+--
+-- Name: auth_group_permissions_group_id_b120cbf9; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX auth_group_permissions_group_id_b120cbf9 ON public.auth_group_permissions USING btree (group_id);
+
+
+--
+-- Name: auth_group_permissions_permission_id_84c5c92e; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX auth_group_permissions_permission_id_84c5c92e ON public.auth_group_permissions USING btree (permission_id);
+
+
+--
+-- Name: auth_permission_content_type_id_2f476e4b; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX auth_permission_content_type_id_2f476e4b ON public.auth_permission USING btree (content_type_id);
+
+
+--
+-- Name: auth_user_groups_group_id_97559544; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX auth_user_groups_group_id_97559544 ON public.auth_user_groups USING btree (group_id);
+
+
+--
+-- Name: auth_user_groups_user_id_6a12ed8b; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX auth_user_groups_user_id_6a12ed8b ON public.auth_user_groups USING btree (user_id);
+
+
+--
+-- Name: auth_user_user_permissions_permission_id_1fbb5f2c; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX auth_user_user_permissions_permission_id_1fbb5f2c ON public.auth_user_user_permissions USING btree (permission_id);
+
+
+--
+-- Name: auth_user_user_permissions_user_id_a95ead1b; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX auth_user_user_permissions_user_id_a95ead1b ON public.auth_user_user_permissions USING btree (user_id);
+
+
+--
+-- Name: auth_user_username_6821ab7c_like; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX auth_user_username_6821ab7c_like ON public.auth_user USING btree (username varchar_pattern_ops);
+
+
+--
+-- Name: cname_hostid_ee609830; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX cname_hostid_ee609830 ON public.cname USING btree (hostid);
+
+
+--
+-- Name: django_admin_log_content_type_id_c4bce8eb; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX django_admin_log_content_type_id_c4bce8eb ON public.django_admin_log USING btree (content_type_id);
+
+
+--
+-- Name: django_admin_log_user_id_c564eba6; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX django_admin_log_user_id_c564eba6 ON public.django_admin_log USING btree (user_id);
+
+
+--
+-- Name: django_session_expire_date_a5c62663; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX django_session_expire_date_a5c62663 ON public.django_session USING btree (expire_date);
+
+
+--
+-- Name: django_session_session_key_c0390e0f_like; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX django_session_session_key_c0390e0f_like ON public.django_session USING btree (session_key varchar_pattern_ops);
+
+
+--
+-- Name: hosts_hinfo_3e44e035; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX hosts_hinfo_3e44e035 ON public.hosts USING btree (hinfo);
+
+
+--
+-- Name: hosts_name_6bae01b0_like; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX hosts_name_6bae01b0_like ON public.hosts USING btree (name text_pattern_ops);
+
+
+--
+-- Name: ipaddress_hostid_7f57f35b; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX ipaddress_hostid_7f57f35b ON public.ipaddress USING btree (hostid);
+
+
+--
+-- Name: naptr_hostid_7b644d7b; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX naptr_hostid_7b644d7b ON public.naptr USING btree (hostid);
+
+
+--
+-- Name: ns_name_75da8ee2_like; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX ns_name_75da8ee2_like ON public.ns USING btree (name text_pattern_ops);
+
+
+--
+-- Name: ptr_override_hostid_0df1f0eb; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX ptr_override_hostid_0df1f0eb ON public.ptr_override USING btree (hostid);
+
+
+--
+-- Name: subnets_range_3367bb13_like; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX subnets_range_3367bb13_like ON public.subnets USING btree (range text_pattern_ops);
+
+
+--
+-- Name: txt_hostid_09341fec; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX txt_hostid_09341fec ON public.txt USING btree (hostid);
+
+
+--
+-- Name: zones_name_08f555f3_like; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX zones_name_08f555f3_like ON public.zones USING btree (name text_pattern_ops);
+
+
+--
+-- Name: zones_nameservers_ns_id_f50826ec; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX zones_nameservers_ns_id_f50826ec ON public.zones_nameservers USING btree (ns_id);
+
+
+--
+-- Name: zones_nameservers_zones_id_30ee1499; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX zones_nameservers_zones_id_30ee1499 ON public.zones_nameservers USING btree (zones_id);
+
+
+--
+-- Name: auth_group_permissions auth_group_permissio_permission_id_84c5c92e_fk_auth_perm; Type: FK CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_group_permissions
+    ADD CONSTRAINT auth_group_permissio_permission_id_84c5c92e_fk_auth_perm FOREIGN KEY (permission_id) REFERENCES public.auth_permission(id) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: auth_group_permissions auth_group_permissions_group_id_b120cbf9_fk_auth_group_id; Type: FK CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_group_permissions
+    ADD CONSTRAINT auth_group_permissions_group_id_b120cbf9_fk_auth_group_id FOREIGN KEY (group_id) REFERENCES public.auth_group(id) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: auth_permission auth_permission_content_type_id_2f476e4b_fk_django_co; Type: FK CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_permission
+    ADD CONSTRAINT auth_permission_content_type_id_2f476e4b_fk_django_co FOREIGN KEY (content_type_id) REFERENCES public.django_content_type(id) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: auth_user_groups auth_user_groups_group_id_97559544_fk_auth_group_id; Type: FK CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_user_groups
+    ADD CONSTRAINT auth_user_groups_group_id_97559544_fk_auth_group_id FOREIGN KEY (group_id) REFERENCES public.auth_group(id) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: auth_user_groups auth_user_groups_user_id_6a12ed8b_fk_auth_user_id; Type: FK CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_user_groups
+    ADD CONSTRAINT auth_user_groups_user_id_6a12ed8b_fk_auth_user_id FOREIGN KEY (user_id) REFERENCES public.auth_user(id) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: auth_user_user_permissions auth_user_user_permi_permission_id_1fbb5f2c_fk_auth_perm; Type: FK CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_user_user_permissions
+    ADD CONSTRAINT auth_user_user_permi_permission_id_1fbb5f2c_fk_auth_perm FOREIGN KEY (permission_id) REFERENCES public.auth_permission(id) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: auth_user_user_permissions auth_user_user_permissions_user_id_a95ead1b_fk_auth_user_id; Type: FK CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_user_user_permissions
+    ADD CONSTRAINT auth_user_user_permissions_user_id_a95ead1b_fk_auth_user_id FOREIGN KEY (user_id) REFERENCES public.auth_user(id) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: cname cname_hostid_ee609830_fk_hosts_hostid; Type: FK CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.cname
+    ADD CONSTRAINT cname_hostid_ee609830_fk_hosts_hostid FOREIGN KEY (hostid) REFERENCES public.hosts(hostid) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: django_admin_log django_admin_log_content_type_id_c4bce8eb_fk_django_co; Type: FK CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.django_admin_log
+    ADD CONSTRAINT django_admin_log_content_type_id_c4bce8eb_fk_django_co FOREIGN KEY (content_type_id) REFERENCES public.django_content_type(id) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: django_admin_log django_admin_log_user_id_c564eba6_fk_auth_user_id; Type: FK CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.django_admin_log
+    ADD CONSTRAINT django_admin_log_user_id_c564eba6_fk_auth_user_id FOREIGN KEY (user_id) REFERENCES public.auth_user(id) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: hosts hosts_hinfo_3e44e035_fk_hinfo_presets_hinfoid; Type: FK CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.hosts
+    ADD CONSTRAINT hosts_hinfo_3e44e035_fk_hinfo_presets_hinfoid FOREIGN KEY (hinfo) REFERENCES public.hinfo_presets(hinfoid) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: ipaddress ipaddress_hostid_7f57f35b_fk_hosts_hostid; Type: FK CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.ipaddress
+    ADD CONSTRAINT ipaddress_hostid_7f57f35b_fk_hosts_hostid FOREIGN KEY (hostid) REFERENCES public.hosts(hostid) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: naptr naptr_hostid_7b644d7b_fk_hosts_hostid; Type: FK CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.naptr
+    ADD CONSTRAINT naptr_hostid_7b644d7b_fk_hosts_hostid FOREIGN KEY (hostid) REFERENCES public.hosts(hostid) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: ptr_override ptr_override_hostid_0df1f0eb_fk_hosts_hostid; Type: FK CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.ptr_override
+    ADD CONSTRAINT ptr_override_hostid_0df1f0eb_fk_hosts_hostid FOREIGN KEY (hostid) REFERENCES public.hosts(hostid) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: txt txt_hostid_09341fec_fk_hosts_hostid; Type: FK CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.txt
+    ADD CONSTRAINT txt_hostid_09341fec_fk_hosts_hostid FOREIGN KEY (hostid) REFERENCES public.hosts(hostid) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: zones_nameservers zones_nameservers_ns_id_f50826ec_fk_ns_nsid; Type: FK CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.zones_nameservers
+    ADD CONSTRAINT zones_nameservers_ns_id_f50826ec_fk_ns_nsid FOREIGN KEY (ns_id) REFERENCES public.ns(nsid) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: zones_nameservers zones_nameservers_zones_id_30ee1499_fk_zones_zoneid; Type: FK CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.zones_nameservers
+    ADD CONSTRAINT zones_nameservers_zones_id_30ee1499_fk_zones_zoneid FOREIGN KEY (zones_id) REFERENCES public.zones(zoneid) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- PostgreSQL database dump complete
+--
+
+\connect postgres
+
+SET default_transaction_read_only = off;
+
+--
+-- PostgreSQL database dump
+--
+
+-- Dumped from database version 9.6.9
+-- Dumped by pg_dump version 9.6.9
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET client_min_messages = warning;
+SET row_security = off;
+
+--
+-- Name: DATABASE postgres; Type: COMMENT; Schema: -; Owner: postgres
+--
+
+COMMENT ON DATABASE postgres IS 'default administrative connection database';
+
+
+--
+-- Name: plpgsql; Type: EXTENSION; Schema: -; Owner: 
+--
+
+CREATE EXTENSION IF NOT EXISTS plpgsql WITH SCHEMA pg_catalog;
+
+
+--
+-- Name: EXTENSION plpgsql; Type: COMMENT; Schema: -; Owner: 
+--
+
+COMMENT ON EXTENSION plpgsql IS 'PL/pgSQL procedural language';
+
+
+--
+-- PostgreSQL database dump complete
+--
+
+\connect template1
+
+SET default_transaction_read_only = off;
+
+--
+-- PostgreSQL database dump
+--
+
+-- Dumped from database version 9.6.9
+-- Dumped by pg_dump version 9.6.9
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET client_min_messages = warning;
+SET row_security = off;
+
+--
+-- Name: DATABASE template1; Type: COMMENT; Schema: -; Owner: postgres
+--
+
+COMMENT ON DATABASE template1 IS 'default template for new databases';
+
+
+--
+-- Name: plpgsql; Type: EXTENSION; Schema: -; Owner: 
+--
+
+CREATE EXTENSION IF NOT EXISTS plpgsql WITH SCHEMA pg_catalog;
+
+
+--
+-- Name: EXTENSION plpgsql; Type: COMMENT; Schema: -; Owner: 
+--
+
+COMMENT ON EXTENSION plpgsql IS 'PL/pgSQL procedural language';
+
+
+--
+-- PostgreSQL database dump complete
+--
+
+\connect test_mreg_sample
+
+SET default_transaction_read_only = off;
+
+--
+-- PostgreSQL database dump
+--
+
+-- Dumped from database version 9.6.9
+-- Dumped by pg_dump version 9.6.9
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET client_min_messages = warning;
+SET row_security = off;
+
+--
+-- Name: plpgsql; Type: EXTENSION; Schema: -; Owner: 
+--
+
+CREATE EXTENSION IF NOT EXISTS plpgsql WITH SCHEMA pg_catalog;
+
+
+--
+-- Name: EXTENSION plpgsql; Type: COMMENT; Schema: -; Owner: 
+--
+
+COMMENT ON EXTENSION plpgsql IS 'PL/pgSQL procedural language';
+
+
+SET default_tablespace = '';
+
+SET default_with_oids = false;
+
+--
+-- Name: auth_group; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.auth_group (
+    id integer NOT NULL,
+    name character varying(80) NOT NULL
+);
+
+
+ALTER TABLE public.auth_group OWNER TO mreg_user;
+
+--
+-- Name: auth_group_id_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.auth_group_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.auth_group_id_seq OWNER TO mreg_user;
+
+--
+-- Name: auth_group_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.auth_group_id_seq OWNED BY public.auth_group.id;
+
+
+--
+-- Name: auth_group_permissions; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.auth_group_permissions (
+    id integer NOT NULL,
+    group_id integer NOT NULL,
+    permission_id integer NOT NULL
+);
+
+
+ALTER TABLE public.auth_group_permissions OWNER TO mreg_user;
+
+--
+-- Name: auth_group_permissions_id_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.auth_group_permissions_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.auth_group_permissions_id_seq OWNER TO mreg_user;
+
+--
+-- Name: auth_group_permissions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.auth_group_permissions_id_seq OWNED BY public.auth_group_permissions.id;
+
+
+--
+-- Name: auth_permission; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.auth_permission (
+    id integer NOT NULL,
+    name character varying(255) NOT NULL,
+    content_type_id integer NOT NULL,
+    codename character varying(100) NOT NULL
+);
+
+
+ALTER TABLE public.auth_permission OWNER TO mreg_user;
+
+--
+-- Name: auth_permission_id_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.auth_permission_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.auth_permission_id_seq OWNER TO mreg_user;
+
+--
+-- Name: auth_permission_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.auth_permission_id_seq OWNED BY public.auth_permission.id;
+
+
+--
+-- Name: auth_user; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.auth_user (
+    id integer NOT NULL,
+    password character varying(128) NOT NULL,
+    last_login timestamp with time zone,
+    is_superuser boolean NOT NULL,
+    username character varying(150) NOT NULL,
+    first_name character varying(30) NOT NULL,
+    last_name character varying(150) NOT NULL,
+    email character varying(254) NOT NULL,
+    is_staff boolean NOT NULL,
+    is_active boolean NOT NULL,
+    date_joined timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.auth_user OWNER TO mreg_user;
+
+--
+-- Name: auth_user_groups; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.auth_user_groups (
+    id integer NOT NULL,
+    user_id integer NOT NULL,
+    group_id integer NOT NULL
+);
+
+
+ALTER TABLE public.auth_user_groups OWNER TO mreg_user;
+
+--
+-- Name: auth_user_groups_id_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.auth_user_groups_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.auth_user_groups_id_seq OWNER TO mreg_user;
+
+--
+-- Name: auth_user_groups_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.auth_user_groups_id_seq OWNED BY public.auth_user_groups.id;
+
+
+--
+-- Name: auth_user_id_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.auth_user_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.auth_user_id_seq OWNER TO mreg_user;
+
+--
+-- Name: auth_user_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.auth_user_id_seq OWNED BY public.auth_user.id;
+
+
+--
+-- Name: auth_user_user_permissions; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.auth_user_user_permissions (
+    id integer NOT NULL,
+    user_id integer NOT NULL,
+    permission_id integer NOT NULL
+);
+
+
+ALTER TABLE public.auth_user_user_permissions OWNER TO mreg_user;
+
+--
+-- Name: auth_user_user_permissions_id_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.auth_user_user_permissions_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.auth_user_user_permissions_id_seq OWNER TO mreg_user;
+
+--
+-- Name: auth_user_user_permissions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.auth_user_user_permissions_id_seq OWNED BY public.auth_user_user_permissions.id;
+
+
+--
+-- Name: cname; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.cname (
+    id integer NOT NULL,
+    cname text NOT NULL,
+    ttl integer,
+    hostid integer NOT NULL
+);
+
+
+ALTER TABLE public.cname OWNER TO mreg_user;
+
+--
+-- Name: cname_id_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.cname_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.cname_id_seq OWNER TO mreg_user;
+
+--
+-- Name: cname_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.cname_id_seq OWNED BY public.cname.id;
+
+
+--
+-- Name: django_admin_log; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.django_admin_log (
+    id integer NOT NULL,
+    action_time timestamp with time zone NOT NULL,
+    object_id text,
+    object_repr character varying(200) NOT NULL,
+    action_flag smallint NOT NULL,
+    change_message text NOT NULL,
+    content_type_id integer,
+    user_id integer NOT NULL,
+    CONSTRAINT django_admin_log_action_flag_check CHECK ((action_flag >= 0))
+);
+
+
+ALTER TABLE public.django_admin_log OWNER TO mreg_user;
+
+--
+-- Name: django_admin_log_id_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.django_admin_log_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.django_admin_log_id_seq OWNER TO mreg_user;
+
+--
+-- Name: django_admin_log_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.django_admin_log_id_seq OWNED BY public.django_admin_log.id;
+
+
+--
+-- Name: django_content_type; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.django_content_type (
+    id integer NOT NULL,
+    app_label character varying(100) NOT NULL,
+    model character varying(100) NOT NULL
+);
+
+
+ALTER TABLE public.django_content_type OWNER TO mreg_user;
+
+--
+-- Name: django_content_type_id_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.django_content_type_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.django_content_type_id_seq OWNER TO mreg_user;
+
+--
+-- Name: django_content_type_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.django_content_type_id_seq OWNED BY public.django_content_type.id;
+
+
+--
+-- Name: django_migrations; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.django_migrations (
+    id integer NOT NULL,
+    app character varying(255) NOT NULL,
+    name character varying(255) NOT NULL,
+    applied timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.django_migrations OWNER TO mreg_user;
+
+--
+-- Name: django_migrations_id_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.django_migrations_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.django_migrations_id_seq OWNER TO mreg_user;
+
+--
+-- Name: django_migrations_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.django_migrations_id_seq OWNED BY public.django_migrations.id;
+
+
+--
+-- Name: django_session; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.django_session (
+    session_key character varying(40) NOT NULL,
+    session_data text NOT NULL,
+    expire_date timestamp with time zone NOT NULL
+);
+
+
+ALTER TABLE public.django_session OWNER TO mreg_user;
+
+--
+-- Name: hinfo_presets; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.hinfo_presets (
+    hinfoid integer NOT NULL,
+    cpu text NOT NULL,
+    os text NOT NULL
+);
+
+
+ALTER TABLE public.hinfo_presets OWNER TO mreg_user;
+
+--
+-- Name: hinfo_presets_hinfoid_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.hinfo_presets_hinfoid_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.hinfo_presets_hinfoid_seq OWNER TO mreg_user;
+
+--
+-- Name: hinfo_presets_hinfoid_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.hinfo_presets_hinfoid_seq OWNED BY public.hinfo_presets.hinfoid;
+
+
+--
+-- Name: hosts; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.hosts (
+    hostid integer NOT NULL,
+    name text NOT NULL,
+    contact character varying(254) NOT NULL,
+    ttl integer,
+    loc text,
+    comment text,
+    hinfo integer
+);
+
+
+ALTER TABLE public.hosts OWNER TO mreg_user;
+
+--
+-- Name: hosts_hostid_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.hosts_hostid_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.hosts_hostid_seq OWNER TO mreg_user;
+
+--
+-- Name: hosts_hostid_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.hosts_hostid_seq OWNED BY public.hosts.hostid;
+
+
+--
+-- Name: ipaddress; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.ipaddress (
+    id integer NOT NULL,
+    ipaddress inet NOT NULL,
+    macaddress text,
+    hostid integer NOT NULL
+);
+
+
+ALTER TABLE public.ipaddress OWNER TO mreg_user;
+
+--
+-- Name: ipaddress_id_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.ipaddress_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.ipaddress_id_seq OWNER TO mreg_user;
+
+--
+-- Name: ipaddress_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.ipaddress_id_seq OWNED BY public.ipaddress.id;
+
+
+--
+-- Name: naptr; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.naptr (
+    naptrid integer NOT NULL,
+    preference integer,
+    orderv integer,
+    flag character varying(1),
+    service text NOT NULL,
+    regex text,
+    replacement text NOT NULL,
+    hostid integer NOT NULL
+);
+
+
+ALTER TABLE public.naptr OWNER TO mreg_user;
+
+--
+-- Name: naptr_naptrid_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.naptr_naptrid_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.naptr_naptrid_seq OWNER TO mreg_user;
+
+--
+-- Name: naptr_naptrid_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.naptr_naptrid_seq OWNED BY public.naptr.naptrid;
+
+
+--
+-- Name: ns; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.ns (
+    nsid integer NOT NULL,
+    name text NOT NULL,
+    ttl integer
+);
+
+
+ALTER TABLE public.ns OWNER TO mreg_user;
+
+--
+-- Name: ns_nsid_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.ns_nsid_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.ns_nsid_seq OWNER TO mreg_user;
+
+--
+-- Name: ns_nsid_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.ns_nsid_seq OWNED BY public.ns.nsid;
+
+
+--
+-- Name: ptr_override; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.ptr_override (
+    id integer NOT NULL,
+    ipaddress inet NOT NULL,
+    hostid integer NOT NULL
+);
+
+
+ALTER TABLE public.ptr_override OWNER TO mreg_user;
+
+--
+-- Name: ptr_override_id_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.ptr_override_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.ptr_override_id_seq OWNER TO mreg_user;
+
+--
+-- Name: ptr_override_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.ptr_override_id_seq OWNED BY public.ptr_override.id;
+
+
+--
+-- Name: srv; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.srv (
+    srvid integer NOT NULL,
+    service text NOT NULL,
+    priority integer,
+    weight integer,
+    port integer,
+    ttl integer,
+    target text
+);
+
+
+ALTER TABLE public.srv OWNER TO mreg_user;
+
+--
+-- Name: srv_srvid_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.srv_srvid_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.srv_srvid_seq OWNER TO mreg_user;
+
+--
+-- Name: srv_srvid_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.srv_srvid_seq OWNED BY public.srv.srvid;
+
+
+--
+-- Name: subnets; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.subnets (
+    subnetid integer NOT NULL,
+    range text NOT NULL,
+    description text,
+    vlan integer,
+    dns_delegated boolean
+);
+
+
+ALTER TABLE public.subnets OWNER TO mreg_user;
+
+--
+-- Name: subnets_subnetid_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.subnets_subnetid_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.subnets_subnetid_seq OWNER TO mreg_user;
+
+--
+-- Name: subnets_subnetid_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.subnets_subnetid_seq OWNED BY public.subnets.subnetid;
+
+
+--
+-- Name: txt; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.txt (
+    txtid integer NOT NULL,
+    txt text NOT NULL,
+    hostid integer NOT NULL
+);
+
+
+ALTER TABLE public.txt OWNER TO mreg_user;
+
+--
+-- Name: txt_txtid_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.txt_txtid_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.txt_txtid_seq OWNER TO mreg_user;
+
+--
+-- Name: txt_txtid_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.txt_txtid_seq OWNED BY public.txt.txtid;
+
+
+--
+-- Name: zones; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.zones (
+    zoneid integer NOT NULL,
+    name text NOT NULL,
+    primary_ns text NOT NULL,
+    email character varying(254),
+    serialno bigint,
+    refresh integer,
+    retry integer,
+    expire integer,
+    ttl integer
+);
+
+
+ALTER TABLE public.zones OWNER TO mreg_user;
+
+--
+-- Name: zones_nameservers; Type: TABLE; Schema: public; Owner: mreg_user
+--
+
+CREATE TABLE public.zones_nameservers (
+    id integer NOT NULL,
+    zones_id integer NOT NULL,
+    ns_id integer NOT NULL
+);
+
+
+ALTER TABLE public.zones_nameservers OWNER TO mreg_user;
+
+--
+-- Name: zones_nameservers_id_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.zones_nameservers_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.zones_nameservers_id_seq OWNER TO mreg_user;
+
+--
+-- Name: zones_nameservers_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.zones_nameservers_id_seq OWNED BY public.zones_nameservers.id;
+
+
+--
+-- Name: zones_zoneid_seq; Type: SEQUENCE; Schema: public; Owner: mreg_user
+--
+
+CREATE SEQUENCE public.zones_zoneid_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.zones_zoneid_seq OWNER TO mreg_user;
+
+--
+-- Name: zones_zoneid_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: mreg_user
+--
+
+ALTER SEQUENCE public.zones_zoneid_seq OWNED BY public.zones.zoneid;
+
+
+--
+-- Name: auth_group id; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_group ALTER COLUMN id SET DEFAULT nextval('public.auth_group_id_seq'::regclass);
+
+
+--
+-- Name: auth_group_permissions id; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_group_permissions ALTER COLUMN id SET DEFAULT nextval('public.auth_group_permissions_id_seq'::regclass);
+
+
+--
+-- Name: auth_permission id; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_permission ALTER COLUMN id SET DEFAULT nextval('public.auth_permission_id_seq'::regclass);
+
+
+--
+-- Name: auth_user id; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_user ALTER COLUMN id SET DEFAULT nextval('public.auth_user_id_seq'::regclass);
+
+
+--
+-- Name: auth_user_groups id; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_user_groups ALTER COLUMN id SET DEFAULT nextval('public.auth_user_groups_id_seq'::regclass);
+
+
+--
+-- Name: auth_user_user_permissions id; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_user_user_permissions ALTER COLUMN id SET DEFAULT nextval('public.auth_user_user_permissions_id_seq'::regclass);
+
+
+--
+-- Name: cname id; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.cname ALTER COLUMN id SET DEFAULT nextval('public.cname_id_seq'::regclass);
+
+
+--
+-- Name: django_admin_log id; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.django_admin_log ALTER COLUMN id SET DEFAULT nextval('public.django_admin_log_id_seq'::regclass);
+
+
+--
+-- Name: django_content_type id; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.django_content_type ALTER COLUMN id SET DEFAULT nextval('public.django_content_type_id_seq'::regclass);
+
+
+--
+-- Name: django_migrations id; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.django_migrations ALTER COLUMN id SET DEFAULT nextval('public.django_migrations_id_seq'::regclass);
+
+
+--
+-- Name: hinfo_presets hinfoid; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.hinfo_presets ALTER COLUMN hinfoid SET DEFAULT nextval('public.hinfo_presets_hinfoid_seq'::regclass);
+
+
+--
+-- Name: hosts hostid; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.hosts ALTER COLUMN hostid SET DEFAULT nextval('public.hosts_hostid_seq'::regclass);
+
+
+--
+-- Name: ipaddress id; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.ipaddress ALTER COLUMN id SET DEFAULT nextval('public.ipaddress_id_seq'::regclass);
+
+
+--
+-- Name: naptr naptrid; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.naptr ALTER COLUMN naptrid SET DEFAULT nextval('public.naptr_naptrid_seq'::regclass);
+
+
+--
+-- Name: ns nsid; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.ns ALTER COLUMN nsid SET DEFAULT nextval('public.ns_nsid_seq'::regclass);
+
+
+--
+-- Name: ptr_override id; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.ptr_override ALTER COLUMN id SET DEFAULT nextval('public.ptr_override_id_seq'::regclass);
+
+
+--
+-- Name: srv srvid; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.srv ALTER COLUMN srvid SET DEFAULT nextval('public.srv_srvid_seq'::regclass);
+
+
+--
+-- Name: subnets subnetid; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.subnets ALTER COLUMN subnetid SET DEFAULT nextval('public.subnets_subnetid_seq'::regclass);
+
+
+--
+-- Name: txt txtid; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.txt ALTER COLUMN txtid SET DEFAULT nextval('public.txt_txtid_seq'::regclass);
+
+
+--
+-- Name: zones zoneid; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.zones ALTER COLUMN zoneid SET DEFAULT nextval('public.zones_zoneid_seq'::regclass);
+
+
+--
+-- Name: zones_nameservers id; Type: DEFAULT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.zones_nameservers ALTER COLUMN id SET DEFAULT nextval('public.zones_nameservers_id_seq'::regclass);
+
+
+--
+-- Data for Name: auth_group; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.auth_group (id, name) FROM stdin;
+\.
+
+
+--
+-- Name: auth_group_id_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.auth_group_id_seq', 1, false);
+
+
+--
+-- Data for Name: auth_group_permissions; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.auth_group_permissions (id, group_id, permission_id) FROM stdin;
+\.
+
+
+--
+-- Name: auth_group_permissions_id_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.auth_group_permissions_id_seq', 1, false);
+
+
+--
+-- Data for Name: auth_permission; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.auth_permission (id, name, content_type_id, codename) FROM stdin;
+1	Can add log entry	1	add_logentry
+2	Can change log entry	1	change_logentry
+3	Can delete log entry	1	delete_logentry
+4	Can add permission	2	add_permission
+5	Can change permission	2	change_permission
+6	Can delete permission	2	delete_permission
+7	Can add group	3	add_group
+8	Can change group	3	change_group
+9	Can delete group	3	delete_group
+10	Can add user	4	add_user
+11	Can change user	4	change_user
+12	Can delete user	4	delete_user
+13	Can add content type	5	add_contenttype
+14	Can change content type	5	change_contenttype
+15	Can delete content type	5	delete_contenttype
+16	Can add session	6	add_session
+17	Can change session	6	change_session
+18	Can delete session	6	delete_session
+19	Can add cname	7	add_cname
+20	Can change cname	7	change_cname
+21	Can delete cname	7	delete_cname
+22	Can add hinfo presets	8	add_hinfopresets
+23	Can change hinfo presets	8	change_hinfopresets
+24	Can delete hinfo presets	8	delete_hinfopresets
+25	Can add hosts	9	add_hosts
+26	Can change hosts	9	change_hosts
+27	Can delete hosts	9	delete_hosts
+28	Can add ipaddress	10	add_ipaddress
+29	Can change ipaddress	10	change_ipaddress
+30	Can delete ipaddress	10	delete_ipaddress
+31	Can add naptr	11	add_naptr
+32	Can change naptr	11	change_naptr
+33	Can delete naptr	11	delete_naptr
+34	Can add ns	12	add_ns
+35	Can change ns	12	change_ns
+36	Can delete ns	12	delete_ns
+37	Can add ptr override	13	add_ptroverride
+38	Can change ptr override	13	change_ptroverride
+39	Can delete ptr override	13	delete_ptroverride
+40	Can add srv	14	add_srv
+41	Can change srv	14	change_srv
+42	Can delete srv	14	delete_srv
+43	Can add subnets	15	add_subnets
+44	Can change subnets	15	change_subnets
+45	Can delete subnets	15	delete_subnets
+46	Can add txt	16	add_txt
+47	Can change txt	16	change_txt
+48	Can delete txt	16	delete_txt
+49	Can add zones	17	add_zones
+50	Can change zones	17	change_zones
+51	Can delete zones	17	delete_zones
+\.
+
+
+--
+-- Name: auth_permission_id_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.auth_permission_id_seq', 51, true);
+
+
+--
+-- Data for Name: auth_user; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.auth_user (id, password, last_login, is_superuser, username, first_name, last_name, email, is_staff, is_active, date_joined) FROM stdin;
+\.
+
+
+--
+-- Data for Name: auth_user_groups; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.auth_user_groups (id, user_id, group_id) FROM stdin;
+\.
+
+
+--
+-- Name: auth_user_groups_id_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.auth_user_groups_id_seq', 1, false);
+
+
+--
+-- Name: auth_user_id_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.auth_user_id_seq', 1, false);
+
+
+--
+-- Data for Name: auth_user_user_permissions; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.auth_user_user_permissions (id, user_id, permission_id) FROM stdin;
+\.
+
+
+--
+-- Name: auth_user_user_permissions_id_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.auth_user_user_permissions_id_seq', 1, false);
+
+
+--
+-- Data for Name: cname; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.cname (id, cname, ttl, hostid) FROM stdin;
+\.
+
+
+--
+-- Name: cname_id_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.cname_id_seq', 1, false);
+
+
+--
+-- Data for Name: django_admin_log; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.django_admin_log (id, action_time, object_id, object_repr, action_flag, change_message, content_type_id, user_id) FROM stdin;
+\.
+
+
+--
+-- Name: django_admin_log_id_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.django_admin_log_id_seq', 1, false);
+
+
+--
+-- Data for Name: django_content_type; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.django_content_type (id, app_label, model) FROM stdin;
+1	admin	logentry
+2	auth	permission
+3	auth	group
+4	auth	user
+5	contenttypes	contenttype
+6	sessions	session
+7	mreg	cname
+8	mreg	hinfopresets
+9	mreg	hosts
+10	mreg	ipaddress
+11	mreg	naptr
+12	mreg	ns
+13	mreg	ptroverride
+14	mreg	srv
+15	mreg	subnets
+16	mreg	txt
+17	mreg	zones
+\.
+
+
+--
+-- Name: django_content_type_id_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.django_content_type_id_seq', 17, true);
+
+
+--
+-- Data for Name: django_migrations; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.django_migrations (id, app, name, applied) FROM stdin;
+1	contenttypes	0001_initial	2018-07-10 12:40:10.547823+00
+2	auth	0001_initial	2018-07-10 12:40:10.876644+00
+3	admin	0001_initial	2018-07-10 12:40:10.961188+00
+4	admin	0002_logentry_remove_auto_add	2018-07-10 12:40:10.99522+00
+5	contenttypes	0002_remove_content_type_name	2018-07-10 12:40:11.030839+00
+6	auth	0002_alter_permission_name_max_length	2018-07-10 12:40:11.045998+00
+7	auth	0003_alter_user_email_max_length	2018-07-10 12:40:11.072188+00
+8	auth	0004_alter_user_username_opts	2018-07-10 12:40:11.101654+00
+9	auth	0005_alter_user_last_login_null	2018-07-10 12:40:11.127768+00
+10	auth	0006_require_contenttypes_0002	2018-07-10 12:40:11.134782+00
+11	auth	0007_alter_validators_add_error_messages	2018-07-10 12:40:11.14995+00
+12	auth	0008_alter_user_username_max_length	2018-07-10 12:40:11.182457+00
+13	auth	0009_alter_user_last_name_max_length	2018-07-10 12:40:11.203613+00
+14	mreg	0001_initial	2018-07-10 12:40:11.887555+00
+15	mreg	0002_auto_20180706_1055	2018-07-10 12:40:12.008151+00
+16	mreg	0003_auto_20180706_1327	2018-07-10 12:40:12.07906+00
+17	sessions	0001_initial	2018-07-10 12:40:12.136942+00
+\.
+
+
+--
+-- Name: django_migrations_id_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.django_migrations_id_seq', 17, true);
+
+
+--
+-- Data for Name: django_session; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.django_session (session_key, session_data, expire_date) FROM stdin;
+\.
+
+
+--
+-- Data for Name: hinfo_presets; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.hinfo_presets (hinfoid, cpu, os) FROM stdin;
+\.
+
+
+--
+-- Name: hinfo_presets_hinfoid_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.hinfo_presets_hinfoid_seq', 1, false);
+
+
+--
+-- Data for Name: hosts; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.hosts (hostid, name, contact, ttl, loc, comment, hinfo) FROM stdin;
+\.
+
+
+--
+-- Name: hosts_hostid_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.hosts_hostid_seq', 1, false);
+
+
+--
+-- Data for Name: ipaddress; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.ipaddress (id, ipaddress, macaddress, hostid) FROM stdin;
+\.
+
+
+--
+-- Name: ipaddress_id_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.ipaddress_id_seq', 1, false);
+
+
+--
+-- Data for Name: naptr; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.naptr (naptrid, preference, orderv, flag, service, regex, replacement, hostid) FROM stdin;
+\.
+
+
+--
+-- Name: naptr_naptrid_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.naptr_naptrid_seq', 1, false);
+
+
+--
+-- Data for Name: ns; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.ns (nsid, name, ttl) FROM stdin;
+\.
+
+
+--
+-- Name: ns_nsid_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.ns_nsid_seq', 1, false);
+
+
+--
+-- Data for Name: ptr_override; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.ptr_override (id, ipaddress, hostid) FROM stdin;
+\.
+
+
+--
+-- Name: ptr_override_id_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.ptr_override_id_seq', 1, false);
+
+
+--
+-- Data for Name: srv; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.srv (srvid, service, priority, weight, port, ttl, target) FROM stdin;
+\.
+
+
+--
+-- Name: srv_srvid_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.srv_srvid_seq', 1, false);
+
+
+--
+-- Data for Name: subnets; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.subnets (subnetid, range, description, vlan, dns_delegated) FROM stdin;
+\.
+
+
+--
+-- Name: subnets_subnetid_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.subnets_subnetid_seq', 1, false);
+
+
+--
+-- Data for Name: txt; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.txt (txtid, txt, hostid) FROM stdin;
+\.
+
+
+--
+-- Name: txt_txtid_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.txt_txtid_seq', 1, false);
+
+
+--
+-- Data for Name: zones; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.zones (zoneid, name, primary_ns, email, serialno, refresh, retry, expire, ttl) FROM stdin;
+\.
+
+
+--
+-- Data for Name: zones_nameservers; Type: TABLE DATA; Schema: public; Owner: mreg_user
+--
+
+COPY public.zones_nameservers (id, zones_id, ns_id) FROM stdin;
+\.
+
+
+--
+-- Name: zones_nameservers_id_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.zones_nameservers_id_seq', 1, false);
+
+
+--
+-- Name: zones_zoneid_seq; Type: SEQUENCE SET; Schema: public; Owner: mreg_user
+--
+
+SELECT pg_catalog.setval('public.zones_zoneid_seq', 1, false);
+
+
+--
+-- Name: auth_group auth_group_name_key; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_group
+    ADD CONSTRAINT auth_group_name_key UNIQUE (name);
+
+
+--
+-- Name: auth_group_permissions auth_group_permissions_group_id_permission_id_0cd325b0_uniq; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_group_permissions
+    ADD CONSTRAINT auth_group_permissions_group_id_permission_id_0cd325b0_uniq UNIQUE (group_id, permission_id);
+
+
+--
+-- Name: auth_group_permissions auth_group_permissions_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_group_permissions
+    ADD CONSTRAINT auth_group_permissions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: auth_group auth_group_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_group
+    ADD CONSTRAINT auth_group_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: auth_permission auth_permission_content_type_id_codename_01ab375a_uniq; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_permission
+    ADD CONSTRAINT auth_permission_content_type_id_codename_01ab375a_uniq UNIQUE (content_type_id, codename);
+
+
+--
+-- Name: auth_permission auth_permission_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_permission
+    ADD CONSTRAINT auth_permission_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: auth_user_groups auth_user_groups_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_user_groups
+    ADD CONSTRAINT auth_user_groups_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: auth_user_groups auth_user_groups_user_id_group_id_94350c0c_uniq; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_user_groups
+    ADD CONSTRAINT auth_user_groups_user_id_group_id_94350c0c_uniq UNIQUE (user_id, group_id);
+
+
+--
+-- Name: auth_user auth_user_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_user
+    ADD CONSTRAINT auth_user_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: auth_user_user_permissions auth_user_user_permissions_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_user_user_permissions
+    ADD CONSTRAINT auth_user_user_permissions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: auth_user_user_permissions auth_user_user_permissions_user_id_permission_id_14a6b632_uniq; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_user_user_permissions
+    ADD CONSTRAINT auth_user_user_permissions_user_id_permission_id_14a6b632_uniq UNIQUE (user_id, permission_id);
+
+
+--
+-- Name: auth_user auth_user_username_key; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_user
+    ADD CONSTRAINT auth_user_username_key UNIQUE (username);
+
+
+--
+-- Name: cname cname_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.cname
+    ADD CONSTRAINT cname_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: django_admin_log django_admin_log_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.django_admin_log
+    ADD CONSTRAINT django_admin_log_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: django_content_type django_content_type_app_label_model_76bd3d3b_uniq; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.django_content_type
+    ADD CONSTRAINT django_content_type_app_label_model_76bd3d3b_uniq UNIQUE (app_label, model);
+
+
+--
+-- Name: django_content_type django_content_type_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.django_content_type
+    ADD CONSTRAINT django_content_type_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: django_migrations django_migrations_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.django_migrations
+    ADD CONSTRAINT django_migrations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: django_session django_session_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.django_session
+    ADD CONSTRAINT django_session_pkey PRIMARY KEY (session_key);
+
+
+--
+-- Name: hinfo_presets hinfo_presets_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.hinfo_presets
+    ADD CONSTRAINT hinfo_presets_pkey PRIMARY KEY (hinfoid);
+
+
+--
+-- Name: hosts hosts_name_key; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.hosts
+    ADD CONSTRAINT hosts_name_key UNIQUE (name);
+
+
+--
+-- Name: hosts hosts_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.hosts
+    ADD CONSTRAINT hosts_pkey PRIMARY KEY (hostid);
+
+
+--
+-- Name: ipaddress ipaddress_ipaddress_key; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.ipaddress
+    ADD CONSTRAINT ipaddress_ipaddress_key UNIQUE (ipaddress);
+
+
+--
+-- Name: ipaddress ipaddress_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.ipaddress
+    ADD CONSTRAINT ipaddress_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: naptr naptr_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.naptr
+    ADD CONSTRAINT naptr_pkey PRIMARY KEY (naptrid);
+
+
+--
+-- Name: ns ns_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.ns
+    ADD CONSTRAINT ns_pkey PRIMARY KEY (nsid);
+
+
+--
+-- Name: ptr_override ptr_override_ipaddress_key; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.ptr_override
+    ADD CONSTRAINT ptr_override_ipaddress_key UNIQUE (ipaddress);
+
+
+--
+-- Name: ptr_override ptr_override_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.ptr_override
+    ADD CONSTRAINT ptr_override_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: srv srv_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.srv
+    ADD CONSTRAINT srv_pkey PRIMARY KEY (srvid);
+
+
+--
+-- Name: subnets subnets_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.subnets
+    ADD CONSTRAINT subnets_pkey PRIMARY KEY (subnetid);
+
+
+--
+-- Name: txt txt_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.txt
+    ADD CONSTRAINT txt_pkey PRIMARY KEY (txtid);
+
+
+--
+-- Name: zones zones_name_key; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.zones
+    ADD CONSTRAINT zones_name_key UNIQUE (name);
+
+
+--
+-- Name: zones_nameservers zones_nameservers_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.zones_nameservers
+    ADD CONSTRAINT zones_nameservers_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: zones_nameservers zones_nameservers_zones_id_ns_id_55432030_uniq; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.zones_nameservers
+    ADD CONSTRAINT zones_nameservers_zones_id_ns_id_55432030_uniq UNIQUE (zones_id, ns_id);
+
+
+--
+-- Name: zones zones_pkey; Type: CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.zones
+    ADD CONSTRAINT zones_pkey PRIMARY KEY (zoneid);
+
+
+--
+-- Name: auth_group_name_a6ea08ec_like; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX auth_group_name_a6ea08ec_like ON public.auth_group USING btree (name varchar_pattern_ops);
+
+
+--
+-- Name: auth_group_permissions_group_id_b120cbf9; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX auth_group_permissions_group_id_b120cbf9 ON public.auth_group_permissions USING btree (group_id);
+
+
+--
+-- Name: auth_group_permissions_permission_id_84c5c92e; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX auth_group_permissions_permission_id_84c5c92e ON public.auth_group_permissions USING btree (permission_id);
+
+
+--
+-- Name: auth_permission_content_type_id_2f476e4b; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX auth_permission_content_type_id_2f476e4b ON public.auth_permission USING btree (content_type_id);
+
+
+--
+-- Name: auth_user_groups_group_id_97559544; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX auth_user_groups_group_id_97559544 ON public.auth_user_groups USING btree (group_id);
+
+
+--
+-- Name: auth_user_groups_user_id_6a12ed8b; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX auth_user_groups_user_id_6a12ed8b ON public.auth_user_groups USING btree (user_id);
+
+
+--
+-- Name: auth_user_user_permissions_permission_id_1fbb5f2c; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX auth_user_user_permissions_permission_id_1fbb5f2c ON public.auth_user_user_permissions USING btree (permission_id);
+
+
+--
+-- Name: auth_user_user_permissions_user_id_a95ead1b; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX auth_user_user_permissions_user_id_a95ead1b ON public.auth_user_user_permissions USING btree (user_id);
+
+
+--
+-- Name: auth_user_username_6821ab7c_like; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX auth_user_username_6821ab7c_like ON public.auth_user USING btree (username varchar_pattern_ops);
+
+
+--
+-- Name: cname_hostid_ee609830; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX cname_hostid_ee609830 ON public.cname USING btree (hostid);
+
+
+--
+-- Name: django_admin_log_content_type_id_c4bce8eb; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX django_admin_log_content_type_id_c4bce8eb ON public.django_admin_log USING btree (content_type_id);
+
+
+--
+-- Name: django_admin_log_user_id_c564eba6; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX django_admin_log_user_id_c564eba6 ON public.django_admin_log USING btree (user_id);
+
+
+--
+-- Name: django_session_expire_date_a5c62663; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX django_session_expire_date_a5c62663 ON public.django_session USING btree (expire_date);
+
+
+--
+-- Name: django_session_session_key_c0390e0f_like; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX django_session_session_key_c0390e0f_like ON public.django_session USING btree (session_key varchar_pattern_ops);
+
+
+--
+-- Name: hosts_hinfo_3e44e035; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX hosts_hinfo_3e44e035 ON public.hosts USING btree (hinfo);
+
+
+--
+-- Name: hosts_name_6bae01b0_like; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX hosts_name_6bae01b0_like ON public.hosts USING btree (name text_pattern_ops);
+
+
+--
+-- Name: ipaddress_hostid_7f57f35b; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX ipaddress_hostid_7f57f35b ON public.ipaddress USING btree (hostid);
+
+
+--
+-- Name: naptr_hostid_7b644d7b; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX naptr_hostid_7b644d7b ON public.naptr USING btree (hostid);
+
+
+--
+-- Name: ptr_override_hostid_0df1f0eb; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX ptr_override_hostid_0df1f0eb ON public.ptr_override USING btree (hostid);
+
+
+--
+-- Name: txt_hostid_09341fec; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX txt_hostid_09341fec ON public.txt USING btree (hostid);
+
+
+--
+-- Name: zones_name_08f555f3_like; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX zones_name_08f555f3_like ON public.zones USING btree (name text_pattern_ops);
+
+
+--
+-- Name: zones_nameservers_ns_id_f50826ec; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX zones_nameservers_ns_id_f50826ec ON public.zones_nameservers USING btree (ns_id);
+
+
+--
+-- Name: zones_nameservers_zones_id_30ee1499; Type: INDEX; Schema: public; Owner: mreg_user
+--
+
+CREATE INDEX zones_nameservers_zones_id_30ee1499 ON public.zones_nameservers USING btree (zones_id);
+
+
+--
+-- Name: auth_group_permissions auth_group_permissio_permission_id_84c5c92e_fk_auth_perm; Type: FK CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_group_permissions
+    ADD CONSTRAINT auth_group_permissio_permission_id_84c5c92e_fk_auth_perm FOREIGN KEY (permission_id) REFERENCES public.auth_permission(id) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: auth_group_permissions auth_group_permissions_group_id_b120cbf9_fk_auth_group_id; Type: FK CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_group_permissions
+    ADD CONSTRAINT auth_group_permissions_group_id_b120cbf9_fk_auth_group_id FOREIGN KEY (group_id) REFERENCES public.auth_group(id) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: auth_permission auth_permission_content_type_id_2f476e4b_fk_django_co; Type: FK CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_permission
+    ADD CONSTRAINT auth_permission_content_type_id_2f476e4b_fk_django_co FOREIGN KEY (content_type_id) REFERENCES public.django_content_type(id) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: auth_user_groups auth_user_groups_group_id_97559544_fk_auth_group_id; Type: FK CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_user_groups
+    ADD CONSTRAINT auth_user_groups_group_id_97559544_fk_auth_group_id FOREIGN KEY (group_id) REFERENCES public.auth_group(id) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: auth_user_groups auth_user_groups_user_id_6a12ed8b_fk_auth_user_id; Type: FK CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_user_groups
+    ADD CONSTRAINT auth_user_groups_user_id_6a12ed8b_fk_auth_user_id FOREIGN KEY (user_id) REFERENCES public.auth_user(id) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: auth_user_user_permissions auth_user_user_permi_permission_id_1fbb5f2c_fk_auth_perm; Type: FK CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_user_user_permissions
+    ADD CONSTRAINT auth_user_user_permi_permission_id_1fbb5f2c_fk_auth_perm FOREIGN KEY (permission_id) REFERENCES public.auth_permission(id) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: auth_user_user_permissions auth_user_user_permissions_user_id_a95ead1b_fk_auth_user_id; Type: FK CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.auth_user_user_permissions
+    ADD CONSTRAINT auth_user_user_permissions_user_id_a95ead1b_fk_auth_user_id FOREIGN KEY (user_id) REFERENCES public.auth_user(id) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: cname cname_hostid_ee609830_fk_hosts_hostid; Type: FK CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.cname
+    ADD CONSTRAINT cname_hostid_ee609830_fk_hosts_hostid FOREIGN KEY (hostid) REFERENCES public.hosts(hostid) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: django_admin_log django_admin_log_content_type_id_c4bce8eb_fk_django_co; Type: FK CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.django_admin_log
+    ADD CONSTRAINT django_admin_log_content_type_id_c4bce8eb_fk_django_co FOREIGN KEY (content_type_id) REFERENCES public.django_content_type(id) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: django_admin_log django_admin_log_user_id_c564eba6_fk_auth_user_id; Type: FK CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.django_admin_log
+    ADD CONSTRAINT django_admin_log_user_id_c564eba6_fk_auth_user_id FOREIGN KEY (user_id) REFERENCES public.auth_user(id) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: hosts hosts_hinfo_3e44e035_fk_hinfo_presets_hinfoid; Type: FK CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.hosts
+    ADD CONSTRAINT hosts_hinfo_3e44e035_fk_hinfo_presets_hinfoid FOREIGN KEY (hinfo) REFERENCES public.hinfo_presets(hinfoid) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: ipaddress ipaddress_hostid_7f57f35b_fk_hosts_hostid; Type: FK CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.ipaddress
+    ADD CONSTRAINT ipaddress_hostid_7f57f35b_fk_hosts_hostid FOREIGN KEY (hostid) REFERENCES public.hosts(hostid) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: naptr naptr_hostid_7b644d7b_fk_hosts_hostid; Type: FK CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.naptr
+    ADD CONSTRAINT naptr_hostid_7b644d7b_fk_hosts_hostid FOREIGN KEY (hostid) REFERENCES public.hosts(hostid) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: ptr_override ptr_override_hostid_0df1f0eb_fk_hosts_hostid; Type: FK CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.ptr_override
+    ADD CONSTRAINT ptr_override_hostid_0df1f0eb_fk_hosts_hostid FOREIGN KEY (hostid) REFERENCES public.hosts(hostid) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: txt txt_hostid_09341fec_fk_hosts_hostid; Type: FK CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.txt
+    ADD CONSTRAINT txt_hostid_09341fec_fk_hosts_hostid FOREIGN KEY (hostid) REFERENCES public.hosts(hostid) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: zones_nameservers zones_nameservers_ns_id_f50826ec_fk_ns_nsid; Type: FK CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.zones_nameservers
+    ADD CONSTRAINT zones_nameservers_ns_id_f50826ec_fk_ns_nsid FOREIGN KEY (ns_id) REFERENCES public.ns(nsid) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- Name: zones_nameservers zones_nameservers_zones_id_30ee1499_fk_zones_zoneid; Type: FK CONSTRAINT; Schema: public; Owner: mreg_user
+--
+
+ALTER TABLE ONLY public.zones_nameservers
+    ADD CONSTRAINT zones_nameservers_zones_id_30ee1499_fk_zones_zoneid FOREIGN KEY (zones_id) REFERENCES public.zones(zoneid) DEFERRABLE INITIALLY DEFERRED;
+
+
+--
+-- PostgreSQL database dump complete
+--
+
+--
+-- PostgreSQL database cluster dump complete
+--
+
