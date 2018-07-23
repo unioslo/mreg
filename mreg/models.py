@@ -49,6 +49,18 @@ def qualify(name, zone):
     return name
 
 
+def encode_mail(mail):
+    """
+    Encodes an e-mail address as a name by converting '.' to '\.' and '@' to '.'
+    :param mail: E-mail address to encode
+    :return: Encoded e-mail address
+    """
+    user, domain = mail.split('@')
+    user = user.replace('.', '\.')
+    mail = '%s.%s' % (user, domain)
+    return mail
+
+
 class Ns(models.Model):
     # TODO: zoneid-field is likey not necessary at all, since addition of
     # TODO: nameservers field to Zones model.
@@ -64,7 +76,7 @@ class Ns(models.Model):
             'ttl': clean(self.ttl),
             'record_data': self.name
         }
-        return '    {ttl} IN NS {name}'.format_map(data)
+        return '    {ttl} IN NS {record_data}'.format_map(data)
 
 
 class Zones(models.Model):
@@ -81,6 +93,28 @@ class Zones(models.Model):
 
     class Meta:
         db_table = 'zones'
+
+    def zf_string(self):
+        data = {
+            'origin': qualify(self.name, 'uio.no'),
+            'ttl': self.ttl,
+            'name': qualify(self.name, 'uio.no'),
+            'mname': qualify(self.primary_ns, 'uio.no'),
+            'rname': qualify(encode_mail(self.email), 'uio.no'),
+            'serial': self.serialno,
+            'refresh': self.refresh,
+            'retry': self.retry,
+            'expire': self.expire,
+        }
+        zf = """$ORIGIN {origin}
+$TTL {ttl}
+{name} IN SOA {mname} {rname} (
+    {serial}    ; Serialnumber
+    {refresh}   ; Refresh
+    {retry}     ; Retry
+    {expire}    ; Expire
+    {ttl} )     ; Negative Cache""".format_map(data)
+        return zf
 
 
 class HinfoPresets(models.Model):

@@ -1,10 +1,10 @@
 from rest_framework import generics
 from django.http import Http404, QueryDict
 from django.core.exceptions import ObjectDoesNotExist
-from django.urls import reverse
 from mreg.models import *
 from mreg.api.v1.serializers import *
 from rest_framework_extensions.etag.mixins import ETAGMixin
+from rest_framework import renderers
 from rest_framework.response import Response
 from rest_framework import status
 from url_filter.filtersets import ModelFilterSet
@@ -590,3 +590,21 @@ class ZonesNsDetail(ETAGMixin, generics.GenericAPIView):
             return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
         except Zones.DoesNotExist:
             raise Http404
+
+
+class PlainTextRenderer(renderers.BaseRenderer):
+    media_type = 'text/plain'
+    format = 'txt'
+
+    def render(self, data, media_type=None, renderer_context=None):
+        return data
+
+
+class ZoneFileDetail(generics.GenericAPIView):
+    queryset = Zones.objects.all()
+    renderer_classes = (PlainTextRenderer, )
+
+    def get(self, request, *args, **kwargs):
+        zone = self.get_queryset().get(name=self.kwargs['pk'])
+        data = zone.zf_string()
+        return Response(data)
