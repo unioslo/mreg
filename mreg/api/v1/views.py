@@ -596,8 +596,8 @@ class ModelChangeLogsList(generics.ListAPIView):
 
     def get(self, request, *args, **kwargs):
         # Return a list of available tables there are logged histories for.
-        tables = set([value['table_name'] for value in self.queryset.values('table_name')])
-        return Response(tables, status=status.HTTP_200_OK)
+        tables = list(set([value['table_name'] for value in self.queryset.values('table_name')]))
+        return Response(data=tables, status=status.HTTP_200_OK)
 
 
 class ModelChangeLogsDetail(StrictCRUDMixin, generics.RetrieveAPIView):
