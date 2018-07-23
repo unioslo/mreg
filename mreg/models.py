@@ -59,6 +59,13 @@ class Ns(models.Model):
     class Meta:
         db_table = 'ns'
 
+    def zf_string(self):
+        data = {
+            'ttl': clean(self.ttl),
+            'record_data': self.name
+        }
+        return '    {ttl} IN NS {name}'.format_map(data)
+
 
 class Zones(models.Model):
     zoneid = models.AutoField(primary_key=True, serialize=True)
@@ -83,6 +90,13 @@ class HinfoPresets(models.Model):
 
     class Meta:
         db_table = 'hinfo_presets'
+
+    def zf_string(self):
+        data = {
+            'cpu': clean(self.cpu),
+            'os': clean(self.os)
+        }
+        return '    HINFO {cpu} {os}'.format_map(data)
 
 
 class Hosts(models.Model):
@@ -120,7 +134,7 @@ class Ipaddress(models.Model):
             'record_data': self.ipaddress,
             'comment': comment(clean(self.hostid.comment))
         }
-        return '{name} {ttl} {record_type} {record_data}{comment}'.format_map(data)
+        return '{name} {ttl} IN {record_type} {record_data}{comment}'.format_map(data)
 
 
 class PtrOverride(models.Model):
@@ -133,7 +147,7 @@ class PtrOverride(models.Model):
     def zf_string(self):
         data = {
             'name': reverse_ip(self.ipaddress) + '.in-addr.arpa.',
-            'record_data': self.hostid.name,
+            'record_data': qualify(self.hostid.name, 'uio.no'),
             'comment': comment(clean(self.hostid.comment))
         }
         return '{name} IN PTR {record_data}{comment}'.format_map(data)
@@ -148,13 +162,13 @@ class Txt(models.Model):
         db_table = 'txt'
 
     def zf_string(self):
-        host = Hosts.objects.get(pk=self.hostid)
         data = {
-            'name': host.name,
-            'record_data': self.txt,
-            'comment': ' ;%s' % host.comment
+            'name': qualify(self.hostid.name, 'uio.no'),
+            'ttl': clean(self.hostid.ttl),
+            'record_data': '\"%s\"' % self.txt,
+            'comment': comment(clean(self.hostid.comment))
         }
-        return '{name} TXT {record_data}{comment}'.format_map(data)
+        return '{name} {ttl} TXT {record_data}{comment}'.format_map(data)
 
 
 class Cname(models.Model):
@@ -166,11 +180,10 @@ class Cname(models.Model):
         db_table = 'cname'
 
     def zf_string(self):
-        host = Hosts.objects.get(pk=self.hostid)
         data = {
-            'name': host.name,
-            'ttl': self.ttl,
-            'record_data': self.cname,
+            'name': qualify(self.hostid.name, 'uio.no'),
+            'ttl': clean(self.ttl),
+            'record_data': qualify(self.cname, 'uio.no'),
             'comment': comment(clean(self.hostid.comment))
         }
         return '{name} {ttl} IN CNAME {record_data}{comment}'.format_map(data)
@@ -205,17 +218,18 @@ class Naptr(models.Model):
         db_table = 'naptr'
 
     def zf_string(self):
-        host = Hosts.objects.get(pk=self.hostid)
         data = {
-            'order': self.orderv,
-            'preference': self.preference,
-            'flag': self.flag,
+            'name': qualify(self.hostid.name, 'uio.no'),
+            'ttl': clean(self.hostid.ttl),
+            'order': clean(self.orderv),
+            'preference': clean(self.preference),
+            'flag': clean(self.flag),
             'service': self.service,
-            'regex': self.regex,
+            'regex': clean(self.regex),
             'replacement': self.replacement,
-            'comment': ' ;%s' % host.comment
+            'comment': comment(clean(self.hostid.comment))
         }
-        return 'NAPTR {order} {preference} \"{flag}\" \"{service}\" \"{regex}\" {replacement}{comment}'.format_map(data)
+        return '{name} {ttl} IN NAPTR {order} {preference} \"{flag}\" \"{service}\" \"{regex}\" {replacement}{comment}'.format_map(data)
 
 
 class Srv(models.Model):
@@ -232,11 +246,11 @@ class Srv(models.Model):
 
     def zf_string(self):
         data = {
-            'service': self.service,
-            'ttl': self.ttl,
-            'priority': self.priority,
-            'weight': self.weight,
-            'port': self.port,
-            'target': self.target,
+            'name': qualify(self.service, 'uio.no'),
+            'ttl': clean(self.ttl),
+            'priority': clean(self.priority),
+            'weight': clean(self.weight),
+            'port': clean(self.port),
+            'target': qualify(self.target, 'uio.no')
         }
-        return '{service} {ttl} SRV {priority} {weight} {port} {target}'.format_map(data)
+        return '{name} {ttl} IN SRV {priority} {weight} {port} {target}'.format_map(data)
