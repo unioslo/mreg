@@ -13,11 +13,10 @@ from mreg.api.v1.serializers import *
 # so ipaddress data isn't available at the time of post_save for the Hosts object.
 #
 # Currently saves a snapshot of the entire host.
-# TODO: Figure out what to do with PtrOverride records. Not currently part of HostsSerializer.
 # TODO: Figure out what to do on host delete.
 
 
-# @receiver(post_save, sender=PtrOverride)
+@receiver(post_save, sender=PtrOverride)
 @receiver(post_save, sender=Ipaddress)
 @receiver(post_save, sender=Txt)
 @receiver(post_save, sender=Cname)
@@ -30,7 +29,7 @@ def save_host_history_on_save(sender, instance, created, **kwargs):
     hostdata['ipaddress'] = [record['ipaddress'] for record in hostdata['ipaddress']]
     hostdata['txt'] = [record['txt'] for record in hostdata['txt']]
     hostdata['cname'] = [record['cname'] for record in hostdata['cname']]
-
+    hostdata['ptr_override'] = [record['ipaddress'] for record in hostdata['ptr_override']]
     new_log_entry = ModelChangeLogs(table_name='hosts',
                                     table_row=hostdata['hostid'],
                                     data=hostdata,
@@ -39,7 +38,7 @@ def save_host_history_on_save(sender, instance, created, **kwargs):
     new_log_entry.save()
 
 
-# @receiver(post_delete, sender=PtrOverride)
+@receiver(post_delete, sender=PtrOverride)
 @receiver(post_delete, sender=Ipaddress)
 @receiver(post_delete, sender=Txt)
 @receiver(post_delete, sender=Cname)
@@ -52,6 +51,7 @@ def save_host_history_on_delete(sender, instance, **kwargs):
     hostdata['ipaddress'] = [record['ipaddress'] for record in hostdata['ipaddress']]
     hostdata['txt'] = [record['txt'] for record in hostdata['txt']]
     hostdata['cname'] = [record['cname'] for record in hostdata['cname']]
+    hostdata['ptr_override'] = [record['ptr_override'] for record in hostdata['ptr_override']]
 
     new_log_entry = ModelChangeLogs(table_name='hosts',
                                     table_row=hostdata['hostid'],

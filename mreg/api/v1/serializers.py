@@ -89,15 +89,28 @@ class TxtSerializer(serializers.ModelSerializer):
         return data
 
 
+class PtrOverrideSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PtrOverride
+        fields = '__all__'
+
+    def validate(self, data):
+        key_validate(self)
+        data = {key: nonify(value) for key, value in data.items()}
+        return data
+
+
 class HostsSerializer(serializers.ModelSerializer):
     ipaddress = IpaddressSerializer(many=True, read_only=True)
     cname = CnameSerializer(many=True, read_only=True)
     txt = TxtSerializer(many=True, read_only=True)
+    ptr_override = PtrOverrideSerializer(many=True, read_only=True)
     hinfo = HinfoPresetsSerializer(required=False)['hinfoid']
 
     class Meta:
         model = Hosts
-        fields = ('hostid', 'name', 'contact', 'ttl', 'hinfo', 'loc', 'comment', 'cname', 'ipaddress', 'txt')
+        fields = ('hostid', 'name', 'contact', 'ttl', 'hinfo', 'loc',
+                  'comment', 'cname', 'ipaddress', 'txt', 'ptr_override')
 
     def validate(self, data):
         key_validate(self)
@@ -116,11 +129,13 @@ class HostsSaveSerializer(serializers.ModelSerializer):
     ipaddress = IpaddressSerializer(many=True, read_only=True)
     cname = CnameSerializer(many=True, read_only=True)
     txt = TxtSerializer(many=True, read_only=True)
+    ptr_override = PtrOverrideSerializer(many=True, read_only=True)
     hinfo = serializers.IntegerField(required=False)
 
     class Meta:
         model = Hosts
-        fields = ('hostid', 'name', 'contact', 'ttl', 'hinfo', 'loc', 'comment', 'cname', 'ipaddress', 'txt')
+        fields = ('hostid', 'name', 'contact', 'ttl', 'hinfo', 'loc',
+                  'comment', 'cname', 'ipaddress', 'txt', 'ptr_override')
 
     def validate(self, data):
         key_validate(self)
@@ -174,17 +189,6 @@ class NsSerializer(serializers.ModelSerializer):
         if value:
             ttl_validate(value)
         return value
-
-
-class PtrOverrideSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = PtrOverride
-        fields = '__all__'
-
-    def validate(self, data):
-        key_validate(self)
-        data = {key: nonify(value) for key, value in data.items()}
-        return data
 
 
 class SrvSerializer(serializers.ModelSerializer):

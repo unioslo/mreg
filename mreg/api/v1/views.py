@@ -69,8 +69,8 @@ class ZoneFilterSet(ModelFilterSet):
 class StrictCRUDMixin(object):
     """Applies stricter handling of HTTP requests and responses"""
 
-    """PATCH should return empty body, 204 - No Content, and location of object"""
     def patch(self, request, *args, **kwargs):
+        """PATCH should return empty body, 204 - No Content, and location of object"""
         queryset = self.get_queryset()
         serializer_class = self.get_serializer_class()
         resource = self.kwargs['resource']
