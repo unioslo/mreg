@@ -69,8 +69,8 @@ class ZoneFilterSet(ModelFilterSet):
 class StrictCRUDMixin(object):
     """Applies stricter handling of HTTP requests and responses"""
 
-    """PATCH should return empty body, 204 - No Content, and location of object"""
     def patch(self, request, *args, **kwargs):
+        """PATCH should return empty body, 204 - No Content, and location of object"""
         queryset = self.get_queryset()
         serializer_class = self.get_serializer_class()
         resource = self.kwargs['resource']
@@ -133,20 +133,29 @@ class HostList(generics.GenericAPIView):
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
         if 'ipaddress' in request.data:
-            ipaddress = request.data['ipaddress']
+            ipkey = request.data['ipaddress']
             hostdata = QueryDict.copy(request.data)
             del hostdata['ipaddress']
             host = Hosts()
             hostserializer = HostsSerializer(host, data=hostdata)
             if hostserializer.is_valid(raise_exception=True):
-                hostserializer.save()
-                location = '/hosts/%s' % host.name
-                ipdata = {'hostid': host.pk, 'ipaddress': ipaddress}
-                ip = Ipaddress()
-                ipserializer = IpaddressSerializer(ip, data=ipdata)
-                if ipserializer.is_valid(raise_exception=True):
-                    ipserializer.save()
-                return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
+                try:
+                    ipaddress.ip_address(ipkey)
+                    try:
+                        Ipaddress.objects.get(ipaddress=ipkey)
+                        return Response(status=status.HTTP_409_CONFLICT, data={'ERROR': "IP address already exists"})
+                    except Ipaddress.DoesNotExist:
+                        # This is good to go
+                        hostserializer.save()
+                        ipdata = {'hostid': host.pk, 'ipaddress': ipkey}
+                        ip = Ipaddress()
+                        ipserializer = IpaddressSerializer(ip, data=ipdata)
+                        if ipserializer.is_valid(raise_exception=True):
+                            ipserializer.save()
+                            location = '/hosts/%s' % host.name
+                            return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
+                except ValueError:
+                    return Response(status=status.HTTP_400_BAD_REQUEST)
         else:
             host = Hosts()
             hostserializer = HostsSerializer(host, data=request.data)
@@ -255,9 +264,9 @@ class IpaddressDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
         if "macaddress" in request.data:
-            if self.queryset.filter(name=request.data["macaddress"]).exists():
+            if self.queryset.filter(macaddress=request.data["macaddress"]).exists():
                 content = {'ERROR': 'macaddress already registered',
-                           'ipaddress': self.queryset.filter(macaddress=request.data['macaddress'])}
+                           'ipaddress': self.queryset.get(macaddress=request.data['macaddress']).ipaddress}
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
         try:
@@ -334,7 +343,7 @@ class SubnetsList(generics.ListCreateAPIView):
     def post(self, request, *args, **kwargs):
         try:
             network = ipaddress.ip_network(request.data['range'])
-            hosts  = network.num_addresses
+            hosts = network.num_addresses
 
             overlap = self.overlap_check(network)
             if overlap:
@@ -346,7 +355,6 @@ class SubnetsList(generics.ListCreateAPIView):
             subnet = serializer.create()
             if hosts <= 4:
                 subnet.reserved = 2
-            print(subnet.range)
             subnet.save()
             location = '/subnets/%s' % request.data
             return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
@@ -383,7 +391,6 @@ class SubnetsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
         ip = self.kwargs['ip']
         mask = self.kwargs['range']
         range = '%s/%s' % (ip, mask)
-        print(range)
 
         invalid_range = self.isnt_range(range)
         if invalid_range:
@@ -457,12 +464,12 @@ class SubnetsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
         ip_network.hosts() automatically ignores the network and broadcast addresses of the subnet,
         unless the subnet consists of only these two addresses.
         """
-        all_ipaddresses = Ipaddress.objects.all()
+        all_ipaddresses = [ipaddress.ip_address(ip_db.ipaddress) for ip_db in Ipaddress.objects.all()]
+        network = ipaddress.ip_network(subnet)
         used_ipaddresses = []
-        for host_ip in ipaddress.ip_network(subnet).hosts():
-            address = str(host_ip)
-            if all_ipaddresses.filter(ipaddress=address).exists():
-                used_ipaddresses.append(address)
+        for ip in all_ipaddresses:
+            if ip in network:
+                used_ipaddresses.append(str(ip))
 
         return used_ipaddresses
 
@@ -591,8 +598,34 @@ class ZonesNsDetail(ETAGMixin, generics.GenericAPIView):
             return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
         except Zones.DoesNotExist:
             raise Http404
+            
+            
+class ModelChangeLogsList(generics.ListAPIView):
+    queryset = ModelChangeLogs.objects.all()
+    serializer_class = ModelChangeLogsSerializer
+
+    def get(self, request, *args, **kwargs):
+        # Return a list of available tables there are logged histories for.
+        tables = list(set([value['table_name'] for value in self.queryset.values('table_name')]))
+        return Response(data=tables, status=status.HTTP_200_OK)
 
 
+class ModelChangeLogsDetail(StrictCRUDMixin, generics.RetrieveAPIView):
+    queryset = ModelChangeLogs.objects.all()
+    serializer_class = ModelChangeLogsSerializer
+
+    def get(self, request, *args, **kwargs):
+        query_table = self.kwargs['table']
+        query_row = self.kwargs['pk']
+        try:
+            logs_by_date = [vals for vals in self.queryset.filter(table_name=query_table,
+                                                                  table_row=query_row).order_by('timestamp').values()]
+
+            return Response(logs_by_date, status=status.HTTP_200_OK)
+        except ModelChangeLogs.DoesNotExist:
+            raise Http404
+
+            
 class PlainTextRenderer(renderers.BaseRenderer):
     media_type = 'text/plain'
     format = 'txt'
@@ -637,3 +670,4 @@ class ZoneFileDetail(generics.GenericAPIView):
         for srv in srvs:
             data += srv.zf_string()
         return Response(data)
+
