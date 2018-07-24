@@ -74,9 +74,10 @@ class Ns(models.Model):
     def zf_string(self):
         data = {
             'ttl': clean(self.ttl),
-            'record_data': self.name
+            'record_type': 'NS',
+            'record_data': qualify(self.name, 'uio.no')
         }
-        return '    {ttl} IN NS {record_data}'.format_map(data)
+        return '                         {ttl:5} IN {record_type:6} {record_data}\n'.format_map(data)
 
 
 class Zones(models.Model):
@@ -99,6 +100,7 @@ class Zones(models.Model):
             'origin': qualify(self.name, 'uio.no'),
             'ttl': self.ttl,
             'name': qualify(self.name, 'uio.no'),
+            'record_type': 'SOA',
             'mname': qualify(self.primary_ns, 'uio.no'),
             'rname': qualify(encode_mail(self.email), 'uio.no'),
             'serial': self.serialno,
@@ -108,12 +110,12 @@ class Zones(models.Model):
         }
         zf = """$ORIGIN {origin}
 $TTL {ttl}
-{name} IN SOA {mname} {rname} (
-    {serial}    ; Serialnumber
-    {refresh}   ; Refresh
-    {retry}     ; Retry
-    {expire}    ; Expire
-    {ttl} )     ; Negative Cache""".format_map(data)
+{name:30} IN {record_type:6} {mname} {rname} (
+                                         {serial}    ; Serialnumber
+                                         {refresh}   ; Refresh
+                                         {retry}     ; Retry
+                                         {expire}    ; Expire
+                                         {ttl} )     ; Negative Cache\n""".format_map(data)
         return zf
 
 
@@ -127,10 +129,11 @@ class HinfoPresets(models.Model):
 
     def zf_string(self):
         data = {
+            'record_type': 'HINFO',
             'cpu': clean(self.cpu),
             'os': clean(self.os)
         }
-        return '    HINFO {cpu} {os}'.format_map(data)
+        return '                                  {record_type:6} {cpu} {os}\n'.format_map(data)
 
 
 class Hosts(models.Model):
@@ -144,6 +147,14 @@ class Hosts(models.Model):
 
     class Meta:
         db_table = 'hosts'
+
+    def loc_string(self):
+        data = {
+            'name': self.name,
+            'record_type': 'LOC',
+            'record_data': self.loc
+        }
+        return '{name:30} IN {record_type:6} {record_data}\n'.format_map(data)
 
 
 class Ipaddress(models.Model):
@@ -168,7 +179,7 @@ class Ipaddress(models.Model):
             'record_data': self.ipaddress,
             'comment': comment(clean(self.hostid.comment))
         }
-        return '{name} {ttl} IN {record_type} {record_data}{comment}'.format_map(data)
+        return '{name:24} {ttl:5} IN {record_type:6} {record_data:39}{comment}\n'.format_map(data)
 
 
 class PtrOverride(models.Model):
@@ -182,9 +193,10 @@ class PtrOverride(models.Model):
         data = {
             'name': reverse_ip(self.ipaddress) + '.in-addr.arpa.',
             'record_data': qualify(self.hostid.name, 'uio.no'),
+            'record_type': 'PTR',
             'comment': comment(clean(self.hostid.comment))
         }
-        return '{name} IN PTR {record_data}{comment}'.format_map(data)
+        return '{name:30} IN {record_type:6} {record_data}{comment}\n'.format_map(data)
 
 
 class Txt(models.Model):
@@ -199,10 +211,11 @@ class Txt(models.Model):
         data = {
             'name': qualify(self.hostid.name, 'uio.no'),
             'ttl': clean(self.hostid.ttl),
+            'record_type': 'TXT',
             'record_data': '\"%s\"' % self.txt,
             'comment': comment(clean(self.hostid.comment))
         }
-        return '{name} {ttl} TXT {record_data}{comment}'.format_map(data)
+        return '{name:24} {ttl:5}    {record_type:6} {record_data:39}{comment}\n'.format_map(data)
 
 
 class Cname(models.Model):
@@ -217,10 +230,11 @@ class Cname(models.Model):
         data = {
             'name': qualify(self.hostid.name, 'uio.no'),
             'ttl': clean(self.ttl),
+            'record_type': 'CNAME',
             'record_data': qualify(self.cname, 'uio.no'),
             'comment': comment(clean(self.hostid.comment))
         }
-        return '{name} {ttl} IN CNAME {record_data}{comment}'.format_map(data)
+        return '{name:24} {ttl:5} IN {record_type:6} {record_data:39}{comment}\n'.format_map(data)
 
 
 class Subnets(models.Model):
@@ -255,6 +269,7 @@ class Naptr(models.Model):
         data = {
             'name': qualify(self.hostid.name, 'uio.no'),
             'ttl': clean(self.hostid.ttl),
+            'record_type': 'NAPTR',
             'order': clean(self.orderv),
             'preference': clean(self.preference),
             'flag': clean(self.flag),
@@ -263,7 +278,7 @@ class Naptr(models.Model):
             'replacement': self.replacement,
             'comment': comment(clean(self.hostid.comment))
         }
-        return '{name} {ttl} IN NAPTR {order} {preference} \"{flag}\" \"{service}\" \"{regex}\" {replacement}{comment}'.format_map(data)
+        return '{name:24} {ttl:5} IN {record_type:6} {order} {preference} \"{flag}\" \"{service}\" \"{regex}\" {replacement}{comment}\n'.format_map(data)
 
 
 class Srv(models.Model):
@@ -282,9 +297,10 @@ class Srv(models.Model):
         data = {
             'name': qualify(self.service, 'uio.no'),
             'ttl': clean(self.ttl),
+            'record_type': 'SRV',
             'priority': clean(self.priority),
             'weight': clean(self.weight),
             'port': clean(self.port),
             'target': qualify(self.target, 'uio.no')
         }
-        return '{name} {ttl} IN SRV {priority} {weight} {port} {target}'.format_map(data)
+        return '{name:24} {ttl:5} IN {record_type:6} {priority} {weight} {port} {target}\n'.format_map(data)
