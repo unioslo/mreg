@@ -126,11 +126,6 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 
-try:
-    from .local_settings import *
-except ImportError:
-    pass
-
 REST_FRAMEWORK_EXTENSIONS = {
     'DEFAULT_OBJECT_ETAG_FUNC':
         'rest_framework_extensions.utils.default_object_etag_func',
@@ -141,3 +136,10 @@ REST_FRAMEWORK_EXTENSIONS = {
 DJANGO_LOGGING = {
     "CONSOLE_LOG": False,
 }
+
+try:
+    from .local_settings import *
+except ImportError:
+    pass
+
+
