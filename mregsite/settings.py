@@ -38,9 +38,11 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'mreg',
+    'django_logging',
 ]
 
 MIDDLEWARE = [
+    'django_logging.middleware.DjangoLoggingMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -134,4 +136,8 @@ REST_FRAMEWORK_EXTENSIONS = {
         'rest_framework_extensions.utils.default_object_etag_func',
     'DEFAULT_LIST_ETAG_FUNC':
         'rest_framework_extensions.utils.default_list_etag_func',
+}
+
+DJANGO_LOGGING = {
+    "CONSOLE_LOG": False,
 }
