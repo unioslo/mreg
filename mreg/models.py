@@ -1,5 +1,64 @@
 from django.db import models
 from mreg.validators import *
+import ipaddress
+
+
+def clean(value):
+    """
+    Cleans up potential Nones into empty strings instead
+    :param value: Value to check
+    :return: Unmodified value or empty string
+    """
+    if value is None:
+        value = ""
+    return value
+
+
+def comment(string):
+    """
+    Turns not-empty string into comments
+    :param string: String to check
+    :return: Commented or empty string
+    """
+    if string != "":
+        string = ' ; %s' % string
+    return string
+
+
+def reverse_ip(ip):
+    """
+    Reverses an IP-adddress
+    :param ip: IP-address to reverse
+    :return: IP-address in reverse
+    """
+    if isinstance(ipaddress.ip_address(ip), ipaddress.IPv6Address):
+        return ':'.join(reversed(ip.split(':')))
+    else:
+        return '.'.join(reversed(ip.split('.')))
+
+
+def qualify(name, zone):
+    """
+    Appends a punctuation mark to fully qualified names within a given zone
+    :param name: Name to check
+    :param zone: Zone where name might be
+    :return: String with punctuation appended or unchanged
+    """
+    if name.endswith(zone):
+        name += '.'
+    return name
+
+
+def encode_mail(mail):
+    """
+    Encodes an e-mail address as a name by converting '.' to '\.' and '@' to '.'
+    :param mail: E-mail address to encode
+    :return: Encoded e-mail address
+    """
+    user, domain = mail.split('@')
+    user = user.replace('.', '\.')
+    mail = '%s.%s' % (user, domain)
+    return mail
 
 
 class Ns(models.Model):
@@ -9,6 +68,14 @@ class Ns(models.Model):
 
     class Meta:
         db_table = 'ns'
+
+    def zf_string(self):
+        data = {
+            'ttl': clean(self.ttl),
+            'record_type': 'NS',
+            'record_data': qualify(self.name, 'uio.no')
+        }
+        return '                         {ttl:5} IN {record_type:6} {record_data}\n'.format_map(data)
 
 
 class Zones(models.Model):
@@ -26,6 +93,29 @@ class Zones(models.Model):
     class Meta:
         db_table = 'zones'
 
+    def zf_string(self):
+        data = {
+            'origin': qualify(self.name, 'uio.no'),
+            'ttl': self.ttl,
+            'name': qualify(self.name, 'uio.no'),
+            'record_type': 'SOA',
+            'mname': qualify(self.primary_ns, 'uio.no'),
+            'rname': qualify(encode_mail(self.email), 'uio.no'),
+            'serial': self.serialno,
+            'refresh': self.refresh,
+            'retry': self.retry,
+            'expire': self.expire,
+        }
+        zf = """$ORIGIN {origin}
+$TTL {ttl}
+{name:30} IN {record_type:6} {mname} {rname} (
+                                         {serial}    ; Serialnumber
+                                         {refresh}   ; Refresh
+                                         {retry}     ; Retry
+                                         {expire}    ; Expire
+                                         {ttl} )     ; Negative Cache\n""".format_map(data)
+        return zf
+
 
 class HinfoPresets(models.Model):
     hinfoid = models.AutoField(primary_key=True, serialize=True)
@@ -34,6 +124,14 @@ class HinfoPresets(models.Model):
 
     class Meta:
         db_table = 'hinfo_presets'
+
+    def zf_string(self):
+        data = {
+            'record_type': 'HINFO',
+            'cpu': clean(self.cpu),
+            'os': clean(self.os)
+        }
+        return '                                  {record_type:6} {cpu} {os}\n'.format_map(data)
 
 
 class Hosts(models.Model):
@@ -48,6 +146,14 @@ class Hosts(models.Model):
     class Meta:
         db_table = 'hosts'
 
+    def loc_string(self):
+        data = {
+            'name': self.name,
+            'record_type': 'LOC',
+            'record_data': self.loc
+        }
+        return '{name:30} IN {record_type:6} {record_data}\n'.format_map(data)
+
 
 class Ipaddress(models.Model):
     hostid = models.ForeignKey(Hosts, on_delete=models.CASCADE, db_column='hostid', related_name='ipaddress')
@@ -57,6 +163,21 @@ class Ipaddress(models.Model):
     class Meta:
         db_table = 'ipaddress'
 
+    def zf_string(self):
+        if isinstance(ipaddress.ip_address(self.ipaddress), ipaddress.IPv4Address):
+            iptype = 'A'
+        else:
+            iptype = 'AAAA'
+        #TODO: Make this generic for other zones than uio.no
+        data = {
+            'name': qualify(self.hostid.name, 'uio.no'),
+            'ttl': clean(self.hostid.ttl),
+            'record_type': iptype,
+            'record_data': self.ipaddress,
+            'comment': comment(clean(self.hostid.comment))
+        }
+        return '{name:24} {ttl:5} IN {record_type:6} {record_data:39}{comment}\n'.format_map(data)
+
 
 class PtrOverride(models.Model):
     hostid = models.ForeignKey(Hosts, on_delete=models.CASCADE, db_column='hostid', related_name='ptr_override')
@@ -64,6 +185,15 @@ class PtrOverride(models.Model):
 
     class Meta:
         db_table = 'ptr_override'
+
+    def zf_string(self):
+        data = {
+            'name': reverse_ip(self.ipaddress) + '.in-addr.arpa.',
+            'record_data': qualify(self.hostid.name, 'uio.no'),
+            'record_type': 'PTR',
+            'comment': comment(clean(self.hostid.comment))
+        }
+        return '{name:30} IN {record_type:6} {record_data}{comment}\n'.format_map(data)
 
 
 class Txt(models.Model):
@@ -74,6 +204,16 @@ class Txt(models.Model):
     class Meta:
         db_table = 'txt'
 
+    def zf_string(self):
+        data = {
+            'name': qualify(self.hostid.name, 'uio.no'),
+            'ttl': clean(self.hostid.ttl),
+            'record_type': 'TXT',
+            'record_data': '\"%s\"' % self.txt,
+            'comment': comment(clean(self.hostid.comment))
+        }
+        return '{name:24} {ttl:5}    {record_type:6} {record_data:39}{comment}\n'.format_map(data)
+
 
 class Cname(models.Model):
     hostid = models.ForeignKey(Hosts, on_delete=models.CASCADE, db_column='hostid', related_name='cname')
@@ -82,6 +222,16 @@ class Cname(models.Model):
 
     class Meta:
         db_table = 'cname'
+
+    def zf_string(self):
+        data = {
+            'name': qualify(self.hostid.name, 'uio.no'),
+            'ttl': clean(self.ttl),
+            'record_type': 'CNAME',
+            'record_data': qualify(self.cname, 'uio.no'),
+            'comment': comment(clean(self.hostid.comment))
+        }
+        return '{name:24} {ttl:5} IN {record_type:6} {record_data:39}{comment}\n'.format_map(data)
 
 
 class Subnets(models.Model):
@@ -112,6 +262,21 @@ class Naptr(models.Model):
     class Meta:
         db_table = 'naptr'
 
+    def zf_string(self):
+        data = {
+            'name': qualify(self.hostid.name, 'uio.no'),
+            'ttl': clean(self.hostid.ttl),
+            'record_type': 'NAPTR',
+            'order': clean(self.orderv),
+            'preference': clean(self.preference),
+            'flag': clean(self.flag),
+            'service': self.service,
+            'regex': clean(self.regex),
+            'replacement': self.replacement,
+            'comment': comment(clean(self.hostid.comment))
+        }
+        return '{name:24} {ttl:5} IN {record_type:6} {order} {preference} \"{flag}\" \"{service}\" \"{regex}\" {replacement}{comment}\n'.format_map(data)
+
 
 class Srv(models.Model):
     srvid = models.AutoField(primary_key=True, serialize=True)
@@ -125,6 +290,17 @@ class Srv(models.Model):
     class Meta:
         db_table = 'srv'
 
+    def zf_string(self):
+        data = {
+            'name': qualify(self.service, 'uio.no'),
+            'ttl': clean(self.ttl),
+            'record_type': 'SRV',
+            'priority': clean(self.priority),
+            'weight': clean(self.weight),
+            'port': clean(self.port),
+            'target': qualify(self.target, 'uio.no')
+        }
+        return '{name:24} {ttl:5} IN {record_type:6} {priority} {weight} {port} {target}\n'.format_map(data)
 
 # TODO: Add user_id functionality when auth is implemented
 class ModelChangeLogs(models.Model):

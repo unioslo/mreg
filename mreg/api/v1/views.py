@@ -1,10 +1,10 @@
 from rest_framework import generics
 from django.http import Http404, QueryDict
 from django.core.exceptions import ObjectDoesNotExist
-from django.urls import reverse
 from mreg.models import *
 from mreg.api.v1.serializers import *
 from rest_framework_extensions.etag.mixins import ETAGMixin
+from rest_framework import renderers
 from rest_framework.response import Response
 from rest_framework import status
 from url_filter.filtersets import ModelFilterSet
@@ -578,6 +578,7 @@ class ZonesNsDetail(ETAGMixin, generics.GenericAPIView):
         except Zones.DoesNotExist:
             raise Http404
 
+    # TODO Fix zone.nameservers.clear()
     # TODO Authorization
     def patch(self, request, *args, **kwargs):
         query = self.kwargs[self.lookup_field]
@@ -597,8 +598,8 @@ class ZonesNsDetail(ETAGMixin, generics.GenericAPIView):
             return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
         except Zones.DoesNotExist:
             raise Http404
-
-
+            
+            
 class ModelChangeLogsList(generics.ListAPIView):
     queryset = ModelChangeLogs.objects.all()
     serializer_class = ModelChangeLogsSerializer
@@ -623,4 +624,50 @@ class ModelChangeLogsDetail(StrictCRUDMixin, generics.RetrieveAPIView):
             return Response(logs_by_date, status=status.HTTP_200_OK)
         except ModelChangeLogs.DoesNotExist:
             raise Http404
+
+            
+class PlainTextRenderer(renderers.BaseRenderer):
+    media_type = 'text/plain'
+    format = 'txt'
+
+    def render(self, data, media_type=None, renderer_context=None):
+        return data
+
+
+class ZoneFileDetail(generics.GenericAPIView):
+    queryset = Zones.objects.all()
+    renderer_classes = (PlainTextRenderer, )
+
+    def get(self, request, *args, **kwargs):
+        zone = self.get_queryset().get(name=self.kwargs['pk'])
+        data = zone.zf_string()
+        data += ';\n; Name servers\n;\n'
+        for ns in zone.nameservers.all():
+            data += ns.zf_string()
+        data += ';\n; Host addresses\n;\n'
+        hosts = Hosts.objects.all()
+        for host in hosts:
+            for ip in host.ipaddress.all():
+                data += ip.zf_string()
+            if host.hinfo is not None:
+                data += host.hinfo.zf_string()
+            if host.loc is not None:
+                data += host.loc_string()
+            for cname in host.cname.all():
+                data += cname.zf_string()
+            for txt in host.txt.all():
+                data += txt.zf_string()
+        data += ';\n; Name authority pointers\n;\n'
+        naptrs = Naptr.objects.all()
+        for naptr in naptrs:
+            data += naptr.zf_string()
+        data += ';\n; Pointers\n;\n'
+        ptroverrides = PtrOverride.objects.all()
+        for ptroverride in ptroverrides:
+            data += ptroverride.zf_string()
+        data += ';\n; Services\n;\n'
+        srvs = Srv.objects.all()
+        for srv in srvs:
+            data += srv.zf_string()
+        return Response(data)
 
