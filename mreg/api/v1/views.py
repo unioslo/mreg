@@ -343,7 +343,7 @@ class SubnetsList(generics.ListCreateAPIView):
     def post(self, request, *args, **kwargs):
         try:
             network = ipaddress.ip_network(request.data['range'])
-            hosts  = network.num_addresses
+            hosts = network.num_addresses
 
             overlap = self.overlap_check(network)
             if overlap:

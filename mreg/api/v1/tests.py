@@ -947,7 +947,7 @@ class APISubnetsTestCase(TestCase):
 
 
 class APIModelChangeLogsTestCase(TestCase):
-    """"This class defines the test suite for api/history """
+    """This class defines the test suite for api/history """
 
     def setUp(self):
         """Define the test client and other variables."""
