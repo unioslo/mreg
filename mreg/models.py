@@ -244,8 +244,9 @@ class Srv(models.Model):
         }
         return '{name:24} {ttl:5} IN {record_type:6} {priority} {weight} {port} {target}\n'.format_map(data)
 
+
 # TODO: Add user_id functionality when auth is implemented
-class ModelChangeLogs(models.Model):
+class ModelChangeLog(models.Model):
     # user_id = models.BigIntegerField(db_index=True)
     table_name = models.CharField(max_length=132)
     table_row = models.BigIntegerField()
@@ -254,4 +255,4 @@ class ModelChangeLogs(models.Model):
     timestamp = models.DateTimeField()
 
     class Meta:
-        db_table = "model_change_logs"
+        db_table = "model_change_log"

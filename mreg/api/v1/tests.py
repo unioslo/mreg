@@ -460,17 +460,17 @@ class ModelChangeLogsTestCase(TestCase):
                          'loc': self.host_one.loc,
                          'comment': self.host_one.comment}
 
-        self.log_entry_one = ModelChangeLogs(table_name='Hosts',
-                                             table_row=self.host_one.hostid,
-                                             data=self.log_data,
-                                             action='saved',
-                                             timestamp=timezone.now())
+        self.log_entry_one = ModelChangeLog(table_name='Hosts',
+                                            table_row=self.host_one.hostid,
+                                            data=self.log_data,
+                                            action='saved',
+                                            timestamp=timezone.now())
 
     def test_model_can_create_a_log_entry(self):
         """Test that the model is able to create a host."""
-        old_count = ModelChangeLogs.objects.count()
+        old_count = ModelChangeLog.objects.count()
         self.log_entry_one.save()
-        new_count = ModelChangeLogs.objects.count()
+        new_count = ModelChangeLog.objects.count()
         self.assertNotEqual(old_count, new_count)
 
 
@@ -965,11 +965,11 @@ class APIModelChangeLogsTestCase(TestCase):
                          'loc': self.host_one.loc,
                          'comment': self.host_one.comment}
 
-        self.log_entry_one = ModelChangeLogs(table_name='hosts',
-                                             table_row=self.host_one.hostid,
-                                             data=self.log_data,
-                                             action='saved',
-                                             timestamp=timezone.now())
+        self.log_entry_one = ModelChangeLog(table_name='hosts',
+                                            table_row=self.host_one.hostid,
+                                            data=self.log_data,
+                                            action='saved',
+                                            timestamp=timezone.now())
         self.log_entry_one.save()
         self.client = APIClient()
 

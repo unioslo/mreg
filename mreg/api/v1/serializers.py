@@ -230,7 +230,7 @@ class ZonesSerializer(serializers.ModelSerializer):
 
 class ModelChangeLogsSerializer(serializers.ModelSerializer):
     class Meta:
-        model = ModelChangeLogs
+        model = ModelChangeLog
         fields = '__all__'
 
     def validate(self, data):
@@ -239,7 +239,7 @@ class ModelChangeLogsSerializer(serializers.ModelSerializer):
         return data
 
     def create(self):
-        return ModelChangeLogs(**self.validated_data)
+        return ModelChangeLog(**self.validated_data)
 
 
 

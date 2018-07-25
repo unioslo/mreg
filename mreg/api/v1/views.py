@@ -601,7 +601,7 @@ class ZonesNsDetail(ETAGMixin, generics.GenericAPIView):
             
             
 class ModelChangeLogsList(generics.ListAPIView):
-    queryset = ModelChangeLogs.objects.all()
+    queryset = ModelChangeLog.objects.all()
     serializer_class = ModelChangeLogsSerializer
 
     def get(self, request, *args, **kwargs):
@@ -611,7 +611,7 @@ class ModelChangeLogsList(generics.ListAPIView):
 
 
 class ModelChangeLogsDetail(StrictCRUDMixin, generics.RetrieveAPIView):
-    queryset = ModelChangeLogs.objects.all()
+    queryset = ModelChangeLog.objects.all()
     serializer_class = ModelChangeLogsSerializer
 
     def get(self, request, *args, **kwargs):
@@ -622,7 +622,7 @@ class ModelChangeLogsDetail(StrictCRUDMixin, generics.RetrieveAPIView):
                                                                   table_row=query_row).order_by('timestamp').values()]
 
             return Response(logs_by_date, status=status.HTTP_200_OK)
-        except ModelChangeLogs.DoesNotExist:
+        except ModelChangeLog.DoesNotExist:
             raise Http404
 
             
