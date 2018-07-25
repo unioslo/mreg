@@ -18,7 +18,7 @@ class CnameFilterSet(ModelFilterSet):
 
 class HinfoFilterSet(ModelFilterSet):
     class Meta(object):
-        model = HinfoPresets
+        model = HinfoPreset
 
 
 class HostsFilterSet(ModelFilterSet):
@@ -100,7 +100,7 @@ class CnameDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIV
 
 
 class HinfoPresetsList(generics.ListCreateAPIView):
-    queryset = HinfoPresets.objects.all()
+    queryset = HinfoPreset.objects.all()
     serializer_class = HinfoPresetsSerializer
 
     def get_queryset(self):
@@ -109,7 +109,7 @@ class HinfoPresetsList(generics.ListCreateAPIView):
 
 
 class HinfoPresetsDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
-    queryset = HinfoPresets.objects.all()
+    queryset = HinfoPreset.objects.all()
     serializer_class = HinfoPresetsSerializer
 
 

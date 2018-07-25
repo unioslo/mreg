@@ -59,13 +59,13 @@ $TTL {ttl}
         return zf
 
 
-class HinfoPresets(models.Model):
+class HinfoPreset(models.Model):
     hinfoid = models.AutoField(primary_key=True, serialize=True)
     cpu = models.TextField()
     os = models.TextField()
 
     class Meta:
-        db_table = 'hinfo_presets'
+        db_table = 'hinfo_preset'
 
     def zf_string(self):
         data = {
@@ -81,7 +81,7 @@ class Hosts(models.Model):
     name = models.TextField(unique=True)
     contact = models.EmailField()
     ttl = models.IntegerField(blank=True, null=True)
-    hinfo = models.ForeignKey(HinfoPresets, models.DO_NOTHING, db_column='hinfo', blank=True, null=True)
+    hinfo = models.ForeignKey(HinfoPreset, models.DO_NOTHING, db_column='hinfo', blank=True, null=True)
     loc = models.TextField(blank=True, null=True, validators=[validate_loc])
     comment = models.TextField(blank=True, null=True)
 

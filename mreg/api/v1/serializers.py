@@ -42,7 +42,7 @@ class CnameSerializer(serializers.ModelSerializer):
 
 class HinfoPresetsSerializer(serializers.ModelSerializer):
     class Meta:
-        model = HinfoPresets
+        model = HinfoPreset
         fields = '__all__'
 
     def validate(self, data):
@@ -139,7 +139,7 @@ class HostsSaveSerializer(serializers.ModelSerializer):
     def validate_hinfo(self, value):
         value = nonify(value)
         if value != None:
-            value = HinfoPresets.objects.get(pk=value)
+            value = HinfoPreset.objects.get(pk=value)
         return value
 
 
