@@ -8,7 +8,8 @@ from rest_framework import renderers
 from rest_framework.response import Response
 from rest_framework import status
 from url_filter.filtersets import ModelFilterSet
-import ipaddress, time
+import ipaddress
+import time
 
 
 class CnameFilterSet(ModelFilterSet):
@@ -390,19 +391,19 @@ class SubnetDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     def get(self, request, queryset=queryset, *args, **kwargs):
         ip = self.kwargs['ip']
         mask = self.kwargs['range']
-        range = '%s/%s' % (ip, mask)
+        iprange = '%s/%s' % (ip, mask)
 
-        invalid_range = self.isnt_range(range)
+        invalid_range = self.isnt_range(iprange)
         if invalid_range:
             return invalid_range
 
         # Returns a list of used ipaddresses on a given subnet.
         if request.META.get('QUERY_STRING') == 'used_list':
-            used_ipaddresses = self.get_used_ipaddresses_on_subnet(range)
+            used_ipaddresses = self.get_used_ipaddresses_on_subnet(iprange)
             return Response(used_ipaddresses, status=status.HTTP_200_OK)
 
         try:
-            found_subnet = Subnets.objects.get(range=range)
+            found_subnet = Subnets.objects.get(range=iprange)
         except Subnets.DoesNotExist:
             raise Http404
 
@@ -412,8 +413,8 @@ class SubnetDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     def patch(self, request, *args, **kwargs):
         ip = self.kwargs['ip']
         mask = self.kwargs['range']
-        range = '%s/%s' % (ip, mask)
-        invalid_range = self.isnt_range(range)
+        iprange = '%s/%s' % (ip, mask)
+        invalid_range = self.isnt_range(iprange)
         if invalid_range:
             return invalid_range
 
@@ -423,7 +424,7 @@ class SubnetDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
         try:
-            subnet = Subnets.objects.get(range=range)
+            subnet = Subnets.objects.get(range=iprange)
             serializer = self.get_serializer(subnet, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)
             serializer.save()
@@ -435,25 +436,25 @@ class SubnetDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     def delete(self, request, *args, **kwargs):
         ip = self.kwargs['ip']
         mask = self.kwargs['range']
-        range = '%s/%s' % (ip, mask)
-        invalid_range = self.isnt_range(range)
+        iprange = '%s/%s' % (ip, mask)
+        invalid_range = self.isnt_range(iprange)
         if invalid_range:
             return invalid_range
 
-        used_ipaddresses = self.get_used_ipaddresses_on_subnet(range)
+        used_ipaddresses = self.get_used_ipaddresses_on_subnet(iprange)
         if used_ipaddresses:
             return Response({'ERROR': 'Subnet contains IP addresses that are in use'}, status=status.HTTP_409_CONFLICT)
 
         try:
-            found_subnet = Subnets.objects.get(range=range)
+            found_subnet = Subnets.objects.get(range=iprange)
             found_subnet.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
         except Subnets.DoesNotExist:
             raise Http404
 
-    def isnt_range(self, range):
+    def isnt_range(self, iprange):
         try:
-            ipaddress.ip_network(range)
+            ipaddress.ip_network(iprange)
             return None
         except ValueError as error:
             return Response({'ERROR': str(error)}, status=status.HTTP_400_BAD_REQUEST)

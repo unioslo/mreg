@@ -138,7 +138,7 @@ class HostSaveSerializer(serializers.ModelSerializer):
 
     def validate_hinfo(self, value):
         value = nonify(value)
-        if value != None:
+        if value is not None:
             value = HinfoPresets.objects.get(pk=value)
         return value
 

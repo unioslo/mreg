@@ -110,7 +110,7 @@ class Ipaddress(models.Model):
             iptype = 'A'
         else:
             iptype = 'AAAA'
-        #TODO: Make this generic for other zones than uio.no
+#       TODO: Make this generic for other zones than uio.no
         data = {
             'name': qualify(self.hostid.name, 'uio.no'),
             'ttl': clean(self.hostid.ttl),
@@ -243,6 +243,7 @@ class Srv(models.Model):
             'target': qualify(self.target, 'uio.no')
         }
         return '{name:24} {ttl:5} IN {record_type:6} {priority} {weight} {port} {target}\n'.format_map(data)
+
 
 # TODO: Add user_id functionality when auth is implemented
 class ModelChangeLogs(models.Model):
