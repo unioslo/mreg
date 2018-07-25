@@ -167,7 +167,7 @@ class NaptrSerializer(serializers.ModelSerializer):
 
 class NsSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Ns
+        model = NameServer
         fields = '__all__'
 
     def validate_ttl(self, value):

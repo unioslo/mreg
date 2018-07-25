@@ -3,7 +3,7 @@ from mreg.validators import *
 from mreg.utils import *
 
 
-class Ns(models.Model):
+class NameServer(models.Model):
     nsid = models.AutoField(primary_key=True, serialize=True)
     name = models.TextField(unique=True)
     ttl = models.IntegerField(blank=True, null=True)
@@ -24,7 +24,7 @@ class Zones(models.Model):
     zoneid = models.AutoField(primary_key=True, serialize=True)
     name = models.TextField(unique=True)
     primary_ns = models.TextField()
-    nameservers = models.ManyToManyField(Ns, db_column='ns')
+    nameservers = models.ManyToManyField(NameServer, db_column='ns')
     email = models.EmailField(blank=True, null=True)
     serialno = models.BigIntegerField(blank=True, null=True, validators=[validate_zones_serialno])
     refresh = models.IntegerField(blank=True, null=True, default=7200)

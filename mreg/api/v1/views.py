@@ -38,7 +38,7 @@ class NaptrFilterSet(ModelFilterSet):
 
 class NameserverFilterSet(ModelFilterSet):
     class Meta(object):
-        model = Ns
+        model = NameServer
 
 
 class PtroverrideFilterSet(ModelFilterSet):
@@ -295,7 +295,7 @@ class NaptrDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIV
 
 
 class NsList(generics.ListCreateAPIView):
-    queryset = Ns.objects.all()
+    queryset = NameServer.objects.all()
     serializer_class = NsSerializer
 
     def get_queryset(self):
@@ -304,7 +304,7 @@ class NsList(generics.ListCreateAPIView):
 
 
 class NsDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
-    queryset = Ns.objects.all()
+    queryset = NameServer.objects.all()
     serializer_class = NsSerializer
 
 
@@ -490,7 +490,7 @@ class TxtDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIVie
 
 class ZonesList(generics.ListCreateAPIView):
     queryset = Zones.objects.all()
-    queryset_ns = Ns.objects.all()
+    queryset_ns = NameServer.objects.all()
     serializer_class = ZonesSerializer
     count_day = int(time.strftime('%Y%m%d'))
     count = 0
@@ -523,7 +523,7 @@ class ZonesList(generics.ListCreateAPIView):
             try:
                 ns = self.queryset_ns.get(name=nameserver)
                 zone.nameservers.add(ns.nsid)
-            except Ns.DoesNotExist:
+            except NameServer.DoesNotExist:
                 return Response({'ERROR': 'Could not find NS: %s' % nameserver}, status=status.HTTP_404_NOT_FOUND)
         zone.save()
         return Response(status=status.HTTP_201_CREATED, headers={'Location': '/zones/%s' % data['name']})
@@ -563,7 +563,7 @@ class ZonesDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
 
 class ZonesNsDetail(ETAGMixin, generics.GenericAPIView):
     queryset = Zones.objects.all()
-    queryset_ns = Ns.objects.all()
+    queryset_ns = NameServer.objects.all()
     lookup_field = 'name'
 
     # TODO Authorization
@@ -591,7 +591,7 @@ class ZonesNsDetail(ETAGMixin, generics.GenericAPIView):
                 try:
                     ns = self.queryset_ns.get(name=nameserver)
                     zone.nameservers.add(ns)
-                except Ns.DoesNotExist:
+                except NameServer.DoesNotExist:
                     raise Http404
             zone.save()
             location = 'zones/%s/nameservers' % query

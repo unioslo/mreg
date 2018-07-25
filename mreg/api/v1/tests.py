@@ -102,14 +102,14 @@ class ModelNsTestCase(TestCase):
 
         self.zone_sample.save()
 
-        self.ns_sample = Ns(name='some-ns-server.uio.no',
-                            ttl=300)
+        self.ns_sample = NameServer(name='some-ns-server.uio.no',
+                                    ttl=300)
 
     def test_model_can_create_ns(self):
         """Test that the model is able to create an Ns."""
-        old_count = Ns.objects.count()
+        old_count = NameServer.objects.count()
         self.ns_sample.save()
-        new_count = Ns.objects.count()
+        new_count = NameServer.objects.count()
         self.assertNotEqual(old_count, new_count)
 
     def test_model_can_change_ns(self):
@@ -117,18 +117,18 @@ class ModelNsTestCase(TestCase):
         self.ns_sample.save()
         old_name = self.ns_sample.name
         new_name = 'some-new-ns'
-        ns_sample_id = Ns.objects.get(name=old_name).nsid
+        ns_sample_id = NameServer.objects.get(name=old_name).nsid
         self.ns_sample.name = new_name
         self.ns_sample.save()
-        updated_name = Ns.objects.get(pk=ns_sample_id).name
+        updated_name = NameServer.objects.get(pk=ns_sample_id).name
         self.assertEqual(new_name, updated_name)
 
     def test_model_can_delete_ns(self):
         """Test that the model is able to delete an Ns."""
         self.ns_sample.save()
-        old_count = Ns.objects.count()
+        old_count = NameServer.objects.count()
         self.ns_sample.delete()
-        new_count = Ns.objects.count()
+        new_count = NameServer.objects.count()
         self.assertNotEqual(old_count, new_count)
 
 
@@ -553,8 +553,8 @@ class APIZonesTestCase(TestCase):
             expire=800,
             ttl=300
         )
-        self.ns_one = Ns(name='ns1.uio.no', ttl=400)
-        self.ns_two = Ns(name='ns2.uio.no', ttl=400)
+        self.ns_one = NameServer(name='ns1.uio.no', ttl=400)
+        self.ns_two = NameServer(name='ns2.uio.no', ttl=400)
         self.post_data_one = {'name': 'hf.uio.no', 'nameservers': ['ns1.uio.no', 'ns2.uio.no'],
                               'email': 'hostmaster@uio.no', 'refresh': 400, 'retry': 300, 'expire': 800, 'ttl': 350}
         self.post_data_two = {'name': 'sv.uio.no', 'nameservers': ['ns1.uio.no', 'ns2.uio.no'],
@@ -644,8 +644,8 @@ class APIZonesNsTestCase(TestCase):
         """Define the test client and other variables."""
         self.post_data = {'name': 'hf.uio.no', 'nameservers': ['ns2.uio.no'],
                           'email': 'hostmaster@uio.no', 'refresh': 400, 'retry': 300, 'expire': 800, 'ttl': 350}
-        self.ns_one = Ns(name='ns1.uio.no', ttl=400)
-        self.ns_two = Ns(name='ns2.uio.no', ttl=400)
+        self.ns_one = NameServer(name='ns1.uio.no', ttl=400)
+        self.ns_two = NameServer(name='ns2.uio.no', ttl=400)
         self.ns_one.save()
         self.ns_two.save()
         self.client = APIClient()
@@ -710,8 +710,8 @@ class APINameserversTestCase(TestCase):
         """Define the test client and other variables."""
         self.post_data = {'name': 'hf.uio.no', 'nameservers': ['ns2.uio.no'],
                           'email': 'hostmaster@uio.no', 'refresh': 400, 'retry': 300, 'expire': 800, 'ttl': 350}
-        self.ns_one = Ns(name='ns1.uio.no', ttl=400)
-        self.ns_two = Ns(name='ns2.uio.no', ttl=400)
+        self.ns_one = NameServer(name='ns1.uio.no', ttl=400)
+        self.ns_two = NameServer(name='ns2.uio.no', ttl=400)
         self.ns_one.save()
         self.ns_two.save()
         self.client = APIClient()
