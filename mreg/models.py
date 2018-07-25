@@ -176,7 +176,7 @@ class Cname(models.Model):
         return '{name:24} {ttl:5} IN {record_type:6} {record_data:39}{comment}\n'.format_map(data)
 
 
-class Subnets(models.Model):
+class Subnet(models.Model):
     subnetid = models.AutoField(primary_key=True, serialize=True)
     range = models.TextField(unique=True)
     description = models.TextField(blank=True, null=True)
@@ -188,7 +188,7 @@ class Subnets(models.Model):
     reserved = models.IntegerField(default=3)
 
     class Meta:
-        db_table = 'subnets'
+        db_table = 'subnet'
 
 
 class Naptr(models.Model):

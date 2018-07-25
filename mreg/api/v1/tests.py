@@ -137,19 +137,19 @@ class ModelSubnetsTestCase(TestCase):
 
     def setUp(self):
         """Define the test client and other test variables."""
-        self.subnet_sample = Subnets(range='129.240.202.0/20',
-                                     description='some description',
-                                     vlan=123,
-                                     dns_delegated=False,
-                                     category='so',
-                                     location='silurveien',
-                                     frozen=False)
+        self.subnet_sample = Subnet(range='129.240.202.0/20',
+                                    description='some description',
+                                    vlan=123,
+                                    dns_delegated=False,
+                                    category='so',
+                                    location='silurveien',
+                                    frozen=False)
 
     def test_model_can_create_ns(self):
         """Test that the model is able to create a Subnet."""
-        old_count = Subnets.objects.count()
+        old_count = Subnet.objects.count()
         self.subnet_sample.save()
-        new_count = Subnets.objects.count()
+        new_count = Subnet.objects.count()
         self.assertNotEqual(old_count, new_count)
 
     def test_model_can_change_ns(self):
@@ -159,15 +159,15 @@ class ModelSubnetsTestCase(TestCase):
         subnet_sample_id = self.subnet_sample.subnetid
         self.subnet_sample.vlan = new_vlan
         self.subnet_sample.save()
-        updated_vlan = Subnets.objects.get(pk=subnet_sample_id).vlan
+        updated_vlan = Subnet.objects.get(pk=subnet_sample_id).vlan
         self.assertEqual(new_vlan, updated_vlan)
 
     def test_model_can_delete_ns(self):
         """Test that the model is able to delete a Subnet."""
         self.subnet_sample.save()
-        old_count = Subnets.objects.count()
+        old_count = Subnet.objects.count()
         self.subnet_sample.delete()
-        new_count = Subnets.objects.count()
+        new_count = Subnet.objects.count()
         self.assertNotEqual(old_count, new_count)
 
 
@@ -183,10 +183,10 @@ class ModelIpaddressTestCase(TestCase):
                              loc='23 58 23 N 10 43 50 E 80m',
                              comment='some comment')
 
-        self.subnet_sample = Subnets(range='129.240.202.0/20',
-                                     description='some description',
-                                     vlan=123,
-                                     dns_delegated=False)
+        self.subnet_sample = Subnet(range='129.240.202.0/20',
+                                    description='some description',
+                                    vlan=123,
+                                    dns_delegated=False)
 
         self.host_one.save()
         # self.subnet_sample.save() # Needed when subnet ForeignKey is implemented.
@@ -814,20 +814,20 @@ class APISubnetsTestCase(TestCase):
     """"This class defines the test suite for api/subnets """
     def setUp(self):
         """Define the test client and other variables."""
-        self.subnet_sample = Subnets(range='129.240.204.0/24',
-                                     description='some description',
-                                     vlan=123,
-                                     dns_delegated=False,
-                                     category='so',
-                                     location='silurveien',
-                                     frozen=False)
-        self.subnet_sample_two = Subnets(range='129.240.205.0/28',
-                                         description='some description',
-                                         vlan=135,
-                                         dns_delegated=False,
-                                         category='so',
-                                         location='silurveien',
-                                         frozen=False)
+        self.subnet_sample = Subnet(range='129.240.204.0/24',
+                                    description='some description',
+                                    vlan=123,
+                                    dns_delegated=False,
+                                    category='so',
+                                    location='silurveien',
+                                    frozen=False)
+        self.subnet_sample_two = Subnet(range='129.240.205.0/28',
+                                        description='some description',
+                                        vlan=135,
+                                        dns_delegated=False,
+                                        category='so',
+                                        location='silurveien',
+                                        frozen=False)
 
         self.host_one = Host(name='some-host',
                              contact='some.email@some.domain.no',

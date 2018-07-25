@@ -193,7 +193,7 @@ class SrvSerializer(serializers.ModelSerializer):
 
 class SubnetsSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Subnets
+        model = Subnet
         fields = '__all__'
 
     def validate(self, data):
@@ -202,7 +202,7 @@ class SubnetsSerializer(serializers.ModelSerializer):
         return data
 
     def create(self):
-        return Subnets(**self.validated_data)
+        return Subnet(**self.validated_data)
 
 
 class ZonesSerializer(serializers.ModelSerializer):
