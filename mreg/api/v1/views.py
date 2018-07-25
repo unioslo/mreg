@@ -583,7 +583,7 @@ class ZoneDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
 
         for nameserver in zone.nameservers.values():
             ns = self.queryset_ns.get(name=nameserver['name'])
-            if ns.zones_set.count() == 1:
+            if ns.zone_set.count() == 1:
                 ns.delete()
 
         zone.delete()
