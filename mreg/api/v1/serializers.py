@@ -1,6 +1,7 @@
 from django.contrib.sessions.backends.base import CreateError
 from rest_framework import serializers
 from mreg.models import *
+from mreg.utils import *
 
 
 def ttl_validate(value):
@@ -9,20 +10,6 @@ def ttl_validate(value):
         raise serializers.ValidationError("Ensure this value is greater than or equal to 300.")
     if value > 68400:
         raise serializers.ValidationError("Ensure this value is less than or equal to 68400.")
-
-
-def nonify(value):
-    """
-    Checks if value is -1 or empty string and return None. If not, return original value.
-    :param value: Value to check.
-    :return: None or original value.
-    """
-    if value == -1:
-        return None
-    elif value == "":
-        return None
-    else:
-        return value
 
 
 def key_validate(obj):
@@ -53,7 +40,7 @@ class CnameSerializer(serializers.ModelSerializer):
         return value
 
 
-class HinfoPresetsSerializer(serializers.ModelSerializer):
+class HinfoPresetSerializer(serializers.ModelSerializer):
     class Meta:
         model = HinfoPresets
         fields = '__all__'
@@ -89,15 +76,28 @@ class TxtSerializer(serializers.ModelSerializer):
         return data
 
 
-class HostsSerializer(serializers.ModelSerializer):
+class PtrOverrideSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PtrOverride
+        fields = '__all__'
+
+    def validate(self, data):
+        key_validate(self)
+        data = {key: nonify(value) for key, value in data.items()}
+        return data
+
+
+class HostSerializer(serializers.ModelSerializer):
     ipaddress = IpaddressSerializer(many=True, read_only=True)
     cname = CnameSerializer(many=True, read_only=True)
     txt = TxtSerializer(many=True, read_only=True)
-    hinfo = HinfoPresetsSerializer(required=False)['hinfoid']
+    ptr_override = PtrOverrideSerializer(many=True, read_only=True)
+    hinfo = HinfoPresetSerializer(required=False)['hinfoid']
 
     class Meta:
         model = Hosts
-        fields = ('hostid', 'name', 'contact', 'ttl', 'hinfo', 'loc', 'comment', 'cname', 'ipaddress', 'txt')
+        fields = ('hostid', 'name', 'contact', 'ttl', 'hinfo', 'loc',
+                  'comment', 'cname', 'ipaddress', 'txt', 'ptr_override')
 
     def validate(self, data):
         key_validate(self)
@@ -112,15 +112,17 @@ class HostsSerializer(serializers.ModelSerializer):
         return value
 
 
-class HostsSaveSerializer(serializers.ModelSerializer):
+class HostSaveSerializer(serializers.ModelSerializer):
     ipaddress = IpaddressSerializer(many=True, read_only=True)
     cname = CnameSerializer(many=True, read_only=True)
     txt = TxtSerializer(many=True, read_only=True)
+    ptr_override = PtrOverrideSerializer(many=True, read_only=True)
     hinfo = serializers.IntegerField(required=False)
 
     class Meta:
         model = Hosts
-        fields = ('hostid', 'name', 'contact', 'ttl', 'hinfo', 'loc', 'comment', 'cname', 'ipaddress', 'txt')
+        fields = ('hostid', 'name', 'contact', 'ttl', 'hinfo', 'loc',
+                  'comment', 'cname', 'ipaddress', 'txt', 'ptr_override')
 
     def validate(self, data):
         key_validate(self)
@@ -136,12 +138,12 @@ class HostsSaveSerializer(serializers.ModelSerializer):
 
     def validate_hinfo(self, value):
         value = nonify(value)
-        if value != None:
+        if value is not None:
             value = HinfoPresets.objects.get(pk=value)
         return value
 
 
-class HostsNameSerializer(serializers.ModelSerializer):
+class HostNameSerializer(serializers.ModelSerializer):
     class Meta:
         model = Hosts
         fields = ('name',)
@@ -163,7 +165,7 @@ class NaptrSerializer(serializers.ModelSerializer):
         return data
 
 
-class NsSerializer(serializers.ModelSerializer):
+class NameServerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ns
         fields = '__all__'
@@ -174,17 +176,6 @@ class NsSerializer(serializers.ModelSerializer):
         if value:
             ttl_validate(value)
         return value
-
-
-class PtrOverrideSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = PtrOverride
-        fields = '__all__'
-
-    def validate(self, data):
-        key_validate(self)
-        data = {key: nonify(value) for key, value in data.items()}
-        return data
 
 
 class SrvSerializer(serializers.ModelSerializer):
@@ -200,7 +191,7 @@ class SrvSerializer(serializers.ModelSerializer):
         return value
 
 
-class SubnetsSerializer(serializers.ModelSerializer):
+class SubnetSerializer(serializers.ModelSerializer):
     class Meta:
         model = Subnets
         fields = '__all__'
@@ -214,8 +205,8 @@ class SubnetsSerializer(serializers.ModelSerializer):
         return Subnets(**self.validated_data)
 
 
-class ZonesSerializer(serializers.ModelSerializer):
-    nameservers = NsSerializer(read_only=True, many=True)
+class ZoneSerializer(serializers.ModelSerializer):
+    nameservers = NameServerSerializer(read_only=True, many=True)
 
     class Meta:
         model = Zones
@@ -235,6 +226,20 @@ class ZonesSerializer(serializers.ModelSerializer):
         if value:
             ttl_validate(value)
         return value
+
+
+class ModelChangeLogsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ModelChangeLogs
+        fields = '__all__'
+
+    def validate(self, data):
+        key_validate(self)
+        data = {key: nonify(value) for key, value in data.items()}
+        return data
+
+    def create(self):
+        return ModelChangeLogs(**self.validated_data)
 
 
 

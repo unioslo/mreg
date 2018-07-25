@@ -1,6 +1,13 @@
+cached-property==1.4.3
+certifi==2018.4.16
 Django==2.0.6
+django-logging-json==1.15
+django-url-filter==0.3.5
 djangorestframework==3.8.2
+drf-extensions==0.3.1
+elasticsearch==6.3.0
+enum-compat==0.0.2
 psycopg2==2.7.5
 pytz==2018.4
-drf-extensions==0.3.1
-django-url-filter
+six==1.11.0
+urllib3==1.23
