@@ -40,7 +40,7 @@ class CnameSerializer(serializers.ModelSerializer):
         return value
 
 
-class HinfoPresetsSerializer(serializers.ModelSerializer):
+class HinfoPresetSerializer(serializers.ModelSerializer):
     class Meta:
         model = HinfoPresets
         fields = '__all__'
@@ -87,12 +87,12 @@ class PtrOverrideSerializer(serializers.ModelSerializer):
         return data
 
 
-class HostsSerializer(serializers.ModelSerializer):
+class HostSerializer(serializers.ModelSerializer):
     ipaddress = IpaddressSerializer(many=True, read_only=True)
     cname = CnameSerializer(many=True, read_only=True)
     txt = TxtSerializer(many=True, read_only=True)
     ptr_override = PtrOverrideSerializer(many=True, read_only=True)
-    hinfo = HinfoPresetsSerializer(required=False)['hinfoid']
+    hinfo = HinfoPresetSerializer(required=False)['hinfoid']
 
     class Meta:
         model = Hosts
@@ -112,7 +112,7 @@ class HostsSerializer(serializers.ModelSerializer):
         return value
 
 
-class HostsSaveSerializer(serializers.ModelSerializer):
+class HostSaveSerializer(serializers.ModelSerializer):
     ipaddress = IpaddressSerializer(many=True, read_only=True)
     cname = CnameSerializer(many=True, read_only=True)
     txt = TxtSerializer(many=True, read_only=True)
@@ -143,7 +143,7 @@ class HostsSaveSerializer(serializers.ModelSerializer):
         return value
 
 
-class HostsNameSerializer(serializers.ModelSerializer):
+class HostNameSerializer(serializers.ModelSerializer):
     class Meta:
         model = Hosts
         fields = ('name',)
@@ -165,7 +165,7 @@ class NaptrSerializer(serializers.ModelSerializer):
         return data
 
 
-class NsSerializer(serializers.ModelSerializer):
+class NameServerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ns
         fields = '__all__'
@@ -191,7 +191,7 @@ class SrvSerializer(serializers.ModelSerializer):
         return value
 
 
-class SubnetsSerializer(serializers.ModelSerializer):
+class SubnetSerializer(serializers.ModelSerializer):
     class Meta:
         model = Subnets
         fields = '__all__'
@@ -205,8 +205,8 @@ class SubnetsSerializer(serializers.ModelSerializer):
         return Subnets(**self.validated_data)
 
 
-class ZonesSerializer(serializers.ModelSerializer):
-    nameservers = NsSerializer(read_only=True, many=True)
+class ZoneSerializer(serializers.ModelSerializer):
+    nameservers = NameServerSerializer(read_only=True, many=True)
 
     class Meta:
         model = Zones

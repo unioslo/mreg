@@ -21,7 +21,7 @@ class HinfoFilterSet(ModelFilterSet):
         model = HinfoPresets
 
 
-class HostsFilterSet(ModelFilterSet):
+class HostFilterSet(ModelFilterSet):
     class Meta(object):
         model = Hosts
 
@@ -36,12 +36,12 @@ class NaptrFilterSet(ModelFilterSet):
         model = Naptr
 
 
-class NameserverFilterSet(ModelFilterSet):
+class NameServerFilterSet(ModelFilterSet):
     class Meta(object):
         model = Ns
 
 
-class PtroverrideFilterSet(ModelFilterSet):
+class PtrOverrideFilterSet(ModelFilterSet):
     class Meta(object):
         model = PtrOverride
 
@@ -99,30 +99,30 @@ class CnameDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIV
     serializer_class = CnameSerializer
 
 
-class HinfoPresetsList(generics.ListCreateAPIView):
+class HinfoPresetList(generics.ListCreateAPIView):
     queryset = HinfoPresets.objects.all()
-    serializer_class = HinfoPresetsSerializer
+    serializer_class = HinfoPresetSerializer
 
     def get_queryset(self):
-        qs = super(HinfoPresetsList, self).get_queryset()
+        qs = super(HinfoPresetList, self).get_queryset()
         return HinfoFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class HinfoPresetsDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+class HinfoPresetDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = HinfoPresets.objects.all()
-    serializer_class = HinfoPresetsSerializer
+    serializer_class = HinfoPresetSerializer
 
 
 class HostList(generics.GenericAPIView):
     queryset = Hosts.objects.all()
-    serializer_class = HostsSerializer
+    serializer_class = HostSerializer
 
     def get_queryset(self):
         qs = super(HostList, self).get_queryset()
-        return HostsFilterSet(data=self.request.GET, queryset=qs).filter()
+        return HostFilterSet(data=self.request.GET, queryset=qs).filter()
 
     def get(self, request, *args, **kwargs):
-        serializer = HostsNameSerializer(self.get_queryset(), many=True)
+        serializer = HostNameSerializer(self.get_queryset(), many=True)
         return Response(serializer.data)
 
     # TODO Authentication
@@ -137,7 +137,7 @@ class HostList(generics.GenericAPIView):
             hostdata = QueryDict.copy(request.data)
             del hostdata['ipaddress']
             host = Hosts()
-            hostserializer = HostsSerializer(host, data=hostdata)
+            hostserializer = HostSerializer(host, data=hostdata)
             if hostserializer.is_valid(raise_exception=True):
                 try:
                     ipaddress.ip_address(ipkey)
@@ -158,7 +158,7 @@ class HostList(generics.GenericAPIView):
                     return Response(status=status.HTTP_400_BAD_REQUEST)
         else:
             host = Hosts()
-            hostserializer = HostsSerializer(host, data=request.data)
+            hostserializer = HostSerializer(host, data=request.data)
             if hostserializer.is_valid(raise_exception=True):
                 hostserializer.save()
                 location = '/hosts/%s' % host.name
@@ -167,7 +167,7 @@ class HostList(generics.GenericAPIView):
 
 class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Hosts.objects.all()
-    serializer_class = HostsSerializer
+    serializer_class = HostSerializer
 
     # TODO Authentication
     def get_object(self, queryset=queryset):
@@ -202,7 +202,7 @@ class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
 
         try:
             host = Hosts.objects.get(name=query)
-            serializer = HostsSaveSerializer(host, data=request.data, partial=True)
+            serializer = HostSaveSerializer(host, data=request.data, partial=True)
             if serializer.is_valid(raise_exception=True):
                 serializer.save()
                 location = '/hosts/%s' % host.name
@@ -294,18 +294,18 @@ class NaptrDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIV
     serializer_class = NaptrSerializer
 
 
-class NsList(generics.ListCreateAPIView):
+class NameServerList(generics.ListCreateAPIView):
     queryset = Ns.objects.all()
-    serializer_class = NsSerializer
+    serializer_class = NameServerSerializer
 
     def get_queryset(self):
-        qs = super(NsList, self).get_queryset()
-        return NameserverFilterSet(data=self.request.GET, queryset=qs).filter()
+        qs = super(NameServerList, self).get_queryset()
+        return NameServerFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class NsDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+class NameServerDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Ns.objects.all()
-    serializer_class = NsSerializer
+    serializer_class = NameServerSerializer
 
 
 class PtrOverrideList(generics.ListCreateAPIView):
@@ -314,7 +314,7 @@ class PtrOverrideList(generics.ListCreateAPIView):
 
     def get_queryset(self):
         qs = super(PtrOverrideList, self).get_queryset()
-        return PtroverrideFilterSet(data=self.request.GET, queryset=qs).filter()
+        return PtrOverrideFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
 class PtrOverrideDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
@@ -336,9 +336,9 @@ class SrvDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIVie
     serializer_class = SrvSerializer
 
 
-class SubnetsList(generics.ListCreateAPIView):
+class SubnetList(generics.ListCreateAPIView):
     queryset = Subnets.objects.all()
-    serializer_class = SubnetsSerializer
+    serializer_class = SubnetSerializer
 
     def post(self, request, *args, **kwargs):
         try:
@@ -363,7 +363,7 @@ class SubnetsList(generics.ListCreateAPIView):
             return Response({'ERROR': str(error)}, status=status.HTTP_400_BAD_REQUEST)
 
     def get_queryset(self):
-        qs = super(SubnetsList, self).get_queryset()
+        qs = super(SubnetList, self).get_queryset()
         return SubnetFilterSet(data=self.request.GET, queryset=qs).filter()
 
     def overlap_check(self, subnet):
@@ -382,9 +382,9 @@ class SubnetsList(generics.ListCreateAPIView):
         return self.overlap_check(subnet.supernet())
 
 
-class SubnetsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+class SubnetDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Subnets.objects.all()
-    serializer_class = SubnetsSerializer
+    serializer_class = SubnetSerializer
     lookup_field = 'range'
 
     def get(self, request, queryset=queryset, *args, **kwargs):
@@ -488,22 +488,22 @@ class TxtDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIVie
     serializer_class = TxtSerializer
 
 
-class ZonesList(generics.ListCreateAPIView):
+class ZoneList(generics.ListCreateAPIView):
     queryset = Zones.objects.all()
     queryset_ns = Ns.objects.all()
-    serializer_class = ZonesSerializer
+    serializer_class = ZoneSerializer
     count_day = int(time.strftime('%Y%m%d'))
     count = 0
 
     def get_queryset(self):
-        qs = super(ZonesList, self).get_queryset()
+        qs = super(ZoneList, self).get_queryset()
         return ZoneFilterSet(data=self.request.GET, queryset=qs).filter()
 
     # TODO: Implement authentication
     def post(self, request, *args, **kwargs):
-        if ZonesList.count_day < int(time.strftime('%Y%m%d')):
-            ZonesList.count_day = int(time.strftime('%Y%m%d'))
-            ZonesList.count = 0
+        if ZoneList.count_day < int(time.strftime('%Y%m%d')):
+            ZoneList.count_day = int(time.strftime('%Y%m%d'))
+            ZoneList.count = 0
 
         if self.queryset.filter(name=request.data["name"]).exists():
             content = {'ERROR': 'Zone name already in use'}
@@ -512,7 +512,7 @@ class ZonesList(generics.ListCreateAPIView):
         data = request.data.copy()
         data['primary_ns'] = data['nameservers'] if isinstance(request.data['nameservers'], str) else data['nameservers'][0]
         data['serialno'] = "%s%02d" % (time.strftime('%Y%m%d'), self.count)
-        ZonesList.count += 1
+        ZoneList.count += 1
 
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
@@ -529,9 +529,9 @@ class ZonesList(generics.ListCreateAPIView):
         return Response(status=status.HTTP_201_CREATED, headers={'Location': '/zones/%s' % data['name']})
 
 
-class ZonesDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+class ZoneDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Zones.objects.all()
-    serializer_class = ZonesSerializer
+    serializer_class = ZoneSerializer
     lookup_field = 'name'
 
     # TODO: Implement authentication
@@ -561,7 +561,7 @@ class ZonesDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
             raise Http404
 
 
-class ZonesNsDetail(ETAGMixin, generics.GenericAPIView):
+class ZoneNsDetail(ETAGMixin, generics.GenericAPIView):
     queryset = Zones.objects.all()
     queryset_ns = Ns.objects.all()
     lookup_field = 'name'
