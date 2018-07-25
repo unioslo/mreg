@@ -590,6 +590,7 @@ class ZoneDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
         location = '/zones/%s' % zone.name
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
+
 class ZoneNameServerDetail(ETAGMixin, generics.GenericAPIView):
     queryset = Zone.objects.all()
     queryset_ns = NameServer.objects.all()
@@ -618,9 +619,9 @@ class ZoneNameServerDetail(ETAGMixin, generics.GenericAPIView):
             # Check existing  nameservers and delete them if this zone is the only one that uses them
             for nameserver in zone.nameservers.values():
                 ns = self.queryset_ns.get(name=nameserver['name'])
-                if ns.zones_set.count() == 1:
+                if ns.zone_set.count() == 1:
                     ns.delete()
-             # Clear remaining references
+            # Clear remaining references
             zone.nameservers.clear()
 
             for nameserver in request.data.getlist('nameservers'):
