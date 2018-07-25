@@ -579,7 +579,10 @@ class ZoneDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
 
     def delete(self, request, *args, **kwargs):
         query = self.kwargs[self.lookup_field]
-        zone =  self.get_queryset().get(name=query)
+        try:
+            zone = self.get_queryset().get(name=query)
+        except Zone.DoesNotExist:
+            raise Http404
 
         for nameserver in zone.nameservers.values():
             ns = self.queryset_ns.get(name=nameserver['name'])
