@@ -2,33 +2,16 @@ from django.contrib.sessions.backends.base import CreateError
 from rest_framework import serializers
 from mreg.models import *
 from mreg.utils import *
+from mreg.validators import validate_keys
+from mreg.validators import validate_ttl
 
 
-def ttl_validate(value):
-    """Ensures a ttl-value is within accepted range."""
-    if value < 300:
-        raise serializers.ValidationError("Ensure this value is greater than or equal to 300.")
-    if value > 68400:
-        raise serializers.ValidationError("Ensure this value is less than or equal to 68400.")
-
-
-def key_validate(obj):
-    """
-    Filters out unknown keys and raises a ValidationError.
-    :param obj: Serializer object whose keys should be checked.
-    """
-    unknown_keys = set(obj.initial_data.keys()) - set(obj.fields.keys())
-    if unknown_keys:
-        raise serializers.ValidationError('invalid keys passed into serializer: {0}'.format(unknown_keys))
-
-
-class CnameSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Cname
-        fields = '__all__'
+class ValidationMixin(object):
+    """Provides standard validation of data fields"""
 
     def validate(self, data):
-        key_validate(self)
+        """Only allow known keys, and convert -1 or empty strings to None"""
+        validate_keys(self)
         data = {key: nonify(value) for key, value in data.items()}
         return data
 
@@ -36,58 +19,41 @@ class CnameSerializer(serializers.ModelSerializer):
         """Ensures ttl is within range. -1 equals None/Null"""
         value = nonify(value)
         if value:
-            ttl_validate(value)
+            validate_ttl(value)
         return value
 
 
-class HinfoPresetSerializer(serializers.ModelSerializer):
+class CnameSerializer(ValidationMixin, serializers.ModelSerializer):
+    class Meta:
+        model = Cname
+        fields = '__all__'
+
+
+class HinfoPresetSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
         model = HinfoPresets
         fields = '__all__'
 
-    def validate(self, data):
-        key_validate(self)
-        data = {key: nonify(value) for key, value in data.items()}
-        return data
 
-
-class IpaddressSerializer(serializers.ModelSerializer):
+class IpaddressSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
         model = Ipaddress
         fields = ('hostid', 'ipaddress', 'macaddress')
 
-    def validate(self, data):
-        invalid_keys = set(self.initial_data.keys()) - set(self.fields.keys())
-        if invalid_keys:
-            raise serializers.ValidationError('invalid keys passed into serializer: {0}'.format(invalid_keys))
-        key_validate(self)
-        data = {key: nonify(value) for key, value in data.items()}
-        return data
 
-
-class TxtSerializer(serializers.ModelSerializer):
+class TxtSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
         model = Txt
         fields = '__all__'
 
-    def validate(self, data):
-        key_validate(self)
-        data = {key: nonify(value) for key, value in data.items()}
-        return data
 
-
-class PtrOverrideSerializer(serializers.ModelSerializer):
+class PtrOverrideSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
         model = PtrOverride
         fields = '__all__'
 
-    def validate(self, data):
-        key_validate(self)
-        data = {key: nonify(value) for key, value in data.items()}
-        return data
 
-
-class HostSerializer(serializers.ModelSerializer):
+class HostSerializer(ValidationMixin, serializers.ModelSerializer):
     ipaddress = IpaddressSerializer(many=True, read_only=True)
     cname = CnameSerializer(many=True, read_only=True)
     txt = TxtSerializer(many=True, read_only=True)
@@ -99,20 +65,8 @@ class HostSerializer(serializers.ModelSerializer):
         fields = ('hostid', 'name', 'contact', 'ttl', 'hinfo', 'loc',
                   'comment', 'cname', 'ipaddress', 'txt', 'ptr_override')
 
-    def validate(self, data):
-        key_validate(self)
-        data = {key: nonify(value) for key, value in data.items()}
-        return data
 
-    def validate_ttl(self, value):
-        """Ensures ttl is within range. -1 equals None/Null"""
-        value = nonify(value)
-        if value:
-            ttl_validate(value)
-        return value
-
-
-class HostSaveSerializer(serializers.ModelSerializer):
+class HostSaveSerializer(ValidationMixin, serializers.ModelSerializer):
     ipaddress = IpaddressSerializer(many=True, read_only=True)
     cname = CnameSerializer(many=True, read_only=True)
     txt = TxtSerializer(many=True, read_only=True)
@@ -124,18 +78,6 @@ class HostSaveSerializer(serializers.ModelSerializer):
         fields = ('hostid', 'name', 'contact', 'ttl', 'hinfo', 'loc',
                   'comment', 'cname', 'ipaddress', 'txt', 'ptr_override')
 
-    def validate(self, data):
-        key_validate(self)
-        data = {key: nonify(value) for key, value in data.items()}
-        return data
-
-    def validate_ttl(self, value):
-        """Ensures ttl is within range. -1 equals None/Null"""
-        value = nonify(value)
-        if value:
-            ttl_validate(value)
-        return value
-
     def validate_hinfo(self, value):
         value = nonify(value)
         if value is not None:
@@ -143,104 +85,54 @@ class HostSaveSerializer(serializers.ModelSerializer):
         return value
 
 
-class HostNameSerializer(serializers.ModelSerializer):
+class HostNameSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
         model = Hosts
         fields = ('name',)
 
-    def validate(self, data):
-        key_validate(self)
-        data = {key: nonify(value) for key, value in data.items()}
-        return data
 
-
-class NaptrSerializer(serializers.ModelSerializer):
+class NaptrSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
         model = Naptr
         fields = '__all__'
 
-    def validate(self, data):
-        key_validate(self)
-        data = {key: nonify(value) for key, value in data.items()}
-        return data
 
-
-class NameServerSerializer(serializers.ModelSerializer):
+class NameServerSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
         model = Ns
         fields = '__all__'
 
-    def validate_ttl(self, value):
-        """Ensures ttl is within range. -1 equals None/Null"""
-        value = nonify(value)
-        if value:
-            ttl_validate(value)
-        return value
 
-
-class SrvSerializer(serializers.ModelSerializer):
+class SrvSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
         model = Srv
         fields = '__all__'
 
-    def validate_ttl(self, value):
-        """Ensures ttl is within range. -1 equals None/Null"""
-        value = nonify(value)
-        if value:
-            ttl_validate(value)
-        return value
 
-
-class SubnetSerializer(serializers.ModelSerializer):
+class SubnetSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
         model = Subnets
         fields = '__all__'
-
-    def validate(self, data):
-        key_validate(self)
-        data = {key: nonify(value) for key, value in data.items()}
-        return data
 
     def create(self):
         return Subnets(**self.validated_data)
 
 
-class ZoneSerializer(serializers.ModelSerializer):
+class ZoneSerializer(ValidationMixin, serializers.ModelSerializer):
     nameservers = NameServerSerializer(read_only=True, many=True)
 
     class Meta:
         model = Zones
         fields = '__all__'
 
-    def validate(self, data):
-        key_validate(self)
-        data = {key: nonify(value) for key, value in data.items()}
-        return data
-
     def create(self):
         return Zones(**self.validated_data)
 
-    def validate_ttl(self, value):
-        """Ensures ttl is within range. -1 equals None/Null"""
-        value = nonify(value)
-        if value:
-            ttl_validate(value)
-        return value
 
-
-class ModelChangeLogsSerializer(serializers.ModelSerializer):
+class ModelChangeLogsSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
         model = ModelChangeLogs
         fields = '__all__'
 
-    def validate(self, data):
-        key_validate(self)
-        data = {key: nonify(value) for key, value in data.items()}
-        return data
-
     def create(self):
         return ModelChangeLogs(**self.validated_data)
-
-
-
-
