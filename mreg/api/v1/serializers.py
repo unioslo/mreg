@@ -31,7 +31,7 @@ class CnameSerializer(ValidationMixin, serializers.ModelSerializer):
 
 class HinfoPresetSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
-        model = HinfoPresets
+        model = HinfoPreset
         fields = '__all__'
 
 
@@ -61,7 +61,7 @@ class HostSerializer(ValidationMixin, serializers.ModelSerializer):
     hinfo = HinfoPresetSerializer(required=False)['hinfoid']
 
     class Meta:
-        model = Hosts
+        model = Host
         fields = ('hostid', 'name', 'contact', 'ttl', 'hinfo', 'loc',
                   'comment', 'cname', 'ipaddress', 'txt', 'ptr_override')
 
@@ -74,20 +74,21 @@ class HostSaveSerializer(ValidationMixin, serializers.ModelSerializer):
     hinfo = serializers.IntegerField(required=False)
 
     class Meta:
-        model = Hosts
+        model = Host
         fields = ('hostid', 'name', 'contact', 'ttl', 'hinfo', 'loc',
                   'comment', 'cname', 'ipaddress', 'txt', 'ptr_override')
 
     def validate_hinfo(self, value):
         value = nonify(value)
+
         if value is not None:
-            value = HinfoPresets.objects.get(pk=value)
+            value = HinfoPreset.objects.get(pk=value)
         return value
 
 
 class HostNameSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
-        model = Hosts
+        model = Host
         fields = ('name',)
 
 
@@ -99,7 +100,7 @@ class NaptrSerializer(ValidationMixin, serializers.ModelSerializer):
 
 class NameServerSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
-        model = Ns
+        model = NameServer
         fields = '__all__'
 
 
@@ -111,28 +112,28 @@ class SrvSerializer(ValidationMixin, serializers.ModelSerializer):
 
 class SubnetSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
-        model = Subnets
+        model = Subnet
         fields = '__all__'
 
     def create(self):
-        return Subnets(**self.validated_data)
+        return Subnet(**self.validated_data)
 
 
 class ZoneSerializer(ValidationMixin, serializers.ModelSerializer):
     nameservers = NameServerSerializer(read_only=True, many=True)
 
     class Meta:
-        model = Zones
+        model = Zone
         fields = '__all__'
 
     def create(self):
-        return Zones(**self.validated_data)
+        return Zone(**self.validated_data)
 
 
-class ModelChangeLogsSerializer(ValidationMixin, serializers.ModelSerializer):
+class ModelChangeLogSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
-        model = ModelChangeLogs
+        model = ModelChangeLog
         fields = '__all__'
 
     def create(self):
-        return ModelChangeLogs(**self.validated_data)
+        return ModelChangeLog(**self.validated_data)

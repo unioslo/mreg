@@ -23,18 +23,18 @@ from mreg.api.v1.serializers import *
 @receiver(post_save, sender=Naptr)
 def save_host_history_on_save(sender, instance, created, **kwargs):
     """Receives post_save signal for models that have a ForeignKey to Hosts and updates the host history log."""
-    hostdata = HostSerializer(Hosts.objects.get(hostid=instance.hostid_id)).data
+    hostdata = HostSerializer(Host.objects.get(hostid=instance.hostid_id)).data
 
     # Cleaning up data from related tables
     hostdata['ipaddress'] = [record['ipaddress'] for record in hostdata['ipaddress']]
     hostdata['txt'] = [record['txt'] for record in hostdata['txt']]
     hostdata['cname'] = [record['cname'] for record in hostdata['cname']]
     hostdata['ptr_override'] = [record['ipaddress'] for record in hostdata['ptr_override']]
-    new_log_entry = ModelChangeLogs(table_name='hosts',
-                                    table_row=hostdata['hostid'],
-                                    data=hostdata,
-                                    action='saved',
-                                    timestamp=timezone.now())
+    new_log_entry = ModelChangeLog(table_name='hosts',
+                                   table_row=hostdata['hostid'],
+                                   data=hostdata,
+                                   action='saved',
+                                   timestamp=timezone.now())
     new_log_entry.save()
 
 
@@ -45,7 +45,7 @@ def save_host_history_on_save(sender, instance, created, **kwargs):
 @receiver(post_delete, sender=Naptr)
 def save_host_history_on_delete(sender, instance, **kwargs):
     """Receives post_delete signal for models that have a ForeignKey to Hosts and updates the host history log."""
-    hostdata = HostSerializer(Hosts.objects.get(hostid=instance.hostid_id)).data
+    hostdata = HostSerializer(Host.objects.get(hostid=instance.hostid_id)).data
 
     # Cleaning up data from related tables
     hostdata['ipaddress'] = [record['ipaddress'] for record in hostdata['ipaddress']]
@@ -53,9 +53,9 @@ def save_host_history_on_delete(sender, instance, **kwargs):
     hostdata['cname'] = [record['cname'] for record in hostdata['cname']]
     hostdata['ptr_override'] = [record['ipaddress'] for record in hostdata['ptr_override']]
 
-    new_log_entry = ModelChangeLogs(table_name='hosts',
-                                    table_row=hostdata['hostid'],
-                                    data=hostdata,
-                                    action='deleted',
-                                    timestamp=timezone.now())
+    new_log_entry = ModelChangeLog(table_name='hosts',
+                                   table_row=hostdata['hostid'],
+                                   data=hostdata,
+                                   action='deleted',
+                                   timestamp=timezone.now())
     new_log_entry.save()
