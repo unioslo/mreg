@@ -525,13 +525,16 @@ class ZoneList(generics.ListCreateAPIView):
                 ns = self.queryset_ns.get(name=nameserver)
                 zone.nameservers.add(ns.nsid)
             except Ns.DoesNotExist:
-                return Response({'ERROR': 'Could not find NS: %s' % nameserver}, status=status.HTTP_404_NOT_FOUND)
+                ns = Ns(name=nameserver)
+                ns.save()
+                zone.nameservers.add(ns.nsid)
         zone.save()
         return Response(status=status.HTTP_201_CREATED, headers={'Location': '/zones/%s' % data['name']})
 
 
 class ZoneDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Zones.objects.all()
+    queryset_ns = Ns.objects.all()
     serializer_class = ZoneSerializer
     lookup_field = 'name'
 
@@ -551,6 +554,11 @@ class ZoneDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
             if self.queryset.filter(serialno=request.data["serialno"]).exists():
                 content = {'ERROR': 'serialno already in use'}
                 return Response(content, status=status.HTTP_409_CONFLICT)
+
+        if "nameservers" in request.data:
+            content = {'ERROR': 'Not allowed to patch nameservers, use zones/{}/nameservers'.format(query)}
+            return Response(content, status=status.HTTP_403_FORBIDDEN)
+
         try:
             zone = Zones.objects.get(name=query)
             serializer = self.get_serializer(zone, data=request.data, partial=True)
@@ -561,10 +569,23 @@ class ZoneDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
         except Zones.DoesNotExist:
             raise Http404
 
+    def delete(self, request, *args, **kwargs):
+        query = self.kwargs[self.lookup_field]
+        zone =  self.get_queryset().get(name=query)
+
+        for nameserver in zone.nameservers.values():
+            ns = self.queryset_ns.get(name=nameserver['name'])
+            if ns.zones_set.count() == 1:
+                ns.delete()
+
+        zone.delete()
+        location = '/zones/%s' % zone.name
+        return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 class ZoneNsDetail(ETAGMixin, generics.GenericAPIView):
     queryset = Zones.objects.all()
     queryset_ns = Ns.objects.all()
+    serializer_class = ZoneSerializer
     lookup_field = 'name'
 
     # TODO Authorization
@@ -572,28 +593,39 @@ class ZoneNsDetail(ETAGMixin, generics.GenericAPIView):
         query = self.kwargs[self.lookup_field]
         try:
             zone = self.get_queryset().get(name=query)
-            ns_list = []
-            for ns in zone.nameservers.values():
-                ns_list.append(ns['name'])
-            return Response(ns_list, status=status.HTTP_200_OK)
+            return Response([ns['name'] for ns in zone.nameservers.values()], status=status.HTTP_200_OK)
         except Zones.DoesNotExist:
             raise Http404
 
-    # TODO Fix zone.nameservers.clear()
     # TODO Authorization
     def patch(self, request, *args, **kwargs):
         query = self.kwargs[self.lookup_field]
         try:
             zone = self.get_queryset().get(name=query)
+
             if 'nameservers' not in request.data:
                 return Response({'ERROR': 'No NS name found in body'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Check existing  nameservers and delete them if this zone is the only one that uses them
+            for nameserver in zone.nameservers.values():
+                ns = self.queryset_ns.get(name=nameserver['name'])
+                if ns.zones_set.count() == 1:
+                    ns.delete()
+             # Clear remaining references
             zone.nameservers.clear()
+
             for nameserver in request.data.getlist('nameservers'):
                 try:
                     ns = self.queryset_ns.get(name=nameserver)
                     zone.nameservers.add(ns)
                 except Ns.DoesNotExist:
-                    raise Http404
+                    ns = Ns(name=nameserver)
+                    ns.save()
+                    zone.nameservers.add(ns.nsid)
+
+            zone.serialno = "%s%02d" % (time.strftime('%Y%m%d'), ZoneList.count)
+            ZoneList.count += 1
+            zone.primary_ns = request.data.getlist('nameservers')[0]
             zone.save()
             location = 'zones/%s/nameservers' % query
             return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
