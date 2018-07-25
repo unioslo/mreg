@@ -337,11 +337,22 @@ class SrvDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIVie
     serializer_class = SrvSerializer
 
 
-class SubnetList(generics.ListCreateAPIView):
+class SubnetList(generics.ListAPIView):
+    """
+    Implementation for calls going to /subnets
+    """
     queryset = Subnets.objects.all()
     serializer_class = SubnetSerializer
 
+
     def post(self, request, *args, **kwargs):
+        """
+            POST - /subnets
+            Data required: <range> <description>
+                 optional: <vlan> <dns_delegated> <category> <location> <frozen> <reserved>
+            Checks if the supplied range is a valid IPv4/IPv6 range and that it doesn't overlap with any
+            existing subnets before creating a new subnet
+        """
         try:
             network = ipaddress.ip_network(request.data['range'])
             hosts = network.num_addresses
@@ -354,6 +365,7 @@ class SubnetList(generics.ListCreateAPIView):
             serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)
             subnet = serializer.create()
+            # Changed the default value of reserved if the size of the subnet is too low
             if hosts <= 4:
                 subnet.reserved = 2
             subnet.save()
@@ -364,16 +376,20 @@ class SubnetList(generics.ListCreateAPIView):
             return Response({'ERROR': str(error)}, status=status.HTTP_400_BAD_REQUEST)
 
     def get_queryset(self):
+        """
+        Applies filtering to the queryset
+        :return: filtered list of subnets
+        """
         qs = super(SubnetList, self).get_queryset()
         return SubnetFilterSet(data=self.request.GET, queryset=qs).filter()
 
     def overlap_check(self, subnet):
         """
-        Recursively checks supernets for current subnet to look for existing entries.
-        If an entry is found it returns True (Overlap = True).
-        It will keep searching until it reaches a prefix length of 16 bits, after which there is
-        no point searching unless you own an ridiculous amount of IPv4 addresses.
-        Can of course be changed at will.
+            Recursively checks supernets for current subnet to look for existing entries.
+            If an entry is found it returns True (Overlap = True).
+            It will keep searching until it reaches a prefix length of 16 bits, after which there is
+            no point searching unless you own an ridiculous amount of IPv4 addresses.
+            Can of course be changed at will.
         """
         if subnet.prefixlen < 16:
             return False
@@ -383,12 +399,22 @@ class SubnetList(generics.ListCreateAPIView):
         return self.overlap_check(subnet.supernet())
 
 
-class SubnetDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+class SubnetDetail(ETAGMixin, generics.GenericAPIView):
+    """
+    Implementation for calls going to /subnets/<range>
+    """
     queryset = Subnets.objects.all()
     serializer_class = SubnetSerializer
     lookup_field = 'range'
 
     def get(self, request, queryset=queryset, *args, **kwargs):
+        """
+            GET - /subnets/<range> | /subnets/<range>?used_list
+            Data required: <>
+            Returns the subnet object representing the given range
+            If the query parameter used_list is appended, the list containing IP addresses that are in use
+            on the given range is returned instead
+        """
         ip = self.kwargs['ip']
         mask = self.kwargs['range']
         iprange = '%s/%s' % (ip, mask)
@@ -397,7 +423,7 @@ class SubnetDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
         if invalid_range:
             return invalid_range
 
-        # Returns a list of used ipaddresses on a given subnet.
+        # Returns a list of used IP addresses on a given subnet.
         if request.META.get('QUERY_STRING') == 'used_list':
             used_ipaddresses = self.get_used_ipaddresses_on_subnet(iprange)
             return Response(used_ipaddresses, status=status.HTTP_200_OK)
@@ -411,17 +437,23 @@ class SubnetDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def patch(self, request, *args, **kwargs):
+        """
+            PATCH - /subnets/<range>
+            Data required: <>
+                 optional: <vlan> <dns_delegated> <category> <location> <frozen> <reserved>
+            Checks if the given range is a valid range and patches the subnet object
+            Patching the range of the subnet is not allowed
+        """
         ip = self.kwargs['ip']
         mask = self.kwargs['range']
         iprange = '%s/%s' % (ip, mask)
-        invalid_range = self.isnt_range(iprange)
-        if invalid_range:
-            return invalid_range
+        valid_range = self.is_range(iprange)
+
+        if not valid_range:
+            return valid_range
 
         if 'range' in request.data:
-            if self.queryset.filter(range=request.data['range']).exists():
-                content = {'ERROR': 'subnet already in use'}
-                return Response(content, status=status.HTTP_409_CONFLICT)
+            return Response({'ERROR': 'Not allowed to change range'}, status=status.HTTP_409_CONFLICT)
 
         try:
             subnet = Subnets.objects.get(range=iprange)
@@ -434,6 +466,11 @@ class SubnetDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
             raise Http404
 
     def delete(self, request, *args, **kwargs):
+        """
+           DELETE - /subnets/<range>
+           Data required: <>
+           Deletes a given range unless it has IP addresses that are still in use
+        """
         ip = self.kwargs['ip']
         mask = self.kwargs['range']
         iprange = '%s/%s' % (ip, mask)
@@ -452,10 +489,15 @@ class SubnetDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
         except Subnets.DoesNotExist:
             raise Http404
 
-    def isnt_range(self, iprange):
+    def is_range(self, iprange):
+        """
+        Helper function to check if given string isn't a valid range
+        :param iprange:
+        :return: true or a response with an error that describes what's wrong with the string
+        """
         try:
             ipaddress.ip_network(iprange)
-            return None
+            return True
         except ValueError as error:
             return Response({'ERROR': str(error)}, status=status.HTTP_400_BAD_REQUEST)
 
