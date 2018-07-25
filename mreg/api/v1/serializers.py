@@ -1,6 +1,7 @@
 from django.contrib.sessions.backends.base import CreateError
 from rest_framework import serializers
 from mreg.models import *
+from mreg.utils import *
 
 
 def ttl_validate(value):
@@ -9,20 +10,6 @@ def ttl_validate(value):
         raise serializers.ValidationError("Ensure this value is greater than or equal to 300.")
     if value > 68400:
         raise serializers.ValidationError("Ensure this value is less than or equal to 68400.")
-
-
-def nonify(value):
-    """
-    Checks if value is -1 or empty string and return None. If not, return original value.
-    :param value: Value to check.
-    :return: None or original value.
-    """
-    if value == -1:
-        return None
-    elif value == "":
-        return None
-    else:
-        return value
 
 
 def key_validate(obj):
