@@ -524,13 +524,16 @@ class ZonesList(generics.ListCreateAPIView):
                 ns = self.queryset_ns.get(name=nameserver)
                 zone.nameservers.add(ns.nsid)
             except Ns.DoesNotExist:
-                return Response({'ERROR': 'Could not find NS: %s' % nameserver}, status=status.HTTP_404_NOT_FOUND)
+                ns = Ns(name=nameserver)
+                ns.save()
+                zone.nameservers.add(ns.nsid)
         zone.save()
         return Response(status=status.HTTP_201_CREATED, headers={'Location': '/zones/%s' % data['name']})
 
 
 class ZonesDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Zones.objects.all()
+    queryset_ns = Ns.objects.all()
     serializer_class = ZonesSerializer
     lookup_field = 'name'
 
@@ -551,7 +554,7 @@ class ZonesDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
                 content = {'ERROR': 'serialno already in use'}
                 return Response(content, status=status.HTTP_409_CONFLICT)
         try:
-            zone = Zones.objects.get(name=query)
+            zone = self.get_queryset().get(name=query)
             serializer = self.get_serializer(zone, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)
             serializer.save()
@@ -560,10 +563,24 @@ class ZonesDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
         except Zones.DoesNotExist:
             raise Http404
 
+    def delete(self, request, *args, **kwargs):
+        query = self.kwargs[self.lookup_field]
+        try:
+            zone = self.get_queryset().get(name=query)
+            for nameserver in zone.nameservers.values():
+                ns = self.queryset_ns.get(nsid=nameserver['nsid'])
+                if ns.zones_set.count() == 1:
+                    ns.delete()
+            zone.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except Zones.DoesNotExist:
+            raise Http404
+
 
 class ZonesNsDetail(ETAGMixin, generics.GenericAPIView):
     queryset = Zones.objects.all()
     queryset_ns = Ns.objects.all()
+    serializer_class =  NsSerializer
     lookup_field = 'name'
 
     # TODO Authorization
@@ -591,7 +608,9 @@ class ZonesNsDetail(ETAGMixin, generics.GenericAPIView):
                     ns = self.queryset_ns.get(name=nameserver)
                     zone.nameservers.add(ns)
                 except Ns.DoesNotExist:
-                    raise Http404
+                    ns = Ns(name=nameserver)
+                    ns.save()
+                    zone.nameservers.add(ns.nsid)
             zone.save()
             location = 'zones/%s/nameservers' % query
             return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
