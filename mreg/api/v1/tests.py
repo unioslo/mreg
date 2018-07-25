@@ -50,20 +50,20 @@ class ModelZonesTestCase(TestCase):
     # TODO: test this for sub-zones (usit.uio.no) and "top"-zones (usit.no)?
     def setUp(self):
         """Define the test client and other test variables."""
-        self.zone_sample = Zones(name='some-zone',
-                                 primary_ns='some-ns-server',
-                                 email='some.email@some.domain.no',
-                                 serialno=1234567890,
-                                 refresh=400,
-                                 retry=300,
-                                 expire=800,
-                                 ttl=300)
+        self.zone_sample = Zone(name='some-zone',
+                                primary_ns='some-ns-server',
+                                email='some.email@some.domain.no',
+                                serialno=1234567890,
+                                refresh=400,
+                                retry=300,
+                                expire=800,
+                                ttl=300)
 
     def test_model_can_create_a_zone(self):
         """Test that the model is able to create a zone."""
-        old_count = Zones.objects.count()
+        old_count = Zone.objects.count()
         self.zone_sample.save()
-        new_count = Zones.objects.count()
+        new_count = Zone.objects.count()
         self.assertNotEqual(old_count, new_count)
 
     def test_model_can_change_a_zone(self):
@@ -71,18 +71,18 @@ class ModelZonesTestCase(TestCase):
         self.zone_sample.save()
         old_name = self.zone_sample.name
         new_name = 'some-new-zone'
-        zone_sample_id = Zones.objects.get(name=old_name).zoneid
+        zone_sample_id = Zone.objects.get(name=old_name).zoneid
         self.zone_sample.name = new_name
         self.zone_sample.save()
-        updated_name = Zones.objects.get(pk=zone_sample_id).name
+        updated_name = Zone.objects.get(pk=zone_sample_id).name
         self.assertEqual(new_name, updated_name)
 
     def test_model_can_delete_a_zone(self):
         """Test that the model is able to delete a zone."""
         self.zone_sample.save()
-        old_count = Zones.objects.count()
+        old_count = Zone.objects.count()
         self.zone_sample.delete()
-        new_count = Zones.objects.count()
+        new_count = Zone.objects.count()
         self.assertNotEqual(old_count, new_count)
 
 
@@ -91,14 +91,14 @@ class ModelNsTestCase(TestCase):
 
     def setUp(self):
         """Define the test client and other test variables."""
-        self.zone_sample = Zones(name='some-zone',
-                                 primary_ns='some-ns-server',
-                                 email='some.email@some.domain.no',
-                                 serialno=1234567890,
-                                 refresh=400,
-                                 retry=300,
-                                 expire=800,
-                                 ttl=300)
+        self.zone_sample = Zone(name='some-zone',
+                                primary_ns='some-ns-server',
+                                email='some.email@some.domain.no',
+                                serialno=1234567890,
+                                refresh=400,
+                                retry=300,
+                                expire=800,
+                                ttl=300)
 
         self.zone_sample.save()
 
@@ -543,7 +543,7 @@ class APIZonesTestCase(TestCase):
 
     def setUp(self):
         """Define the test client and other variables."""
-        self.zone_one = Zones(
+        self.zone_one = Zone(
             name="matnat.uio.no",
             primary_ns="ns1.uio.no",
             email="hostmaster@uio.no",

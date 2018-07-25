@@ -20,7 +20,7 @@ class NameServer(models.Model):
         return '                         {ttl:5} IN {record_type:6} {record_data}\n'.format_map(data)
 
 
-class Zones(models.Model):
+class Zone(models.Model):
     zoneid = models.AutoField(primary_key=True, serialize=True)
     name = models.TextField(unique=True)
     primary_ns = models.TextField()
@@ -33,7 +33,7 @@ class Zones(models.Model):
     ttl = models.IntegerField(blank=True, null=True)
 
     class Meta:
-        db_table = 'zones'
+        db_table = 'zone'
 
     def zf_string(self):
         data = {

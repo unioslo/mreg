@@ -209,7 +209,7 @@ class ZonesSerializer(serializers.ModelSerializer):
     nameservers = NsSerializer(read_only=True, many=True)
 
     class Meta:
-        model = Zones
+        model = Zone
         fields = '__all__'
 
     def validate(self, data):
@@ -218,7 +218,7 @@ class ZonesSerializer(serializers.ModelSerializer):
         return data
 
     def create(self):
-        return Zones(**self.validated_data)
+        return Zone(**self.validated_data)
 
     def validate_ttl(self, value):
         """Ensures ttl is within range. -1 equals None/Null"""

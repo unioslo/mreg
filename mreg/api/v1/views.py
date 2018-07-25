@@ -63,7 +63,7 @@ class TxtFilterSet(ModelFilterSet):
 
 class ZoneFilterSet(ModelFilterSet):
     class Meta(object):
-        model = Zones
+        model = Zone
 
 
 class StrictCRUDMixin(object):
@@ -489,7 +489,7 @@ class TxtDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIVie
 
 
 class ZonesList(generics.ListCreateAPIView):
-    queryset = Zones.objects.all()
+    queryset = Zone.objects.all()
     queryset_ns = NameServer.objects.all()
     serializer_class = ZonesSerializer
     count_day = int(time.strftime('%Y%m%d'))
@@ -530,7 +530,7 @@ class ZonesList(generics.ListCreateAPIView):
 
 
 class ZonesDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
-    queryset = Zones.objects.all()
+    queryset = Zone.objects.all()
     serializer_class = ZonesSerializer
     lookup_field = 'name'
 
@@ -551,18 +551,18 @@ class ZonesDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
                 content = {'ERROR': 'serialno already in use'}
                 return Response(content, status=status.HTTP_409_CONFLICT)
         try:
-            zone = Zones.objects.get(name=query)
+            zone = Zone.objects.get(name=query)
             serializer = self.get_serializer(zone, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)
             serializer.save()
             location = '/zones/%s' % zone.name
             return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
-        except Zones.DoesNotExist:
+        except Zone.DoesNotExist:
             raise Http404
 
 
 class ZonesNsDetail(ETAGMixin, generics.GenericAPIView):
-    queryset = Zones.objects.all()
+    queryset = Zone.objects.all()
     queryset_ns = NameServer.objects.all()
     lookup_field = 'name'
 
@@ -575,7 +575,7 @@ class ZonesNsDetail(ETAGMixin, generics.GenericAPIView):
             for ns in zone.nameservers.values():
                 ns_list.append(ns['name'])
             return Response(ns_list, status=status.HTTP_200_OK)
-        except Zones.DoesNotExist:
+        except Zone.DoesNotExist:
             raise Http404
 
     # TODO Fix zone.nameservers.clear()
@@ -596,7 +596,7 @@ class ZonesNsDetail(ETAGMixin, generics.GenericAPIView):
             zone.save()
             location = 'zones/%s/nameservers' % query
             return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
-        except Zones.DoesNotExist:
+        except Zone.DoesNotExist:
             raise Http404
             
             
@@ -635,7 +635,7 @@ class PlainTextRenderer(renderers.BaseRenderer):
 
 
 class ZoneFileDetail(generics.GenericAPIView):
-    queryset = Zones.objects.all()
+    queryset = Zone.objects.all()
     renderer_classes = (PlainTextRenderer, )
 
     def get(self, request, *args, **kwargs):
