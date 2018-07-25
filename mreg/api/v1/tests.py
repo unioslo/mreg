@@ -11,17 +11,17 @@ class ModelHostsTestCase(TestCase):
 
     def setUp(self):
         """Define the test client and other test variables."""
-        self.host_one = Hosts(name='some-host',
-                              contact='some.email@some.domain.no',
-                              ttl=300,
-                              loc='23 58 23 N 10 43 50 E 80m',
-                              comment='some comment')
+        self.host_one = Host(name='some-host',
+                             contact='some.email@some.domain.no',
+                             ttl=300,
+                             loc='23 58 23 N 10 43 50 E 80m',
+                             comment='some comment')
 
     def test_model_can_create_a_host(self):
         """Test that the model is able to create a host."""
-        old_count = Hosts.objects.count()
+        old_count = Host.objects.count()
         self.host_one.save()
-        new_count = Hosts.objects.count()
+        new_count = Host.objects.count()
         self.assertNotEqual(old_count, new_count)
 
     def test_model_can_change_a_host(self):
@@ -29,18 +29,18 @@ class ModelHostsTestCase(TestCase):
         self.host_one.save()
         old_name = self.host_one.name
         new_name = 'some-new-host'
-        host_sample_id = Hosts.objects.get(name=old_name).hostid
+        host_sample_id = Host.objects.get(name=old_name).hostid
         self.host_one.name = new_name
         self.host_one.save()
-        updated_name = Hosts.objects.get(pk=host_sample_id).name
+        updated_name = Host.objects.get(pk=host_sample_id).name
         self.assertEqual(new_name, updated_name)
 
     def test_model_can_delete_a_host(self):
         """Test that the model is able to delete a host."""
         self.host_one.save()
-        old_count = Hosts.objects.count()
+        old_count = Host.objects.count()
         self.host_one.delete()
-        new_count = Hosts.objects.count()
+        new_count = Host.objects.count()
         self.assertNotEqual(old_count, new_count)
 
 
@@ -177,11 +177,11 @@ class ModelIpaddressTestCase(TestCase):
     def setUp(self):
         """Define the test client and other test variables."""
         # Needs sample host and sample subnet to test properly
-        self.host_one = Hosts(name='some-host',
-                              contact='some.email@some.domain.no',
-                              ttl=300,
-                              loc='23 58 23 N 10 43 50 E 80m',
-                              comment='some comment')
+        self.host_one = Host(name='some-host',
+                             contact='some.email@some.domain.no',
+                             ttl=300,
+                             loc='23 58 23 N 10 43 50 E 80m',
+                             comment='some comment')
 
         self.subnet_sample = Subnets(range='129.240.202.0/20',
                                      description='some description',
@@ -191,7 +191,7 @@ class ModelIpaddressTestCase(TestCase):
         self.host_one.save()
         # self.subnet_sample.save() # Needed when subnet ForeignKey is implemented.
 
-        self.ipaddress_sample = Ipaddress(hostid=Hosts.objects.get(name='some-host'),
+        self.ipaddress_sample = Ipaddress(hostid=Host.objects.get(name='some-host'),
                                           ipaddress='129.240.202.123',
                                           macaddress='a4:34:d9:0e:88:b9')
 
@@ -226,15 +226,15 @@ class ModelPtrOverrideTestCase(TestCase):
     def setUp(self):
         """Define the test client and other test variables."""
         # Needs sample host to test
-        self.host_one = Hosts(name='some-host',
-                              contact='some.email@some.domain.no',
-                              ttl=300,
-                              loc='23 58 23 N 10 43 50 E 80m',
-                              comment='some comment')
+        self.host_one = Host(name='some-host',
+                             contact='some.email@some.domain.no',
+                             ttl=300,
+                             loc='23 58 23 N 10 43 50 E 80m',
+                             comment='some comment')
 
         self.host_one.save()
 
-        self.ptr_sample = PtrOverride(hostid=Hosts.objects.get(name='some-host'),
+        self.ptr_sample = PtrOverride(hostid=Host.objects.get(name='some-host'),
                                       ipaddress='129.240.202.123')
 
     def test_model_can_create_ptr(self):
@@ -268,15 +268,15 @@ class ModelTxtTestCase(TestCase):
     def setUp(self):
         """Define the test client and other test variables."""
         # Needs sample host to test properly
-        self.host_one = Hosts(name='some-host',
-                              contact='some.email@some.domain.no',
-                              ttl=300,
-                              loc='23 58 23 N 10 43 50 E 80m',
-                              comment='some comment')
+        self.host_one = Host(name='some-host',
+                             contact='some.email@some.domain.no',
+                             ttl=300,
+                             loc='23 58 23 N 10 43 50 E 80m',
+                             comment='some comment')
 
         self.host_one.save()
 
-        self.txt_sample = Txt(hostid=Hosts.objects.get(name='some-host'),
+        self.txt_sample = Txt(hostid=Host.objects.get(name='some-host'),
                               txt='some-text')
 
     def test_model_can_create_txt(self):
@@ -311,15 +311,15 @@ class ModelCnameTestCase(TestCase):
     def setUp(self):
         """Define the test client and other test variables."""
         # Needs sample host to test properly
-        self.host_one = Hosts(name='some-host',
-                              contact='some.email@some.domain.no',
-                              ttl=300,
-                              loc='23 58 23 N 10 43 50 E 80m',
-                              comment='some comment')
+        self.host_one = Host(name='some-host',
+                             contact='some.email@some.domain.no',
+                             ttl=300,
+                             loc='23 58 23 N 10 43 50 E 80m',
+                             comment='some comment')
 
         self.host_one.save()
 
-        self.cname_sample = Cname(hostid=Hosts.objects.get(name='some-host'),
+        self.cname_sample = Cname(hostid=Host.objects.get(name='some-host'),
                                   cname='some-cname',
                                   ttl=300)
 
@@ -354,15 +354,15 @@ class ModelNaptrTestCase(TestCase):
     def setUp(self):
         """Define the test client and other test variables."""
         # Needs sample host to test properly
-        self.host_one = Hosts(name='some-host',
-                              contact='some.email@some.domain.no',
-                              ttl=300,
-                              loc='23 58 23 N 10 43 50 E 80m',
-                              comment='some comment')
+        self.host_one = Host(name='some-host',
+                             contact='some.email@some.domain.no',
+                             ttl=300,
+                             loc='23 58 23 N 10 43 50 E 80m',
+                             comment='some comment')
 
         self.host_one.save()
 
-        self.naptr_sample = Naptr(hostid=Hosts.objects.get(name='some-host'),
+        self.naptr_sample = Naptr(hostid=Host.objects.get(name='some-host'),
                                   preference=1,
                                   orderv=1,
                                   flag='A',
@@ -401,11 +401,11 @@ class ModelSrvTestCase(TestCase):
     def setUp(self):
         """Define the test client and other test variables."""
         # Needs sample host to test properly
-        self.host_one = Hosts(name='some-host',
-                              contact='some.email@some.domain.no',
-                              ttl=300,
-                              loc='23 58 23 N 10 43 50 E 80m',
-                              comment='some comment')
+        self.host_one = Host(name='some-host',
+                             contact='some.email@some.domain.no',
+                             ttl=300,
+                             loc='23 58 23 N 10 43 50 E 80m',
+                             comment='some comment')
 
         self.host_one.save()
 
@@ -446,11 +446,11 @@ class ModelChangeLogsTestCase(TestCase):
 
     def setUp(self):
         """Define the test client and other test variables."""
-        self.host_one = Hosts(name='some-host',
-                              contact='some.email@some.domain.no',
-                              ttl=300,
-                              loc='23 58 23 N 10 43 50 E 80m',
-                              comment='some comment')
+        self.host_one = Host(name='some-host',
+                             contact='some.email@some.domain.no',
+                             ttl=300,
+                             loc='23 58 23 N 10 43 50 E 80m',
+                             comment='some comment')
         self.host_one.save()
 
         self.log_data = {'hostid': self.host_one.hostid,
@@ -479,8 +479,8 @@ class APIHostsTestCase(TestCase):
 
     def setUp(self):
         """Define the test client and other test variables."""
-        self.host_one = Hosts(name='skrutrekker.uio.no', contact='ulvik@usit.uio.no')
-        self.host_two = Hosts(name='maursluker.uio.no', contact='ulvik@usit.uio.no')
+        self.host_one = Host(name='skrutrekker.uio.no', contact='ulvik@usit.uio.no')
+        self.host_two = Host(name='maursluker.uio.no', contact='ulvik@usit.uio.no')
         self.patch_data = {'name': 'nytt-navn', 'contact': 'updated@mail.com'}
         self.patch_data_name = {'name': 'maursluker.uio.no', 'contact': 'updated@mail.com'}
         self.post_data = {'name': 'hiquality.uio.no', "ipaddress": '127.0.0.2', 'contact': 'hostmaster@uio.no'}
@@ -731,17 +731,17 @@ class APIIPaddressesTestCase(TestCase):
 
     def setUp(self):
         """Define the test client and other test variables."""
-        self.host_one = Hosts(name='some-host',
-                              contact='some.email@some.domain.no',
-                              ttl=300,
-                              loc='23 58 23 N 10 43 50 E 80m',
-                              comment='some comment')
+        self.host_one = Host(name='some-host',
+                             contact='some.email@some.domain.no',
+                             ttl=300,
+                             loc='23 58 23 N 10 43 50 E 80m',
+                             comment='some comment')
 
-        self.host_two = Hosts(name='some-other-host',
-                              contact='some.email@some.domain.no',
-                              ttl=300,
-                              loc='23 56 23 N 10 43 50 E 80m',
-                              comment='some comment')
+        self.host_two = Host(name='some-other-host',
+                             contact='some.email@some.domain.no',
+                             ttl=300,
+                             loc='23 56 23 N 10 43 50 E 80m',
+                             comment='some comment')
 
         self.host_one.save()
         self.host_two.save()
@@ -829,11 +829,11 @@ class APISubnetsTestCase(TestCase):
                                          location='silurveien',
                                          frozen=False)
 
-        self.host_one = Hosts(name='some-host',
-                              contact='some.email@some.domain.no',
-                              ttl=300,
-                              loc='23 58 23 N 10 43 50 E 80m',
-                              comment='some comment')
+        self.host_one = Host(name='some-host',
+                             contact='some.email@some.domain.no',
+                             ttl=300,
+                             loc='23 58 23 N 10 43 50 E 80m',
+                             comment='some comment')
         self.host_one.save()
         self.subnet_sample.save()
         self.subnet_sample_two.save()
@@ -951,11 +951,11 @@ class APIModelChangeLogsTestCase(TestCase):
 
     def setUp(self):
         """Define the test client and other variables."""
-        self.host_one = Hosts(name='some-host',
-                              contact='some.email@some.domain.no',
-                              ttl=300,
-                              loc='23 58 23 N 10 43 50 E 80m',
-                              comment='some comment')
+        self.host_one = Host(name='some-host',
+                             contact='some.email@some.domain.no',
+                             ttl=300,
+                             loc='23 58 23 N 10 43 50 E 80m',
+                             comment='some comment')
         self.host_one.save()
 
         self.log_data = {'hostid': self.host_one.hostid,

@@ -23,7 +23,7 @@ class HinfoFilterSet(ModelFilterSet):
 
 class HostsFilterSet(ModelFilterSet):
     class Meta(object):
-        model = Hosts
+        model = Host
 
 
 class IpaddressFilterSet(ModelFilterSet):
@@ -114,7 +114,7 @@ class HinfoPresetsDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDest
 
 
 class HostList(generics.GenericAPIView):
-    queryset = Hosts.objects.all()
+    queryset = Host.objects.all()
     serializer_class = HostsSerializer
 
     def get_queryset(self):
@@ -136,7 +136,7 @@ class HostList(generics.GenericAPIView):
             ipkey = request.data['ipaddress']
             hostdata = QueryDict.copy(request.data)
             del hostdata['ipaddress']
-            host = Hosts()
+            host = Host()
             hostserializer = HostsSerializer(host, data=hostdata)
             if hostserializer.is_valid(raise_exception=True):
                 try:
@@ -157,7 +157,7 @@ class HostList(generics.GenericAPIView):
                 except ValueError:
                     return Response(status=status.HTTP_400_BAD_REQUEST)
         else:
-            host = Hosts()
+            host = Host()
             hostserializer = HostsSerializer(host, data=request.data)
             if hostserializer.is_valid(raise_exception=True):
                 hostserializer.save()
@@ -166,7 +166,7 @@ class HostList(generics.GenericAPIView):
 
 
 class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
-    queryset = Hosts.objects.all()
+    queryset = Host.objects.all()
     serializer_class = HostsSerializer
 
     # TODO Authentication
@@ -182,7 +182,7 @@ class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
         except ValueError:
             try:
                 host = queryset.get(name=query)
-            except Hosts.DoesNotExist:
+            except Host.DoesNotExist:
                 raise Http404
         return host
 
@@ -201,13 +201,13 @@ class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
         try:
-            host = Hosts.objects.get(name=query)
+            host = Host.objects.get(name=query)
             serializer = HostsSaveSerializer(host, data=request.data, partial=True)
             if serializer.is_valid(raise_exception=True):
                 serializer.save()
                 location = '/hosts/%s' % host.name
                 return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
-        except Hosts.DoesNotExist:
+        except Host.DoesNotExist:
             raise Http404
 
 
@@ -645,7 +645,7 @@ class ZoneFileDetail(generics.GenericAPIView):
         for ns in zone.nameservers.all():
             data += ns.zf_string()
         data += ';\n; Host addresses\n;\n'
-        hosts = Hosts.objects.all()
+        hosts = Host.objects.all()
         for host in hosts:
             for ip in host.ipaddress.all():
                 data += ip.zf_string()

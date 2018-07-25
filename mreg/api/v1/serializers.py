@@ -95,7 +95,7 @@ class HostsSerializer(serializers.ModelSerializer):
     hinfo = HinfoPresetsSerializer(required=False)['hinfoid']
 
     class Meta:
-        model = Hosts
+        model = Host
         fields = ('hostid', 'name', 'contact', 'ttl', 'hinfo', 'loc',
                   'comment', 'cname', 'ipaddress', 'txt', 'ptr_override')
 
@@ -120,7 +120,7 @@ class HostsSaveSerializer(serializers.ModelSerializer):
     hinfo = serializers.IntegerField(required=False)
 
     class Meta:
-        model = Hosts
+        model = Host
         fields = ('hostid', 'name', 'contact', 'ttl', 'hinfo', 'loc',
                   'comment', 'cname', 'ipaddress', 'txt', 'ptr_override')
 
@@ -145,7 +145,7 @@ class HostsSaveSerializer(serializers.ModelSerializer):
 
 class HostsNameSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Hosts
+        model = Host
         fields = ('name',)
 
     def validate(self, data):

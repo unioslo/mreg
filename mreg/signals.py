@@ -23,7 +23,7 @@ from mreg.api.v1.serializers import *
 @receiver(post_save, sender=Naptr)
 def save_host_history_on_save(sender, instance, created, **kwargs):
     """Receives post_save signal for models that have a ForeignKey to Hosts and updates the host history log."""
-    hostdata = HostsSerializer(Hosts.objects.get(hostid=instance.hostid_id)).data
+    hostdata = HostsSerializer(Host.objects.get(hostid=instance.hostid_id)).data
 
     # Cleaning up data from related tables
     hostdata['ipaddress'] = [record['ipaddress'] for record in hostdata['ipaddress']]
@@ -45,7 +45,7 @@ def save_host_history_on_save(sender, instance, created, **kwargs):
 @receiver(post_delete, sender=Naptr)
 def save_host_history_on_delete(sender, instance, **kwargs):
     """Receives post_delete signal for models that have a ForeignKey to Hosts and updates the host history log."""
-    hostdata = HostsSerializer(Hosts.objects.get(hostid=instance.hostid_id)).data
+    hostdata = HostsSerializer(Host.objects.get(hostid=instance.hostid_id)).data
 
     # Cleaning up data from related tables
     hostdata['ipaddress'] = [record['ipaddress'] for record in hostdata['ipaddress']]
