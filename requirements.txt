@@ -1,5 +1,8 @@
 cached-property==1.4.3
 certifi==2018.4.16
+chardet==3.0.4
+coreapi==2.3.3
+coreschema==0.0.4
 Django==2.0.6
 django-logging-json==1.15
 django-url-filter==0.3.5
@@ -7,7 +10,13 @@ djangorestframework==3.8.2
 drf-extensions==0.3.1
 elasticsearch==6.3.0
 enum-compat==0.0.2
+idna==2.7
+itypes==1.1.0
+Jinja2==2.10
+MarkupSafe==1.0
 psycopg2==2.7.5
 pytz==2018.4
+requests==2.19.1
 six==1.11.0
+uritemplate==3.0.0
 urllib3==1.23
