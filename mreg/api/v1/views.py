@@ -575,7 +575,7 @@ class ZoneList(generics.ListAPIView):
 
         # A copy is required since the original is immutable
         data = request.data.copy()
-        data['primary_ns'] = data['nameservers'] if isinstance(request.data['nameservers'], str) else data['nameservers'][0]
+        data['primary_ns'] = data['primary_ns'] if isinstance(request.data['primary_ns'], str) else data['primary_ns'][0]
         data['serialno'] = create_serialno(ZoneList.get_zoneserial())
 
         serializer = self.get_serializer(data=data)
