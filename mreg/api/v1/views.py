@@ -340,19 +340,16 @@ class SrvDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIVie
 
 class SubnetList(generics.ListAPIView):
     """
-    Implementation for calls going to /subnets
+    list:
+    Returns a list of subnets
+
+    post:
+    Post a subnet. The new subnet can't overlap with any existing subnets.
     """
     queryset = Subnet.objects.all()
     serializer_class = SubnetSerializer
 
     def post(self, request, *args, **kwargs):
-        """
-            POST - /subnets
-            Data required: <range> <description>
-                 optional: <vlan> <dns_delegated> <category> <location> <frozen> <reserved>
-            Checks if the supplied range is a valid IPv4/IPv6 range and that it doesn't overlap with any
-            existing subnets before creating a new subnet
-        """
         try:
             network = ipaddress.ip_network(request.data['range'])
             hosts = network.num_addresses
@@ -400,7 +397,14 @@ class SubnetList(generics.ListAPIView):
 
 class SubnetDetail(ETAGMixin, generics.GenericAPIView):
     """
-    Implementation for calls going to /subnets/<range>
+    get:
+    Get a subnet. Query parameter ?used_list returns list of used IP addresses on the subnet
+
+    delete:
+    Deletes a subnet unless it has IP addresses that are still in use
+
+    patch:
+    Patches a subnet. Updating a zone's range is not allowed
     """
     queryset = Subnet.objects.all()
     serializer_class = SubnetSerializer
@@ -408,13 +412,6 @@ class SubnetDetail(ETAGMixin, generics.GenericAPIView):
     lookup_field = 'range'
 
     def get(self, request, queryset=queryset, *args, **kwargs):
-        """
-            GET - /subnets/<range> | /subnets/<range>?used_list
-            Data required: <>
-            Returns the subnet object representing the given range
-            If the query parameter used_list is appended, the list containing IP addresses that are in use
-            on the given range is returned instead
-        """
         ip = self.kwargs['ip']
         mask = self.kwargs['range']
         iprange = '%s/%s' % (ip, mask)
@@ -438,13 +435,6 @@ class SubnetDetail(ETAGMixin, generics.GenericAPIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def patch(self, request, *args, **kwargs):
-        """
-            PATCH - /subnets/<range>
-            Data required: <>
-                 optional: <vlan> <dns_delegated> <category> <location> <frozen> <reserved>
-            Checks if the given range is a valid range and patches the subnet object
-            Patching the range of the subnet is not allowed
-        """
         ip = self.kwargs['ip']
         mask = self.kwargs['range']
         iprange = '%s/%s' % (ip, mask)
@@ -468,11 +458,6 @@ class SubnetDetail(ETAGMixin, generics.GenericAPIView):
             raise Http404
 
     def delete(self, request, *args, **kwargs):
-        """
-           DELETE - /subnets/<range>
-           Data required: <>
-           Deletes a given range unless it has IP addresses that are still in use
-        """
         ip = self.kwargs['ip']
         mask = self.kwargs['range']
         iprange = '%s/%s' % (ip, mask)
@@ -536,7 +521,11 @@ class TxtDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIVie
 
 class ZoneList(generics.ListAPIView):
     """
-    Implementation for calls going to /zones
+    post:
+    Post a zone. The primary_ns field is a list where the first element will be the primary nameserver
+
+    list:
+    Returns a list zones
     """
     queryset = Zone.objects.all()
     queryset_hosts = Host.objects.all()
@@ -564,12 +553,6 @@ class ZoneList(generics.ListAPIView):
 
     # TODO: Implement authentication
     def post(self, request, *args, **kwargs):
-        """
-        POST - /zones
-           Data required: <name>  [<nameservers>]
-           Posts a zone with the first nameserver in the list as the primary_ns.
-           SOA needs to be patched
-        """
         if self.queryset.filter(name=request.data["name"]).exists():
             content = {'ERROR': 'Zone name already in use'}
             return Response(content, status=status.HTTP_409_CONFLICT)
@@ -604,7 +587,14 @@ class ZoneList(generics.ListAPIView):
 
 class ZoneDetail(ETAGMixin, generics.RetrieveAPIView):
     """
-        Implementation for calls going to /zones/<name>
+        get:
+        Retrieves a zone
+
+        patch:
+        Patch the zone. Nameservers need to be patched through /zones/<name>/nameservers. primary_ns needs to be a nameserver of the zone
+
+        delete:
+        Delete a zone
     """
     queryset = Zone.objects.all()
     queryset_hosts = Zone.objects.all()
@@ -614,12 +604,6 @@ class ZoneDetail(ETAGMixin, generics.RetrieveAPIView):
 
     # TODO: Implement authentication
     def patch(self, request, *args, **kwargs):
-        """
-            PATCH - /zones/<name>
-               Data required: <email> <primary_ns ><serialno> <refresh> <retry> <expire> <ttl> <>
-               Patch the SOA of a zone
-               Nameservers need to be patched through /zones/<name>/nameservers
-        """
         query = self.kwargs[self.lookup_field]
 
         if "zoneid" in request.data:
@@ -636,7 +620,7 @@ class ZoneDetail(ETAGMixin, generics.RetrieveAPIView):
                 content = {'ERROR': 'serialno already in use'}
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
-        if "nameservers" in request.data:
+        if "primary_ns" in request.data and not isinstance(request.data['nameservers'], str):
             content = {'ERROR': 'Not allowed to patch nameservers, use zones/{}/nameservers'.format(query)}
             return Response(content, status=status.HTTP_403_FORBIDDEN)
 
@@ -658,11 +642,6 @@ class ZoneDetail(ETAGMixin, generics.RetrieveAPIView):
             raise Http404
 
     def delete(self, request, *args, **kwargs):
-        """
-           DELETE - /zones/<name>
-                Data required: <>
-                Delete a zone
-        """
         query = self.kwargs[self.lookup_field]
         try:
             zone = self.get_queryset().get(name=query)
@@ -682,7 +661,11 @@ class ZoneDetail(ETAGMixin, generics.RetrieveAPIView):
 
 class ZoneNameServerDetail(ETAGMixin, generics.GenericAPIView):
     """
-        Implementation for calls going to /zones/<name>/nameservers
+        get:
+        Returns a list of nameservers for a given zone
+
+        patch:
+        Set the nameserver list of a zone. Requires all the nameservers  of the zone and removes the ones not mentioned
     """
     queryset = Zone.objects.all()
     queryset_ns = NameServer.objects.all()
@@ -693,11 +676,6 @@ class ZoneNameServerDetail(ETAGMixin, generics.GenericAPIView):
 
     # TODO Authorization
     def get(self, request, *args, **kwargs):
-        """
-            GET - /zone/<name>/nameservers
-                Data required: <>
-                Returns a list of nameservers for given zone. Updates serialno afterwards
-        """
         query = self.kwargs[self.lookup_field]
         try:
             zone = self.get_queryset().get(name=query)
@@ -707,11 +685,6 @@ class ZoneNameServerDetail(ETAGMixin, generics.GenericAPIView):
 
     # TODO Authorization
     def patch(self, request, *args, **kwargs):
-        """
-           PATCH - /zone/<name>/nameservers
-              Set the nameserver list of a zone.
-              Requires all the nameservers that are given and removes the old ones
-        """
         query = self.kwargs[self.lookup_field]
         try:
             zone = self.get_queryset().get(name=query)
