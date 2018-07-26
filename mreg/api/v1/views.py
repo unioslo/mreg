@@ -702,7 +702,7 @@ class ZoneNameServerDetail(ETAGMixin, generics.GenericAPIView):
         try:
             zone = self.get_queryset().get(name=query)
 
-            if 'nameservers' not in request.data:
+            if 'primary_ns' not in request.data:
                 return Response({'ERROR': 'No nameserver found in body'}, status=status.HTTP_400_BAD_REQUEST)
 
             # Check existing  nameservers and delete them if this zone is the only one that uses them
@@ -713,7 +713,7 @@ class ZoneNameServerDetail(ETAGMixin, generics.GenericAPIView):
             # Clear remaining references
             zone.nameservers.clear()
 
-            for nameserver in request.data.getlist('nameservers'):
+            for nameserver in request.data.getlist('primary_ns'):
                 # Check if a hosts with the name exists
                 try:
                     self.queryset_hosts.get(name=nameserver)
@@ -729,7 +729,7 @@ class ZoneNameServerDetail(ETAGMixin, generics.GenericAPIView):
                     return Response({'ERROR': "No host entry for %s" % nameserver}, status=status.HTTP_404_NOT_FOUND)
 
             zone.serialno = create_serialno(ZoneList.get_zoneserial())
-            zone.primary_ns = request.data.getlist('nameservers')[0]
+            zone.primary_ns = request.data.getlist('primary_ns')[0]
             zone.save()
             location = 'zones/%s/nameservers' % query
             return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
