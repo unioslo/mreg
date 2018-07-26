@@ -2,7 +2,11 @@ from django.contrib import admin
 from django.urls import path
 from mreg.api.v1 import views
 from rest_framework.urlpatterns import format_suffix_patterns
-from rest_framework.documentation import include_docs_urls
+from rest_framework_swagger.views import get_swagger_view
+
+
+# Changed from coreapi docs functionality to the django-rest-swagger which looks alot nicer
+schema_view = get_swagger_view(title='mreg API')
 
 
 urlpatterns = [
@@ -33,7 +37,7 @@ urlpatterns = [
     path('history/', views.ModelChangeLogList.as_view(), kwargs={'resource': 'model_change_logs'}),
     path('history/<table>/<pk>', views.ModelChangeLogDetail.as_view(), kwargs={'resource': 'model_change_logs'}),
     path('admin/', admin.site.urls),
-    path('docs/', include_docs_urls(title='mreg API'))
+    path('docs/', schema_view),
 ]
 
 urlpatterns = format_suffix_patterns(urlpatterns)

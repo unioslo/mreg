@@ -68,10 +68,14 @@ class ZoneFilterSet(ModelFilterSet):
 
 
 class StrictCRUDMixin(object):
-    """Applies stricter handling of HTTP requests and responses"""
+    """
+    Applies stricter handling of HTTP requests and responses.
+
+    patch:
+    should return empty body, 204 - No Content, and location of object
+    """
 
     def patch(self, request, *args, **kwargs):
-        """PATCH should return empty body, 204 - No Content, and location of object"""
         queryset = self.get_queryset()
         serializer_class = self.get_serializer_class()
         resource = self.kwargs['resource']
@@ -215,6 +219,13 @@ class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
 
 
 class IpaddressList(generics.ListCreateAPIView):
+    """
+    get:
+    Lists all ipaddresses in use
+
+    post:
+    Creates a new ipaddress object. Requires an existing host.
+    """
     queryset = Ipaddress.objects.all()
     serializer_class = IpaddressSerializer
 
@@ -338,6 +349,7 @@ class SrvDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIVie
     queryset = Srv.objects.all()
     serializer_class = SrvSerializer
 
+
 class SubnetList(generics.ListAPIView):
     """
     list:
@@ -394,6 +406,7 @@ class SubnetList(generics.ListAPIView):
             return True
 
         return self.overlap_check(subnet.supernet())
+
 
 class SubnetDetail(ETAGMixin, generics.GenericAPIView):
     """
@@ -518,6 +531,7 @@ class TxtList(generics.ListCreateAPIView):
 class TxtDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Txt.objects.all()
     serializer_class = TxtSerializer
+
 
 class ZoneList(generics.ListAPIView):
     """
@@ -656,7 +670,6 @@ class ZoneDetail(ETAGMixin, generics.RetrieveAPIView):
         zone.delete()
         location = '/zones/%s' % zone.name
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
-
 
 
 class ZoneNameServerDetail(ETAGMixin, generics.GenericAPIView):
