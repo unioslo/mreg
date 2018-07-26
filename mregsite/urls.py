@@ -36,10 +36,10 @@ urlpatterns = [
     path('txts/<pk>', views.TxtDetail.as_view(), kwargs={'resource': 'txts'}),
     path('zones/', views.ZoneList.as_view(), kwargs={'resource': 'zones'}),
     path('zones/<name>', views.ZoneDetail.as_view(), kwargs={'resource': 'zones'}),
-    path('zones/<name>/nameservers', views.ZoneNsDetail.as_view(), kwargs={'resource': 'zones'}),
+    path('zones/<name>/nameservers', views.ZoneNameServerDetail.as_view(), kwargs={'resource': 'zones'}),
     path('zonefiles/<pk>', views.ZoneFileDetail.as_view()),
-    path('history/', views.ModelChangeLogsList.as_view(), kwargs={'resource': 'model_change_logs'}),
-    path('history/<table>/<pk>', views.ModelChangeLogsDetail.as_view(), kwargs={'resource': 'model_change_logs'}),
+    path('history/', views.ModelChangeLogList.as_view(), kwargs={'resource': 'model_change_logs'}),
+    path('history/<table>/<pk>', views.ModelChangeLogDetail.as_view(), kwargs={'resource': 'model_change_logs'}),
     path('admin/', admin.site.urls),
 ]
 
