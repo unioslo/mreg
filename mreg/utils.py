@@ -1,4 +1,5 @@
 import ipaddress
+import time
 
 
 def clean(value):
@@ -71,3 +72,16 @@ def nonify(value):
         return None
     else:
         return value
+
+
+def create_serialno(serialno):
+    """
+    Creates an updated serialnumber based on the provided serialnumber
+    :param serialno: 10-digit serialnumber
+    :return: Updated serialnumber
+    """
+    today = int(time.strftime('%Y%m%d'))
+    if today > serialno//100:
+        return today*100
+    else:
+        return serialno+1

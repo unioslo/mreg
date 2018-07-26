@@ -501,8 +501,16 @@ class ZoneList(generics.ListCreateAPIView):
     queryset_ns = NameServer.objects.all()
     serializer_class = ZoneSerializer
 
-    count_day = int(time.strftime('%Y%m%d'))
-    count = 0
+    def get_zoneserial():
+        """
+        Get the latest updated serialno from all zones
+        :return: 10-digit serialno
+        """
+        serials = Zone.objects.values_list('serialno', flat=True)
+        if serials:
+            return max(serials)
+        else:
+            return 0
 
     def get_queryset(self):
         qs = super(ZoneList, self).get_queryset()
@@ -510,18 +518,13 @@ class ZoneList(generics.ListCreateAPIView):
 
     # TODO: Implement authentication
     def post(self, request, *args, **kwargs):
-        if ZoneList.count_day < int(time.strftime('%Y%m%d')):
-            ZoneList.count_day = int(time.strftime('%Y%m%d'))
-            ZoneList.count = 0
-
         if self.queryset.filter(name=request.data["name"]).exists():
             content = {'ERROR': 'Zone name already in use'}
             return Response(content, status=status.HTTP_409_CONFLICT)
 
         data = request.data.copy()
         data['primary_ns'] = data['nameservers'] if isinstance(request.data['nameservers'], str) else data['nameservers'][0]
-        data['serialno'] = "%s%02d" % (time.strftime('%Y%m%d'), self.count)
-        ZoneList.count += 1
+        data['serialno'] = create_serialno(ZoneList.get_zoneserial())
 
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
@@ -569,7 +572,9 @@ class ZoneDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
 
         try:
             zone = Zone.objects.get(name=query)
-            serializer = self.get_serializer(zone, data=request.data, partial=True)
+            data = request.data.copy()
+            data['serialno'] = create_serialno(ZoneList.get_zoneserial())
+            serializer = self.get_serializer(zone, data=data, partial=True)
             serializer.is_valid(raise_exception=True)
             serializer.save()
             location = '/zones/%s' % zone.name
@@ -636,8 +641,7 @@ class ZoneNameServerDetail(ETAGMixin, generics.GenericAPIView):
                     ns.save()
                     zone.nameservers.add(ns.nsid)
 
-            zone.serialno = "%s%02d" % (time.strftime('%Y%m%d'), ZoneList.count)
-            ZoneList.count += 1
+            zone.serialno = create_serialno(ZoneList.get_zoneserial())
             zone.primary_ns = request.data.getlist('nameservers')[0]
             zone.save()
             location = 'zones/%s/nameservers' % query
