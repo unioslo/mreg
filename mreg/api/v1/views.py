@@ -255,6 +255,16 @@ class IpaddressList(generics.ListCreateAPIView):
 
 
 class IpaddressDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+    """
+    get:
+    Returns details for the specified address. {id} can be replaced with {ipaddress}.
+
+    patch:
+    Update parts of the ipaddress. {id} can be replaced with {ipaddress}.
+
+    delete:
+    Delete the specified ipaddress. {id} can be replaced with {ipaddress}.
+    """
     queryset = Ipaddress.objects.all()
     serializer_class = IpaddressSerializer
 

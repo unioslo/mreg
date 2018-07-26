@@ -141,6 +141,11 @@ DJANGO_LOGGING = {
     "CONSOLE_LOG": False,
 }
 
+SWAGGER_SETTINGS = {
+    'USE_SESSION_AUTH': False,
+
+}
+
 try:
     from .local_settings import *
 except ImportError:
