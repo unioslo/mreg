@@ -558,9 +558,9 @@ class APIZonesTestCase(TestCase):
         self.host_three = Host(name='ns3.uio.no', contact='hostmaster@uio.no')
         self.ns_one = NameServer(name='ns1.uio.no', ttl=400)
         self.ns_two = NameServer(name='ns2.uio.no', ttl=400)
-        self.post_data_one = {'name': 'hf.uio.no', 'nameservers': ['ns1.uio.no', 'ns2.uio.no'],
+        self.post_data_one = {'name': 'hf.uio.no', 'primary_ns': ['ns1.uio.no', 'ns2.uio.no'],
                               'email': 'hostmaster@uio.no', 'refresh': 400, 'retry': 300, 'expire': 800, 'ttl': 350}
-        self.post_data_two = {'name': 'sv.uio.no', 'nameservers': ['ns1.uio.no', 'ns2.uio.no'],
+        self.post_data_two = {'name': 'sv.uio.no', 'primary_ns': ['ns1.uio.no', 'ns2.uio.no'],
                               'email': 'hostmaster@uio.no', 'refresh': 400, 'retry': 300, 'expire': 800, 'ttl': 350}
         self.patch_data = {'refresh': '500', 'expire': '1000'}
         self.host_one.save()
@@ -655,7 +655,7 @@ class APIZonesNsTestCase(TestCase):
 
     def setUp(self):
         """Define the test client and other variables."""
-        self.post_data = {'name': 'hf.uio.no', 'nameservers': ['ns2.uio.no'],
+        self.post_data = {'name': 'hf.uio.no', 'primary_ns': ['ns2.uio.no'],
                           'email': 'hostmaster@uio.no', 'refresh': 400, 'retry': 300, 'expire': 800, 'ttl': 350}
         self.ns_one = Host(name='ns1.uio.no', contact='chipotle.uio.no')
         self.ns_two = Host(name='ns2.uio.no', contact='maursluker.uio.no')
@@ -678,7 +678,7 @@ class APIZonesNsTestCase(TestCase):
         """"Patching the list of nameservers with an existing nameserver should return 204"""
         self.client.post('/zones/', self.post_data)
         response = self.client.patch('/zones/%s/nameservers' % self.post_data['name'],
-                                     {'nameservers': self.post_data['nameservers'] + [self.ns_one.name]})
+                                     {'nameservers': self.post_data['primary_ns'] + [self.ns_one.name]})
         self.assertEqual(response.status_code, 204)
 
     def test_zones_ns_patch_400_bad_request(self):
@@ -702,7 +702,7 @@ class APIZonesNsTestCase(TestCase):
         self.client.post('/zones/', self.post_data)
 
         response = self.client.patch('/zones/%s/nameservers' % self.post_data['name'],
-                                     {'nameservers': self.post_data['nameservers'] + [self.ns_one.name]})
+                                     {'nameservers': self.post_data['primary_ns'] + [self.ns_one.name]})
         self.assertEqual(response.status_code, 204)
 
         response = self.client.get('/zones/%s/nameservers' % self.post_data['name'])
@@ -713,7 +713,7 @@ class APIZonesNsTestCase(TestCase):
         self.assertEqual(response.status_code, 204)
 
         response = self.client.get('/zones/%s/nameservers' % self.post_data['name'])
-        self.assertEqual(response.data, self.post_data['nameservers'])
+        self.assertEqual(response.data, self.post_data['primary_ns'])
 
 
 class APIIPaddressesTestCase(TestCase):

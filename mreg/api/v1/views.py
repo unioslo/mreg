@@ -559,7 +559,7 @@ class ZoneList(generics.ListAPIView):
 
         # A copy is required since the original is immutable
         data = request.data.copy()
-        data['primary_ns'] = data['nameservers'] if isinstance(request.data['nameservers'], str) else data['nameservers'][0]
+        data['primary_ns'] = data['primary_ns'] if isinstance(request.data['primary_ns'], str) else data['primary_ns'][0]
         data['serialno'] = create_serialno(ZoneList.get_zoneserial())
 
         serializer = self.get_serializer(data=data)
@@ -568,7 +568,7 @@ class ZoneList(generics.ListAPIView):
         zone.save()
 
         # Check if nameserver is an existing host and add it as a nameserver to the zone
-        for nameserver in request.POST.getlist('nameservers'):
+        for nameserver in request.POST.getlist('primary_ns'):
             try:
                 host = self.queryset_hosts.get(name=nameserver)
                 try:
@@ -620,7 +620,7 @@ class ZoneDetail(ETAGMixin, generics.RetrieveAPIView):
                 content = {'ERROR': 'serialno already in use'}
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
-        if "primary_ns" in request.data and not isinstance(request.data['nameservers'], str):
+        if "primary_ns" in request.data and not isinstance(request.data['primary_ns'], str):
             content = {'ERROR': 'Not allowed to patch nameservers, use zones/{}/nameservers'.format(query)}
             return Response(content, status=status.HTTP_403_FORBIDDEN)
 
