@@ -40,4 +40,3 @@ urlpatterns = [
     path('docs/', schema_view),
 ]
 
-urlpatterns = format_suffix_patterns(urlpatterns)

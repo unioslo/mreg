@@ -262,6 +262,16 @@ class IpaddressList(generics.ListCreateAPIView):
 
 
 class IpaddressDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+    """
+    get:
+    Returns details for the specified address. {id} can be replaced with {ipaddress}.
+
+    patch:
+    Update parts of the ipaddress. {id} can be replaced with {ipaddress}.
+
+    delete:
+    Delete the specified ipaddress. {id} can be replaced with {ipaddress}.
+    """
     queryset = Ipaddress.objects.all()
     serializer_class = IpaddressSerializer
 
@@ -582,7 +592,7 @@ class ZoneList(generics.ListAPIView):
 
         # A copy is required since the original is immutable
         data = request.data.copy()
-        data['primary_ns'] = data['nameservers'] if isinstance(request.data['nameservers'], str) else data['nameservers'][0]
+        data['primary_ns'] = data['primary_ns'] if isinstance(request.data['primary_ns'], str) else data['primary_ns'][0]
         data['serialno'] = create_serialno(ZoneList.get_zoneserial())
 
         serializer = self.get_serializer(data=data)
@@ -711,7 +721,7 @@ class ZoneNameServerDetail(ETAGMixin, generics.GenericAPIView):
         try:
             zone = self.get_queryset().get(name=query)
 
-            if 'nameservers' not in request.data:
+            if 'primary_ns' not in request.data:
                 return Response({'ERROR': 'No nameserver found in body'}, status=status.HTTP_400_BAD_REQUEST)
 
             # Check existing  nameservers and delete them if this zone is the only one that uses them
@@ -722,7 +732,7 @@ class ZoneNameServerDetail(ETAGMixin, generics.GenericAPIView):
             # Clear remaining references
             zone.nameservers.clear()
 
-            for nameserver in request.data.getlist('nameservers'):
+            for nameserver in request.data.getlist('primary_ns'):
                 # Check if a hosts with the name exists
                 try:
                     self.queryset_hosts.get(name=nameserver)
@@ -738,7 +748,7 @@ class ZoneNameServerDetail(ETAGMixin, generics.GenericAPIView):
                     return Response({'ERROR': "No host entry for %s" % nameserver}, status=status.HTTP_404_NOT_FOUND)
 
             zone.serialno = create_serialno(ZoneList.get_zoneserial())
-            zone.primary_ns = request.data.getlist('nameservers')[0]
+            zone.primary_ns = request.data.getlist('primary_ns')[0]
             zone.save()
             location = 'zones/%s/nameservers' % query
             return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
