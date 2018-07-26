@@ -9,9 +9,9 @@ from rest_framework.response import Response
 from rest_framework import status
 from url_filter.filtersets import ModelFilterSet
 import ipaddress
-import time
 
 
+# These filtersets are used for applying generic filtering to all objects.
 class CnameFilterSet(ModelFilterSet):
     class Meta(object):
         model = Cname
@@ -68,10 +68,15 @@ class ZoneFilterSet(ModelFilterSet):
 
 
 class StrictCRUDMixin(object):
-    """Applies stricter handling of HTTP requests and responses"""
+    """
+    Applies stricter handling of HTTP requests and responses than the default generics.
+    Apply this mixin to generic classes that don't implement their own CRUD-operations.
+    """
 
     def patch(self, request, *args, **kwargs):
-        """PATCH should return empty body, 204 - No Content, and location of object"""
+        """
+        Successful PATCH should return an empty body, 204 - No Content, and location of object.
+        """
         queryset = self.get_queryset()
         serializer_class = self.get_serializer_class()
         resource = self.kwargs['resource']
@@ -787,6 +792,9 @@ class ModelChangeLogDetail(StrictCRUDMixin, generics.RetrieveAPIView):
 
             
 class PlainTextRenderer(renderers.BaseRenderer):
+    """
+    Custom renderer used for outputting plaintext.
+    """
     media_type = 'text/plain'
     format = 'txt'
 
@@ -795,6 +803,10 @@ class PlainTextRenderer(renderers.BaseRenderer):
 
 
 class ZoneFileDetail(generics.GenericAPIView):
+    """
+    Handles a DNS zone file in plaintext.
+    All models should have a zf_string() method that outputs its relevant data.
+    """
     queryset = Zone.objects.all()
     renderer_classes = (PlainTextRenderer, )
 
