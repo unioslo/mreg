@@ -121,6 +121,13 @@ class HinfoPresetDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestr
 
 
 class HostList(generics.GenericAPIView):
+    """
+    get:
+    Lists all hostnames
+
+    post:
+    Creates a new host object
+    """
     queryset = Host.objects.all()
     serializer_class = HostSerializer
 
@@ -786,10 +793,12 @@ class ZoneFileDetail(generics.GenericAPIView):
 
     def get(self, request, *args, **kwargs):
         zone = self.get_queryset().get(name=self.kwargs['pk'])
+        # Print info about Zone and its nameservers
         data = zone.zf_string()
         data += ';\n; Name servers\n;\n'
         for ns in zone.nameservers.all():
             data += ns.zf_string()
+        # Print info about hosts and their corresponding data
         data += ';\n; Host addresses\n;\n'
         hosts = Host.objects.all()
         for host in hosts:
@@ -803,6 +812,7 @@ class ZoneFileDetail(generics.GenericAPIView):
                 data += cname.zf_string()
             for txt in host.txt.all():
                 data += txt.zf_string()
+        # Print misc entries
         data += ';\n; Name authority pointers\n;\n'
         naptrs = Naptr.objects.all()
         for naptr in naptrs:
