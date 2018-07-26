@@ -33,7 +33,7 @@ urlpatterns = [
     path('history/', views.ModelChangeLogList.as_view(), kwargs={'resource': 'model_change_logs'}),
     path('history/<table>/<pk>', views.ModelChangeLogDetail.as_view(), kwargs={'resource': 'model_change_logs'}),
     path('admin/', admin.site.urls),
-    path('docs/', include_docs_urls(title='mreg API'))
+    path('docs/', include_docs_urls(title='mreg API')),
 ]
 
 urlpatterns = format_suffix_patterns(urlpatterns)
