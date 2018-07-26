@@ -634,6 +634,7 @@ class APIZonesTestCase(TestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_zones_403_forbidden(self):
+        # TODO: jobb skal gjøres her
         """"Deleting an entry with registered entries should require force"""
 
 

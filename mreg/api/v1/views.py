@@ -514,7 +514,6 @@ class ZoneList(generics.ListCreateAPIView):
 
     def get_queryset(self):
         qs = super(ZoneList, self).get_queryset()
-        print(self.get_zoneserial())
         return ZoneFilterSet(data=self.request.GET, queryset=qs).filter()
 
     # TODO: Implement authentication
@@ -585,11 +584,14 @@ class ZoneDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
 
     def delete(self, request, *args, **kwargs):
         query = self.kwargs[self.lookup_field]
-        zone = self.get_queryset().get(name=query)
+        try:
+            zone = self.get_queryset().get(name=query)
+        except Zone.DoesNotExist:
+            raise Http404
 
         for nameserver in zone.nameservers.values():
             ns = self.queryset_ns.get(name=nameserver['name'])
-            if ns.zones_set.count() == 1:
+            if ns.zone_set.count() == 1:
                 ns.delete()
 
         zone.delete()
