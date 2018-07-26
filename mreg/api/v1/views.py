@@ -9,9 +9,9 @@ from rest_framework.response import Response
 from rest_framework import status
 from url_filter.filtersets import ModelFilterSet
 import ipaddress
-import time
 
 
+# These filtersets are used for applying generic filtering to all objects.
 class CnameFilterSet(ModelFilterSet):
     class Meta(object):
         model = Cname
@@ -70,12 +70,14 @@ class ZoneFilterSet(ModelFilterSet):
 class StrictCRUDMixin(object):
     """
     Applies stricter handling of HTTP requests and responses.
+    Apply this mixin to generic classes that don't implement their own CRUD-operations.
 
     patch:
     should return empty body, 204 - No Content, and location of object
     """
 
     def patch(self, request, *args, **kwargs):
+        """PATCH should return empty body, 204 - No Content, and location of object"""
         queryset = self.get_queryset()
         serializer_class = self.get_serializer_class()
         resource = self.kwargs['resource']
@@ -573,7 +575,7 @@ class ZoneList(generics.ListAPIView):
 
         # A copy is required since the original is immutable
         data = request.data.copy()
-        data['primary_ns'] = data['primary_ns'] if isinstance(request.data['primary_ns'], str) else data['primary_ns'][0]
+        data['primary_ns'] = data['nameservers'] if isinstance(request.data['nameservers'], str) else data['nameservers'][0]
         data['serialno'] = create_serialno(ZoneList.get_zoneserial())
 
         serializer = self.get_serializer(data=data)
@@ -582,7 +584,7 @@ class ZoneList(generics.ListAPIView):
         zone.save()
 
         # Check if nameserver is an existing host and add it as a nameserver to the zone
-        for nameserver in request.POST.getlist('primary_ns'):
+        for nameserver in request.POST.getlist('nameservers'):
             try:
                 host = self.queryset_hosts.get(name=nameserver)
                 try:
@@ -634,7 +636,7 @@ class ZoneDetail(ETAGMixin, generics.RetrieveAPIView):
                 content = {'ERROR': 'serialno already in use'}
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
-        if "primary_ns" in request.data and not isinstance(request.data['primary_ns'], str):
+        if "nameservers" in request.data:
             content = {'ERROR': 'Not allowed to patch nameservers, use zones/{}/nameservers'.format(query)}
             return Response(content, status=status.HTTP_403_FORBIDDEN)
 
@@ -764,6 +766,9 @@ class ModelChangeLogDetail(StrictCRUDMixin, generics.RetrieveAPIView):
 
             
 class PlainTextRenderer(renderers.BaseRenderer):
+    """
+    Custom renderer used for outputting plaintext.
+    """
     media_type = 'text/plain'
     format = 'txt'
 
@@ -772,6 +777,10 @@ class PlainTextRenderer(renderers.BaseRenderer):
 
 
 class ZoneFileDetail(generics.GenericAPIView):
+    """
+    Handles a DNS zone file in plaintext.
+    All models should have a zf_string() method that outputs its relevant data.
+    """
     queryset = Zone.objects.all()
     renderer_classes = (PlainTextRenderer, )
 
