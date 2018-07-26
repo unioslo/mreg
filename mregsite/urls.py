@@ -2,16 +2,8 @@ from django.contrib import admin
 from django.urls import path
 from mreg.api.v1 import views
 from rest_framework.urlpatterns import format_suffix_patterns
+from rest_framework.documentation import include_docs_urls
 
-# Ex: Making a new IP address is a POST request to /ipaddresses | NB! Requires HOSTNAME (ForeignKey)
-#     Changing an existing IP address is a PATCH request to /ipaddresses/<ip>/
-#     Deleting an existing IP address is a DELETE request to /ipaddresses/<ip>/
-#
-# Equivalent for other fields.
-#
-# To access specific field for a given host <hostname>, use queries:
-# /hosts/<hostname>?ipaddress
-#
 
 urlpatterns = [
     path('cnames/', views.CnameList.as_view(), kwargs={'resource': 'cnames'}),
@@ -41,6 +33,7 @@ urlpatterns = [
     path('history/', views.ModelChangeLogList.as_view(), kwargs={'resource': 'model_change_logs'}),
     path('history/<table>/<pk>', views.ModelChangeLogDetail.as_view(), kwargs={'resource': 'model_change_logs'}),
     path('admin/', admin.site.urls),
+    path('docs/', include_docs_urls(title='mreg API'))
 ]
 
 urlpatterns = format_suffix_patterns(urlpatterns)
