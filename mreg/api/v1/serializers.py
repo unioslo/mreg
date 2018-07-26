@@ -67,6 +67,9 @@ class HostSerializer(ValidationMixin, serializers.ModelSerializer):
 
 
 class HostSaveSerializer(ValidationMixin, serializers.ModelSerializer):
+    """
+    Used for saving hosts, due to complications with nulling out a field by patching it with '-1'
+    """
     ipaddress = IpaddressSerializer(many=True, read_only=True)
     cname = CnameSerializer(many=True, read_only=True)
     txt = TxtSerializer(many=True, read_only=True)

@@ -2,7 +2,7 @@ import ipaddress
 import time
 
 
-def clean(value):
+def clear_none(value):
     """
     Cleans up potential Nones into empty strings instead
     :param value: Value to check
