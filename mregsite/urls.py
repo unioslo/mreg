@@ -1,14 +1,13 @@
 from django.contrib import admin
 from django.urls import path
 from mreg.api.v1 import views
-from rest_framework.urlpatterns import format_suffix_patterns
 from rest_framework_swagger.views import get_swagger_view
 
 
-# Changed from coreapi docs functionality to the django-rest-swagger which looks alot nicer
+# Schema view for swagger api documentation
 schema_view = get_swagger_view(title='mreg API')
 
-
+# The resource keyword argument is used by StrictCRUDMixin to determine the base url for generic views
 urlpatterns = [
     path('cnames/', views.CnameList.as_view(), kwargs={'resource': 'cnames'}),
     path('cnames/<pk>', views.CnameDetail.as_view(), kwargs={'resource': 'cnames'}),
@@ -40,4 +39,3 @@ urlpatterns = [
     path('docs/', schema_view),
 ]
 
-urlpatterns = format_suffix_patterns(urlpatterns)

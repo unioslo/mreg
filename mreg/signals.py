@@ -12,8 +12,8 @@ from mreg.api.v1.serializers import *
 # Additionally, the Hosts object is saved before the related objects when creating a new host,
 # so ipaddress data isn't available at the time of post_save for the Hosts object.
 #
-# Currently saves a snapshot of the entire host.
-# TODO: Figure out what to do on host delete.
+# Currently saves a JSON-snapshot of all data for the host.
+# TODO: Deleting a host should probably do something. Export/delete log for that host after some time?
 
 
 @receiver(post_save, sender=PtrOverride)
