@@ -1,4 +1,5 @@
 from django.core.validators import RegexValidator, MinValueValidator, MaxValueValidator
+from rest_framework import serializers
 
 
 # TODO: Move some validators to client
@@ -6,14 +7,16 @@ from django.core.validators import RegexValidator, MinValueValidator, MaxValueVa
 
 
 def validate_ttl(value):
-    """Validates that the ttl value is greater than or equal to a certain value."""
-    validator = MinValueValidator(300)
-    validator(value)
+    """Ensures a ttl-value is within accepted range."""
+    if value < 300:
+        raise serializers.ValidationError("Ensure this value is greater than or equal to 300.")
+    if value > 68400:
+        raise serializers.ValidationError("Ensure this value is less than or equal to 68400.")
 
 
 def validate_mac_address(address):
     """Validates that the mac address is on a valid form."""
-    adr_regex = "[0-9a-f]{2}([-:]?)[0-9a-f]{2}(\\1[0-9a-f]{2}){4}$"
+    adr_regex = "^([a-fA-F0-9]{2}[-:]?){5}[a-fA-F0-9]{2}$"
     validator = RegexValidator(adr_regex)
     validator(address)
 
@@ -45,3 +48,13 @@ def validate_zones_serialno(serialno):
     validator_max = MaxValueValidator(9999999999)
     validator_min(serialno)
     validator_max(serialno)
+
+
+def validate_keys(obj):
+    """
+    Filters out unknown keys and raises a ValidationError.
+    :param obj: Serializer object whose keys should be checked.
+    """
+    unknown_keys = set(obj.initial_data.keys()) - set(obj.fields.keys())
+    if unknown_keys:
+        raise serializers.ValidationError('invalid keys passed into serializer: {0}'.format(unknown_keys))

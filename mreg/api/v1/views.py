@@ -1,16 +1,17 @@
 from rest_framework import generics
 from django.http import Http404, QueryDict
 from django.core.exceptions import ObjectDoesNotExist
-from django.urls import reverse
 from mreg.models import *
 from mreg.api.v1.serializers import *
 from rest_framework_extensions.etag.mixins import ETAGMixin
+from rest_framework import renderers
 from rest_framework.response import Response
 from rest_framework import status
 from url_filter.filtersets import ModelFilterSet
-import ipaddress, time
+import ipaddress
 
 
+# These filtersets are used for applying generic filtering to all objects.
 class CnameFilterSet(ModelFilterSet):
     class Meta(object):
         model = Cname
@@ -18,12 +19,12 @@ class CnameFilterSet(ModelFilterSet):
 
 class HinfoFilterSet(ModelFilterSet):
     class Meta(object):
-        model = HinfoPresets
+        model = HinfoPreset
 
 
-class HostsFilterSet(ModelFilterSet):
+class HostFilterSet(ModelFilterSet):
     class Meta(object):
-        model = Hosts
+        model = Host
 
 
 class IpaddressFilterSet(ModelFilterSet):
@@ -36,12 +37,12 @@ class NaptrFilterSet(ModelFilterSet):
         model = Naptr
 
 
-class NameserverFilterSet(ModelFilterSet):
+class NameServerFilterSet(ModelFilterSet):
     class Meta(object):
-        model = Ns
+        model = NameServer
 
 
-class PtroverrideFilterSet(ModelFilterSet):
+class PtrOverrideFilterSet(ModelFilterSet):
     class Meta(object):
         model = PtrOverride
 
@@ -53,7 +54,7 @@ class SrvFilterSet(ModelFilterSet):
 
 class SubnetFilterSet(ModelFilterSet):
     class Meta(object):
-        model = Subnets
+        model = Subnet
 
 
 class TxtFilterSet(ModelFilterSet):
@@ -63,13 +64,16 @@ class TxtFilterSet(ModelFilterSet):
 
 class ZoneFilterSet(ModelFilterSet):
     class Meta(object):
-        model = Zones
+        model = Zone
 
 
 class StrictCRUDMixin(object):
-    """Applies stricter handling of HTTP requests and responses"""
+    """
+    Applies stricter handling of HTTP requests and responses.
+    Apply this mixin to generic classes that don't implement their own CRUD-operations.
+    Makes sure patch returns sempty body, 204 - No Content, and location of object.
+    """
 
-    """PATCH should return empty body, 204 - No Content, and location of object"""
     def patch(self, request, *args, **kwargs):
         queryset = self.get_queryset()
         serializer_class = self.get_serializer_class()
@@ -86,6 +90,13 @@ class StrictCRUDMixin(object):
 
 
 class CnameList(generics.ListCreateAPIView):
+    """
+    get:
+    Lists all cnames / aliases.
+
+    post:
+    Creates a new cname.
+    """
     queryset = Cname.objects.all()
     serializer_class = CnameSerializer
 
@@ -95,37 +106,70 @@ class CnameList(generics.ListCreateAPIView):
 
 
 class CnameDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+    """
+    get:
+    Returns details for the specified cname.
+
+    patch:
+    Update parts of the cname.
+
+    delete:
+    Delete the specified cname.
+    """
     queryset = Cname.objects.all()
     serializer_class = CnameSerializer
 
 
-class HinfoPresetsList(generics.ListCreateAPIView):
-    queryset = HinfoPresets.objects.all()
-    serializer_class = HinfoPresetsSerializer
+class HinfoPresetList(generics.ListCreateAPIView):
+    """
+    get:
+    Lists all hinfo presets.
+
+    post:
+    Creates a new hinfo preset.
+    """
+    queryset = HinfoPreset.objects.all()
+    serializer_class = HinfoPresetSerializer
 
     def get_queryset(self):
-        qs = super(HinfoPresetsList, self).get_queryset()
+        qs = super(HinfoPresetList, self).get_queryset()
         return HinfoFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class HinfoPresetsDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
-    queryset = HinfoPresets.objects.all()
-    serializer_class = HinfoPresetsSerializer
+class HinfoPresetDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+    """
+    get:
+    Returns details for a hinfo preset.
+
+    patch:
+    Update parts of a hinfo preset.
+
+    delete:
+    Delete a hinfo preset.
+    """
+    queryset = HinfoPreset.objects.all()
+    serializer_class = HinfoPresetSerializer
 
 
 class HostList(generics.GenericAPIView):
-    queryset = Hosts.objects.all()
-    serializer_class = HostsSerializer
+    """
+    get:
+    Lists all hostnames.
+
+    post:
+    Create a new host object. Allows posting with IP address in data.
+    """
+    queryset = Host.objects.all()
+    serializer_class = HostSerializer
 
     def get_queryset(self):
         qs = super(HostList, self).get_queryset()
-        return HostsFilterSet(data=self.request.GET, queryset=qs).filter()
+        return HostFilterSet(data=self.request.GET, queryset=qs).filter()
 
     def get(self, request, *args, **kwargs):
-        serializer = HostsNameSerializer(self.get_queryset(), many=True)
+        serializer = HostNameSerializer(self.get_queryset(), many=True)
         return Response(serializer.data)
 
-    # TODO Authentication
     def post(self, request, *args, **kwargs):
         if "name" in request.data:
             if self.queryset.filter(name=request.data["name"]).exists():
@@ -136,8 +180,9 @@ class HostList(generics.GenericAPIView):
             ipkey = request.data['ipaddress']
             hostdata = QueryDict.copy(request.data)
             del hostdata['ipaddress']
-            host = Hosts()
-            hostserializer = HostsSerializer(host, data=hostdata)
+            host = Host()
+            hostserializer = HostSerializer(host, data=hostdata)
+
             if hostserializer.is_valid(raise_exception=True):
                 try:
                     ipaddress.ip_address(ipkey)
@@ -157,8 +202,8 @@ class HostList(generics.GenericAPIView):
                 except ValueError:
                     return Response(status=status.HTTP_400_BAD_REQUEST)
         else:
-            host = Hosts()
-            hostserializer = HostsSerializer(host, data=request.data)
+            host = Host()
+            hostserializer = HostSerializer(host, data=request.data)
             if hostserializer.is_valid(raise_exception=True):
                 hostserializer.save()
                 location = '/hosts/%s' % host.name
@@ -166,10 +211,19 @@ class HostList(generics.GenericAPIView):
 
 
 class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
-    queryset = Hosts.objects.all()
-    serializer_class = HostsSerializer
+    """
+    get:
+    Returns details for the specified host. Includes relations like IP address/a-records, ptr-records, cnames.
 
-    # TODO Authentication
+    patch:
+    Update parts of the host.
+
+    delete:
+    Delete the specified host.
+    """
+    queryset = Host.objects.all()
+    serializer_class = HostSerializer
+
     def get_object(self, queryset=queryset):
         query = self.kwargs['pk']
         try:
@@ -182,11 +236,10 @@ class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
         except ValueError:
             try:
                 host = queryset.get(name=query)
-            except Hosts.DoesNotExist:
+            except Host.DoesNotExist:
                 raise Http404
         return host
 
-    # TODO Authentication
     def patch(self, request, *args, **kwargs):
         query = self.kwargs['pk']
 
@@ -201,17 +254,25 @@ class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
         try:
-            host = Hosts.objects.get(name=query)
-            serializer = HostsSaveSerializer(host, data=request.data, partial=True)
+            host = Host.objects.get(name=query)
+            serializer = HostSaveSerializer(host, data=request.data, partial=True)
+
             if serializer.is_valid(raise_exception=True):
                 serializer.save()
                 location = '/hosts/%s' % host.name
                 return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
-        except Hosts.DoesNotExist:
+        except Host.DoesNotExist:
             raise Http404
 
 
 class IpaddressList(generics.ListCreateAPIView):
+    """
+    get:
+    Lists all ipaddresses in use.
+
+    post:
+    Creates a new ipaddress object. Requires an existing host.
+    """
     queryset = Ipaddress.objects.all()
     serializer_class = IpaddressSerializer
 
@@ -239,6 +300,16 @@ class IpaddressList(generics.ListCreateAPIView):
 
 
 class IpaddressDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+    """
+    get:
+    Returns details for the specified address. {id} can be replaced with {ipaddress}.
+
+    patch:
+    Update parts of the ipaddress. {id} can be replaced with {ipaddress}.
+
+    delete:
+    Delete the specified ipaddress. {id} can be replaced with {ipaddress}.
+    """
     queryset = Ipaddress.objects.all()
     serializer_class = IpaddressSerializer
 
@@ -281,6 +352,13 @@ class IpaddressDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
 
 
 class NaptrList(generics.ListCreateAPIView):
+    """
+    get:
+    List all Naptr-records.
+
+    post:
+    Create a new Naptr-record.
+    """
     queryset = Naptr.objects.all()
     serializer_class = NaptrSerializer
 
@@ -290,39 +368,90 @@ class NaptrList(generics.ListCreateAPIView):
 
 
 class NaptrDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+    """
+    get:
+    Returns details for the specified Naptr-record.
+
+    patch:
+    Update parts of the specified Naptr-record.
+
+    delete:
+    Delete the specified Naptr-record.
+    """
     queryset = Naptr.objects.all()
     serializer_class = NaptrSerializer
 
 
-class NsList(generics.ListCreateAPIView):
-    queryset = Ns.objects.all()
-    serializer_class = NsSerializer
+class NameServerList(generics.ListCreateAPIView):
+    """
+    get:
+    List all nameserver-records.
+
+    post:
+    Create a new nameserver-record.
+    """
+    queryset = NameServer.objects.all()
+    serializer_class = NameServerSerializer
 
     def get_queryset(self):
-        qs = super(NsList, self).get_queryset()
-        return NameserverFilterSet(data=self.request.GET, queryset=qs).filter()
+        qs = super(NameServerList, self).get_queryset()
+        return NameServerFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class NsDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
-    queryset = Ns.objects.all()
-    serializer_class = NsSerializer
+class NameServerDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+    """
+    get:
+    Returns details for the specified nameserver-record.
+
+    patch:
+    Update parts of the specified nameserver-record.
+
+    delete:
+    Delete the specified nameserver-record.
+    """
+    queryset = NameServer.objects.all()
+    serializer_class = NameServerSerializer
 
 
 class PtrOverrideList(generics.ListCreateAPIView):
+    """
+    get:
+    List all ptr-overrides.
+
+    post:
+    Create a new ptr-override.
+    """
     queryset = PtrOverride.objects.all()
     serializer_class = PtrOverrideSerializer
 
     def get_queryset(self):
         qs = super(PtrOverrideList, self).get_queryset()
-        return PtroverrideFilterSet(data=self.request.GET, queryset=qs).filter()
+        return PtrOverrideFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
 class PtrOverrideDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+    """
+    get:
+    Returns details for the specified ptr-override.
+
+    patch:
+    Update parts of the specified ptr-override.
+
+    delete:
+    Delete the specified ptr-override.
+    """
     queryset = PtrOverride.objects.all()
     serializer_class = PtrOverrideSerializer
 
 
 class SrvList(generics.ListCreateAPIView):
+    """
+    get:
+    List all service records.
+
+    post:
+    Create a new service record.
+    """
     queryset = Srv.objects.all()
     serializer_class = SrvSerializer
 
@@ -332,18 +461,35 @@ class SrvList(generics.ListCreateAPIView):
 
 
 class SrvDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+    """
+    get:
+    Returns details for the specified srvice record.
+
+    patch:
+    Update parts of the specified service record.
+
+    delete:
+    Delete the specified service record.
+    """
     queryset = Srv.objects.all()
     serializer_class = SrvSerializer
 
 
-class SubnetsList(generics.ListCreateAPIView):
-    queryset = Subnets.objects.all()
-    serializer_class = SubnetsSerializer
+class SubnetList(generics.ListAPIView):
+    """
+    list:
+    Returns a list of subnets
+
+    post:
+    Create a new subnet. The new subnet can't overlap with any existing subnets.
+    """
+    queryset = Subnet.objects.all()
+    serializer_class = SubnetSerializer
 
     def post(self, request, *args, **kwargs):
         try:
             network = ipaddress.ip_network(request.data['range'])
-            hosts  = network.num_addresses
+            hosts = network.num_addresses
 
             overlap = self.overlap_check(network)
             if overlap:
@@ -353,6 +499,7 @@ class SubnetsList(generics.ListCreateAPIView):
             serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)
             subnet = serializer.create()
+            # Changed the default value of reserved if the size of the subnet is too low
             if hosts <= 4:
                 subnet.reserved = 2
             subnet.save()
@@ -363,16 +510,20 @@ class SubnetsList(generics.ListCreateAPIView):
             return Response({'ERROR': str(error)}, status=status.HTTP_400_BAD_REQUEST)
 
     def get_queryset(self):
-        qs = super(SubnetsList, self).get_queryset()
+        """
+        Applies filtering to the queryset
+        :return: filtered list of subnets
+        """
+        qs = super(SubnetList, self).get_queryset()
         return SubnetFilterSet(data=self.request.GET, queryset=qs).filter()
 
     def overlap_check(self, subnet):
         """
-        Recursively checks supernets for current subnet to look for existing entries.
+        Recursively checks supernets for current subnet to look for overlap with existing entries.
         If an entry is found it returns True (Overlap = True).
-        It will keep searching until it reaches a prefix length of 16 bits, after which there is
-        no point searching unless you own an ridiculous amount of IPv4 addresses.
-        Can of course be changed at will.
+        It will keep searching until it reaches a prefix length of 16 bits, which is
+        usually low enough to cover all relevant IPs. If you have more available addresses
+        than e.g 192.168.***.***, reduce the prefix length limit.
         """
         if subnet.prefixlen < 16:
             return False
@@ -382,28 +533,40 @@ class SubnetsList(generics.ListCreateAPIView):
         return self.overlap_check(subnet.supernet())
 
 
-class SubnetsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
-    queryset = Subnets.objects.all()
-    serializer_class = SubnetsSerializer
+class SubnetDetail(ETAGMixin, generics.GenericAPIView):
+    """
+    get:
+    List details for a subnet. Query parameter ?used_list returns list of used IP addresses on the subnet
+
+    patch:
+    Partially update a subnet. Updating a zone's range is not allowed
+
+    delete:
+    Deletes a subnet unless it has IP addresses that are still in use
+    """
+    queryset = Subnet.objects.all()
+    serializer_class = SubnetSerializer
+
     lookup_field = 'range'
 
     def get(self, request, queryset=queryset, *args, **kwargs):
         ip = self.kwargs['ip']
         mask = self.kwargs['range']
-        range = '%s/%s' % (ip, mask)
+        iprange = '%s/%s' % (ip, mask)
 
-        invalid_range = self.isnt_range(range)
-        if invalid_range:
-            return invalid_range
+        valid_range = self.is_range(iprange)
+        if not valid_range:
+            return valid_range
 
-        # Returns a list of used ipaddresses on a given subnet.
+        # Returns a list of used IP addresses on a given subnet.
         if request.META.get('QUERY_STRING') == 'used_list':
-            used_ipaddresses = self.get_used_ipaddresses_on_subnet(range)
+            used_ipaddresses = self.get_used_ipaddresses_on_subnet(iprange)
             return Response(used_ipaddresses, status=status.HTTP_200_OK)
 
         try:
-            found_subnet = Subnets.objects.get(range=range)
-        except Subnets.DoesNotExist:
+            found_subnet = Subnet.objects.get(range=iprange)
+        except Subnet.DoesNotExist:
+
             raise Http404
 
         serializer = self.get_serializer(found_subnet)
@@ -412,56 +575,63 @@ class SubnetsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     def patch(self, request, *args, **kwargs):
         ip = self.kwargs['ip']
         mask = self.kwargs['range']
-        range = '%s/%s' % (ip, mask)
-        invalid_range = self.isnt_range(range)
-        if invalid_range:
-            return invalid_range
+        iprange = '%s/%s' % (ip, mask)
+        valid_range = self.is_range(iprange)
+
+        if not valid_range:
+            return valid_range
 
         if 'range' in request.data:
-            if self.queryset.filter(range=request.data['range']).exists():
-                content = {'ERROR': 'subnet already in use'}
-                return Response(content, status=status.HTTP_409_CONFLICT)
+            return Response({'ERROR': 'Not allowed to change range'}, status=status.HTTP_403_FORBIDDEN)
 
         try:
-            subnet = Subnets.objects.get(range=range)
+            subnet = Subnet.objects.get(range=iprange)
+
             serializer = self.get_serializer(subnet, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)
             serializer.save()
-            location = '/subnets/%s' % subnet.range
+            location = '/subnets/%s' % iprange
             return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
-        except Subnets.DoesNotExist:
+        except Subnet.DoesNotExist:
             raise Http404
 
     def delete(self, request, *args, **kwargs):
         ip = self.kwargs['ip']
         mask = self.kwargs['range']
-        range = '%s/%s' % (ip, mask)
-        invalid_range = self.isnt_range(range)
-        if invalid_range:
-            return invalid_range
+        iprange = '%s/%s' % (ip, mask)
 
-        used_ipaddresses = self.get_used_ipaddresses_on_subnet(range)
+        valid_range = self.is_range(iprange)
+        if not valid_range:
+            return valid_range
+
+        used_ipaddresses = self.get_used_ipaddresses_on_subnet(iprange)
         if used_ipaddresses:
             return Response({'ERROR': 'Subnet contains IP addresses that are in use'}, status=status.HTTP_409_CONFLICT)
 
         try:
-            found_subnet = Subnets.objects.get(range=range)
+            found_subnet = Subnet.objects.get(range=iprange)
+
             found_subnet.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
-        except Subnets.DoesNotExist:
+        except Subnet.DoesNotExist:
             raise Http404
 
-    def isnt_range(self, range):
+    def is_range(self, iprange):
+        """
+        Helper function to check if given string isn't a valid range
+        :param iprange: the IP range
+        :return: true or a response with an error that describes what's wrong with the string
+        """
         try:
-            ipaddress.ip_network(range)
-            return None
+            ipaddress.ip_network(iprange)
+            return True
         except ValueError as error:
             return Response({'ERROR': str(error)}, status=status.HTTP_400_BAD_REQUEST)
 
     def get_used_ipaddresses_on_subnet(self, subnet):
         """
         Takes a valid subnet (ip-range), and checks which ip-addresses on the subnet are used.
-        ip_network.hosts() automatically ignores the network and broadcast addresses of the subnet,
+        ip_network.hosts() automatically ignores the network- and broadcast addresses of the subnet,
         unless the subnet consists of only these two addresses.
         """
         all_ipaddresses = [ipaddress.ip_address(ip_db.ipaddress) for ip_db in Ipaddress.objects.all()]
@@ -475,6 +645,14 @@ class SubnetsDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
 
 
 class TxtList(generics.ListCreateAPIView):
+    """
+    get:
+    Returns a list of all txt-records.
+
+    post:
+    Create a new txt-record.
+    """
+
     queryset = Txt.objects.all()
     serializer_class = TxtSerializer
 
@@ -484,124 +662,233 @@ class TxtList(generics.ListCreateAPIView):
 
 
 class TxtDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+    """
+     get:
+     List details for a txt-record.
+
+     patch:
+     Update parts of a txt-record.
+
+     delete:
+     Deletes a txt-record.
+     """
     queryset = Txt.objects.all()
     serializer_class = TxtSerializer
 
 
-class ZonesList(generics.ListCreateAPIView):
-    queryset = Zones.objects.all()
-    queryset_ns = Ns.objects.all()
-    serializer_class = ZonesSerializer
-    count_day = int(time.strftime('%Y%m%d'))
-    count = 0
+class ZoneList(generics.ListAPIView):
+    """
+    get:
+    Returns a list of all zones.
+
+    post:
+    Create a zone. The primary_ns field is a list where the first element will be the primary nameserver.
+
+    """
+    queryset = Zone.objects.all()
+    queryset_hosts = Host.objects.all()
+    queryset_ns = NameServer.objects.all()
+    serializer_class = ZoneSerializer
+
+    def get_zoneserial():
+        """
+        Get the latest updated serialno from all zones
+        :return: 10-digit serialno
+        """
+        serials = Zone.objects.values_list('serialno', flat=True)
+        if serials:
+            return max(serials)
+        else:
+            return 0
 
     def get_queryset(self):
-        qs = super(ZonesList, self).get_queryset()
+        """
+        Applies filtering to the queryset
+        :return: filtered list of zones
+        """
+        qs = super(ZoneList, self).get_queryset()
         return ZoneFilterSet(data=self.request.GET, queryset=qs).filter()
 
-    # TODO: Implement authentication
     def post(self, request, *args, **kwargs):
-        if ZonesList.count_day < int(time.strftime('%Y%m%d')):
-            ZonesList.count_day = int(time.strftime('%Y%m%d'))
-            ZonesList.count = 0
-
         if self.queryset.filter(name=request.data["name"]).exists():
             content = {'ERROR': 'Zone name already in use'}
             return Response(content, status=status.HTTP_409_CONFLICT)
-
+        # A copy is required since the original is immutable
         data = request.data.copy()
-        data['primary_ns'] = data['nameservers'] if isinstance(request.data['nameservers'], str) else data['nameservers'][0]
-        data['serialno'] = "%s%02d" % (time.strftime('%Y%m%d'), self.count)
-        ZonesList.count += 1
+        nameservers = request.POST.getlist('primary_ns')
+        data['primary_ns'] = nameservers[0]
+        data['serialno'] = create_serialno(ZoneList.get_zoneserial())
 
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         zone = serializer.create()
         zone.save()
 
-        for nameserver in request.POST.getlist('nameservers'):
+        # Check if nameserver is an existing host and add it as a nameserver to the zone
+        for nameserver in nameservers:
             try:
-                ns = self.queryset_ns.get(name=nameserver)
-                zone.nameservers.add(ns.nsid)
-            except Ns.DoesNotExist:
-                return Response({'ERROR': 'Could not find NS: %s' % nameserver}, status=status.HTTP_404_NOT_FOUND)
+                host = self.queryset_hosts.get(name=nameserver)
+                try:
+                    ns = self.queryset_ns.get(name=nameserver)
+                    zone.nameservers.add(ns.nsid)
+                except NameServer.DoesNotExist:
+                    ns = NameServer(name=nameserver)
+                    ns.save()
+                    zone.nameservers.add(ns.nsid)
+            except Host.DoesNotExist:
+                content = {'ERROR': 'No host entry for %s' % nameserver}
+                return Response(content, status=status.HTTP_404_NOT_FOUND)
         zone.save()
         return Response(status=status.HTTP_201_CREATED, headers={'Location': '/zones/%s' % data['name']})
 
 
-class ZonesDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
-    queryset = Zones.objects.all()
-    serializer_class = ZonesSerializer
+class ZoneDetail(ETAGMixin, generics.RetrieveAPIView):
+    """
+    get:
+    List details for a zone.
+
+    patch:
+    Update parts of a zone.
+    Nameservers need to be patched through /zones/<name>/nameservers. primary_ns needs to be a nameserver of the zone
+
+    delete:
+    Delete a zone.
+    """
+    queryset = Zone.objects.all()
+    queryset_hosts = Zone.objects.all()
+    queryset_ns = NameServer.objects.all()
+    serializer_class = ZoneSerializer
     lookup_field = 'name'
 
     # TODO: Implement authentication
     def patch(self, request, *args, **kwargs):
         query = self.kwargs[self.lookup_field]
-        if "name" in request.data:
-            content = {'ERROR': 'Not allowed to change name'}
-            return Response(content, status=status.HTTP_403_FORBIDDEN)
 
         if "zoneid" in request.data:
             if self.queryset.filter(zoneid=request.data["zoneid"]).exists():
                 content = {'ERROR': 'zoneid already in use'}
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
+        if "name" in request.data:
+            content = {'ERROR': 'Not allowed to change name'}
+            return Response(content, status=status.HTTP_403_FORBIDDEN)
+
         if "serialno" in request.data:
             if self.queryset.filter(serialno=request.data["serialno"]).exists():
                 content = {'ERROR': 'serialno already in use'}
                 return Response(content, status=status.HTTP_409_CONFLICT)
+
+        if "nameservers" in request.data:
+            content = {'ERROR': 'Not allowed to patch nameservers, use zones/{}/nameservers'.format(query)}
+            return Response(content, status=status.HTTP_403_FORBIDDEN)
+
         try:
-            zone = Zones.objects.get(name=query)
-            serializer = self.get_serializer(zone, data=request.data, partial=True)
+            zone = Zone.objects.get(name=query)
+            # Check if primary_ns is in the zone's list of nameservers
+            if "primary_ns" in request.data:
+                if request.data['primary_ns'] not in [nameserver['name'] for nameserver in zone.nameservers.values()]:
+                    content = {'ERROR': "%s is not one of %s's nameservers" % (request.data['primary_ns'], query)}
+                    return Response(content, status=status.HTTP_403_FORBIDDEN)
+            data = request.data.copy()
+            data['serialno'] = create_serialno(ZoneList.get_zoneserial())
+            serializer = self.get_serializer(zone, data=data, partial=True)
             serializer.is_valid(raise_exception=True)
             serializer.save()
             location = '/zones/%s' % zone.name
             return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
-        except Zones.DoesNotExist:
+        except Zone.DoesNotExist:
             raise Http404
 
+    def delete(self, request, *args, **kwargs):
+        query = self.kwargs[self.lookup_field]
+        try:
+            zone = self.get_queryset().get(name=query)
+        except Zone.DoesNotExist:
+            raise Http404
 
-class ZonesNsDetail(ETAGMixin, generics.GenericAPIView):
-    queryset = Zones.objects.all()
-    queryset_ns = Ns.objects.all()
+        for nameserver in zone.nameservers.values():
+            ns = self.queryset_ns.get(name=nameserver['name'])
+            if ns.zone_set.count() == 1:
+                ns.delete()
+
+        zone.delete()
+        location = '/zones/%s' % zone.name
+        return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
+
+
+class ZoneNameServerDetail(ETAGMixin, generics.GenericAPIView):
+    """
+    get:
+    Returns a list of nameservers for a given zone.
+
+    patch:
+    Set the nameserver list of a zone. Requires all the nameservers of the zone and removes the ones not mentioned.
+    """
+    queryset = Zone.objects.all()
+    queryset_ns = NameServer.objects.all()
+    queryset_hosts = Host.objects.all()
+    serializer_class = ZoneSerializer
+
     lookup_field = 'name'
 
-    # TODO Authorization
     def get(self, request, *args, **kwargs):
         query = self.kwargs[self.lookup_field]
         try:
             zone = self.get_queryset().get(name=query)
-            ns_list = []
-            for ns in zone.nameservers.values():
-                ns_list.append(ns['name'])
-            return Response(ns_list, status=status.HTTP_200_OK)
-        except Zones.DoesNotExist:
+            return Response([ns['name'] for ns in zone.nameservers.values()], status=status.HTTP_200_OK)
+        except Zone.DoesNotExist:
             raise Http404
 
-    # TODO Authorization
     def patch(self, request, *args, **kwargs):
         query = self.kwargs[self.lookup_field]
         try:
             zone = self.get_queryset().get(name=query)
-            if 'nameservers' not in request.data:
-                return Response({'ERROR': 'No NS name found in body'}, status=status.HTTP_400_BAD_REQUEST)
+
+            if 'primary_ns' not in request.data:
+                return Response({'ERROR': 'No nameserver found in body'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Check existing  nameservers and delete them if this zone is the only one that uses them
+            for nameserver in zone.nameservers.values():
+                ns = self.queryset_ns.get(name=nameserver['name'])
+                if ns.zone_set.count() == 1:
+                    ns.delete()
+            # Clear remaining references
             zone.nameservers.clear()
-            for nameserver in request.data.getlist('nameservers'):
+
+            for nameserver in request.data.getlist('primary_ns'):
+                # Check if a hosts with the name exists
                 try:
-                    ns = self.queryset_ns.get(name=nameserver)
-                    zone.nameservers.add(ns)
-                except Ns.DoesNotExist:
-                    raise Http404
+                    self.queryset_hosts.get(name=nameserver)
+                    # Check if there already is a entry in the table
+                    try:
+                        ns = self.queryset_ns.get(name=nameserver)
+                        zone.nameservers.add(ns)
+                    except NameServer.DoesNotExist:
+                        ns = NameServer(name=nameserver)
+                        ns.save()
+                        zone.nameservers.add(ns)
+                except Host.DoesNotExist:
+                    return Response({'ERROR': "No host entry for %s" % nameserver}, status=status.HTTP_404_NOT_FOUND)
+
+            zone.serialno = create_serialno(ZoneList.get_zoneserial())
+            zone.primary_ns = request.data.getlist('primary_ns')[0]
             zone.save()
             location = 'zones/%s/nameservers' % query
             return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
-        except Zones.DoesNotExist:
+        except Zone.DoesNotExist:
             raise Http404
+            
+            
+class ModelChangeLogList(generics.ListAPIView):
+    """
+    get:
+    Lists the models/tables with registered entries. To access the history of an object, GET /{tablename}/{object-id}
 
-
-class ModelChangeLogsList(generics.ListAPIView):
-    queryset = ModelChangeLogs.objects.all()
-    serializer_class = ModelChangeLogsSerializer
+    post:
+    Not used. Saving objects to history is handled by signals internally.
+    """
+    queryset = ModelChangeLog.objects.all()
+    serializer_class = ModelChangeLogSerializer
 
     def get(self, request, *args, **kwargs):
         # Return a list of available tables there are logged histories for.
@@ -609,9 +896,16 @@ class ModelChangeLogsList(generics.ListAPIView):
         return Response(data=tables, status=status.HTTP_200_OK)
 
 
-class ModelChangeLogsDetail(StrictCRUDMixin, generics.RetrieveAPIView):
-    queryset = ModelChangeLogs.objects.all()
-    serializer_class = ModelChangeLogsSerializer
+class ModelChangeLogDetail(StrictCRUDMixin, generics.RetrieveAPIView):
+    """
+    get:
+    Retrieve all log entries for an object in a table.
+
+    patch:
+    Not implemented. Changing a log entry doesn't really make sense, and log entries are handles internally.
+    """
+    queryset = ModelChangeLog.objects.all()
+    serializer_class = ModelChangeLogSerializer
 
     def get(self, request, *args, **kwargs):
         query_table = self.kwargs['table']
@@ -621,6 +915,65 @@ class ModelChangeLogsDetail(StrictCRUDMixin, generics.RetrieveAPIView):
                                                                   table_row=query_row).order_by('timestamp').values()]
 
             return Response(logs_by_date, status=status.HTTP_200_OK)
-        except ModelChangeLogs.DoesNotExist:
+        except ModelChangeLog.DoesNotExist:
             raise Http404
+
+            
+class PlainTextRenderer(renderers.BaseRenderer):
+    """
+    Custom renderer used for outputting plaintext.
+    """
+    media_type = 'text/plain'
+    format = 'txt'
+
+    def render(self, data, media_type=None, renderer_context=None):
+        return data
+
+
+class ZoneFileDetail(generics.GenericAPIView):
+    """
+    Handles a DNS zone file in plaintext.
+    All models should have a zf_string() method that outputs its relevant data.
+
+    get:
+    Generate zonefile for a given zone.
+    """
+    queryset = Zone.objects.all()
+    renderer_classes = (PlainTextRenderer, )
+
+    def get(self, request, *args, **kwargs):
+        zone = self.get_queryset().get(name=self.kwargs['pk'])
+        # Print info about Zone and its nameservers
+        data = zone.zf_string()
+        data += ';\n; Name servers\n;\n'
+        for ns in zone.nameservers.all():
+            data += ns.zf_string()
+        # Print info about hosts and their corresponding data
+        data += ';\n; Host addresses\n;\n'
+        hosts = Host.objects.all()
+        for host in hosts:
+            for ip in host.ipaddress.all():
+                data += ip.zf_string()
+            if host.hinfo is not None:
+                data += host.hinfo.zf_string()
+            if host.loc is not None:
+                data += host.loc_string()
+            for cname in host.cname.all():
+                data += cname.zf_string()
+            for txt in host.txt.all():
+                data += txt.zf_string()
+        # Print misc entries
+        data += ';\n; Name authority pointers\n;\n'
+        naptrs = Naptr.objects.all()
+        for naptr in naptrs:
+            data += naptr.zf_string()
+        data += ';\n; Pointers\n;\n'
+        ptroverrides = PtrOverride.objects.all()
+        for ptroverride in ptroverrides:
+            data += ptroverride.zf_string()
+        data += ';\n; Services\n;\n'
+        srvs = Srv.objects.all()
+        for srv in srvs:
+            data += srv.zf_string()
+        return Response(data)
 

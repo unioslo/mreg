@@ -3,25 +3,23 @@ from django.utils import timezone
 from mreg.models import *
 from rest_framework.test import APIClient
 
-import time
-
 
 class ModelHostsTestCase(TestCase):
     """This class defines the test suite for the Host model."""
 
     def setUp(self):
         """Define the test client and other test variables."""
-        self.host_one = Hosts(name='some-host',
-                              contact='some.email@some.domain.no',
-                              ttl=300,
-                              loc='23 58 23 N 10 43 50 E 80m',
-                              comment='some comment')
+        self.host_one = Host(name='some-host',
+                             contact='some.email@some.domain.no',
+                             ttl=300,
+                             loc='23 58 23 N 10 43 50 E 80m',
+                             comment='some comment')
 
     def test_model_can_create_a_host(self):
         """Test that the model is able to create a host."""
-        old_count = Hosts.objects.count()
+        old_count = Host.objects.count()
         self.host_one.save()
-        new_count = Hosts.objects.count()
+        new_count = Host.objects.count()
         self.assertNotEqual(old_count, new_count)
 
     def test_model_can_change_a_host(self):
@@ -29,41 +27,41 @@ class ModelHostsTestCase(TestCase):
         self.host_one.save()
         old_name = self.host_one.name
         new_name = 'some-new-host'
-        host_sample_id = Hosts.objects.get(name=old_name).hostid
+        host_sample_id = Host.objects.get(name=old_name).hostid
         self.host_one.name = new_name
         self.host_one.save()
-        updated_name = Hosts.objects.get(pk=host_sample_id).name
+        updated_name = Host.objects.get(pk=host_sample_id).name
         self.assertEqual(new_name, updated_name)
 
     def test_model_can_delete_a_host(self):
         """Test that the model is able to delete a host."""
         self.host_one.save()
-        old_count = Hosts.objects.count()
+        old_count = Host.objects.count()
         self.host_one.delete()
-        new_count = Hosts.objects.count()
+        new_count = Host.objects.count()
         self.assertNotEqual(old_count, new_count)
 
 
-class ModelZonesTestCase(TestCase):
-    """This class defines the test suite for the Zones model."""
+class ModelZoneTestCase(TestCase):
+    """This class defines the test suite for the Zone model."""
 
     # TODO: test this for sub-zones (usit.uio.no) and "top"-zones (usit.no)?
     def setUp(self):
         """Define the test client and other test variables."""
-        self.zone_sample = Zones(name='some-zone',
-                                 primary_ns='some-ns-server',
-                                 email='some.email@some.domain.no',
-                                 serialno=1234567890,
-                                 refresh=400,
-                                 retry=300,
-                                 expire=800,
-                                 ttl=300)
+        self.zone_sample = Zone(name='some-zone',
+                                primary_ns='some-ns-server',
+                                email='some.email@some.domain.no',
+                                serialno=1234567890,
+                                refresh=400,
+                                retry=300,
+                                expire=800,
+                                ttl=300)
 
     def test_model_can_create_a_zone(self):
         """Test that the model is able to create a zone."""
-        old_count = Zones.objects.count()
+        old_count = Zone.objects.count()
         self.zone_sample.save()
-        new_count = Zones.objects.count()
+        new_count = Zone.objects.count()
         self.assertNotEqual(old_count, new_count)
 
     def test_model_can_change_a_zone(self):
@@ -71,45 +69,45 @@ class ModelZonesTestCase(TestCase):
         self.zone_sample.save()
         old_name = self.zone_sample.name
         new_name = 'some-new-zone'
-        zone_sample_id = Zones.objects.get(name=old_name).zoneid
+        zone_sample_id = Zone.objects.get(name=old_name).zoneid
         self.zone_sample.name = new_name
         self.zone_sample.save()
-        updated_name = Zones.objects.get(pk=zone_sample_id).name
+        updated_name = Zone.objects.get(pk=zone_sample_id).name
         self.assertEqual(new_name, updated_name)
 
     def test_model_can_delete_a_zone(self):
         """Test that the model is able to delete a zone."""
         self.zone_sample.save()
-        old_count = Zones.objects.count()
+        old_count = Zone.objects.count()
         self.zone_sample.delete()
-        new_count = Zones.objects.count()
+        new_count = Zone.objects.count()
         self.assertNotEqual(old_count, new_count)
 
 
-class ModelNsTestCase(TestCase):
-    """This class defines the test suite for the Ns model."""
+class ModelNameServerTestCase(TestCase):
+    """This class defines the test suite for the NameServer model."""
 
     def setUp(self):
         """Define the test client and other test variables."""
-        self.zone_sample = Zones(name='some-zone',
-                                 primary_ns='some-ns-server',
-                                 email='some.email@some.domain.no',
-                                 serialno=1234567890,
-                                 refresh=400,
-                                 retry=300,
-                                 expire=800,
-                                 ttl=300)
+        self.zone_sample = Zone(name='some-zone',
+                                primary_ns='some-ns-server',
+                                email='some.email@some.domain.no',
+                                serialno=1234567890,
+                                refresh=400,
+                                retry=300,
+                                expire=800,
+                                ttl=300)
 
         self.zone_sample.save()
 
-        self.ns_sample = Ns(name='some-ns-server.uio.no',
-                            ttl=300)
+        self.ns_sample = NameServer(name='some-ns-server.uio.no',
+                                    ttl=300)
 
     def test_model_can_create_ns(self):
         """Test that the model is able to create an Ns."""
-        old_count = Ns.objects.count()
+        old_count = NameServer.objects.count()
         self.ns_sample.save()
-        new_count = Ns.objects.count()
+        new_count = NameServer.objects.count()
         self.assertNotEqual(old_count, new_count)
 
     def test_model_can_change_ns(self):
@@ -117,39 +115,39 @@ class ModelNsTestCase(TestCase):
         self.ns_sample.save()
         old_name = self.ns_sample.name
         new_name = 'some-new-ns'
-        ns_sample_id = Ns.objects.get(name=old_name).nsid
+        ns_sample_id = NameServer.objects.get(name=old_name).nsid
         self.ns_sample.name = new_name
         self.ns_sample.save()
-        updated_name = Ns.objects.get(pk=ns_sample_id).name
+        updated_name = NameServer.objects.get(pk=ns_sample_id).name
         self.assertEqual(new_name, updated_name)
 
     def test_model_can_delete_ns(self):
         """Test that the model is able to delete an Ns."""
         self.ns_sample.save()
-        old_count = Ns.objects.count()
+        old_count = NameServer.objects.count()
         self.ns_sample.delete()
-        new_count = Ns.objects.count()
+        new_count = NameServer.objects.count()
         self.assertNotEqual(old_count, new_count)
 
 
-class ModelSubnetsTestCase(TestCase):
-    """This class defines the test suite for the Subnets model."""
+class ModelSubnetTestCase(TestCase):
+    """This class defines the test suite for the Subnet model."""
 
     def setUp(self):
         """Define the test client and other test variables."""
-        self.subnet_sample = Subnets(range='129.240.202.0/20',
-                                     description='some description',
-                                     vlan=123,
-                                     dns_delegated=False,
-                                     category='so',
-                                     location='silurveien',
-                                     frozen=False)
+        self.subnet_sample = Subnet(range='129.240.202.0/20',
+                                    description='some description',
+                                    vlan=123,
+                                    dns_delegated=False,
+                                    category='so',
+                                    location='silurveien',
+                                    frozen=False)
 
     def test_model_can_create_ns(self):
         """Test that the model is able to create a Subnet."""
-        old_count = Subnets.objects.count()
+        old_count = Subnet.objects.count()
         self.subnet_sample.save()
-        new_count = Subnets.objects.count()
+        new_count = Subnet.objects.count()
         self.assertNotEqual(old_count, new_count)
 
     def test_model_can_change_ns(self):
@@ -159,15 +157,15 @@ class ModelSubnetsTestCase(TestCase):
         subnet_sample_id = self.subnet_sample.subnetid
         self.subnet_sample.vlan = new_vlan
         self.subnet_sample.save()
-        updated_vlan = Subnets.objects.get(pk=subnet_sample_id).vlan
+        updated_vlan = Subnet.objects.get(pk=subnet_sample_id).vlan
         self.assertEqual(new_vlan, updated_vlan)
 
     def test_model_can_delete_ns(self):
         """Test that the model is able to delete a Subnet."""
         self.subnet_sample.save()
-        old_count = Subnets.objects.count()
+        old_count = Subnet.objects.count()
         self.subnet_sample.delete()
-        new_count = Subnets.objects.count()
+        new_count = Subnet.objects.count()
         self.assertNotEqual(old_count, new_count)
 
 
@@ -177,21 +175,21 @@ class ModelIpaddressTestCase(TestCase):
     def setUp(self):
         """Define the test client and other test variables."""
         # Needs sample host and sample subnet to test properly
-        self.host_one = Hosts(name='some-host',
-                              contact='some.email@some.domain.no',
-                              ttl=300,
-                              loc='23 58 23 N 10 43 50 E 80m',
-                              comment='some comment')
+        self.host_one = Host(name='some-host',
+                             contact='some.email@some.domain.no',
+                             ttl=300,
+                             loc='23 58 23 N 10 43 50 E 80m',
+                             comment='some comment')
 
-        self.subnet_sample = Subnets(range='129.240.202.0/20',
-                                     description='some description',
-                                     vlan=123,
-                                     dns_delegated=False)
+        self.subnet_sample = Subnet(range='129.240.202.0/20',
+                                    description='some description',
+                                    vlan=123,
+                                    dns_delegated=False)
 
         self.host_one.save()
         # self.subnet_sample.save() # Needed when subnet ForeignKey is implemented.
 
-        self.ipaddress_sample = Ipaddress(hostid=Hosts.objects.get(name='some-host'),
+        self.ipaddress_sample = Ipaddress(hostid=Host.objects.get(name='some-host'),
                                           ipaddress='129.240.202.123',
                                           macaddress='a4:34:d9:0e:88:b9')
 
@@ -226,15 +224,15 @@ class ModelPtrOverrideTestCase(TestCase):
     def setUp(self):
         """Define the test client and other test variables."""
         # Needs sample host to test
-        self.host_one = Hosts(name='some-host',
-                              contact='some.email@some.domain.no',
-                              ttl=300,
-                              loc='23 58 23 N 10 43 50 E 80m',
-                              comment='some comment')
+        self.host_one = Host(name='some-host',
+                             contact='some.email@some.domain.no',
+                             ttl=300,
+                             loc='23 58 23 N 10 43 50 E 80m',
+                             comment='some comment')
 
         self.host_one.save()
 
-        self.ptr_sample = PtrOverride(hostid=Hosts.objects.get(name='some-host'),
+        self.ptr_sample = PtrOverride(hostid=Host.objects.get(name='some-host'),
                                       ipaddress='129.240.202.123')
 
     def test_model_can_create_ptr(self):
@@ -268,15 +266,15 @@ class ModelTxtTestCase(TestCase):
     def setUp(self):
         """Define the test client and other test variables."""
         # Needs sample host to test properly
-        self.host_one = Hosts(name='some-host',
-                              contact='some.email@some.domain.no',
-                              ttl=300,
-                              loc='23 58 23 N 10 43 50 E 80m',
-                              comment='some comment')
+        self.host_one = Host(name='some-host',
+                             contact='some.email@some.domain.no',
+                             ttl=300,
+                             loc='23 58 23 N 10 43 50 E 80m',
+                             comment='some comment')
 
         self.host_one.save()
 
-        self.txt_sample = Txt(hostid=Hosts.objects.get(name='some-host'),
+        self.txt_sample = Txt(hostid=Host.objects.get(name='some-host'),
                               txt='some-text')
 
     def test_model_can_create_txt(self):
@@ -311,15 +309,15 @@ class ModelCnameTestCase(TestCase):
     def setUp(self):
         """Define the test client and other test variables."""
         # Needs sample host to test properly
-        self.host_one = Hosts(name='some-host',
-                              contact='some.email@some.domain.no',
-                              ttl=300,
-                              loc='23 58 23 N 10 43 50 E 80m',
-                              comment='some comment')
+        self.host_one = Host(name='some-host',
+                             contact='some.email@some.domain.no',
+                             ttl=300,
+                             loc='23 58 23 N 10 43 50 E 80m',
+                             comment='some comment')
 
         self.host_one.save()
 
-        self.cname_sample = Cname(hostid=Hosts.objects.get(name='some-host'),
+        self.cname_sample = Cname(hostid=Host.objects.get(name='some-host'),
                                   cname='some-cname',
                                   ttl=300)
 
@@ -354,15 +352,15 @@ class ModelNaptrTestCase(TestCase):
     def setUp(self):
         """Define the test client and other test variables."""
         # Needs sample host to test properly
-        self.host_one = Hosts(name='some-host',
-                              contact='some.email@some.domain.no',
-                              ttl=300,
-                              loc='23 58 23 N 10 43 50 E 80m',
-                              comment='some comment')
+        self.host_one = Host(name='some-host',
+                             contact='some.email@some.domain.no',
+                             ttl=300,
+                             loc='23 58 23 N 10 43 50 E 80m',
+                             comment='some comment')
 
         self.host_one.save()
 
-        self.naptr_sample = Naptr(hostid=Hosts.objects.get(name='some-host'),
+        self.naptr_sample = Naptr(hostid=Host.objects.get(name='some-host'),
                                   preference=1,
                                   orderv=1,
                                   flag='A',
@@ -401,11 +399,11 @@ class ModelSrvTestCase(TestCase):
     def setUp(self):
         """Define the test client and other test variables."""
         # Needs sample host to test properly
-        self.host_one = Hosts(name='some-host',
-                              contact='some.email@some.domain.no',
-                              ttl=300,
-                              loc='23 58 23 N 10 43 50 E 80m',
-                              comment='some comment')
+        self.host_one = Host(name='some-host',
+                             contact='some.email@some.domain.no',
+                             ttl=300,
+                             loc='23 58 23 N 10 43 50 E 80m',
+                             comment='some comment')
 
         self.host_one.save()
 
@@ -441,16 +439,16 @@ class ModelSrvTestCase(TestCase):
         self.assertNotEqual(old_count, new_count)
 
 
-class ModelChangeLogsTestCase(TestCase):
-    """This class defines the test suite for the ModelChangeLogs model."""
+class ModelChangeLogTestCase(TestCase):
+    """This class defines the test suite for the ModelChangeLog model."""
 
     def setUp(self):
         """Define the test client and other test variables."""
-        self.host_one = Hosts(name='some-host',
-                              contact='some.email@some.domain.no',
-                              ttl=300,
-                              loc='23 58 23 N 10 43 50 E 80m',
-                              comment='some comment')
+        self.host_one = Host(name='some-host',
+                             contact='some.email@some.domain.no',
+                             ttl=300,
+                             loc='23 58 23 N 10 43 50 E 80m',
+                             comment='some comment')
         self.host_one.save()
 
         self.log_data = {'hostid': self.host_one.hostid,
@@ -460,17 +458,17 @@ class ModelChangeLogsTestCase(TestCase):
                          'loc': self.host_one.loc,
                          'comment': self.host_one.comment}
 
-        self.log_entry_one = ModelChangeLogs(table_name='Hosts',
-                                             table_row=self.host_one.hostid,
-                                             data=self.log_data,
-                                             action='saved',
-                                             timestamp=timezone.now())
+        self.log_entry_one = ModelChangeLog(table_name='Hosts',
+                                            table_row=self.host_one.hostid,
+                                            data=self.log_data,
+                                            action='saved',
+                                            timestamp=timezone.now())
 
     def test_model_can_create_a_log_entry(self):
         """Test that the model is able to create a host."""
-        old_count = ModelChangeLogs.objects.count()
+        old_count = ModelChangeLog.objects.count()
         self.log_entry_one.save()
-        new_count = ModelChangeLogs.objects.count()
+        new_count = ModelChangeLog.objects.count()
         self.assertNotEqual(old_count, new_count)
 
 
@@ -479,8 +477,8 @@ class APIHostsTestCase(TestCase):
 
     def setUp(self):
         """Define the test client and other test variables."""
-        self.host_one = Hosts(name='skrutrekker.uio.no', contact='ulvik@usit.uio.no')
-        self.host_two = Hosts(name='maursluker.uio.no', contact='ulvik@usit.uio.no')
+        self.host_one = Host(name='skrutrekker.uio.no', contact='ulvik@usit.uio.no')
+        self.host_two = Host(name='maursluker.uio.no', contact='ulvik@usit.uio.no')
         self.patch_data = {'name': 'nytt-navn', 'contact': 'updated@mail.com'}
         self.patch_data_name = {'name': 'maursluker.uio.no', 'contact': 'updated@mail.com'}
         self.post_data = {'name': 'hiquality.uio.no', "ipaddress": '127.0.0.2', 'contact': 'hostmaster@uio.no'}
@@ -543,7 +541,7 @@ class APIZonesTestCase(TestCase):
 
     def setUp(self):
         """Define the test client and other variables."""
-        self.zone_one = Zones(
+        self.zone_one = Zone(
             name="matnat.uio.no",
             primary_ns="ns1.uio.no",
             email="hostmaster@uio.no",
@@ -553,13 +551,18 @@ class APIZonesTestCase(TestCase):
             expire=800,
             ttl=300
         )
-        self.ns_one = Ns(name='ns1.uio.no', ttl=400)
-        self.ns_two = Ns(name='ns2.uio.no', ttl=400)
-        self.post_data_one = {'name': 'hf.uio.no', 'nameservers': ['ns1.uio.no', 'ns2.uio.no'],
+        self.host_one = Host(name='ns1.uio.no', contact='hostmaster@uio.no')
+        self.host_two = Host(name='ns2.uio.no', contact='hostmaster@uio.no')
+        self.host_three = Host(name='ns3.uio.no', contact='hostmaster@uio.no')
+        self.ns_one = NameServer(name='ns1.uio.no', ttl=400)
+        self.ns_two = NameServer(name='ns2.uio.no', ttl=400)
+        self.post_data_one = {'name': 'hf.uio.no', 'primary_ns': ['ns1.uio.no', 'ns2.uio.no'],
                               'email': 'hostmaster@uio.no', 'refresh': 400, 'retry': 300, 'expire': 800, 'ttl': 350}
-        self.post_data_two = {'name': 'sv.uio.no', 'nameservers': ['ns1.uio.no', 'ns2.uio.no'],
+        self.post_data_two = {'name': 'sv.uio.no', 'primary_ns': ['ns1.uio.no', 'ns2.uio.no'],
                               'email': 'hostmaster@uio.no', 'refresh': 400, 'retry': 300, 'expire': 800, 'ttl': 350}
         self.patch_data = {'refresh': '500', 'expire': '1000'}
+        self.host_one.save()
+        self.host_two.save()
         self.ns_one.save()
         self.ns_two.save()
         self.zone_one.save()
@@ -601,6 +604,13 @@ class APIZonesTestCase(TestCase):
         response = self.client.patch('/zones/%s' % self.zone_one.name, {'name': response.data['name']})
         self.assertEqual(response.status_code, 403)
 
+    def test_zones_patch_403_forbidden_primary_ns(self):
+        """Trying to patch the primary_ns to be a nameserver that isn't in the nameservers list should return 403"""
+        response = self.client.post('/zones/', self.post_data_two)
+        self.assertEqual(response.status_code, 201)
+        response = self.client.patch('/zones/%s' % self.post_data_two['name'], {'primary_ns': self.host_three.name})
+        self.assertEqual(response.status_code, 403)
+
     def test_zones_patch_404_not_found(self):
         """"Patching a non-existing entry should return 404"""
         response = self.client.patch('/zones/nonexisting.uio.no', self.patch_data)
@@ -634,6 +644,7 @@ class APIZonesTestCase(TestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_zones_403_forbidden(self):
+        # TODO: jobb skal gjøres her
         """"Deleting an entry with registered entries should require force"""
 
 
@@ -642,10 +653,10 @@ class APIZonesNsTestCase(TestCase):
 
     def setUp(self):
         """Define the test client and other variables."""
-        self.post_data = {'name': 'hf.uio.no', 'nameservers': ['ns2.uio.no'],
+        self.post_data = {'name': 'hf.uio.no', 'primary_ns': ['ns2.uio.no'],
                           'email': 'hostmaster@uio.no', 'refresh': 400, 'retry': 300, 'expire': 800, 'ttl': 350}
-        self.ns_one = Ns(name='ns1.uio.no', ttl=400)
-        self.ns_two = Ns(name='ns2.uio.no', ttl=400)
+        self.ns_one = Host(name='ns1.uio.no', contact='chipotle.uio.no')
+        self.ns_two = Host(name='ns2.uio.no', contact='maursluker.uio.no')
         self.ns_one.save()
         self.ns_two.save()
         self.client = APIClient()
@@ -665,7 +676,7 @@ class APIZonesNsTestCase(TestCase):
         """"Patching the list of nameservers with an existing nameserver should return 204"""
         self.client.post('/zones/', self.post_data)
         response = self.client.patch('/zones/%s/nameservers' % self.post_data['name'],
-                                     {'nameservers': self.post_data['nameservers'] + [self.ns_one.name]})
+                                     {'primary_ns': self.post_data['primary_ns'] + [self.ns_one.name]})
         self.assertEqual(response.status_code, 204)
 
     def test_zones_ns_patch_400_bad_request(self):
@@ -679,7 +690,7 @@ class APIZonesNsTestCase(TestCase):
         """"Patching the list of nameservers with a non-existing nameserver should return 404"""
         self.client.post('/zones/', self.post_data)
         response = self.client.patch('/zones/%s/nameservers' % self.post_data['name'],
-                                     {'nameservers': ['nonexisting-ns.uio.no']})
+                                     {'primary_ns': ['nonexisting-ns.uio.no']})
         self.assertEqual(response.status_code, 404)
 
     def test_zones_ns_delete_204_no_content_zone(self):
@@ -689,41 +700,18 @@ class APIZonesNsTestCase(TestCase):
         self.client.post('/zones/', self.post_data)
 
         response = self.client.patch('/zones/%s/nameservers' % self.post_data['name'],
-                                     {'nameservers': self.post_data['nameservers'] + [self.ns_one.name]})
+                                     {'primary_ns': self.post_data['primary_ns'] + [self.ns_one.name]})
         self.assertEqual(response.status_code, 204)
 
         response = self.client.get('/zones/%s/nameservers' % self.post_data['name'])
         self.assertEqual(response.status_code, 200)
 
         response = self.client.patch('/zones/%s/nameservers' % self.post_data['name'],
-                                     {'nameservers': self.ns_two.name})
+                                     {'primary_ns': self.ns_two.name})
         self.assertEqual(response.status_code, 204)
 
         response = self.client.get('/zones/%s/nameservers' % self.post_data['name'])
-        self.assertEqual(response.data, self.post_data['nameservers'])
-
-
-class APINameserversTestCase(TestCase):
-    """"This class defines the test suite for api/zones """
-
-    def setUp(self):
-        """Define the test client and other variables."""
-        self.post_data = {'name': 'hf.uio.no', 'nameservers': ['ns2.uio.no'],
-                          'email': 'hostmaster@uio.no', 'refresh': 400, 'retry': 300, 'expire': 800, 'ttl': 350}
-        self.ns_one = Ns(name='ns1.uio.no', ttl=400)
-        self.ns_two = Ns(name='ns2.uio.no', ttl=400)
-        self.ns_one.save()
-        self.ns_two.save()
-        self.client = APIClient()
-
-    def test_nameservers_delete_204_no_content(self):
-        """Deleting a nameserver should remove the mentions of it in the zones too"""
-        response = self.client.post('/zones/', self.post_data)
-        self.assertEqual(response.status_code, 201)
-        response = self.client.delete('/nameservers/%s' % self.ns_two.nsid)
-        self.assertEqual(response.status_code, 204)
-        response = self.client.get('/zones/%s' % self.post_data['name'])
-        self.assertEqual(response.data['nameservers'], [])
+        self.assertEqual(response.data, self.post_data['primary_ns'])
 
 
 class APIIPaddressesTestCase(TestCase):
@@ -731,17 +719,17 @@ class APIIPaddressesTestCase(TestCase):
 
     def setUp(self):
         """Define the test client and other test variables."""
-        self.host_one = Hosts(name='some-host',
-                              contact='some.email@some.domain.no',
-                              ttl=300,
-                              loc='23 58 23 N 10 43 50 E 80m',
-                              comment='some comment')
+        self.host_one = Host(name='some-host',
+                             contact='some.email@some.domain.no',
+                             ttl=300,
+                             loc='23 58 23 N 10 43 50 E 80m',
+                             comment='some comment')
 
-        self.host_two = Hosts(name='some-other-host',
-                              contact='some.email@some.domain.no',
-                              ttl=300,
-                              loc='23 56 23 N 10 43 50 E 80m',
-                              comment='some comment')
+        self.host_two = Host(name='some-other-host',
+                             contact='some.email@some.domain.no',
+                             ttl=300,
+                             loc='23 56 23 N 10 43 50 E 80m',
+                             comment='some comment')
 
         self.host_one.save()
         self.host_two.save()
@@ -814,32 +802,31 @@ class APISubnetsTestCase(TestCase):
     """"This class defines the test suite for api/subnets """
     def setUp(self):
         """Define the test client and other variables."""
-        self.subnet_sample = Subnets(range='129.240.204.0/24',
-                                     description='some description',
-                                     vlan=123,
-                                     dns_delegated=False,
-                                     category='so',
-                                     location='silurveien',
-                                     frozen=False)
-        self.subnet_sample_two = Subnets(range='129.240.205.0/28',
-                                         description='some description',
-                                         vlan=135,
-                                         dns_delegated=False,
-                                         category='so',
-                                         location='silurveien',
-                                         frozen=False)
+        self.subnet_sample = Subnet(range='129.240.204.0/24',
+                                    description='some description',
+                                    vlan=123,
+                                    dns_delegated=False,
+                                    category='so',
+                                    location='silurveien',
+                                    frozen=False)
+        self.subnet_sample_two = Subnet(range='129.240.205.0/28',
+                                        description='some description',
+                                        vlan=135,
+                                        dns_delegated=False,
+                                        category='so',
+                                        location='silurveien',
+                                        frozen=False)
 
-        self.host_one = Hosts(name='some-host',
-                              contact='some.email@some.domain.no',
-                              ttl=300,
-                              loc='23 58 23 N 10 43 50 E 80m',
-                              comment='some comment')
+        self.host_one = Host(name='some-host',
+                             contact='some.email@some.domain.no',
+                             ttl=300,
+                             loc='23 58 23 N 10 43 50 E 80m',
+                             comment='some comment')
         self.host_one.save()
         self.subnet_sample.save()
         self.subnet_sample_two.save()
 
         self.patch_data = {
-            'range': '129.240.204.0/29',
             'description': 'Test subnet',
             'vlan': '435',
             'dns_delegated': 'False',
@@ -900,7 +887,7 @@ class APISubnetsTestCase(TestCase):
         """Patching an existing and valid entry should return 204 and Location"""
         response = self.client.patch('/subnets/%s' % self.subnet_sample.range, self.patch_data)
         self.assertEqual(response.status_code, 204)
-        self.assertEqual(response['Location'], '/subnets/%s' % self.patch_data['range'])
+        self.assertEqual(response['Location'], '/subnets/%s' % self.subnet_sample.range)
 
     def test_subnets_patch_400_bad_request(self):
         """Patching with invalid data should return 400"""
@@ -908,15 +895,15 @@ class APISubnetsTestCase(TestCase):
                                      data={'this': 'is', 'so': 'wrong'})
         self.assertEqual(response.status_code, 400)
 
+    def test_subnets_patch_403_forbidden_range(self):
+        """Patching an entry with a range should return 403"""
+        response = self.client.patch('/subnets/%s' % self.subnet_sample.range, data=self.patch_data_range)
+        self.assertEqual(response.status_code, 403)
+
     def test_subnets_patch_404_not_found(self):
         """Patching a non-existing entry should return 404"""
         response = self.client.patch('/subnets/193.101.168.0/29', self.patch_data)
         self.assertEqual(response.status_code, 404)
-
-    def test_subnets_patch_409_conflict_range(self):
-        """Patching an entry with a range that is already in use should return 409"""
-        response = self.client.patch('/subnets/%s' % self.subnet_sample.range, data=self.patch_data_range)
-        self.assertEqual(response.status_code, 409)
 
     def test_subnets_get_usedlist_200_ok(self):
         """GET on /subnets/<ip/mask> with QUERY_STRING header 'used_list' should return 200 ok and data."""
@@ -947,15 +934,15 @@ class APISubnetsTestCase(TestCase):
 
 
 class APIModelChangeLogsTestCase(TestCase):
-    """"This class defines the test suite for api/history """
+    """This class defines the test suite for api/history """
 
     def setUp(self):
         """Define the test client and other variables."""
-        self.host_one = Hosts(name='some-host',
-                              contact='some.email@some.domain.no',
-                              ttl=300,
-                              loc='23 58 23 N 10 43 50 E 80m',
-                              comment='some comment')
+        self.host_one = Host(name='some-host',
+                             contact='some.email@some.domain.no',
+                             ttl=300,
+                             loc='23 58 23 N 10 43 50 E 80m',
+                             comment='some comment')
         self.host_one.save()
 
         self.log_data = {'hostid': self.host_one.hostid,
@@ -965,11 +952,11 @@ class APIModelChangeLogsTestCase(TestCase):
                          'loc': self.host_one.loc,
                          'comment': self.host_one.comment}
 
-        self.log_entry_one = ModelChangeLogs(table_name='hosts',
-                                             table_row=self.host_one.hostid,
-                                             data=self.log_data,
-                                             action='saved',
-                                             timestamp=timezone.now())
+        self.log_entry_one = ModelChangeLog(table_name='hosts',
+                                            table_row=self.host_one.hostid,
+                                            data=self.log_data,
+                                            action='saved',
+                                            timestamp=timezone.now())
         self.log_entry_one.save()
         self.client = APIClient()
 

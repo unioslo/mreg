@@ -1,8 +1,9 @@
 from django.db import models
 from mreg.validators import *
+from mreg.utils import *
 
 
-class Ns(models.Model):
+class NameServer(models.Model):
     nsid = models.AutoField(primary_key=True, serialize=True)
     name = models.TextField(unique=True)
     ttl = models.IntegerField(blank=True, null=True)
@@ -10,12 +11,21 @@ class Ns(models.Model):
     class Meta:
         db_table = 'ns'
 
+    def zf_string(self):
+        """String representation for zonefile export."""
+        data = {
+            'ttl': clear_none(self.ttl),
+            'record_type': 'NS',
+            'record_data': qualify(self.name, 'uio.no')
+        }
+        return '                         {ttl:5} IN {record_type:6} {record_data}\n'.format_map(data)
 
-class Zones(models.Model):
+
+class Zone(models.Model):
     zoneid = models.AutoField(primary_key=True, serialize=True)
     name = models.TextField(unique=True)
     primary_ns = models.TextField()
-    nameservers = models.ManyToManyField(Ns, db_column='ns')
+    nameservers = models.ManyToManyField(NameServer, db_column='ns')
     email = models.EmailField(blank=True, null=True)
     serialno = models.BigIntegerField(blank=True, null=True, validators=[validate_zones_serialno])
     refresh = models.IntegerField(blank=True, null=True, default=7200)
@@ -24,67 +34,157 @@ class Zones(models.Model):
     ttl = models.IntegerField(blank=True, null=True)
 
     class Meta:
-        db_table = 'zones'
+        db_table = 'zone'
+
+    def zf_string(self):
+        """String representation for zonefile export."""
+        data = {
+            'origin': qualify(self.name, 'uio.no'),
+            'ttl': self.ttl,
+            'name': qualify(self.name, 'uio.no'),
+            'record_type': 'SOA',
+            'mname': qualify(self.primary_ns, 'uio.no'),
+            'rname': qualify(encode_mail(self.email), 'uio.no'),
+            'serial': self.serialno,
+            'refresh': self.refresh,
+            'retry': self.retry,
+            'expire': self.expire,
+        }
+        zf = """$ORIGIN {origin}
+$TTL {ttl}
+{name:30} IN {record_type:6} {mname} {rname} (
+                                         {serial}    ; Serialnumber
+                                         {refresh}   ; Refresh
+                                         {retry}     ; Retry
+                                         {expire}    ; Expire
+                                         {ttl} )     ; Negative Cache\n""".format_map(data)
+        return zf
 
 
-class HinfoPresets(models.Model):
+class HinfoPreset(models.Model):
     hinfoid = models.AutoField(primary_key=True, serialize=True)
     cpu = models.TextField()
     os = models.TextField()
 
     class Meta:
-        db_table = 'hinfo_presets'
+        db_table = 'hinfo_preset'
+
+    def zf_string(self):
+        """String representation for zonefile export."""
+        data = {
+            'record_type': 'HINFO',
+            'cpu': clear_none(self.cpu),
+            'os': clear_none(self.os)
+        }
+        return '                                  {record_type:6} {cpu} {os}\n'.format_map(data)
 
 
-class Hosts(models.Model):
+class Host(models.Model):
     hostid = models.AutoField(primary_key=True, serialize=True)
     name = models.TextField(unique=True)
     contact = models.EmailField()
     ttl = models.IntegerField(blank=True, null=True)
-    hinfo = models.ForeignKey(HinfoPresets, models.DO_NOTHING, db_column='hinfo', blank=True, null=True)
+    hinfo = models.ForeignKey(HinfoPreset, models.DO_NOTHING, db_column='hinfo', blank=True, null=True)
     loc = models.TextField(blank=True, null=True, validators=[validate_loc])
     comment = models.TextField(blank=True, null=True)
 
     class Meta:
-        db_table = 'hosts'
+        db_table = 'host'
+
+    def loc_string(self):
+        """String representation for zonefile export."""
+        data = {
+            'name': self.name,
+            'record_type': 'LOC',
+            'record_data': self.loc
+        }
+        return '{name:30} IN {record_type:6} {record_data}\n'.format_map(data)
 
 
 class Ipaddress(models.Model):
-    hostid = models.ForeignKey(Hosts, on_delete=models.CASCADE, db_column='hostid', related_name='ipaddress')
+    hostid = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='hostid', related_name='ipaddress')
     ipaddress = models.GenericIPAddressField(unique=True)
     macaddress = models.TextField(blank=True, null=True, validators=[validate_mac_address])
 
     class Meta:
         db_table = 'ipaddress'
 
+    def zf_string(self):
+        """String representation for zonefile export."""
+        if isinstance(ipaddress.ip_address(self.ipaddress), ipaddress.IPv4Address):
+            iptype = 'A'
+        else:
+            iptype = 'AAAA'
+#       TODO: Make this generic for other zones than uio.no
+        data = {
+            'name': qualify(self.hostid.name, 'uio.no'),
+            'ttl': clear_none(self.hostid.ttl),
+            'record_type': iptype,
+            'record_data': self.ipaddress,
+            'comment': comment(clear_none(self.hostid.comment))
+        }
+        return '{name:24} {ttl:5} IN {record_type:6} {record_data:39}{comment}\n'.format_map(data)
+
 
 class PtrOverride(models.Model):
-    hostid = models.ForeignKey(Hosts, on_delete=models.CASCADE, db_column='hostid', related_name='ptr_override')
+    hostid = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='hostid', related_name='ptr_override')
     ipaddress = models.GenericIPAddressField(unique=True)
 
     class Meta:
         db_table = 'ptr_override'
 
+    def zf_string(self):
+        """String representation for zonefile export."""
+        data = {
+            'name': reverse_ip(self.ipaddress) + '.in-addr.arpa.',
+            'record_data': qualify(self.hostid.name, 'uio.no'),
+            'record_type': 'PTR',
+            'comment': comment(clear_none(self.hostid.comment))
+        }
+        return '{name:30} IN {record_type:6} {record_data}{comment}\n'.format_map(data)
+
 
 class Txt(models.Model):
     txtid = models.AutoField(primary_key=True, serialize=True)
-    hostid = models.ForeignKey(Hosts, on_delete=models.CASCADE, db_column='hostid', related_name='txt')
+    hostid = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='hostid', related_name='txt')
     txt = models.TextField()
 
     class Meta:
         db_table = 'txt'
 
+    def zf_string(self):
+        """String representation for zonefile export."""
+        data = {
+            'name': qualify(self.hostid.name, 'uio.no'),
+            'ttl': clear_none(self.hostid.ttl),
+            'record_type': 'TXT',
+            'record_data': '\"%s\"' % self.txt,
+            'comment': comment(clear_none(self.hostid.comment))
+        }
+        return '{name:24} {ttl:5}    {record_type:6} {record_data:39}{comment}\n'.format_map(data)
+
 
 class Cname(models.Model):
-    hostid = models.ForeignKey(Hosts, on_delete=models.CASCADE, db_column='hostid', related_name='cname')
+    hostid = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='hostid', related_name='cname')
     cname = models.TextField()
     ttl = models.IntegerField(blank=True, null=True)
 
     class Meta:
         db_table = 'cname'
 
+    def zf_string(self):
+        """String representation for zonefile export."""
+        data = {
+            'name': qualify(self.hostid.name, 'uio.no'),
+            'ttl': clear_none(self.ttl),
+            'record_type': 'CNAME',
+            'record_data': qualify(self.cname, 'uio.no'),
+            'comment': comment(clear_none(self.hostid.comment))
+        }
+        return '{name:24} {ttl:5} IN {record_type:6} {record_data:39}{comment}\n'.format_map(data)
 
-class Subnets(models.Model):
+
+class Subnet(models.Model):
     subnetid = models.AutoField(primary_key=True, serialize=True)
     range = models.TextField(unique=True)
     description = models.TextField(blank=True, null=True)
@@ -96,12 +196,12 @@ class Subnets(models.Model):
     reserved = models.IntegerField(default=3)
 
     class Meta:
-        db_table = 'subnets'
+        db_table = 'subnet'
 
 
 class Naptr(models.Model):
     naptrid = models.AutoField(primary_key=True, serialize=True)
-    hostid = models.ForeignKey(Hosts, on_delete=models.CASCADE, db_column='hostid', related_name='naptr')
+    hostid = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='hostid', related_name='naptr')
     preference = models.IntegerField(blank=True, null=True)
     orderv = models.IntegerField(blank=True, null=True)
     flag = models.CharField(max_length=1, blank=True, null=True, validators=[validate_naptr_flag])
@@ -111,6 +211,22 @@ class Naptr(models.Model):
 
     class Meta:
         db_table = 'naptr'
+
+    def zf_string(self):
+        """String representation for zonefile export."""
+        data = {
+            'name': qualify(self.hostid.name, 'uio.no'),
+            'ttl': clear_none(self.hostid.ttl),
+            'record_type': 'NAPTR',
+            'order': clear_none(self.orderv),
+            'preference': clear_none(self.preference),
+            'flag': clear_none(self.flag),
+            'service': self.service,
+            'regex': clear_none(self.regex),
+            'replacement': self.replacement,
+            'comment': comment(clear_none(self.hostid.comment))
+        }
+        return '{name:24} {ttl:5} IN {record_type:6} {order} {preference} \"{flag}\" \"{service}\" \"{regex}\" {replacement}{comment}\n'.format_map(data)
 
 
 class Srv(models.Model):
@@ -125,9 +241,22 @@ class Srv(models.Model):
     class Meta:
         db_table = 'srv'
 
+    def zf_string(self):
+        """String representation for zonefile export."""
+        data = {
+            'name': qualify(self.service, 'uio.no'),
+            'ttl': clear_none(self.ttl),
+            'record_type': 'SRV',
+            'priority': clear_none(self.priority),
+            'weight': clear_none(self.weight),
+            'port': clear_none(self.port),
+            'target': qualify(self.target, 'uio.no')
+        }
+        return '{name:24} {ttl:5} IN {record_type:6} {priority} {weight} {port} {target}\n'.format_map(data)
+
 
 # TODO: Add user_id functionality when auth is implemented
-class ModelChangeLogs(models.Model):
+class ModelChangeLog(models.Model):
     # user_id = models.BigIntegerField(db_index=True)
     table_name = models.CharField(max_length=132)
     table_row = models.BigIntegerField()
@@ -136,4 +265,4 @@ class ModelChangeLogs(models.Model):
     timestamp = models.DateTimeField()
 
     class Meta:
-        db_table = "model_change_logs"
+        db_table = "model_change_log"

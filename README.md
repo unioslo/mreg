@@ -30,6 +30,13 @@
 - [LOC](https://en.wikipedia.org/wiki/LOC_record)
 - [andre typer](https://en.wikipedia.org/wiki/List_of_DNS_record_types)
 
+### Logging av request og responses på API-siden
+
+[django-logging](https://github.com/cipriantarta/django-logging)
+Denne modulen ble valgt fordi den out-of-the-box gjør alt vi vil og er customizable.
+Bonus: Den støtter elasticsearch også.
+
+
 ### Setup av sample-database i postgres (tar utgangspunkt i Fedora og python3)
 - Trenger pakkene 'postgresql', 'postgresql-server', deretter initialiserer vi
 databaseclusteret og bygger sampledatabasen fra samples/sample_data_dump
