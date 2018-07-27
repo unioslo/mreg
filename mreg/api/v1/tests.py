@@ -3,8 +3,6 @@ from django.utils import timezone
 from mreg.models import *
 from rest_framework.test import APIClient
 
-import time
-
 
 class ModelHostsTestCase(TestCase):
     """This class defines the test suite for the Host model."""

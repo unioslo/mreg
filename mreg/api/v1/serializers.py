@@ -1,5 +1,3 @@
-from django.contrib.sessions.backends.base import CreateError
-from rest_framework import serializers
 from mreg.models import *
 from mreg.utils import *
 from mreg.validators import validate_keys
@@ -54,6 +52,9 @@ class PtrOverrideSerializer(ValidationMixin, serializers.ModelSerializer):
 
 
 class HostSerializer(ValidationMixin, serializers.ModelSerializer):
+    """
+    To properly represent a host we include its related objects.
+    """
     ipaddress = IpaddressSerializer(many=True, read_only=True)
     cname = CnameSerializer(many=True, read_only=True)
     txt = TxtSerializer(many=True, read_only=True)
@@ -68,7 +69,7 @@ class HostSerializer(ValidationMixin, serializers.ModelSerializer):
 
 class HostSaveSerializer(ValidationMixin, serializers.ModelSerializer):
     """
-    Used for saving hosts, due to complications with nulling out a field by patching it with '-1'
+    Used for saving hosts, due to complications with nulling out a field by patching it with '-1'.
     """
     ipaddress = IpaddressSerializer(many=True, read_only=True)
     cname = CnameSerializer(many=True, read_only=True)
