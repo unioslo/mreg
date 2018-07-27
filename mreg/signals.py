@@ -30,7 +30,7 @@ def save_host_history_on_save(sender, instance, created, **kwargs):
     hostdata['txt'] = [record['txt'] for record in hostdata['txt']]
     hostdata['cname'] = [record['cname'] for record in hostdata['cname']]
     hostdata['ptr_override'] = [record['ipaddress'] for record in hostdata['ptr_override']]
-    new_log_entry = ModelChangeLog(table_name='hosts',
+    new_log_entry = ModelChangeLog(table_name='host',
                                    table_row=hostdata['hostid'],
                                    data=hostdata,
                                    action='saved',
@@ -53,7 +53,7 @@ def save_host_history_on_delete(sender, instance, **kwargs):
     hostdata['cname'] = [record['cname'] for record in hostdata['cname']]
     hostdata['ptr_override'] = [record['ipaddress'] for record in hostdata['ptr_override']]
 
-    new_log_entry = ModelChangeLog(table_name='hosts',
+    new_log_entry = ModelChangeLog(table_name='host',
                                    table_row=hostdata['hostid'],
                                    data=hostdata,
                                    action='deleted',
