@@ -12,6 +12,7 @@ class NameServer(models.Model):
         db_table = 'ns'
 
     def zf_string(self):
+        """String representation for zonefile export."""
         data = {
             'ttl': clear_none(self.ttl),
             'record_type': 'NS',
@@ -36,6 +37,7 @@ class Zone(models.Model):
         db_table = 'zone'
 
     def zf_string(self):
+        """String representation for zonefile export."""
         data = {
             'origin': qualify(self.name, 'uio.no'),
             'ttl': self.ttl,
@@ -68,6 +70,7 @@ class HinfoPreset(models.Model):
         db_table = 'hinfo_preset'
 
     def zf_string(self):
+        """String representation for zonefile export."""
         data = {
             'record_type': 'HINFO',
             'cpu': clear_none(self.cpu),
@@ -89,6 +92,7 @@ class Host(models.Model):
         db_table = 'host'
 
     def loc_string(self):
+        """String representation for zonefile export."""
         data = {
             'name': self.name,
             'record_type': 'LOC',
@@ -106,6 +110,7 @@ class Ipaddress(models.Model):
         db_table = 'ipaddress'
 
     def zf_string(self):
+        """String representation for zonefile export."""
         if isinstance(ipaddress.ip_address(self.ipaddress), ipaddress.IPv4Address):
             iptype = 'A'
         else:
@@ -129,6 +134,7 @@ class PtrOverride(models.Model):
         db_table = 'ptr_override'
 
     def zf_string(self):
+        """String representation for zonefile export."""
         data = {
             'name': reverse_ip(self.ipaddress) + '.in-addr.arpa.',
             'record_data': qualify(self.hostid.name, 'uio.no'),
@@ -147,6 +153,7 @@ class Txt(models.Model):
         db_table = 'txt'
 
     def zf_string(self):
+        """String representation for zonefile export."""
         data = {
             'name': qualify(self.hostid.name, 'uio.no'),
             'ttl': clear_none(self.hostid.ttl),
@@ -166,6 +173,7 @@ class Cname(models.Model):
         db_table = 'cname'
 
     def zf_string(self):
+        """String representation for zonefile export."""
         data = {
             'name': qualify(self.hostid.name, 'uio.no'),
             'ttl': clear_none(self.ttl),
@@ -205,6 +213,7 @@ class Naptr(models.Model):
         db_table = 'naptr'
 
     def zf_string(self):
+        """String representation for zonefile export."""
         data = {
             'name': qualify(self.hostid.name, 'uio.no'),
             'ttl': clear_none(self.hostid.ttl),
@@ -233,6 +242,7 @@ class Srv(models.Model):
         db_table = 'srv'
 
     def zf_string(self):
+        """String representation for zonefile export."""
         data = {
             'name': qualify(self.service, 'uio.no'),
             'ttl': clear_none(self.ttl),
