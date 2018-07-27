@@ -572,10 +572,10 @@ class ZoneList(generics.ListAPIView):
         if self.queryset.filter(name=request.data["name"]).exists():
             content = {'ERROR': 'Zone name already in use'}
             return Response(content, status=status.HTTP_409_CONFLICT)
-
         # A copy is required since the original is immutable
         data = request.data.copy()
-        data['primary_ns'] = data['primary_ns'] if isinstance(request.data['primary_ns'], str) else data['primary_ns'][0]
+        nameservers = request.POST.getlist('primary_ns')
+        data['primary_ns'] = nameservers[0]
         data['serialno'] = create_serialno(ZoneList.get_zoneserial())
 
         serializer = self.get_serializer(data=data)
@@ -584,7 +584,7 @@ class ZoneList(generics.ListAPIView):
         zone.save()
 
         # Check if nameserver is an existing host and add it as a nameserver to the zone
-        for nameserver in request.POST.getlist('nameservers'):
+        for nameserver in nameservers:
             try:
                 host = self.queryset_hosts.get(name=nameserver)
                 try:
