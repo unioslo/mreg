@@ -71,13 +71,10 @@ class StrictCRUDMixin(object):
     """
     Applies stricter handling of HTTP requests and responses.
     Apply this mixin to generic classes that don't implement their own CRUD-operations.
-
-    patch:
-    should return empty body, 204 - No Content, and location of object
+    Makes sure patch returns sempty body, 204 - No Content, and location of object.
     """
 
     def patch(self, request, *args, **kwargs):
-        """PATCH should return empty body, 204 - No Content, and location of object"""
         queryset = self.get_queryset()
         serializer_class = self.get_serializer_class()
         resource = self.kwargs['resource']
@@ -93,6 +90,13 @@ class StrictCRUDMixin(object):
 
 
 class CnameList(generics.ListCreateAPIView):
+    """
+    get:
+    Lists all cnames / aliases.
+
+    post:
+    Creates a new cname.
+    """
     queryset = Cname.objects.all()
     serializer_class = CnameSerializer
 
@@ -102,11 +106,28 @@ class CnameList(generics.ListCreateAPIView):
 
 
 class CnameDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+    """
+    get:
+    Returns details for the specified cname.
+
+    patch:
+    Update parts of the cname.
+
+    delete:
+    Delete the specified cname.
+    """
     queryset = Cname.objects.all()
     serializer_class = CnameSerializer
 
 
 class HinfoPresetList(generics.ListCreateAPIView):
+    """
+    get:
+    Lists all hinfo presets.
+
+    post:
+    Creates a new hinfo preset.
+    """
     queryset = HinfoPreset.objects.all()
     serializer_class = HinfoPresetSerializer
 
@@ -116,6 +137,16 @@ class HinfoPresetList(generics.ListCreateAPIView):
 
 
 class HinfoPresetDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+    """
+    get:
+    Returns details for a hinfo preset.
+
+    patch:
+    Update parts of a hinfo preset.
+
+    delete:
+    Delete a hinfo preset.
+    """
     queryset = HinfoPreset.objects.all()
     serializer_class = HinfoPresetSerializer
 
@@ -123,10 +154,10 @@ class HinfoPresetDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestr
 class HostList(generics.GenericAPIView):
     """
     get:
-    Lists all hostnames
+    Lists all hostnames.
 
     post:
-    Creates a new host object
+    Create a new host object. Allows posting with IP address in data.
     """
     queryset = Host.objects.all()
     serializer_class = HostSerializer
@@ -139,7 +170,6 @@ class HostList(generics.GenericAPIView):
         serializer = HostNameSerializer(self.get_queryset(), many=True)
         return Response(serializer.data)
 
-    # TODO Authentication
     def post(self, request, *args, **kwargs):
         if "name" in request.data:
             if self.queryset.filter(name=request.data["name"]).exists():
@@ -181,10 +211,19 @@ class HostList(generics.GenericAPIView):
 
 
 class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+    """
+    get:
+    Returns details for the specified host. Includes relations like IP address/a-records, ptr-records, cnames.
+
+    patch:
+    Update parts of the host.
+
+    delete:
+    Delete the specified host.
+    """
     queryset = Host.objects.all()
     serializer_class = HostSerializer
 
-    # TODO Authentication
     def get_object(self, queryset=queryset):
         query = self.kwargs['pk']
         try:
@@ -201,7 +240,6 @@ class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
                 raise Http404
         return host
 
-    # TODO Authentication
     def patch(self, request, *args, **kwargs):
         query = self.kwargs['pk']
 
@@ -230,7 +268,7 @@ class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
 class IpaddressList(generics.ListCreateAPIView):
     """
     get:
-    Lists all ipaddresses in use
+    Lists all ipaddresses in use.
 
     post:
     Creates a new ipaddress object. Requires an existing host.
@@ -314,6 +352,13 @@ class IpaddressDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
 
 
 class NaptrList(generics.ListCreateAPIView):
+    """
+    get:
+    List all Naptr-records.
+
+    post:
+    Create a new Naptr-record.
+    """
     queryset = Naptr.objects.all()
     serializer_class = NaptrSerializer
 
@@ -323,11 +368,28 @@ class NaptrList(generics.ListCreateAPIView):
 
 
 class NaptrDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+    """
+    get:
+    Returns details for the specified Naptr-record.
+
+    patch:
+    Update parts of the specified Naptr-record.
+
+    delete:
+    Delete the specified Naptr-record.
+    """
     queryset = Naptr.objects.all()
     serializer_class = NaptrSerializer
 
 
 class NameServerList(generics.ListCreateAPIView):
+    """
+    get:
+    List all nameserver-records.
+
+    post:
+    Create a new nameserver-record.
+    """
     queryset = NameServer.objects.all()
     serializer_class = NameServerSerializer
 
@@ -337,11 +399,28 @@ class NameServerList(generics.ListCreateAPIView):
 
 
 class NameServerDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+    """
+    get:
+    Returns details for the specified nameserver-record.
+
+    patch:
+    Update parts of the specified nameserver-record.
+
+    delete:
+    Delete the specified nameserver-record.
+    """
     queryset = NameServer.objects.all()
     serializer_class = NameServerSerializer
 
 
 class PtrOverrideList(generics.ListCreateAPIView):
+    """
+    get:
+    List all ptr-overrides.
+
+    post:
+    Create a new ptr-override.
+    """
     queryset = PtrOverride.objects.all()
     serializer_class = PtrOverrideSerializer
 
@@ -351,11 +430,28 @@ class PtrOverrideList(generics.ListCreateAPIView):
 
 
 class PtrOverrideDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+    """
+    get:
+    Returns details for the specified ptr-override.
+
+    patch:
+    Update parts of the specified ptr-override.
+
+    delete:
+    Delete the specified ptr-override.
+    """
     queryset = PtrOverride.objects.all()
     serializer_class = PtrOverrideSerializer
 
 
 class SrvList(generics.ListCreateAPIView):
+    """
+    get:
+    List all service records.
+
+    post:
+    Create a new service record.
+    """
     queryset = Srv.objects.all()
     serializer_class = SrvSerializer
 
@@ -365,6 +461,16 @@ class SrvList(generics.ListCreateAPIView):
 
 
 class SrvDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+    """
+    get:
+    Returns details for the specified srvice record.
+
+    patch:
+    Update parts of the specified service record.
+
+    delete:
+    Delete the specified service record.
+    """
     queryset = Srv.objects.all()
     serializer_class = SrvSerializer
 
@@ -375,7 +481,7 @@ class SubnetList(generics.ListAPIView):
     Returns a list of subnets
 
     post:
-    Post a subnet. The new subnet can't overlap with any existing subnets.
+    Create a new subnet. The new subnet can't overlap with any existing subnets.
     """
     queryset = Subnet.objects.all()
     serializer_class = SubnetSerializer
@@ -413,11 +519,11 @@ class SubnetList(generics.ListAPIView):
 
     def overlap_check(self, subnet):
         """
-            Recursively checks supernets for current subnet to look for existing entries.
-            If an entry is found it returns True (Overlap = True).
-            It will keep searching until it reaches a prefix length of 16 bits, after which there is
-            no point searching unless you own an ridiculous amount of IPv4 addresses.
-            Can of course be changed at will.
+        Recursively checks supernets for current subnet to look for overlap with existing entries.
+        If an entry is found it returns True (Overlap = True).
+        It will keep searching until it reaches a prefix length of 16 bits, which is
+        usually low enough to cover all relevant IPs. If you have more available addresses
+        than e.g 192.168.***.***, reduce the prefix length limit.
         """
         if subnet.prefixlen < 16:
             return False
@@ -430,13 +536,13 @@ class SubnetList(generics.ListAPIView):
 class SubnetDetail(ETAGMixin, generics.GenericAPIView):
     """
     get:
-    Get a subnet. Query parameter ?used_list returns list of used IP addresses on the subnet
+    List details for a subnet. Query parameter ?used_list returns list of used IP addresses on the subnet
+
+    patch:
+    Partially update a subnet. Updating a zone's range is not allowed
 
     delete:
     Deletes a subnet unless it has IP addresses that are still in use
-
-    patch:
-    Patches a subnet. Updating a zone's range is not allowed
     """
     queryset = Subnet.objects.all()
     serializer_class = SubnetSerializer
@@ -525,7 +631,7 @@ class SubnetDetail(ETAGMixin, generics.GenericAPIView):
     def get_used_ipaddresses_on_subnet(self, subnet):
         """
         Takes a valid subnet (ip-range), and checks which ip-addresses on the subnet are used.
-        ip_network.hosts() automatically ignores the network and broadcast addresses of the subnet,
+        ip_network.hosts() automatically ignores the network- and broadcast addresses of the subnet,
         unless the subnet consists of only these two addresses.
         """
         all_ipaddresses = [ipaddress.ip_address(ip_db.ipaddress) for ip_db in Ipaddress.objects.all()]
@@ -539,6 +645,14 @@ class SubnetDetail(ETAGMixin, generics.GenericAPIView):
 
 
 class TxtList(generics.ListCreateAPIView):
+    """
+    get:
+    Returns a list of all txt-records.
+
+    post:
+    Create a new txt-record.
+    """
+
     queryset = Txt.objects.all()
     serializer_class = TxtSerializer
 
@@ -548,17 +662,28 @@ class TxtList(generics.ListCreateAPIView):
 
 
 class TxtDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+    """
+     get:
+     List details for a txt-record.
+
+     patch:
+     Update parts of a txt-record.
+
+     delete:
+     Deletes a txt-record.
+     """
     queryset = Txt.objects.all()
     serializer_class = TxtSerializer
 
 
 class ZoneList(generics.ListAPIView):
     """
-    post:
-    Post a zone. The primary_ns field is a list where the first element will be the primary nameserver
+    get:
+    Returns a list of all zones.
 
-    list:
-    Returns a list zones
+    post:
+    Create a zone. The primary_ns field is a list where the first element will be the primary nameserver.
+
     """
     queryset = Zone.objects.all()
     queryset_hosts = Host.objects.all()
@@ -578,13 +703,12 @@ class ZoneList(generics.ListAPIView):
 
     def get_queryset(self):
         """
-            Applies filtering to the queryset
-            :return: filtered list of zones
+        Applies filtering to the queryset
+        :return: filtered list of zones
         """
         qs = super(ZoneList, self).get_queryset()
         return ZoneFilterSet(data=self.request.GET, queryset=qs).filter()
 
-    # TODO: Implement authentication
     def post(self, request, *args, **kwargs):
         if self.queryset.filter(name=request.data["name"]).exists():
             content = {'ERROR': 'Zone name already in use'}
@@ -620,14 +744,15 @@ class ZoneList(generics.ListAPIView):
 
 class ZoneDetail(ETAGMixin, generics.RetrieveAPIView):
     """
-        get:
-        Retrieves a zone
+    get:
+    List details for a zone.
 
-        patch:
-        Patch the zone. Nameservers need to be patched through /zones/<name>/nameservers. primary_ns needs to be a nameserver of the zone
+    patch:
+    Update parts of a zone.
+    Nameservers need to be patched through /zones/<name>/nameservers. primary_ns needs to be a nameserver of the zone
 
-        delete:
-        Delete a zone
+    delete:
+    Delete a zone.
     """
     queryset = Zone.objects.all()
     queryset_hosts = Zone.objects.all()
@@ -693,11 +818,11 @@ class ZoneDetail(ETAGMixin, generics.RetrieveAPIView):
 
 class ZoneNameServerDetail(ETAGMixin, generics.GenericAPIView):
     """
-        get:
-        Returns a list of nameservers for a given zone
+    get:
+    Returns a list of nameservers for a given zone.
 
-        patch:
-        Set the nameserver list of a zone. Requires all the nameservers  of the zone and removes the ones not mentioned
+    patch:
+    Set the nameserver list of a zone. Requires all the nameservers of the zone and removes the ones not mentioned.
     """
     queryset = Zone.objects.all()
     queryset_ns = NameServer.objects.all()
@@ -706,7 +831,6 @@ class ZoneNameServerDetail(ETAGMixin, generics.GenericAPIView):
 
     lookup_field = 'name'
 
-    # TODO Authorization
     def get(self, request, *args, **kwargs):
         query = self.kwargs[self.lookup_field]
         try:
@@ -715,7 +839,6 @@ class ZoneNameServerDetail(ETAGMixin, generics.GenericAPIView):
         except Zone.DoesNotExist:
             raise Http404
 
-    # TODO Authorization
     def patch(self, request, *args, **kwargs):
         query = self.kwargs[self.lookup_field]
         try:
@@ -757,6 +880,13 @@ class ZoneNameServerDetail(ETAGMixin, generics.GenericAPIView):
             
             
 class ModelChangeLogList(generics.ListAPIView):
+    """
+    get:
+    Lists the models/tables with registered entries. To access the history of an object, GET /{tablename}/{object-id}
+
+    post:
+    Not used. Saving objects to history is handled by signals internally.
+    """
     queryset = ModelChangeLog.objects.all()
     serializer_class = ModelChangeLogSerializer
 
@@ -767,6 +897,13 @@ class ModelChangeLogList(generics.ListAPIView):
 
 
 class ModelChangeLogDetail(StrictCRUDMixin, generics.RetrieveAPIView):
+    """
+    get:
+    Retrieve all log entries for an object in a table.
+
+    patch:
+    Not implemented. Changing a log entry doesn't really make sense, and log entries are handles internally.
+    """
     queryset = ModelChangeLog.objects.all()
     serializer_class = ModelChangeLogSerializer
 
@@ -797,6 +934,9 @@ class ZoneFileDetail(generics.GenericAPIView):
     """
     Handles a DNS zone file in plaintext.
     All models should have a zf_string() method that outputs its relevant data.
+
+    get:
+    Generate zonefile for a given zone.
     """
     queryset = Zone.objects.all()
     renderer_classes = (PlainTextRenderer, )
