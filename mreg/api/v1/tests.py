@@ -44,8 +44,8 @@ class ModelHostsTestCase(TestCase):
         self.assertNotEqual(old_count, new_count)
 
 
-class ModelZonesTestCase(TestCase):
-    """This class defines the test suite for the Zones model."""
+class ModelZoneTestCase(TestCase):
+    """This class defines the test suite for the Zone model."""
 
     # TODO: test this for sub-zones (usit.uio.no) and "top"-zones (usit.no)?
     def setUp(self):
@@ -86,8 +86,8 @@ class ModelZonesTestCase(TestCase):
         self.assertNotEqual(old_count, new_count)
 
 
-class ModelNsTestCase(TestCase):
-    """This class defines the test suite for the Ns model."""
+class ModelNameServerTestCase(TestCase):
+    """This class defines the test suite for the NameServer model."""
 
     def setUp(self):
         """Define the test client and other test variables."""
@@ -132,8 +132,8 @@ class ModelNsTestCase(TestCase):
         self.assertNotEqual(old_count, new_count)
 
 
-class ModelSubnetsTestCase(TestCase):
-    """This class defines the test suite for the Subnets model."""
+class ModelSubnetTestCase(TestCase):
+    """This class defines the test suite for the Subnet model."""
 
     def setUp(self):
         """Define the test client and other test variables."""
@@ -441,8 +441,8 @@ class ModelSrvTestCase(TestCase):
         self.assertNotEqual(old_count, new_count)
 
 
-class ModelChangeLogsTestCase(TestCase):
-    """This class defines the test suite for the ModelChangeLogs model."""
+class ModelChangeLogTestCase(TestCase):
+    """This class defines the test suite for the ModelChangeLog model."""
 
     def setUp(self):
         """Define the test client and other test variables."""
