@@ -16,7 +16,7 @@ def validate_ttl(value):
 
 def validate_mac_address(address):
     """Validates that the mac address is on a valid form."""
-    adr_regex = "[0-9a-f]{2}([-:]?)[0-9a-f]{2}(\\1[0-9a-f]{2}){4}$"
+    adr_regex = "[0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})"
     validator = RegexValidator(adr_regex)
     validator(address)
 
