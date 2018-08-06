@@ -1,41 +1,57 @@
 # mreg
+mreg is an API (intended to be as RESTful as possible) for managing DNS.
+An associated project for a command line interface using the mreg API is available at:
+[mreg-cli](https://github.com/usit-gd/mreg-cli)
 
 ## Getting Started
 
 
-
 ### Prerequisites
 
-What things you need to install the software and how to install them
-
-```
-Give examples
-```
+Fork the project from github.
+You need a terminal, `python3`, and access to a package manager that can install the necessary requirements
+from `requirements.txt`. We use pip.
 
 ### Installing
 
 A step by step series of examples that tell you how to get a development env running
 
-Say what the step will be
-
+When you've got your copy of the mreg directory, setup you virtual environment.
 ```
-Give the example
+> python3 -m venv venv
+> source venv/bin/activate
+```
+Then install the required packages
+```
+> pip install -r requirements.txt
+```
+Perform database migrations
+```
+> python manage.py migrate
+```
+Load sample data from fixtures into the now migrated database
+```
+> python manage.py loaddata mreg/fixtures/fixtures.json
+```
+And finally, run the server.
+```
+> python manage.py runserver
 ```
 
-And repeat
-
+You should now be able to open up a browser and go to http://localhost:8000/hosts/ and see
+a list of hosts provided by the sample data. Or, you could perform a GET request to see
+the returned data.
 ```
-until finished
+> curl -X GET http://localhost:8000/hosts/
+[{"name":"ns1.uio.no"},{"name":"ns2.uio.no"},{"name":"lucario.uio.no"},{"name":"stewie.uio.no"},{"name":"vepsebol.uio.no"}
 ```
-
-End with an example of getting some data out of the system or using it for a little demo
 
 ## Running the tests
 
-Explain how to run the automated tests for this system
-
-
-## Deployment
+To run the tests for the system, simply run
+```
+> python manage.py test
+```
 
 
 ## Built With
@@ -66,7 +82,6 @@ DATABASES = {
     }
 }
 ```
-
 
 ## Contributing
 
@@ -116,7 +131,6 @@ This project is licensed under the GPL-3.0 License - see the [LICENSE.md](LICENS
 - [TXT](https://en.wikipedia.org/wiki/TXT_record)
 - [LOC](https://en.wikipedia.org/wiki/LOC_record)
 - [andre typer](https://en.wikipedia.org/wiki/List_of_DNS_record_types)
-
 
 
 

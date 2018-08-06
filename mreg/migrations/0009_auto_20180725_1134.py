@@ -10,6 +10,7 @@ class Migration(migrations.Migration):
     dependencies = [
         ('mreg', '0008_auto_20180723_1522'),
     ]
+    atomic = False
 
     operations = [
         migrations.CreateModel(
