@@ -79,12 +79,8 @@ WSGI_APPLICATION = 'mregsite.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql_psycopg2',
-        'NAME': 'mreg_sample',
-        'USER': 'mreg_user',
-        'PASSWORD': 'mregdbpass',
-        'HOST': '158.37.63.59',
-        'PORT': '5432',
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': 'mydatabase',
     }
 }
 
@@ -137,6 +133,8 @@ REST_FRAMEWORK_EXTENSIONS = {
     ],
 }
 
+# Django logging settings. To enable the default django request/response logging for API in stdout,
+# add "DISABLE_EXISTING_LOGGERS" = False
 DJANGO_LOGGING = {
     "CONSOLE_LOG": False,
 }
@@ -145,6 +143,7 @@ SWAGGER_SETTINGS = {
     'USE_SESSION_AUTH': False,
 }
 
+# Import local settings that may override those in this file.
 try:
     from .local_settings import *
 except ImportError:
