@@ -26,12 +26,13 @@ class Zone(models.Model):
     name = models.TextField(unique=True)
     primary_ns = models.TextField()
     nameservers = models.ManyToManyField(NameServer, db_column='ns')
-    email = models.EmailField(blank=True, null=True)
+    email = models.EmailField()
     serialno = models.BigIntegerField(blank=True, null=True, validators=[validate_zones_serialno])
-    refresh = models.IntegerField(blank=True, null=True, default=7200)
-    retry = models.IntegerField(blank=True, null=True, default=3600)
-    expire = models.IntegerField(blank=True, null=True, default=604800)
-    ttl = models.IntegerField(blank=True, null=True)
+    # TODO: Configurable? Ask hostmaster
+    refresh = models.IntegerField(default=7200)
+    retry = models.IntegerField(default=3600)
+    expire = models.IntegerField(default=604800)
+    ttl = models.IntegerField(default=43200)
 
     class Meta:
         db_table = 'zone'
