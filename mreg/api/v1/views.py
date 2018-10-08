@@ -727,17 +727,12 @@ class ZoneList(generics.ListAPIView):
         # Check if nameserver is an existing host and add it as a nameserver to the zone
         for nameserver in nameservers:
             try:
-                host = self.queryset_hosts.get(name=nameserver)
-                try:
-                    ns = self.queryset_ns.get(name=nameserver)
-                    zone.nameservers.add(ns.nsid)
-                except NameServer.DoesNotExist:
-                    ns = NameServer(name=nameserver)
-                    ns.save()
-                    zone.nameservers.add(ns.nsid)
-            except Host.DoesNotExist:
-                content = {'ERROR': 'No host entry for %s' % nameserver}
-                return Response(content, status=status.HTTP_404_NOT_FOUND)
+                ns = self.queryset_ns.get(name=nameserver)
+                zone.nameservers.add(ns.nsid)
+            except NameServer.DoesNotExist:
+                ns = NameServer(name=nameserver)
+                ns.save()
+                zone.nameservers.add(ns.nsid)
         zone.save()
         return Response(status=status.HTTP_201_CREATED, headers={'Location': '/zones/%s' % data['name']})
 
