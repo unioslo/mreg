@@ -11,6 +11,7 @@ class NameServer(models.Model):
     class Meta:
         db_table = 'ns'
 
+    @property
     def zf_string(self):
         """String representation for zonefile export."""
         data = {
@@ -37,6 +38,7 @@ class Zone(models.Model):
     class Meta:
         db_table = 'zone'
 
+    @property
     def zf_string(self):
         """String representation for zonefile export."""
         data = {
@@ -77,6 +79,7 @@ class HinfoPreset(models.Model):
     class Meta:
         db_table = 'hinfo_preset'
 
+    @property
     def zf_string(self):
         """String representation for zonefile export."""
         data = {
@@ -117,6 +120,7 @@ class Ipaddress(models.Model):
     class Meta:
         db_table = 'ipaddress'
 
+    @property
     def zf_string(self):
         """String representation for zonefile export."""
         if isinstance(ipaddress.ip_address(self.ipaddress), ipaddress.IPv4Address):
@@ -141,6 +145,7 @@ class PtrOverride(models.Model):
     class Meta:
         db_table = 'ptr_override'
 
+    @property
     def zf_string(self):
         """String representation for zonefile export."""
         data = {
@@ -160,6 +165,7 @@ class Txt(ZoneMember):
     class Meta:
         db_table = 'txt'
 
+    @property
     def zf_string(self):
         """String representation for zonefile export."""
         data = {
@@ -180,6 +186,7 @@ class Cname(ZoneMember):
     class Meta:
         db_table = 'cname'
 
+    @property
     def zf_string(self):
         """String representation for zonefile export."""
         data = {
@@ -220,6 +227,7 @@ class Naptr(ZoneMember):
     class Meta:
         db_table = 'naptr'
 
+    @property
     def zf_string(self):
         """String representation for zonefile export."""
         data = {
@@ -249,6 +257,7 @@ class Srv(ZoneMember):
     class Meta:
         db_table = 'srv'
 
+    @property
     def zf_string(self):
         """String representation for zonefile export."""
         data = {
