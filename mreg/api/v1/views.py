@@ -971,7 +971,7 @@ class ZoneFileDetail(generics.GenericAPIView):
             data += ns.zf_string()
         # Print info about hosts and their corresponding data
         data += ';\n; Host addresses\n;\n'
-        hosts = Host.objects.all()
+        hosts = Host.objects.filter(zoneid=zone.zoneid)
         for host in hosts:
             for ip in host.ipaddress.all():
                 data += ip.zf_string()
@@ -985,7 +985,7 @@ class ZoneFileDetail(generics.GenericAPIView):
                 data += txt.zf_string()
         # Print misc entries
         data += ';\n; Name authority pointers\n;\n'
-        naptrs = Naptr.objects.all()
+        naptrs = Naptr.objects.filter(zoneid=zone.zoneid)
         for naptr in naptrs:
             data += naptr.zf_string()
         data += ';\n; Pointers\n;\n'
@@ -993,7 +993,7 @@ class ZoneFileDetail(generics.GenericAPIView):
         for ptroverride in ptroverrides:
             data += ptroverride.zf_string()
         data += ';\n; Services\n;\n'
-        srvs = Srv.objects.all()
+        srvs = Srv.objects.filter(zoneid=zone.zoneid)
         for srv in srvs:
             data += srv.zf_string()
         return Response(data)
