@@ -63,7 +63,7 @@ class HostSerializer(ValidationMixin, serializers.ModelSerializer):
 
     class Meta:
         model = Host
-        fields = ('hostid', 'name', 'contact', 'ttl', 'hinfo', 'loc',
+        fields = ('hostid', 'name', 'zoneid', 'contact', 'ttl', 'hinfo', 'loc',
                   'comment', 'cname', 'ipaddress', 'txt', 'ptr_override')
 
 
@@ -79,7 +79,7 @@ class HostSaveSerializer(ValidationMixin, serializers.ModelSerializer):
 
     class Meta:
         model = Host
-        fields = ('hostid', 'name', 'contact', 'ttl', 'hinfo', 'loc',
+        fields = ('hostid', 'name', 'zoneid', 'contact', 'ttl', 'hinfo', 'loc',
                   'comment', 'cname', 'ipaddress', 'txt', 'ptr_override')
 
     def validate_hinfo(self, value):

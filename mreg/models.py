@@ -29,9 +29,9 @@ class Zone(models.Model):
     email = models.EmailField()
     serialno = models.BigIntegerField(blank=True, null=True, validators=[validate_zones_serialno])
     # TODO: Configurable? Ask hostmaster
-    refresh = models.IntegerField(default=7200)
+    refresh = models.IntegerField(default=10800)
     retry = models.IntegerField(default=3600)
-    expire = models.IntegerField(default=604800)
+    expire = models.IntegerField(default=1814400)
     ttl = models.IntegerField(default=43200)
 
     class Meta:
@@ -62,6 +62,13 @@ $TTL {ttl}
         return zf
 
 
+class ZoneMember(models.Model):
+    zoneid = models.ForeignKey(Zone, models.DO_NOTHING, db_column='zone', blank=True, null=True)
+
+    class Meta:
+        abstract = True
+
+
 class HinfoPreset(models.Model):
     hinfoid = models.AutoField(primary_key=True, serialize=True)
     cpu = models.TextField()
@@ -80,7 +87,7 @@ class HinfoPreset(models.Model):
         return '                                  {record_type:6} {cpu} {os}\n'.format_map(data)
 
 
-class Host(models.Model):
+class Host(ZoneMember):
     hostid = models.AutoField(primary_key=True, serialize=True)
     name = models.TextField(unique=True)
     contact = models.EmailField()
@@ -145,7 +152,7 @@ class PtrOverride(models.Model):
         return '{name:30} IN {record_type:6} {record_data}{comment}\n'.format_map(data)
 
 
-class Txt(models.Model):
+class Txt(ZoneMember):
     txtid = models.AutoField(primary_key=True, serialize=True)
     hostid = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='hostid', related_name='txt')
     txt = models.TextField()
@@ -165,7 +172,7 @@ class Txt(models.Model):
         return '{name:24} {ttl:5}    {record_type:6} {record_data:39}{comment}\n'.format_map(data)
 
 
-class Cname(models.Model):
+class Cname(ZoneMember):
     hostid = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='hostid', related_name='cname')
     cname = models.TextField()
     ttl = models.IntegerField(blank=True, null=True)
@@ -200,7 +207,7 @@ class Subnet(models.Model):
         db_table = 'subnet'
 
 
-class Naptr(models.Model):
+class Naptr(ZoneMember):
     naptrid = models.AutoField(primary_key=True, serialize=True)
     hostid = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='hostid', related_name='naptr')
     preference = models.IntegerField(blank=True, null=True)
@@ -230,7 +237,7 @@ class Naptr(models.Model):
         return '{name:24} {ttl:5} IN {record_type:6} {order} {preference} \"{flag}\" \"{service}\" \"{regex}\" {replacement}{comment}\n'.format_map(data)
 
 
-class Srv(models.Model):
+class Srv(ZoneMember):
     srvid = models.AutoField(primary_key=True, serialize=True)
     service = models.TextField(validators=[validate_srv_service_text])
     priority = models.IntegerField(blank=True, null=True)

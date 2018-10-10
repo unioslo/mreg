@@ -171,14 +171,18 @@ class HostList(generics.GenericAPIView):
         return Response(serializer.data)
 
     def post(self, request, *args, **kwargs):
+        zoneid = None
         if "name" in request.data:
             if self.queryset.filter(name=request.data["name"]).exists():
                 content = {'ERROR': 'name already in use'}
                 return Response(content, status=status.HTTP_409_CONFLICT)
+            zd = ZoneDetail()
+            zoneid = zd.get_zone_by_hostname(name=request.data["name"])
+        hostdata = QueryDict.copy(request.data)
+        hostdata["zoneid"] = zoneid
 
         if 'ipaddress' in request.data:
-            ipkey = request.data['ipaddress']
-            hostdata = QueryDict.copy(request.data)
+            ipkey = hostdata['ipaddress']
             del hostdata['ipaddress']
             host = Host()
             hostserializer = HostSerializer(host, data=hostdata)
@@ -203,7 +207,7 @@ class HostList(generics.GenericAPIView):
                     return Response(status=status.HTTP_400_BAD_REQUEST)
         else:
             host = Host()
-            hostserializer = HostSerializer(host, data=request.data)
+            hostserializer = HostSerializer(host, data=hostdata)
             if hostserializer.is_valid(raise_exception=True):
                 hostserializer.save()
                 location = '/hosts/%s' % host.name
@@ -809,6 +813,28 @@ class ZoneDetail(ETAGMixin, generics.RetrieveAPIView):
         zone.delete()
         location = '/zones/%s' % zone.name
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
+
+
+    def get_zone_by_hostname(self, name):
+        """Get zoneid for a hostname.
+	Return zoneid or None if not found."""
+
+        def _get_reverse_order(lst):
+            """Return index of sorted zones"""
+            # We must sort the zones to assert that ifi.uio.no hosts
+            # does not end up in the uio.no zone.  This is acheived by
+            # spelling the zone postfix backwards and sorting the
+            # resulting list backwards
+            lst = [str(x.name)[::-1] for x in lst]
+            t = range(len(lst))
+            return sorted(t, reverse=True)
+
+        zones = self.get_queryset()
+        for n in _get_reverse_order(zones):
+            z = zones[n]
+            if z.name and name.endswith(z.name):
+                return z.zoneid
+        return None
 
 
 class ZoneNameServerDetail(ETAGMixin, generics.GenericAPIView):
