@@ -687,6 +687,7 @@ class SubnetDetail(ETAGMixin, generics.GenericAPIView):
         """
         unused = self.get_unused_ipaddresses_on_subnet(subnet)
 
+        unused = list(unused)
         if unused:
             return list(unused)[0]
         return None
