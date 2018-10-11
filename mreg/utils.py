@@ -1,3 +1,4 @@
+import idna
 import ipaddress
 import time
 
@@ -46,6 +47,14 @@ def qualify(name, zone):
     if name.endswith(zone):
         name += '.'
     return name
+
+def idna_encode(entry):
+    """
+    Encodes the entry to an IDNA entry.
+    :param entry: Entry to encode
+    :return: String encoded to IDNA and converted to utf-8
+    """
+    return idna.encode(entry).decode('utf-8')
 
 
 def encode_mail(mail):
