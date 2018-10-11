@@ -160,7 +160,7 @@ class PtrOverride(models.Model):
 class Txt(ZoneMember):
     txtid = models.AutoField(primary_key=True, serialize=True)
     hostid = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='hostid', related_name='txt')
-    txt = models.TextField()
+    txt = models.TextField(max_length=255)
 
     class Meta:
         db_table = 'txt'
