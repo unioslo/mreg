@@ -16,7 +16,7 @@ class NameServer(models.Model):
         data = {
             'ttl': clear_none(self.ttl),
             'record_type': 'NS',
-            'record_data': qualify(self.name, 'uio.no')
+            'record_data': idna_encode(qualify(self.name, 'uio.no'))
         }
         return '                         {ttl:5} IN {record_type:6} {record_data}\n'.format_map(data)
 
@@ -40,12 +40,12 @@ class Zone(models.Model):
     def zf_string(self):
         """String representation for zonefile export."""
         data = {
-            'origin': qualify(self.name, 'uio.no'),
+            'origin': idna_encode(qualify(self.name, self.name)),
             'ttl': self.ttl,
-            'name': qualify(self.name, 'uio.no'),
+            'name': idna_encode(qualify(self.name, self.name)),
             'record_type': 'SOA',
-            'mname': qualify(self.primary_ns, 'uio.no'),
-            'rname': qualify(encode_mail(self.email), 'uio.no'),
+            'mname': idna_encode(qualify(self.primary_ns, self.name)),
+            'rname': idna_encode(qualify(encode_mail(self.email), self.name)),
             'serial': self.serialno,
             'refresh': self.refresh,
             'retry': self.retry,
@@ -118,7 +118,7 @@ class Ipaddress(models.Model):
             iptype = 'AAAA'
 #       TODO: Make this generic for other zones than uio.no
         data = {
-            'name': qualify(self.hostid.name, 'uio.no'),
+            'name': idna_encode(qualify(self.hostid.name, 'uio.no')),
             'ttl': clear_none(self.hostid.ttl),
             'record_type': iptype,
             'record_data': self.ipaddress,
@@ -138,7 +138,7 @@ class PtrOverride(models.Model):
         """String representation for zonefile export."""
         data = {
             'name': reverse_ip(self.ipaddress) + '.in-addr.arpa.',
-            'record_data': qualify(self.hostid.name, 'uio.no'),
+            'record_data': idna_encode(qualify(self.hostid.name, 'uio.no')),
             'record_type': 'PTR',
             'comment': comment(clear_none(self.hostid.comment))
         }
@@ -156,7 +156,7 @@ class Txt(models.Model):
     def zf_string(self):
         """String representation for zonefile export."""
         data = {
-            'name': qualify(self.hostid.name, 'uio.no'),
+            'name': idna_encode(qualify(self.hostid.name, 'uio.no')),
             'ttl': clear_none(self.hostid.ttl),
             'record_type': 'TXT',
             'record_data': '\"%s\"' % self.txt,
@@ -176,10 +176,10 @@ class Cname(models.Model):
     def zf_string(self):
         """String representation for zonefile export."""
         data = {
-            'name': qualify(self.hostid.name, 'uio.no'),
+            'name': idna_encode(qualify(self.hostid.name, 'uio.no')),
             'ttl': clear_none(self.ttl),
             'record_type': 'CNAME',
-            'record_data': qualify(self.cname, 'uio.no'),
+            'record_data': idna_encode(qualify(self.cname, 'uio.no')),
             'comment': comment(clear_none(self.hostid.comment))
         }
         return '{name:24} {ttl:5} IN {record_type:6} {record_data:39}{comment}\n'.format_map(data)
@@ -216,7 +216,7 @@ class Naptr(models.Model):
     def zf_string(self):
         """String representation for zonefile export."""
         data = {
-            'name': qualify(self.hostid.name, 'uio.no'),
+            'name': idna_encode(qualify(self.hostid.name, 'uio.no')),
             'ttl': clear_none(self.hostid.ttl),
             'record_type': 'NAPTR',
             'order': clear_none(self.orderv),
@@ -245,13 +245,13 @@ class Srv(models.Model):
     def zf_string(self):
         """String representation for zonefile export."""
         data = {
-            'name': qualify(self.service, 'uio.no'),
+            'name': idna_encode(qualify(self.service, 'uio.no')),
             'ttl': clear_none(self.ttl),
             'record_type': 'SRV',
             'priority': clear_none(self.priority),
             'weight': clear_none(self.weight),
             'port': clear_none(self.port),
-            'target': qualify(self.target, 'uio.no')
+            'target': idna_encode(qualify(self.target, 'uio.no'))
         }
         return '{name:24} {ttl:5} IN {record_type:6} {priority} {weight} {port} {target}\n'.format_map(data)
 
