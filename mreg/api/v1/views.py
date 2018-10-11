@@ -171,14 +171,18 @@ class HostList(generics.GenericAPIView):
         return Response(serializer.data)
 
     def post(self, request, *args, **kwargs):
+        zoneid = None
         if "name" in request.data:
             if self.queryset.filter(name=request.data["name"]).exists():
                 content = {'ERROR': 'name already in use'}
                 return Response(content, status=status.HTTP_409_CONFLICT)
+            zd = ZoneDetail()
+            zoneid = zd.get_zone_by_hostname(name=request.data["name"])
+        hostdata = QueryDict.copy(request.data)
+        hostdata["zoneid"] = zoneid
 
         if 'ipaddress' in request.data:
-            ipkey = request.data['ipaddress']
-            hostdata = QueryDict.copy(request.data)
+            ipkey = hostdata['ipaddress']
             del hostdata['ipaddress']
             host = Host()
             hostserializer = HostSerializer(host, data=hostdata)
@@ -203,7 +207,7 @@ class HostList(generics.GenericAPIView):
                     return Response(status=status.HTTP_400_BAD_REQUEST)
         else:
             host = Host()
-            hostserializer = HostSerializer(host, data=request.data)
+            hostserializer = HostSerializer(host, data=hostdata)
             if hostserializer.is_valid(raise_exception=True):
                 hostserializer.save()
                 location = '/hosts/%s' % host.name
@@ -854,6 +858,28 @@ class ZoneDetail(ETAGMixin, generics.RetrieveAPIView):
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
+    def get_zone_by_hostname(self, name):
+        """Get zoneid for a hostname.
+	Return zoneid or None if not found."""
+
+        def _get_reverse_order(lst):
+            """Return index of sorted zones"""
+            # We must sort the zones to assert that ifi.uio.no hosts
+            # does not end up in the uio.no zone.  This is acheived by
+            # spelling the zone postfix backwards and sorting the
+            # resulting list backwards
+            lst = [str(x.name)[::-1] for x in lst]
+            t = range(len(lst))
+            return sorted(t, reverse=True)
+
+        zones = self.get_queryset()
+        for n in _get_reverse_order(zones):
+            z = zones[n]
+            if z.name and name.endswith(z.name):
+                return z.zoneid
+        return None
+
+
 class ZoneNameServerDetail(ETAGMixin, generics.GenericAPIView):
     """
     get:
@@ -971,7 +997,7 @@ class PlainTextRenderer(renderers.BaseRenderer):
 class ZoneFileDetail(generics.GenericAPIView):
     """
     Handles a DNS zone file in plaintext.
-    All models should have a zf_string() method that outputs its relevant data.
+    All models should have a zf_string method that outputs its relevant data.
 
     get:
     Generate zonefile for a given zone.
@@ -982,36 +1008,36 @@ class ZoneFileDetail(generics.GenericAPIView):
     def get(self, request, *args, **kwargs):
         zone = self.get_queryset().get(name=self.kwargs['pk'])
         # Print info about Zone and its nameservers
-        data = zone.zf_string()
+        data = zone.zf_string
         data += ';\n; Name servers\n;\n'
         for ns in zone.nameservers.all():
-            data += ns.zf_string()
+            data += ns.zf_string
         # Print info about hosts and their corresponding data
         data += ';\n; Host addresses\n;\n'
-        hosts = Host.objects.all()
+        hosts = Host.objects.filter(zoneid=zone.zoneid)
         for host in hosts:
             for ip in host.ipaddress.all():
-                data += ip.zf_string()
+                data += ip.zf_string
             if host.hinfo is not None:
-                data += host.hinfo.zf_string()
+                data += host.hinfo.zf_string
             if host.loc is not None:
                 data += host.loc_string()
             for cname in host.cname.all():
-                data += cname.zf_string()
+                data += cname.zf_string
             for txt in host.txt.all():
-                data += txt.zf_string()
+                data += txt.zf_string
         # Print misc entries
         data += ';\n; Name authority pointers\n;\n'
-        naptrs = Naptr.objects.all()
+        naptrs = Naptr.objects.filter(zoneid=zone.zoneid)
         for naptr in naptrs:
-            data += naptr.zf_string()
+            data += naptr.zf_string
         data += ';\n; Pointers\n;\n'
         ptroverrides = PtrOverride.objects.all()
         for ptroverride in ptroverrides:
-            data += ptroverride.zf_string()
+            data += ptroverride.zf_string
         data += ';\n; Services\n;\n'
-        srvs = Srv.objects.all()
+        srvs = Srv.objects.filter(zoneid=zone.zoneid)
         for srv in srvs:
-            data += srv.zf_string()
+            data += srv.zf_string
         return Response(data)
 
