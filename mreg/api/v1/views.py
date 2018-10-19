@@ -178,7 +178,7 @@ class HostList(generics.GenericAPIView):
                 return Response(content, status=status.HTTP_409_CONFLICT)
             zd = ZoneDetail()
             zoneid = zd.get_zone_by_hostname(name=request.data["name"])
-        hostdata = QueryDict.copy(request.data)
+        hostdata = request.data.copy()
         hostdata["zoneid"] = zoneid
 
         if 'ipaddress' in request.data:
@@ -641,55 +641,62 @@ class SubnetDetail(ETAGMixin, generics.GenericAPIView):
         except ValueError as error:
             return Response({'ERROR': str(error)}, status=status.HTTP_400_BAD_REQUEST)
 
-    def _get_used_unused_ipaddresses(self, subnet):
+    def _get_used_ippaddresses_on_subnet(self, subnet):
         """
-        Returns used and unused ipaddresses for a given subnet.
+        Takes a subnet serializer data dict, and returns which ip-addresses on the subnet are used.
         """
-        # TODO: this approach is slllloooooowwwwwww with lots of IPs. Must
-        # filter ipaddresses by subnet
-        all_used_ips = {ipaddress.ip_address(ip_db.ipaddress) for ip_db in Ipaddress.objects.all()}
+        network = ipaddress.ip_network(subnet['range'])
+        from_ip = str(network.network_address)
+        to_ip = str(network.broadcast_address)
+        ips = Ipaddress.objects.filter(ipaddress__gt=from_ip)
+        ips = ips.filter(ipaddress__lt=to_ip)
+        used = {ipaddress.ip_address(i.ipaddress) for i in ips}
+        return used
+
+    def get_used_ipaddresses_on_subnet(self, subnet):
+        """
+        Takes a subnet serializer data dict, and returns which ip-addresses on the subnet are used.
+        """
+        used = self._get_used_ippaddresses_on_subnet(subnet)
+        return map(str,sorted(used))
+
+    def get_unused_ipaddresses_on_subnet(self, subnet):
+        """
+        Takes a subnet serializer data dict, and returns which ip-addresses on the subnet are unused.
+        """
         network = ipaddress.ip_network(subnet['range'])
         subnet_ips = []
         if isinstance(network, ipaddress.IPv6Network):
             # Getting all availible IPs for a ipv6 prefix can easily cause
             # the webserver to hang due to lots and lots of IPs. Instead limit
             # to the first 4000 hosts. Should probably be configurable.
-            for i, ip in zip(range(4000), network):
+            for i, ip in zip(range(4000), network.hosts()):
                 subnet_ips.append(ip)
         else:
             subnet_ips = list(network.hosts())
 
-        if len(subnet_ips) > subnet['reserved']:
-            subnet_ips = subnet_ips[subnet['reserved']:]
-
-        subnet_ips = set(subnet_ips)
-        used = subnet_ips & all_used_ips
+        subnet_ips = set(subnet_ips[subnet['reserved']:])
+        used = self._get_used_ippaddresses_on_subnet(subnet)
         unused = subnet_ips - used
-        return sorted(used), sorted(unused)
-
-    def get_used_ipaddresses_on_subnet(self, subnet):
-        """
-        Takes a subnet serializer data dict, and returns which ip-addresses on the subnet are used.
-        """
-        used, unused = self._get_used_unused_ipaddresses(subnet)
-        return map(str,used)
-
-    def get_unused_ipaddresses_on_subnet(self, subnet):
-        """
-        Takes a subnet serializer data dict, and returns which ip-addresses on the subnet are unused.
-        """
-        used, unused = self._get_used_unused_ipaddresses(subnet)
-        return map(str,unused)
+        return map(str,sorted(unused))
 
     def get_first_unused(self, subnet):
         """
         Return the first unused IP found, if any.
         """
-        unused = self.get_unused_ipaddresses_on_subnet(subnet)
 
-        unused = list(unused)
-        if unused:
-            return list(unused)[0]
+        used = self._get_used_ippaddresses_on_subnet(subnet)
+        # Get the first unused address without using
+        # get_unused_ipaddresses_on_subnet() as it is quite slow if the subnet
+        # is large.
+        network = ipaddress.ip_network(subnet['range'])
+        i = 0
+        for ip in network.hosts():
+            if i < subnet['reserved']:
+                i += 1
+                continue
+            if ip not in used:
+                return str(ip)
         return None
 
 class TxtList(generics.ListCreateAPIView):
