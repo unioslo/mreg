@@ -178,6 +178,9 @@ class HostList(generics.GenericAPIView):
                 return Response(content, status=status.HTTP_409_CONFLICT)
             zd = ZoneDetail()
             zoneid = zd.get_zone_by_hostname(name=request.data["name"])
+            if not zoneid:
+                return Response(status=status.HTTP_400_BAD_REQUEST,
+                                data={"ERROR": "Hostname not in a mreg zone"})
         hostdata = request.data.copy()
         hostdata["zoneid"] = zoneid
 
