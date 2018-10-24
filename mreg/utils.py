@@ -66,7 +66,7 @@ def idna_encode(entry):
 def encode_mail(mail):
     """
     Encodes an e-mail address as a name by converting '.' to '\.' and '@' to '.'
-    Also appends a '.' after the domain.
+    Also appends a punctuation mark after the domain.
     :param mail: E-mail address to encode
     :return: Encoded e-mail address
     """
