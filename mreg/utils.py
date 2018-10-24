@@ -1,5 +1,6 @@
 import idna
 import ipaddress
+import re
 import time
 
 
@@ -37,14 +38,19 @@ def reverse_ip(ip):
         return '.'.join(reversed(ip.split('.')))
 
 
-def qualify(name, zone):
+def qualify(name, zone, shortform=True):
     """
-    Appends a punctuation mark to fully qualified names within a given zone
+    Appends a punctuation mark to fully qualified names within a given zone.
+    If the parameter name is in the zone given, it will strip the zone suffix
+    and not end with a punctuation mark.
     :param name: Name to check
     :param zone: Zone where name might be
+    :param shortform: Wheter to remove zone from name, or not
     :return: String with punctuation appended or unchanged
     """
-    if name.endswith(zone):
+    if name.endswith(zone) and shortform:
+        name = re.sub('\.%s$' % zone, '', name)
+    elif not name.endswith("."):
         name += '.'
     return name
 
@@ -60,12 +66,13 @@ def idna_encode(entry):
 def encode_mail(mail):
     """
     Encodes an e-mail address as a name by converting '.' to '\.' and '@' to '.'
+    Also appends a '.' after the domain.
     :param mail: E-mail address to encode
     :return: Encoded e-mail address
     """
     user, domain = mail.split('@')
     user = user.replace('.', '\.')
-    mail = '%s.%s' % (user, domain)
+    mail = '%s.%s.' % (user, domain)
     return mail
 
 
