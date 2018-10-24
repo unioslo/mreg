@@ -1023,26 +1023,26 @@ class ZoneFileDetail(generics.GenericAPIView):
         data = zone.zf_string
         data += ';\n; Name servers\n;\n'
         for ns in zone.nameservers.all():
-            data += ns.zf_string
+            data += ns.zf_string(zone.name)
         # Print info about hosts and their corresponding data
         data += ';\n; Host addresses\n;\n'
         hosts = Host.objects.filter(zoneid=zone.zoneid)
         for host in hosts:
             for ip in host.ipaddress.all():
-                data += ip.zf_string
+                data += ip.zf_string(zone.name)
             if host.hinfo is not None:
-                data += host.hinfo.zf_string
+                data += host.hinfo.zf_string(zone.name)
             if host.loc is not None:
-                data += host.loc_string()
+                data += host.loc_string(zone.name)
             for cname in host.cname.all():
-                data += cname.zf_string
+                data += cname.zf_string(zone.name)
             for txt in host.txt.all():
-                data += txt.zf_string
+                data += txt.zf_string(zone.name)
         # Print misc entries
         data += ';\n; Name authority pointers\n;\n'
         naptrs = Naptr.objects.filter(zoneid=zone.zoneid)
         for naptr in naptrs:
-            data += naptr.zf_string
+            data += naptr.zf_string(zone.name)
         data += ';\n; Pointers\n;\n'
         ptroverrides = PtrOverride.objects.all()
         for ptroverride in ptroverrides:
@@ -1050,6 +1050,6 @@ class ZoneFileDetail(generics.GenericAPIView):
         data += ';\n; Services\n;\n'
         srvs = Srv.objects.filter(zoneid=zone.zoneid)
         for srv in srvs:
-            data += srv.zf_string
+            data += srv.zf_string(zone.name)
         return Response(data)
 
