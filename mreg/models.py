@@ -11,13 +11,12 @@ class NameServer(models.Model):
     class Meta:
         db_table = 'ns'
 
-    @property
-    def zf_string(self):
+    def zf_string(self, zone):
         """String representation for zonefile export."""
         data = {
             'ttl': clear_none(self.ttl),
             'record_type': 'NS',
-            'record_data': idna_encode(qualify(self.name, 'uio.no'))
+            'record_data': idna_encode(qualify(self.name, zone))
         }
         return '                         {ttl:5} IN {record_type:6} {record_data}\n'.format_map(data)
 
@@ -44,10 +43,10 @@ class Zone(models.Model):
         data = {
             'origin': idna_encode(qualify(self.name, self.name)),
             'ttl': self.ttl,
-            'name': idna_encode(qualify(self.name, self.name)),
+            'name': '@',
             'record_type': 'SOA',
-            'mname': idna_encode(qualify(self.primary_ns, self.name)),
-            'rname': idna_encode(qualify(encode_mail(self.email), self.name)),
+            'mname': idna_encode(qualify(self.primary_ns, self.name, shortform=False)),
+            'rname': idna_encode(encode_mail(self.email)),
             'serial': self.serialno,
             'refresh': self.refresh,
             'retry': self.retry,
@@ -102,10 +101,10 @@ class Host(ZoneMember):
     class Meta:
         db_table = 'host'
 
-    def loc_string(self):
+    def loc_string(self, zone):
         """String representation for zonefile export."""
         data = {
-            'name': self.name,
+            'name': idna_encode(qualify(self.name, zone)),
             'record_type': 'LOC',
             'record_data': self.loc
         }
@@ -120,8 +119,7 @@ class Ipaddress(models.Model):
     class Meta:
         db_table = 'ipaddress'
 
-    @property
-    def zf_string(self):
+    def zf_string(self, zone):
         """String representation for zonefile export."""
         if isinstance(ipaddress.ip_address(self.ipaddress), ipaddress.IPv4Address):
             iptype = 'A'
@@ -129,7 +127,7 @@ class Ipaddress(models.Model):
             iptype = 'AAAA'
 #       TODO: Make this generic for other zones than uio.no
         data = {
-            'name': idna_encode(qualify(self.hostid.name, 'uio.no')),
+            'name': idna_encode(qualify(self.hostid.name, zone)),
             'ttl': clear_none(self.hostid.ttl),
             'record_type': iptype,
             'record_data': self.ipaddress,
@@ -145,12 +143,11 @@ class PtrOverride(models.Model):
     class Meta:
         db_table = 'ptr_override'
 
-    @property
-    def zf_string(self):
+    def zf_string(self, zone):
         """String representation for zonefile export."""
         data = {
             'name': reverse_ip(self.ipaddress) + '.in-addr.arpa.',
-            'record_data': idna_encode(qualify(self.hostid.name, 'uio.no')),
+            'record_data': idna_encode(qualify(self.hostid.name, zone)),
             'record_type': 'PTR',
             'comment': comment(clear_none(self.hostid.comment))
         }
@@ -165,17 +162,16 @@ class Txt(ZoneMember):
     class Meta:
         db_table = 'txt'
 
-    @property
-    def zf_string(self):
+    def zf_string(self, zone):
         """String representation for zonefile export."""
         data = {
-            'name': idna_encode(qualify(self.hostid.name, 'uio.no')),
+            'name': idna_encode(qualify(self.hostid.name, zone)),
             'ttl': clear_none(self.hostid.ttl),
             'record_type': 'TXT',
             'record_data': '\"%s\"' % self.txt,
             'comment': comment(clear_none(self.hostid.comment))
         }
-        return '{name:24} {ttl:5}    {record_type:6} {record_data:39}{comment}\n'.format_map(data)
+        return '{name:24} {ttl:5} IN {record_type:6} {record_data:39}{comment}\n'.format_map(data)
 
 
 class Cname(ZoneMember):
@@ -186,14 +182,13 @@ class Cname(ZoneMember):
     class Meta:
         db_table = 'cname'
 
-    @property
-    def zf_string(self):
+    def zf_string(self, zone):
         """String representation for zonefile export."""
         data = {
-            'name': idna_encode(qualify(self.hostid.name, 'uio.no')),
+            'name': idna_encode(qualify(self.hostid.name, zone)),
             'ttl': clear_none(self.ttl),
             'record_type': 'CNAME',
-            'record_data': idna_encode(qualify(self.cname, 'uio.no')),
+            'record_data': idna_encode(qualify(self.cname, zone)),
             'comment': comment(clear_none(self.hostid.comment))
         }
         return '{name:24} {ttl:5} IN {record_type:6} {record_data:39}{comment}\n'.format_map(data)
@@ -227,11 +222,10 @@ class Naptr(ZoneMember):
     class Meta:
         db_table = 'naptr'
 
-    @property
-    def zf_string(self):
+    def zf_string(self, zone):
         """String representation for zonefile export."""
         data = {
-            'name': idna_encode(qualify(self.hostid.name, 'uio.no')),
+            'name': idna_encode(qualify(self.hostid.name, zone)),
             'ttl': clear_none(self.hostid.ttl),
             'record_type': 'NAPTR',
             'order': clear_none(self.orderv),
@@ -257,17 +251,16 @@ class Srv(ZoneMember):
     class Meta:
         db_table = 'srv'
 
-    @property
     def zf_string(self):
         """String representation for zonefile export."""
         data = {
-            'name': idna_encode(qualify(self.service, 'uio.no')),
+            'name': idna_encode(qualify(self.service, zone)),
             'ttl': clear_none(self.ttl),
             'record_type': 'SRV',
             'priority': clear_none(self.priority),
             'weight': clear_none(self.weight),
             'port': clear_none(self.port),
-            'target': idna_encode(qualify(self.target, 'uio.no'))
+            'target': idna_encode(qualify(self.target, zone))
         }
         return '{name:24} {ttl:5} IN {record_type:6} {priority} {weight} {port} {target}\n'.format_map(data)
 
