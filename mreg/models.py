@@ -41,7 +41,7 @@ class Zone(models.Model):
     def zf_string(self):
         """String representation for zonefile export."""
         data = {
-            'origin': idna_encode(qualify(self.name, self.name)),
+            'origin': idna_encode(qualify(self.name, self.name, shortform=False)),
             'ttl': self.ttl,
             'name': '@',
             'record_type': 'SOA',
