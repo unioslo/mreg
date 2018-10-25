@@ -120,7 +120,7 @@ class Ipaddress(models.Model):
         db_table = 'ipaddress'
 
     def zf_string(self, zone):
-        """String representation for zonefile export."""
+        """String representation for forward zonefile export."""
         if isinstance(ipaddress.ip_address(self.ipaddress), ipaddress.IPv4Address):
             iptype = 'A'
         else:
