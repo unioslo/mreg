@@ -94,7 +94,7 @@ class IPv4ReverseFile(object):
                     data += new_origin
                     origin = new_origin
             ptrip = ptrip[ptrip.rfind(".")+1:]
-            data += "{}\tPTR\t{}\n".format(ptrip, ip.hostid.name)
+            data += "{}\tPTR\t{}.\n".format(ptrip, ip.hostid.name)
         return data
 
 class IPv6ReverseFile(object):
@@ -132,5 +132,5 @@ class IPv6ReverseFile(object):
             if not rev.endswith(_prev_net):
                 _prev_net = rev[32:]
                 data += "$ORIGIN {}.\n".format(_prev_net)
-            data += "{}\tPTR\t{}\n".format(rev[:31], ip.hostid.name)
+            data += "{}\tPTR\t{}.\n".format(rev[:31], ip.hostid.name)
         return data
