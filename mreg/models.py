@@ -41,7 +41,7 @@ class Zone(models.Model):
     def zf_string(self):
         """String representation for zonefile export."""
         data = {
-            'origin': idna_encode(qualify(self.name, self.name)),
+            'origin': idna_encode(qualify(self.name, self.name, shortform=False)),
             'ttl': self.ttl,
             'name': '@',
             'record_type': 'SOA',
@@ -120,7 +120,7 @@ class Ipaddress(models.Model):
         db_table = 'ipaddress'
 
     def zf_string(self, zone):
-        """String representation for zonefile export."""
+        """String representation for forward zonefile export."""
         if isinstance(ipaddress.ip_address(self.ipaddress), ipaddress.IPv4Address):
             iptype = 'A'
         else:
