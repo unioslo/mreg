@@ -32,7 +32,7 @@ def validate_hostname(name):
         if label == '':
             raise ValidationError("Too many punctation marks")
         if label[0] == "-" or label[-1] == "-":
-            raise ValidationError("Can not start or end a label with a hypen '{}'".format(label))
+            raise ValidationError("Can not start or end a label with a hyphen '{}'".format(label))
         if len(label) > 63:
             raise ValidationError("Label '{}' is than the allowed 63 characters".format(label))
         try:
