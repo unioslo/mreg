@@ -18,16 +18,21 @@ def validate_ttl(value):
     if value > 68400:
         raise serializers.ValidationError("Ensure this value is less than or equal to 68400.")
 
-def validate_zonename(name):
-    """ Validate a zonename."""
+def validate_hostname(name):
+    """ Validate a hostname. """
+
     if name.endswith("."):
-        raise ValidationError("Zone name must not end with a punctuation mark.")
+        raise ValidationError("Name must not end with a punctuation mark.")
     # Assume we are not running a tld
     if not "." in name:
-        raise ValidationError("Zone must include a tld.")
+        raise ValidationError("Name must include a tld.")
     # Any label in can be max 63 characters, after idna encoding
     labels = name.split(".")
     for label in labels:
+        if label == '':
+            raise ValidationError("Too many punctation marks")
+        if label[0] == "-" or label[-1] == "-":
+            raise ValidationError("Can not start or end a label with a hypen '{}'".format(label))
         if len(label) > 63:
             raise ValidationError("Label '{}' is than the allowed 63 characters".format(label))
         try:
@@ -35,6 +40,11 @@ def validate_zonename(name):
         except idna.core.IDNAError:
             raise ValidationError(
                     "Label '{}' becomes more than 63 characters when idna encoded".format(label))
+
+def validate_zonename(name):
+    """ Validate a zonename."""
+
+    validate_hostname(name)
 
     if name.endswith("in-addr.arpa"):
         octets = labels[:-2]
