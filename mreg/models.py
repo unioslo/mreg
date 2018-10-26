@@ -5,7 +5,7 @@ from mreg.utils import *
 
 class NameServer(models.Model):
     nsid = models.AutoField(primary_key=True, serialize=True)
-    name = models.CharField(unique=True, max_length=253)
+    name = models.CharField(unique=True, max_length=253, validators=[validate_hostname])
     ttl = models.IntegerField(blank=True, null=True)
 
     class Meta:
@@ -24,7 +24,7 @@ class NameServer(models.Model):
 class Zone(models.Model):
     zoneid = models.AutoField(primary_key=True, serialize=True)
     name = models.CharField(unique=True, max_length=253, validators=[validate_zonename])
-    primary_ns = models.TextField()
+    primary_ns = models.CharField(unique=True, max_length=253, validators=[validate_hostname])
     nameservers = models.ManyToManyField(NameServer, db_column='ns')
     email = models.EmailField()
     serialno = models.BigIntegerField(blank=True, null=True, validators=[validate_zones_serialno])
@@ -92,7 +92,7 @@ class HinfoPreset(models.Model):
 
 class Host(ZoneMember):
     hostid = models.AutoField(primary_key=True, serialize=True)
-    name = models.TextField(unique=True)
+    name = models.CharField(unique=True, max_length=253, validators=[validate_hostname])
     contact = models.EmailField()
     ttl = models.IntegerField(blank=True, null=True)
     hinfo = models.ForeignKey(HinfoPreset, models.DO_NOTHING, db_column='hinfo', blank=True, null=True)
@@ -126,7 +126,6 @@ class Ipaddress(models.Model):
             iptype = 'A'
         else:
             iptype = 'AAAA'
-#       TODO: Make this generic for other zones than uio.no
         data = {
             'name': idna_encode(qualify(self.hostid.name, zone)),
             'ttl': clear_none(self.hostid.ttl),
