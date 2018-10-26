@@ -1,5 +1,10 @@
+import idna
+
 from django.core.validators import RegexValidator, MinValueValidator, MaxValueValidator
+from django.core.exceptions import ValidationError
 from rest_framework import serializers
+
+from .utils import get_network_from_zonename, idna_encode
 
 
 # TODO: Move some validators to client
@@ -13,6 +18,61 @@ def validate_ttl(value):
     if value > 68400:
         raise serializers.ValidationError("Ensure this value is less than or equal to 68400.")
 
+def validate_hostname(name):
+    """ Validate a hostname. """
+
+    if name.endswith("."):
+        raise ValidationError("Name must not end with a punctuation mark.")
+    # Assume we are not running a tld
+    if not "." in name:
+        raise ValidationError("Name must include a tld.")
+    # Any label in can be max 63 characters, after idna encoding
+    labels = name.split(".")
+    for label in labels:
+        if label == '':
+            raise ValidationError("Too many punctation marks")
+        if label[0] == "-" or label[-1] == "-":
+            raise ValidationError("Can not start or end a label with a hyphen '{}'".format(label))
+        if len(label) > 63:
+            raise ValidationError("Label '{}' is than the allowed 63 characters".format(label))
+        try:
+            idna_encode(label)
+        except idna.core.IDNAError:
+            raise ValidationError(
+                    "Label '{}' becomes more than 63 characters when idna encoded".format(label))
+
+def validate_zonename(name):
+    """ Validate a zonename."""
+
+    validate_hostname(name)
+
+    if name.endswith("in-addr.arpa"):
+        octets = labels[:-2]
+        if len(octets) > 4:
+            raise ValidationError("Reverse zone is not valid")
+        try:
+            [ int(octet) for octet in octets ]
+        except ValueError:
+            raise ValidationError("Non-integers in the octets in reverse zone")
+        try:
+            network = get_network_from_zonename(name)
+        except ValueError:
+            raise ValidationError("Not a valid reverse zone")
+
+    if name.endswith("ip6.arpa"):
+        hexes = labels[:-2]
+        if len(hexes) > 32:
+            raise ValidationError("Reverse zone is not valid")
+        #if max(map(len,hexes)) > 1:
+        #    raise ValidationError("Reverse zone is not valid2")
+        try:
+            hexes = [ int(i, 16) for i in hexes ]
+        except ValueError:
+            raise ValidationError("Non-hex in the reverse zone")
+        try:
+            network = get_network_from_zonename(name)
+        except ValueError:
+            raise ValidationError("Not a valid reverse zone")
 
 def validate_mac_address(address):
     """Validates that the mac address is on a valid form."""

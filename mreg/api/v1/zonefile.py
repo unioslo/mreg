@@ -1,5 +1,5 @@
 from mreg.models import Host, Ipaddress, Naptr, Srv, PtrOverride
-from mreg.utils import idna_encode
+from mreg.utils import idna_encode, get_network_from_zonename
 import ipaddress
 
 class ZoneFile(object):
@@ -53,15 +53,6 @@ class ForwardFile(object):
 
 class IPv4ReverseFile(object):
 
-    def get_network(self, zone):
-        zone = zone.replace('.in-addr.arpa','')
-        splitted = list(reversed(zone.split(".")))
-        netmask = 8 * len(splitted)
-        while len(splitted) < 4:
-            splitted.append("0")
-        net = ".".join(splitted)
-        return ipaddress.ip_network("{}/{}".format(net, netmask))
-
     def get_ipaddresses(self, network):
         from_ip = str(network.network_address)
         to_ip = str(network.broadcast_address)
@@ -77,7 +68,7 @@ class IPv4ReverseFile(object):
         return '$ORIGIN %s.in-addr.arpa.\n' % ".".join(tmp)
 
     def generate(self, zone):
-        network = self.get_network(zone.name)
+        network = get_network_from_zonename(zone.name)
         data = zone.zf_string
         data += ';\n; Name servers\n;\n'
         for ns in zone.nameservers.all():
@@ -100,16 +91,6 @@ class IPv4ReverseFile(object):
 
 class IPv6ReverseFile(object):
 
-    def get_network(self, zone):
-        zone = zone.replace('.ip6.arpa','')
-        splitted = zone.split(".")
-        netmask = 4 * len(splitted)
-        net = ""
-        it = reversed(splitted)
-        for i in it:
-            net += "%s%s%s%s:" % (i, next(it, '0'), next(it, '0'), next(it, '0'))
-        return ipaddress.ip_network("{}:/{}".format(net, netmask))
-
     def get_ipaddresses(self, network):
         from_ip = str(network.network_address)
         to_ip = str(network.broadcast_address)
@@ -120,7 +101,7 @@ class IPv6ReverseFile(object):
         return ips
 
     def generate(self, zone):
-        network = self.get_network(zone.name)
+        network = get_network_from_zonename(zone.name)
         data = zone.zf_string
         data += ';\n; Name servers\n;\n'
         for ns in zone.nameservers.all():
