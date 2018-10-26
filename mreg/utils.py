@@ -101,3 +101,25 @@ def create_serialno(serialno):
         return today*100
     else:
         return serialno+1
+
+def get_network_from_zonename(name):
+    """
+    Returns a ippadress.ip_network for given zonename
+    """
+    if name.endswith(".in-addr.arpa"):
+        name = name.replace('.in-addr.arpa','')
+        splitted = list(reversed(name.split(".")))
+        netmask = 8 * len(splitted)
+        while len(splitted) < 4:
+            splitted.append("0")
+        net = ".".join(splitted)
+        return ipaddress.ip_network("{}/{}".format(net, netmask))
+    elif name.endswith(".ip6.arpa"):
+        name = name.replace('.ip6.arpa','')
+        splitted = name.split(".")
+        netmask = 4 * len(splitted)
+        net = ""
+        it = reversed(splitted)
+        for i in it:
+            net += "%s%s%s%s:" % (i, next(it, '0'), next(it, '0'), next(it, '0'))
+        return ipaddress.ip_network("{}:/{}".format(net, netmask))
