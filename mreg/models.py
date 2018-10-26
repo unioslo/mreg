@@ -77,6 +77,7 @@ class HinfoPreset(models.Model):
 
     class Meta:
         db_table = 'hinfo_preset'
+        unique_together = ('cpu', 'os')
 
     @property
     def zf_string(self):
