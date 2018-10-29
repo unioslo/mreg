@@ -4,38 +4,53 @@ import ipaddress
 
 class ZoneFile(object):
     def __init__(self, zone):
-        self.zone = zone
         if zone.name.endswith('.in-addr.arpa'):
             self.zonetype = IPv4ReverseFile()
         elif zone.name.endswith('.ip6.arpa'):
             self.zonetype = IPv6ReverseFile()
         else:
-            self.zonetype = ForwardFile()
+            self.zonetype = ForwardFile(zone)
 
     def generate(self):
-        return self.zonetype.generate(self.zone)
+        return self.zonetype.generate()
 
 class ForwardFile(object):
-    def generate(self, zone):
+
+    def __init__(self, zone):
+        self.zone = zone
+
+    def host_data(self, host):
+        data = ""
+        for ip in host.ipaddress.all():
+            data += ip.zf_string(self.zone.name)
+        if host.hinfo is not None:
+            data += host.hinfo.zf_string
+        if host.loc is not None:
+            data += host.loc_string(self.zone.name)
+        for cname in host.cname.all():
+            data += cname.zf_string(self.zone.name)
+        for txt in host.txt.all():
+            data += txt.zf_string(self.zone.name)
+        return data
+
+
+    def generate(self):
         # Print info about Zone and its nameservers
+        zone = self.zone
         data = zone.zf_string
+        root = Host.objects.filter(name=zone.name)
+        if root:
+            data += ";\n"
+            data += self.host_data(root[0])
         data += ';\n; Name servers\n;\n'
         for ns in zone.nameservers.all():
             data += ns.zf_string(zone.name)
         # Print info about hosts and their corresponding data
         data += ';\n; Host addresses\n;\n'
         hosts = Host.objects.filter(zoneid=zone.zoneid).order_by('name')
+        hosts = hosts.exclude(name=zone.name)
         for host in hosts:
-            for ip in host.ipaddress.all():
-                data += ip.zf_string(zone.name)
-            if host.hinfo is not None:
-                data += host.hinfo.zf_string
-            if host.loc is not None:
-                data += host.loc_string(zone.name)
-            for cname in host.cname.all():
-                data += cname.zf_string(zone.name)
-            for txt in host.txt.all():
-                data += txt.zf_string(zone.name)
+            data += self.host_data(host)
         # Print misc entries
         data += ';\n; Name authority pointers\n;\n'
         naptrs = Naptr.objects.filter(zoneid=zone.zoneid)
