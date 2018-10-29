@@ -31,6 +31,8 @@ def validate_hostname(name):
     for label in labels:
         if label == '':
             raise ValidationError("Too many punctation marks")
+        if "*" in label and len(label) > 1:
+                raise ValidationError("Wildcard must be standalone")
         if label[0] == "-" or label[-1] == "-":
             raise ValidationError("Can not start or end a label with a hyphen '{}'".format(label))
         if len(label) > 63:
