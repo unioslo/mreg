@@ -49,7 +49,7 @@ def qualify(name, zone, shortform=True):
     :return: String with punctuation appended or unchanged
     """
     if name.endswith(zone) and shortform:
-        name = re.sub('\.%s$' % zone, '', name)
+        name = re.sub('(.?%s)$' % zone, '', name)
     elif not name.endswith("."):
         name += '.'
     return name
