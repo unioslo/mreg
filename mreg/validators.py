@@ -99,7 +99,7 @@ def validate_naptr_flag(flag):
 
 def validate_srv_service_text(servicetext):
     """Validates that the srv service text input is valid."""
-    servicetext_regex = '^_[a-z]+\._(tcp|udp)\.([\w\-]+\.)+$'
+    servicetext_regex = '^_[a-z]+\._(tcp|udp)'
     validator = RegexValidator(servicetext_regex)
     validator(servicetext)
 
