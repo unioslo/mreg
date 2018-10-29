@@ -60,7 +60,15 @@ def idna_encode(entry):
     :param entry: Entry to encode
     :return: String encoded to IDNA and converted to utf-8
     """
-    return idna.encode(entry).decode('utf-8')
+    res = []
+    # idna encode each label, and only those who needs it, as
+    # e.g. the idna module doesn't like to encode "*".
+    for label in entry.split("."):
+        # convert to label.isascii() in python 3.7
+        if not all(ord(char) < 128 for char in label):
+            label = idna.encode(label).decode('utf-8')
+        res.append(label)
+    return ".".join(res)
 
 
 def encode_mail(mail):
