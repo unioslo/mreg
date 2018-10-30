@@ -1,3 +1,5 @@
+import ipaddress
+
 from django.db import models
 from mreg.validators import *
 from mreg.utils import *
@@ -199,11 +201,23 @@ class Subnet(models.Model):
     category = models.TextField(blank=True, null=True)
     location = models.TextField(blank=True, null=True)
     frozen = models.NullBooleanField()
-    reserved = models.IntegerField(default=3)
+    reserved = models.PositiveIntegerField(default=3)
 
     class Meta:
         db_table = 'subnet'
 
+    def __str__(self):
+        return self.range
+
+    def get_reserved_addresses(self):
+        """ Returns a set with the reserved ip addresses for the subnet."""
+        subnet = ipaddress.ip_network(self.range)
+        ret = set([subnet.network_address])
+        for i, ip in zip(range(self.reserved), subnet.hosts()):
+            ret.add(ip)
+        if isinstance(subnet, ipaddress.IPv4Network):
+            ret.add(subnet.broadcast_address)
+        return ret
 
 class Naptr(ZoneMember):
     naptrid = models.AutoField(primary_key=True, serialize=True)
