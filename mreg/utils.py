@@ -15,17 +15,6 @@ def clear_none(value):
     return value
 
 
-def comment(string):
-    """
-    Turns not-empty string into comments
-    :param string: String to check
-    :return: Commented or empty string
-    """
-    if string != "":
-        string = ' ; %s' % string
-    return string
-
-
 def reverse_ip(ip):
     """
     Reverses an IP-adddress
