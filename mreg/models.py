@@ -13,6 +13,9 @@ class NameServer(models.Model):
     class Meta:
         db_table = 'ns'
 
+    def __str__(self):
+        return str(self.name)
+
     def zf_string(self, zone):
         """String representation for zonefile export."""
         data = {
@@ -38,6 +41,9 @@ class Zone(models.Model):
 
     class Meta:
         db_table = 'zone'
+
+    def __str__(self):
+        return str(self.name)
 
     @property
     def zf_string(self):
@@ -81,6 +87,9 @@ class HinfoPreset(models.Model):
         db_table = 'hinfo_preset'
         unique_together = ('cpu', 'os')
 
+    def __str__(self):
+        return "{} {}".format(str(self.cpu), str(self.os))
+
     @property
     def zf_string(self):
         """String representation for zonefile export."""
@@ -104,6 +113,10 @@ class Host(ZoneMember):
     class Meta:
         db_table = 'host'
 
+
+    def __str__(self):
+        return str(self.name)
+
     def loc_string(self, zone):
         """String representation for zonefile export."""
         data = {
@@ -121,6 +134,9 @@ class Ipaddress(models.Model):
 
     class Meta:
         db_table = 'ipaddress'
+
+    def __str__(self):
+        return "{} -> {}".format(str(self.ipaddress), str(self.macaddress) or "None")
 
     def zf_string(self, zone):
         """String representation for forward zonefile export."""
@@ -144,6 +160,9 @@ class PtrOverride(models.Model):
     class Meta:
         db_table = 'ptr_override'
 
+    def __str__(self):
+        return str(self.ipaddress)
+
     def zf_string(self, zone):
         """String representation for zonefile export."""
         data = {
@@ -161,6 +180,9 @@ class Txt(ZoneMember):
 
     class Meta:
         db_table = 'txt'
+
+    def __str__(self):
+        return str(self.txt)
 
     def zf_string(self, zone):
         """String representation for zonefile export."""
@@ -180,6 +202,9 @@ class Cname(ZoneMember):
 
     class Meta:
         db_table = 'cname'
+
+    def __str__(self):
+        return "{} -> {}".format(str(self.hostid), str(self.cname))
 
     def zf_string(self, zone):
         """String representation for zonefile export."""
@@ -207,7 +232,7 @@ class Subnet(models.Model):
         db_table = 'subnet'
 
     def __str__(self):
-        return self.range
+        return str(self.range)
 
     def get_reserved_addresses(self):
         """ Returns a set with the reserved ip addresses for the subnet."""
@@ -231,6 +256,9 @@ class Naptr(ZoneMember):
 
     class Meta:
         db_table = 'naptr'
+
+    def __str__(self):
+        return str(self.hostid)
 
     def zf_string(self, zone):
         """String representation for zonefile export."""
@@ -259,6 +287,9 @@ class Srv(ZoneMember):
 
     class Meta:
         db_table = 'srv'
+
+    def __str__(self):
+        return str(self.service)
 
     def zf_string(self):
         """String representation for zonefile export."""
