@@ -131,9 +131,8 @@ class Ipaddress(models.Model):
             'ttl': clear_none(self.hostid.ttl),
             'record_type': iptype,
             'record_data': self.ipaddress,
-            'comment': comment(clear_none(self.hostid.comment))
         }
-        return '{name:24} {ttl:5} IN {record_type:6} {record_data:39}{comment}\n'.format_map(data)
+        return '{name:24} {ttl:5} IN {record_type:6} {record_data:39}\n'.format_map(data)
 
 
 class PtrOverride(models.Model):
@@ -149,9 +148,8 @@ class PtrOverride(models.Model):
             'name': reverse_ip(self.ipaddress) + '.in-addr.arpa.',
             'record_data': idna_encode(qualify(self.hostid.name, zone)),
             'record_type': 'PTR',
-            'comment': comment(clear_none(self.hostid.comment))
         }
-        return '{name:30} IN {record_type:6} {record_data}{comment}\n'.format_map(data)
+        return '{name:30} IN {record_type:6} {record_data}\n'.format_map(data)
 
 
 class Txt(ZoneMember):
@@ -169,9 +167,8 @@ class Txt(ZoneMember):
             'ttl': clear_none(self.hostid.ttl),
             'record_type': 'TXT',
             'record_data': '\"%s\"' % self.txt,
-            'comment': comment(clear_none(self.hostid.comment))
         }
-        return '{name:24} {ttl:5} IN {record_type:6} {record_data:39}{comment}\n'.format_map(data)
+        return '{name:24} {ttl:5} IN {record_type:6} {record_data:39}\n'.format_map(data)
 
 
 class Cname(ZoneMember):
@@ -189,9 +186,8 @@ class Cname(ZoneMember):
             'ttl': clear_none(self.ttl),
             'record_type': 'CNAME',
             'record_data': idna_encode(qualify(self.cname, zone)),
-            'comment': comment(clear_none(self.hostid.comment))
         }
-        return '{name:24} {ttl:5} IN {record_type:6} {record_data:39}{comment}\n'.format_map(data)
+        return '{name:24} {ttl:5} IN {record_type:6} {record_data:39}\n'.format_map(data)
 
 
 class Subnet(models.Model):
@@ -234,9 +230,8 @@ class Naptr(ZoneMember):
             'service': self.service,
             'regex': clear_none(self.regex),
             'replacement': self.replacement,
-            'comment': comment(clear_none(self.hostid.comment))
         }
-        return '{name:24} {ttl:5} IN {record_type:6} {order} {preference} \"{flag}\" \"{service}\" \"{regex}\" {replacement}{comment}\n'.format_map(data)
+        return '{name:24} {ttl:5} IN {record_type:6} {order} {preference} \"{flag}\" \"{service}\" \"{regex}\" {replacement}\n'.format_map(data)
 
 
 class Srv(ZoneMember):
