@@ -481,8 +481,6 @@ class SubnetList(generics.ListAPIView):
     def post(self, request, *args, **kwargs):
         try:
             network = ipaddress.ip_network(request.data['range'])
-            hosts = network.num_addresses
-
             overlap = self.overlap_check(network)
             if overlap:
                 return Response({'ERROR': 'Subnet overlaps with: {}'.format(network.supernet().with_prefixlen)},
@@ -492,8 +490,8 @@ class SubnetList(generics.ListAPIView):
             serializer.is_valid(raise_exception=True)
             subnet = serializer.create()
             # Changed the default value of reserved if the size of the subnet is too low
-            if hosts <= 4:
-                subnet.reserved = 2
+            if network.num_addresses <= 4:
+                subnet.reserved = min(2, network.num_addresses)
             subnet.save()
             location = '/subnets/%s' % request.data
             return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
