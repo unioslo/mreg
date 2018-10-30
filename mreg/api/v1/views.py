@@ -653,9 +653,9 @@ class SubnetDetail(ETAGMixin, generics.GenericAPIView):
         network = ipaddress.ip_network(subnet['range'])
         from_ip = str(network.network_address)
         to_ip = str(network.broadcast_address)
-        ips = Ipaddress.objects.filter(ipaddress__gt=from_ip)
+        ips = Ipaddress.objects.filter(ipaddress__gte=from_ip)
         # XXX:  __lt does not work correctly with sqlite :( postgres is OK.
-        ips = ips.filter(ipaddress__lt=to_ip)
+        ips = ips.filter(ipaddress__lte=to_ip)
         used = {ipaddress.ip_address(i.ipaddress) for i in ips}
         return used
 
