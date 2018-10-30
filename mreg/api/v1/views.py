@@ -1,6 +1,7 @@
 from rest_framework import generics
 from django.http import Http404, QueryDict
 from django.core.exceptions import ObjectDoesNotExist
+from django.shortcuts import get_object_or_404
 from mreg.models import *
 from mreg.api.v1.serializers import *
 from rest_framework_extensions.etag.mixins import ETAGMixin
@@ -79,16 +80,13 @@ class StrictCRUDMixin(object):
     def patch(self, request, *args, **kwargs):
         queryset = self.get_queryset()
         serializer_class = self.get_serializer_class()
-        resource = self.kwargs['resource']
-        try:
-            obj = queryset.get(pk=self.kwargs[self.lookup_field])
-            serializer = serializer_class(obj, data=request.data, partial=True)
-            if serializer.is_valid(raise_exception=True):
-                serializer.save()
-                location = '/%s/%s' % (resource, obj.pk)
-                return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
-        except ObjectDoesNotExist:
-            raise Http404
+        obj = get_object_or_404(queryset, pk=self.kwargs[self.lookup_field])
+        serializer = serializer_class(obj, data=request.data, partial=True)
+        if serializer.is_valid(raise_exception=True):
+            serializer.save()
+            resource = self.kwargs['resource']
+            location = '/%s/%s' % (resource, obj.pk)
+            return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
 class CnameList(generics.ListCreateAPIView):
@@ -237,16 +235,10 @@ class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
         query = self.kwargs['pk']
         try:
             ipaddress.ip_address(query)
-            try:
-                ip = Ipaddress.objects.get(ipaddress=query)
-                host = ip.hostid
-            except Ipaddress.DoesNotExist:
-                raise Http404
+            ip = get_object_or_404(Ipaddress, ipaddress=query)
+            host = ip.hostid
         except ValueError:
-            try:
-                host = queryset.get(name=query)
-            except Host.DoesNotExist:
-                raise Http404
+            host = get_object_or_404(Host, name=query)
         return host
 
     def patch(self, request, *args, **kwargs):
@@ -262,16 +254,13 @@ class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
                 content = {'ERROR': 'name already in use'}
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
-        try:
-            host = Host.objects.get(name=query)
-            serializer = HostSaveSerializer(host, data=request.data, partial=True)
+        host = get_object_or_404(Host, name=query)
+        serializer = HostSaveSerializer(host, data=request.data, partial=True)
 
-            if serializer.is_valid(raise_exception=True):
-                serializer.save()
-                location = '/hosts/%s' % host.name
-                return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
-        except Host.DoesNotExist:
-            raise Http404
+        if serializer.is_valid(raise_exception=True):
+            serializer.save()
+            location = '/hosts/%s' % host.name
+            return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
 class IpaddressList(generics.ListCreateAPIView):
@@ -326,14 +315,11 @@ class IpaddressDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
         query = self.kwargs['pk']
         try:
             ipaddress.ip_address(query)
-            try:
-                found_ip = Ipaddress.objects.get(ipaddress=query)
-            except Ipaddress.DoesNotExist:
-                raise Http404
+            ip = get_object_or_404(Ipaddress, ipaddress=query)
         except ValueError:
             content = {'ERROR': 'Not a valid IP address'}
             return Response(content, status=status.HTTP_400_BAD_REQUEST)
-        return found_ip
+        return ip
 
     def patch(self, request, *args, **kwargs):
         query = self.kwargs['pk']
@@ -349,15 +335,12 @@ class IpaddressDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
                            'ipaddress': self.queryset.get(macaddress=request.data['macaddress']).ipaddress}
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
-        try:
-            ip = Ipaddress.objects.get(ipaddress=query)
-            serializer = IpaddressSerializer(ip, data=request.data, partial=True)
-            if serializer.is_valid(raise_exception=True):
-                serializer.save()
-                location = '/ipaddresses/%s' % ip.ipaddress
-                return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
-        except Ipaddress.DoesNotExist:
-            raise Http404
+        ip = get_object_or_404(Ipaddress, ipaddress=query)
+        serializer = IpaddressSerializer(ip, data=request.data, partial=True)
+        if serializer.is_valid(raise_exception=True):
+            serializer.save()
+            location = '/ipaddresses/%s' % ip.ipaddress
+            return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
 class NaptrList(generics.ListCreateAPIView):
@@ -567,10 +550,7 @@ class SubnetDetail(ETAGMixin, generics.GenericAPIView):
         if not valid_range:
             return valid_range
 
-        try:
-            subnet = Subnet.objects.get(range=iprange)
-        except Subnet.DoesNotExist:
-            raise Http404
+        subnet = get_object_or_404(Subnet, range=iprange)
         serializer = self.get_serializer(subnet)
 
         # Returns a list of used IP addresses on a given subnet.
@@ -602,16 +582,12 @@ class SubnetDetail(ETAGMixin, generics.GenericAPIView):
         if 'range' in request.data:
             return Response({'ERROR': 'Not allowed to change range'}, status=status.HTTP_403_FORBIDDEN)
 
-        try:
-            subnet = Subnet.objects.get(range=iprange)
-
-            serializer = self.get_serializer(subnet, data=request.data, partial=True)
-            serializer.is_valid(raise_exception=True)
-            serializer.save()
-            location = '/subnets/%s' % iprange
-            return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
-        except Subnet.DoesNotExist:
-            raise Http404
+        subnet = get_object_or_404(Subnet, range=iprange)
+        serializer = self.get_serializer(subnet, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        location = '/subnets/%s' % iprange
+        return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
     def delete(self, request, *args, **kwargs):
         ip = self.kwargs['ip']
@@ -626,13 +602,9 @@ class SubnetDetail(ETAGMixin, generics.GenericAPIView):
         if used_ipaddresses:
             return Response({'ERROR': 'Subnet contains IP addresses that are in use'}, status=status.HTTP_409_CONFLICT)
 
-        try:
-            found_subnet = Subnet.objects.get(range=iprange)
-
-            found_subnet.delete()
-            return Response(status=status.HTTP_204_NO_CONTENT)
-        except Subnet.DoesNotExist:
-            raise Http404
+        subnet = get_object_or_404(Subnet, range=iprange)
+        subnet.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     def is_range(self, iprange):
         """
@@ -838,29 +810,23 @@ class ZoneDetail(ETAGMixin, generics.RetrieveAPIView):
             content = {'ERROR': 'Not allowed to patch nameservers, use zones/{}/nameservers'.format(query)}
             return Response(content, status=status.HTTP_403_FORBIDDEN)
 
-        try:
-            zone = Zone.objects.get(name=query)
-            # Check if primary_ns is in the zone's list of nameservers
-            if "primary_ns" in request.data:
-                if request.data['primary_ns'] not in [nameserver['name'] for nameserver in zone.nameservers.values()]:
-                    content = {'ERROR': "%s is not one of %s's nameservers" % (request.data['primary_ns'], query)}
-                    return Response(content, status=status.HTTP_403_FORBIDDEN)
-            data = request.data.copy()
-            data['serialno'] = create_serialno(ZoneList.get_zoneserial())
-            serializer = self.get_serializer(zone, data=data, partial=True)
-            serializer.is_valid(raise_exception=True)
-            serializer.save()
-            location = '/zones/%s' % zone.name
-            return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
-        except Zone.DoesNotExist:
-            raise Http404
+        zone = get_object_or_404(Zone, name=query)
+        # Check if primary_ns is in the zone's list of nameservers
+        if "primary_ns" in request.data:
+            if request.data['primary_ns'] not in [nameserver['name'] for nameserver in zone.nameservers.values()]:
+                content = {'ERROR': "%s is not one of %s's nameservers" % (request.data['primary_ns'], query)}
+                return Response(content, status=status.HTTP_403_FORBIDDEN)
+        data = request.data.copy()
+        data['serialno'] = create_serialno(ZoneList.get_zoneserial())
+        serializer = self.get_serializer(zone, data=data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        location = '/zones/%s' % zone.name
+        return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
     def delete(self, request, *args, **kwargs):
         query = self.kwargs[self.lookup_field]
-        try:
-            zone = self.get_queryset().get(name=query)
-        except Zone.DoesNotExist:
-            raise Http404
+        zone = get_object_or_404(Zone, name=query)
 
         for nameserver in zone.nameservers.values():
             ns = self.queryset_ns.get(name=nameserver['name'])
@@ -911,50 +877,43 @@ class ZoneNameServerDetail(ETAGMixin, generics.GenericAPIView):
 
     def get(self, request, *args, **kwargs):
         query = self.kwargs[self.lookup_field]
-        try:
-            zone = self.get_queryset().get(name=query)
-            return Response([ns['name'] for ns in zone.nameservers.values()], status=status.HTTP_200_OK)
-        except Zone.DoesNotExist:
-            raise Http404
+        zone = get_object_or_404(Zone, name=query)
+        return Response([ns['name'] for ns in zone.nameservers.values()], status=status.HTTP_200_OK)
 
     def patch(self, request, *args, **kwargs):
         query = self.kwargs[self.lookup_field]
-        try:
-            zone = self.get_queryset().get(name=query)
+        zone = get_object_or_404(Zone, name=query)
+        if 'primary_ns' not in request.data:
+            return Response({'ERROR': 'No nameserver found in body'}, status=status.HTTP_400_BAD_REQUEST)
 
-            if 'primary_ns' not in request.data:
-                return Response({'ERROR': 'No nameserver found in body'}, status=status.HTTP_400_BAD_REQUEST)
+        # Check existing  nameservers and delete them if this zone is the only one that uses them
+        for nameserver in zone.nameservers.values():
+            ns = self.queryset_ns.get(name=nameserver['name'])
+            if ns.zone_set.count() == 1:
+                ns.delete()
+        # Clear remaining references
+        zone.nameservers.clear()
 
-            # Check existing  nameservers and delete them if this zone is the only one that uses them
-            for nameserver in zone.nameservers.values():
-                ns = self.queryset_ns.get(name=nameserver['name'])
-                if ns.zone_set.count() == 1:
-                    ns.delete()
-            # Clear remaining references
-            zone.nameservers.clear()
-
-            for nameserver in request.data.getlist('primary_ns'):
-                # Check if a hosts with the name exists
+        for nameserver in request.data.getlist('primary_ns'):
+            # Check if a hosts with the name exists
+            try:
+                self.queryset_hosts.get(name=nameserver)
+                # Check if there already is a entry in the table
                 try:
-                    self.queryset_hosts.get(name=nameserver)
-                    # Check if there already is a entry in the table
-                    try:
-                        ns = self.queryset_ns.get(name=nameserver)
-                        zone.nameservers.add(ns)
-                    except NameServer.DoesNotExist:
-                        ns = NameServer(name=nameserver)
-                        ns.save()
-                        zone.nameservers.add(ns)
-                except Host.DoesNotExist:
-                    return Response({'ERROR': "No host entry for %s" % nameserver}, status=status.HTTP_404_NOT_FOUND)
+                    ns = self.queryset_ns.get(name=nameserver)
+                    zone.nameservers.add(ns)
+                except NameServer.DoesNotExist:
+                    ns = NameServer(name=nameserver)
+                    ns.save()
+                    zone.nameservers.add(ns)
+            except Host.DoesNotExist:
+                return Response({'ERROR': "No host entry for %s" % nameserver}, status=status.HTTP_404_NOT_FOUND)
 
-            zone.serialno = create_serialno(ZoneList.get_zoneserial())
-            zone.primary_ns = request.data.getlist('primary_ns')[0]
-            zone.save()
-            location = 'zones/%s/nameservers' % query
-            return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
-        except Zone.DoesNotExist:
-            raise Http404
+        zone.serialno = create_serialno(ZoneList.get_zoneserial())
+        zone.primary_ns = request.data.getlist('primary_ns')[0]
+        zone.save()
+        location = 'zones/%s/nameservers' % query
+        return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
             
             
 class ModelChangeLogList(generics.ListAPIView):
