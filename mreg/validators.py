@@ -4,7 +4,7 @@ from django.core.validators import RegexValidator, MinValueValidator, MaxValueVa
 from django.core.exceptions import ValidationError
 from rest_framework import serializers
 
-from .utils import get_network_from_zonename, idna_encode
+from .utils import get_network_from_zonename
 
 
 # TODO: Move some validators to client
@@ -27,21 +27,33 @@ def validate_hostname(name):
     if not "." in name:
         raise ValidationError("Name must include a tld.")
     # Any label in can be max 63 characters, after idna encoding
-    labels = name.split(".")
-    for label in labels:
+    for label in name.split("."):
         if label == '':
             raise ValidationError("Too many punctation marks")
-        if "*" in label and len(label) > 1:
-                raise ValidationError("Wildcard must be standalone")
         if label[0] == "-" or label[-1] == "-":
             raise ValidationError("Can not start or end a label with a hyphen '{}'".format(label))
         if len(label) > 63:
-            raise ValidationError("Label '{}' is than the allowed 63 characters".format(label))
-        try:
-            idna_encode(label)
-        except idna.core.IDNAError:
-            raise ValidationError(
-                    "Label '{}' becomes more than 63 characters when idna encoded".format(label))
+            raise ValidationError("Label '{}' is {} characters long, maximum is 63".format(label, len(label)))
+        # convert to .isascii in python 3.7
+        if all(ord(char) < 128 for char in label):
+            if "*" in label:
+                if len(label) > 1:
+                        raise ValidationError("Wildcard must be standalone")
+                else:
+                    continue
+            label_regex = "^([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])$"
+            validator = RegexValidator(label_regex,
+                                       message="Label '{}' is not valid. "
+                                               "Must be within [a-zA-Z0-9-].".format(label))
+            validator(label)
+        else:
+            try:
+                idna.encode(label)
+            except idna.core.InvalidCodepoint as e:
+                raise ValidationError("Invalid label '{}': {}".format(label, e))
+            except idna.core.IDNAError as e:
+                raise ValidationError(
+                        "Label '{}' could not be idna encoded: {}".format(label, e))
 
 def validate_zonename(name):
     """ Validate a zonename."""
