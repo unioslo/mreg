@@ -29,7 +29,7 @@ class NameServer(models.Model):
 class Zone(models.Model):
     zoneid = models.AutoField(primary_key=True, serialize=True)
     name = models.CharField(unique=True, max_length=253, validators=[validate_zonename])
-    primary_ns = models.CharField(unique=True, max_length=253, validators=[validate_hostname])
+    primary_ns = models.CharField(max_length=253, validators=[validate_hostname])
     nameservers = models.ManyToManyField(NameServer, db_column='ns')
     email = models.EmailField()
     serialno = models.BigIntegerField(blank=True, null=True, validators=[validate_zones_serialno])
