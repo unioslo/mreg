@@ -983,6 +983,6 @@ class ZoneFileDetail(generics.GenericAPIView):
     renderer_classes = (PlainTextRenderer, )
 
     def get(self, request, *args, **kwargs):
-        zone = self.get_queryset().get(name=self.kwargs['pk'])
+        zone = get_object_or_404(Zone, name=self.kwargs['pk'])
         zonefile = ZoneFile(zone)
         return Response(zonefile.generate())
