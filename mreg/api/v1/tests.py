@@ -3,6 +3,10 @@ from django.utils import timezone
 from mreg.models import *
 from rest_framework.test import APIClient
 
+def clean_and_save(entity):
+    entity.full_clean()
+    entity.save()
+
 
 class ModelHostsTestCase(TestCase):
     """This class defines the test suite for the Host model."""
@@ -18,24 +22,24 @@ class ModelHostsTestCase(TestCase):
     def test_model_can_create_a_host(self):
         """Test that the model is able to create a host."""
         old_count = Host.objects.count()
-        self.host_one.save()
+        clean_and_save(self.host_one)
         new_count = Host.objects.count()
         self.assertNotEqual(old_count, new_count)
 
     def test_model_can_change_a_host(self):
         """Test that the model is able to change a host."""
-        self.host_one.save()
+        clean_and_save(self.host_one)
         old_name = self.host_one.name
         new_name = 'some-new-host'
         host_sample_id = Host.objects.get(name=old_name).hostid
         self.host_one.name = new_name
-        self.host_one.save()
+        clean_and_save(self.host_one)
         updated_name = Host.objects.get(pk=host_sample_id).name
         self.assertEqual(new_name, updated_name)
 
     def test_model_can_delete_a_host(self):
         """Test that the model is able to delete a host."""
-        self.host_one.save()
+        clean_and_save(self.host_one)
         old_count = Host.objects.count()
         self.host_one.delete()
         new_count = Host.objects.count()
@@ -60,24 +64,24 @@ class ModelZoneTestCase(TestCase):
     def test_model_can_create_a_zone(self):
         """Test that the model is able to create a zone."""
         old_count = Zone.objects.count()
-        self.zone_sample.save()
+        clean_and_save(self.zone_sample)
         new_count = Zone.objects.count()
         self.assertNotEqual(old_count, new_count)
 
     def test_model_can_change_a_zone(self):
         """Test that the model is able to change a zone."""
-        self.zone_sample.save()
+        clean_and_save(self.zone_sample)
         old_name = self.zone_sample.name
         new_name = 'some-new-zone'
         zone_sample_id = Zone.objects.get(name=old_name).zoneid
         self.zone_sample.name = new_name
-        self.zone_sample.save()
+        clean_and_save(self.zone_sample)
         updated_name = Zone.objects.get(pk=zone_sample_id).name
         self.assertEqual(new_name, updated_name)
 
     def test_model_can_delete_a_zone(self):
         """Test that the model is able to delete a zone."""
-        self.zone_sample.save()
+        clean_and_save(self.zone_sample)
         old_count = Zone.objects.count()
         self.zone_sample.delete()
         new_count = Zone.objects.count()
@@ -98,7 +102,7 @@ class ModelNameServerTestCase(TestCase):
                                 expire=800,
                                 ttl=300)
 
-        self.zone_sample.save()
+        clean_and_save(self.zone_sample)
 
         self.ns_sample = NameServer(name='some-ns-server.uio.no',
                                     ttl=300)
@@ -106,24 +110,24 @@ class ModelNameServerTestCase(TestCase):
     def test_model_can_create_ns(self):
         """Test that the model is able to create an Ns."""
         old_count = NameServer.objects.count()
-        self.ns_sample.save()
+        clean_and_save(self.ns_sample)
         new_count = NameServer.objects.count()
         self.assertNotEqual(old_count, new_count)
 
     def test_model_can_change_ns(self):
         """Test that the model is able to change an Ns."""
-        self.ns_sample.save()
+        clean_and_save(self.ns_sample)
         old_name = self.ns_sample.name
         new_name = 'some-new-ns'
         ns_sample_id = NameServer.objects.get(name=old_name).nsid
         self.ns_sample.name = new_name
-        self.ns_sample.save()
+        clean_and_save(self.ns_sample)
         updated_name = NameServer.objects.get(pk=ns_sample_id).name
         self.assertEqual(new_name, updated_name)
 
     def test_model_can_delete_ns(self):
         """Test that the model is able to delete an Ns."""
-        self.ns_sample.save()
+        clean_and_save(self.ns_sample)
         old_count = NameServer.objects.count()
         self.ns_sample.delete()
         new_count = NameServer.objects.count()
@@ -146,23 +150,23 @@ class ModelSubnetTestCase(TestCase):
     def test_model_can_create_ns(self):
         """Test that the model is able to create a Subnet."""
         old_count = Subnet.objects.count()
-        self.subnet_sample.save()
+        clean_and_save(self.subnet_sample)
         new_count = Subnet.objects.count()
         self.assertNotEqual(old_count, new_count)
 
     def test_model_can_change_ns(self):
         """Test that the model is able to change a Subnet."""
-        self.subnet_sample.save()
+        clean_and_save(self.subnet_sample)
         new_vlan = 321
         subnet_sample_id = self.subnet_sample.subnetid
         self.subnet_sample.vlan = new_vlan
-        self.subnet_sample.save()
+        clean_and_save(self.subnet_sample)
         updated_vlan = Subnet.objects.get(pk=subnet_sample_id).vlan
         self.assertEqual(new_vlan, updated_vlan)
 
     def test_model_can_delete_ns(self):
         """Test that the model is able to delete a Subnet."""
-        self.subnet_sample.save()
+        clean_and_save(self.subnet_sample)
         old_count = Subnet.objects.count()
         self.subnet_sample.delete()
         new_count = Subnet.objects.count()
@@ -186,8 +190,8 @@ class ModelIpaddressTestCase(TestCase):
                                     vlan=123,
                                     dns_delegated=False)
 
-        self.host_one.save()
-        # self.subnet_sample.save() # Needed when subnet ForeignKey is implemented.
+        clean_and_save(self.host_one)
+        # clean_and_save(self.subnet_sample) # Needed when subnet ForeignKey is implemented.
 
         self.ipaddress_sample = Ipaddress(hostid=Host.objects.get(name='some-host'),
                                           ipaddress='129.240.202.123',
@@ -196,22 +200,22 @@ class ModelIpaddressTestCase(TestCase):
     def test_model_can_create_ipaddress(self):
         """Test that the model is able to create an IP Address."""
         old_count = Ipaddress.objects.count()
-        self.ipaddress_sample.save()
+        clean_and_save(self.ipaddress_sample)
         new_count = Ipaddress.objects.count()
         self.assertNotEqual(old_count, new_count)
 
     def test_model_can_change_ipaddress(self):
         """Test that the model is able to change an IP Address."""
-        self.ipaddress_sample.save()
+        clean_and_save(self.ipaddress_sample)
         new_ipaddress = '129.240.202.124'
         self.ipaddress_sample.ipaddress = new_ipaddress
-        self.ipaddress_sample.save()
+        clean_and_save(self.ipaddress_sample)
         updated_ipaddress = Ipaddress.objects.filter(hostid__name='some-host')[0].ipaddress
         self.assertEqual(new_ipaddress, updated_ipaddress)
 
     def test_model_can_delete_ipaddress(self):
         """Test that the model is able to delete an IP Address."""
-        self.ipaddress_sample.save()
+        clean_and_save(self.ipaddress_sample)
         old_count = Ipaddress.objects.count()
         self.ipaddress_sample.delete()
         new_count = Ipaddress.objects.count()
@@ -230,7 +234,7 @@ class ModelPtrOverrideTestCase(TestCase):
                              loc='23 58 23 N 10 43 50 E 80m',
                              comment='some comment')
 
-        self.host_one.save()
+        clean_and_save(self.host_one)
 
         self.ptr_sample = PtrOverride(hostid=Host.objects.get(name='some-host'),
                                       ipaddress='129.240.202.123')
@@ -238,22 +242,22 @@ class ModelPtrOverrideTestCase(TestCase):
     def test_model_can_create_ptr(self):
         """Test that the model is able to create a PTR Override."""
         old_count = PtrOverride.objects.count()
-        self.ptr_sample.save()
+        clean_and_save(self.ptr_sample)
         new_count = PtrOverride.objects.count()
         self.assertNotEqual(old_count, new_count)
 
     def test_model_can_change_ptr(self):
         """Test that the model is able to change a PTR Override."""
-        self.ptr_sample.save()
+        clean_and_save(self.ptr_sample)
         new_ptr = '129.240.202.124'
         self.ptr_sample.ipaddress = new_ptr
-        self.ptr_sample.save()
+        clean_and_save(self.ptr_sample)
         updated_ptr = PtrOverride.objects.filter(hostid__name='some-host')[0].ipaddress
         self.assertEqual(new_ptr, updated_ptr)
 
     def test_model_can_delete_ptr(self):
         """Test that the model is able to delete a PTR Override."""
-        self.ptr_sample.save()
+        clean_and_save(self.ptr_sample)
         old_count = PtrOverride.objects.count()
         self.ptr_sample.delete()
         new_count = PtrOverride.objects.count()
@@ -272,7 +276,7 @@ class ModelTxtTestCase(TestCase):
                              loc='23 58 23 N 10 43 50 E 80m',
                              comment='some comment')
 
-        self.host_one.save()
+        clean_and_save(host_one)
 
         self.txt_sample = Txt(hostid=Host.objects.get(name='some-host'),
                               txt='some-text')
@@ -280,23 +284,23 @@ class ModelTxtTestCase(TestCase):
     def test_model_can_create_txt(self):
         """Test that the model is able to create a txt entry."""
         old_count = Txt.objects.count()
-        self.txt_sample.save()
+        clean_and_save(self.txt_sample)
         new_count = Txt.objects.count()
         self.assertNotEqual(old_count, new_count)
 
     def test_model_can_change_txt(self):
         """Test that the model is able to change a txt entry."""
-        self.txt_sample.save()
+        clean_and_save(self.txt_sample)
         new_txt = 'some-new-text'
         txt_sample_id = self.txt_sample.txtid
         self.txt_sample.txt = new_txt
-        self.txt_sample.save()
+        clean_and_save(txt_sample)
         updated_txt = Txt.objects.get(pk=txt_sample_id).txt
         self.assertEqual(new_txt, updated_txt)
 
     def test_model_can_delete_txt(self):
         """Test that the model is able to delete a txt entry."""
-        self.txt_sample.save()
+        clean_and_save(self.txt_sample)
         old_count = Txt.objects.count()
         self.txt_sample.delete()
         new_count = Txt.objects.count()
@@ -315,7 +319,7 @@ class ModelCnameTestCase(TestCase):
                              loc='23 58 23 N 10 43 50 E 80m',
                              comment='some comment')
 
-        self.host_one.save()
+        clean_and_save(self.host_one)
 
         self.cname_sample = Cname(hostid=Host.objects.get(name='some-host'),
                                   cname='some-cname',
@@ -324,22 +328,22 @@ class ModelCnameTestCase(TestCase):
     def test_model_can_create_cname(self):
         """Test that the model is able to create a cname entry."""
         old_count = Cname.objects.count()
-        self.cname_sample.save()
+        clean_and_save(self.cname_sample)
         new_count = Cname.objects.count()
         self.assertNotEqual(old_count, new_count)
 
     def test_model_can_change_cname(self):
         """Test that the model is able to change a cname entry."""
-        self.cname_sample.save()
+        clean_and_save(self.cname_sample)
         new_cname = 'some-new-cname'
         self.cname_sample.cname = new_cname
-        self.cname_sample.save()
+        clean_and_save(self.cname_sample)
         updated_cname = Cname.objects.filter(hostid__name='some-host')[0].cname
         self.assertEqual(new_cname, updated_cname)
 
     def test_model_can_delete_cname(self):
         """Test that the model is able to delete a cname entry."""
-        self.cname_sample.save()
+        clean_and_save(self.cname_sample)
         old_count = Cname.objects.count()
         self.cname_sample.delete()
         new_count = Cname.objects.count()
@@ -358,7 +362,7 @@ class ModelNaptrTestCase(TestCase):
                              loc='23 58 23 N 10 43 50 E 80m',
                              comment='some comment')
 
-        self.host_one.save()
+        clean_and_save(self.host_one)
 
         self.naptr_sample = Naptr(hostid=Host.objects.get(name='some-host'),
                                   preference=1,
@@ -371,22 +375,22 @@ class ModelNaptrTestCase(TestCase):
     def test_model_can_create_naptr(self):
         """Test that the model is able to create a naptr entry."""
         old_count = Naptr.objects.count()
-        self.naptr_sample.save()
+        clean_and_save(self.naptr_sample)
         new_count = Naptr.objects.count()
         self.assertNotEqual(old_count, new_count)
 
     def test_model_can_change_naptr(self):
         """Test that the model is able to change a naptr entry."""
-        self.naptr_sample.save()
+        clean_and_save(self.naptr_sample)
         new_flag = 'U'
         self.naptr_sample.flag = new_flag
-        self.naptr_sample.save()
+        clean_and_save(self.naptr_sample)
         updated_flag = Naptr.objects.get(pk=self.naptr_sample.naptrid).flag
         self.assertEqual(new_flag, updated_flag)
 
     def test_model_can_delete_naptr(self):
         """Test that the model is able to delete a naptr entry."""
-        self.naptr_sample.save()
+        clean_and_save(self.naptr_sample)
         old_count = Naptr.objects.count()
         self.naptr_sample.delete()
         new_count = Naptr.objects.count()
@@ -405,7 +409,7 @@ class ModelSrvTestCase(TestCase):
                              loc='23 58 23 N 10 43 50 E 80m',
                              comment='some comment')
 
-        self.host_one.save()
+        clean_and_save(self.host_one)
 
         self.srv_sample = Srv(service='_abc_udp_def',
                               priority=3,
@@ -417,22 +421,22 @@ class ModelSrvTestCase(TestCase):
     def test_model_can_create_srv(self):
         """Test that the model is able to create a srv entry."""
         old_count = Srv.objects.count()
-        self.srv_sample.save()
+        clean_and_save(self.srv_sample)
         new_count = Srv.objects.count()
         self.assertNotEqual(old_count, new_count)
 
     def test_model_can_change_srv(self):
         """Test that the model is able to change a srv entry."""
-        self.srv_sample.save()
+        clean_and_save(self.srv_sample)
         new_port = 5434
         self.srv_sample.port = new_port
-        self.srv_sample.save()
+        clean_and_save(self.srv_sample)
         updated_port = Srv.objects.get(pk=self.srv_sample.srvid).port
         self.assertEqual(new_port, updated_port)
 
     def test_model_can_delete_srv(self):
         """Test that the model is able to delete a srv entry."""
-        self.srv_sample.save()
+        clean_and_save(self.srv_sample)
         old_count = Srv.objects.count()
         self.srv_sample.delete()
         new_count = Srv.objects.count()
@@ -449,7 +453,7 @@ class ModelChangeLogTestCase(TestCase):
                              ttl=300,
                              loc='23 58 23 N 10 43 50 E 80m',
                              comment='some comment')
-        self.host_one.save()
+        clean_and_save(self.host_one)
 
         self.log_data = {'hostid': self.host_one.hostid,
                          'name': self.host_one.name,
@@ -467,7 +471,7 @@ class ModelChangeLogTestCase(TestCase):
     def test_model_can_create_a_log_entry(self):
         """Test that the model is able to create a host."""
         old_count = ModelChangeLog.objects.count()
-        self.log_entry_one.save()
+        clean_and_save(self.log_entry_one)
         new_count = ModelChangeLog.objects.count()
         self.assertNotEqual(old_count, new_count)
 
@@ -483,8 +487,8 @@ class APIHostsTestCase(TestCase):
         self.patch_data_name = {'name': 'maursluker.uio.no', 'contact': 'updated@mail.com'}
         self.post_data = {'name': 'hiquality.uio.no', "ipaddress": '127.0.0.2', 'contact': 'hostmaster@uio.no'}
         self.post_data_name = {'name': 'skrutrekker.uio.no', "ipaddress": '127.0.0.2', 'contact': 'hostmaster@uio.no'}
-        self.host_one.save()
-        self.host_two.save()
+        clean_and_save(self.host_one)
+        clean_and_save(self.host_two)
         self.client = APIClient()
 
     def test_hosts_get_200_ok(self):
@@ -561,11 +565,11 @@ class APIZonesTestCase(TestCase):
         self.post_data_two = {'name': 'sv.uio.no', 'primary_ns': ['ns1.uio.no', 'ns2.uio.no'],
                               'email': 'hostmaster@uio.no', 'refresh': 400, 'retry': 300, 'expire': 800, 'ttl': 350}
         self.patch_data = {'refresh': '500', 'expire': '1000'}
-        self.host_one.save()
-        self.host_two.save()
-        self.ns_one.save()
-        self.ns_two.save()
-        self.zone_one.save()
+        clean_and_save(self.host_one)
+        clean_and_save(self.host_two)
+        clean_and_save(self.ns_one)
+        clean_and_save(self.ns_two)
+        clean_and_save(self.zone_one)
         self.client = APIClient()
 
     def test_zones_get_404_not_found(self):
@@ -657,8 +661,8 @@ class APIZonesNsTestCase(TestCase):
                           'email': 'hostmaster@uio.no', 'refresh': 400, 'retry': 300, 'expire': 800, 'ttl': 350}
         self.ns_one = Host(name='ns1.uio.no', contact='chipotle.uio.no')
         self.ns_two = Host(name='ns2.uio.no', contact='maursluker.uio.no')
-        self.ns_one.save()
-        self.ns_two.save()
+        clean_and_save(self.ns_one)
+        clean_and_save(self.ns_two)
         self.client = APIClient()
 
     def test_zones_ns_get_200_ok(self):
@@ -731,8 +735,8 @@ class APIIPaddressesTestCase(TestCase):
                              loc='23 56 23 N 10 43 50 E 80m',
                              comment='some comment')
 
-        self.host_one.save()
-        self.host_two.save()
+        clean_and_save(self.host_one)
+        clean_and_save(self.host_two)
 
         self.ipaddress_one = Ipaddress(hostid=self.host_one,
                                        ipaddress='129.240.111.111')
@@ -740,8 +744,8 @@ class APIIPaddressesTestCase(TestCase):
         self.ipaddress_two = Ipaddress(hostid=self.host_two,
                                        ipaddress='129.240.111.112')
 
-        self.ipaddress_one.save()
-        self.ipaddress_two.save()
+        clean_and_save(self.ipaddress_one)
+        clean_and_save(self.ipaddress_two)
 
         self.post_data_ip = {'ipaddress': '129.240.203.197'}
 
@@ -822,9 +826,9 @@ class APISubnetsTestCase(TestCase):
                              ttl=300,
                              loc='23 58 23 N 10 43 50 E 80m',
                              comment='some comment')
-        self.host_one.save()
-        self.subnet_sample.save()
-        self.subnet_sample_two.save()
+        clean_and_save(self.host_one)
+        clean_and_save(self.subnet_sample)
+        clean_and_save(self.subnet_sample_two)
 
         self.patch_data = {
             'description': 'Test subnet',
@@ -908,7 +912,7 @@ class APISubnetsTestCase(TestCase):
     def test_subnets_get_usedlist_200_ok(self):
         """GET on /subnets/<ip/mask> with QUERY_STRING header 'used_list' should return 200 ok and data."""
         ip_sample = Ipaddress(hostid=self.host_one, ipaddress='129.240.204.17')
-        ip_sample.save()
+        clean_and_save(ip_sample)
 
         response = self.client.get('/subnets/%s?used_list' % self.subnet_sample.range)
         self.assertEqual(response.status_code, 200)
@@ -927,7 +931,7 @@ class APISubnetsTestCase(TestCase):
         self.assertEqual(response.status_code, 201)
 
         ip_sample = Ipaddress(hostid=self.host_one, ipaddress='192.0.2.1')
-        ip_sample.save()
+        clean_and_save(ip_sample)
 
         response = self.client.delete('/subnets/%s' % self.post_data['range'])
         self.assertEqual(response.status_code, 409)
@@ -943,7 +947,7 @@ class APIModelChangeLogsTestCase(TestCase):
                              ttl=300,
                              loc='23 58 23 N 10 43 50 E 80m',
                              comment='some comment')
-        self.host_one.save()
+        clean_and_save(self.host_one)
 
         self.log_data = {'hostid': self.host_one.hostid,
                          'name': self.host_one.name,
@@ -957,7 +961,7 @@ class APIModelChangeLogsTestCase(TestCase):
                                             data=self.log_data,
                                             action='saved',
                                             timestamp=timezone.now())
-        self.log_entry_one.save()
+        clean_and_save(self.log_entry_one)
         self.client = APIClient()
 
     def test_history_get_200_OK(self):
