@@ -489,8 +489,13 @@ class APIHostsTestCase(TestCase):
                           'contact': 'hostmaster@example.org'}
         self.post_data_name = {'name': 'host1.example.org', "ipaddress": '127.0.0.2',
                                'contact': 'hostmaster@example.org'}
+        self.zone_sample = Zone(name='example.org',
+                                primary_ns='ns.example.org',
+                                email='hostmaster@example.org',
+                                serialno=1234567890)
         clean_and_save(self.host_one)
         clean_and_save(self.host_two)
+        clean_and_save(self.zone_sample)
         self.client = APIClient()
 
     def test_hosts_get_200_ok(self):
