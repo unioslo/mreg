@@ -411,7 +411,7 @@ class ModelSrvTestCase(TestCase):
 
         clean_and_save(self.host_one)
 
-        self.srv_sample = Srv(service='_abc_udp_def',
+        self.srv_sample = Srv(service='_abc._udp.example.org',
                               priority=3,
                               weight=1,
                               port=5433,
@@ -506,8 +506,6 @@ class APIHostsTestCase(TestCase):
     def test_hosts_post_201_created(self):
         """"Posting a new host should return 201 and location"""
         response = self.client.post('/hosts/', self.post_data)
-        print("LOOOL")
-        print(response.content)
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response['Location'], '/hosts/%s' % self.post_data['name'])
 
