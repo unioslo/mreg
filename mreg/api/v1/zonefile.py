@@ -5,9 +5,9 @@ import ipaddress
 class ZoneFile(object):
     def __init__(self, zone):
         if zone.name.endswith('.in-addr.arpa'):
-            self.zonetype = IPv4ReverseFile()
+            self.zonetype = IPv4ReverseFile(zone)
         elif zone.name.endswith('.ip6.arpa'):
-            self.zonetype = IPv6ReverseFile()
+            self.zonetype = IPv6ReverseFile(zone)
         else:
             self.zonetype = ForwardFile(zone)
 
@@ -35,16 +35,18 @@ class ForwardFile(object):
 
 
     def generate(self):
-        # Print info about Zone and its nameservers
         zone = self.zone
+        # Print info about Zone and its nameservers
         data = zone.zf_string
         root = Host.objects.filter(name=zone.name)
-        if root:
-            data += ";\n"
-            data += self.host_data(root[0])
         data += ';\n; Name servers\n;\n'
         for ns in zone.nameservers.all():
             data += ns.zf_string(zone.name)
+        data += ';\n; Subdomains\n;\n'
+        data += ';\n; Glue records\n;\n'
+        if root:
+            data += ";\n"
+            data += self.host_data(root[0])
         # Print info about hosts and their corresponding data
         data += ';\n; Host addresses\n;\n'
         hosts = Host.objects.filter(zoneid=zone.zoneid).order_by('name')
@@ -56,10 +58,6 @@ class ForwardFile(object):
         naptrs = Naptr.objects.filter(zoneid=zone.zoneid)
         for naptr in naptrs:
             data += naptr.zf_string(zone.name)
-        data += ';\n; Pointers\n;\n'
-        ptroverrides = PtrOverride.objects.all()
-        for ptroverride in ptroverrides:
-            data += ptroverride.zf_string
         data += ';\n; Services\n;\n'
         srvs = Srv.objects.filter(zoneid=zone.zoneid)
         for srv in srvs:
@@ -68,39 +66,35 @@ class ForwardFile(object):
 
 class IPv4ReverseFile(object):
 
+    def __init__(self, zone):
+        self.zone = zone
+
     def get_ipaddresses(self, network):
         from_ip = str(network.network_address)
         to_ip = str(network.broadcast_address)
         where_str = "ipaddress BETWEEN '{}' AND '{}'".format(from_ip, to_ip)
         ips = Ipaddress.objects.extra(where=[where_str],
-                                       order_by=["ipaddress"])
+                                      order_by=["ipaddress"])
         # XXX: need to check ptroverrides
         return ips
 
-    def __ip2origin(self, ip):
-        tmp = ip.split('.')[:3]
-        tmp.reverse()
-        return '$ORIGIN %s.in-addr.arpa.\n' % ".".join(tmp)
-
-    def generate(self, zone):
+    def generate(self):
+        zone = self.zone
         network = get_network_from_zonename(zone.name)
         data = zone.zf_string
         data += ';\n; Name servers\n;\n'
         for ns in zone.nameservers.all():
             data += ns.zf_string(zone.name)
         # TODO: delegated entries, if any
-        origin = ''
-        this_net = 'z'
+        data += ';\n; Subdomains\n;\n'
+        _prev_net = 'z'
         for ip in self.get_ipaddresses(network):
-            ptrip = ip.ipaddress
-            # XXX: simpler as v6?
-            if not ptrip.startswith(this_net):
-                this_net = ptrip[:ptrip.rfind(".")+1]
-                new_origin = self.__ip2origin(ptrip)
-                if origin != new_origin:
-                    data += new_origin
-                    origin = new_origin
-            ptrip = ptrip[ptrip.rfind(".")+1:]
+            rev = ipaddress.ip_address(ip.ipaddress).reverse_pointer
+            # Add $ORIGIN between every new /24 found
+            if not rev.endswith(_prev_net):
+                _prev_net = rev[rev.find('.')+1:]
+                data += "$ORIGIN {}.\n".format(_prev_net)
+            ptrip = rev[:rev.find('.')]
             data += "{}\tPTR\t{}.\n".format(ptrip, idna_encode(ip.hostid.name))
         return data
 
@@ -122,6 +116,7 @@ class IPv6ReverseFile(object):
         for ns in zone.nameservers.all():
             data += ns.zf_string(zone.name)
         # TODO: delegated entries, if any
+        data += ';\n; Subdomains\n;\n'
         _prev_net = 'z'
         for ip in self.get_ipaddresses(network):
             rev = ipaddress.ip_address(ip.ipaddress).reverse_pointer
