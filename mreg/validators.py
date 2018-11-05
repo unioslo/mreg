@@ -59,7 +59,7 @@ def validate_zonename(name):
     """ Validate a zonename."""
 
     validate_hostname(name)
-
+    labels = name.split(".")
     if name.endswith("in-addr.arpa"):
         octets = labels[:-2]
         if len(octets) > 4:
@@ -77,10 +77,8 @@ def validate_zonename(name):
         hexes = labels[:-2]
         if len(hexes) > 32:
             raise ValidationError("Reverse zone is not valid")
-        #if max(map(len,hexes)) > 1:
-        #    raise ValidationError("Reverse zone is not valid2")
         try:
-            hexes = [ int(i, 16) for i in hexes ]
+            [ int(i, 16) for i in hexes ]
         except ValueError:
             raise ValidationError("Non-hex in the reverse zone")
         try:
