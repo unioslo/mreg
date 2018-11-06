@@ -12,6 +12,13 @@ GRANT ALL PRIVILEGES ON DATABASE mreg to mreg;
 EOF
 ```
 
+If testing with postgresql, grant the mreg user the right to create databases for testing:
+```
+psql -h localhost -U postgres << EOF
+ALTER USER mreg CREATEDB;
+EOF
+```
+
 Finally add settings to django::
 ```
 cat >> mregsite/local_settings.py << EOF
