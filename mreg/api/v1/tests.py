@@ -916,6 +916,15 @@ class APISubnetsTestCase(TestCase):
         response = self.client.patch('/subnets/193.101.168.0/29', self.patch_data)
         self.assertEqual(response.status_code, 404)
 
+    def test_subnets_get_usedcount_200_ok(self):
+        """GET on /subnets/<ip/mask> with QUERY_STRING header 'used_count' should return 200 ok and data."""
+        ip_sample = Ipaddress(hostid=self.host_one, ipaddress='129.240.204.17')
+        clean_and_save(ip_sample)
+
+        response = self.client.get('/subnets/%s?used_count' % self.subnet_sample.range)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, 1)
+
     def test_subnets_get_usedlist_200_ok(self):
         """GET on /subnets/<ip/mask> with QUERY_STRING header 'used_list' should return 200 ok and data."""
         ip_sample = Ipaddress(hostid=self.host_one, ipaddress='129.240.204.17')
@@ -924,6 +933,33 @@ class APISubnetsTestCase(TestCase):
         response = self.client.get('/subnets/%s?used_list' % self.subnet_sample.range)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, ['129.240.204.17'])
+
+    def test_subnets_get_unusedcount_200_ok(self):
+        """GET on /subnets/<ip/mask> with QUERY_STRING header 'unused_count' should return 200 ok and data."""
+        ip_sample = Ipaddress(hostid=self.host_one, ipaddress='129.240.204.17')
+        clean_and_save(ip_sample)
+
+        response = self.client.get('/subnets/%s?unused_count' % self.subnet_sample.range)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, 250)
+
+    def test_subnets_get_unusedlist_200_ok(self):
+        """GET on /subnets/<ip/mask> with QUERY_STRING header 'unused_list' should return 200 ok and data."""
+        ip_sample = Ipaddress(hostid=self.host_one, ipaddress='129.240.204.17')
+        clean_and_save(ip_sample)
+
+        response = self.client.get('/subnets/%s?unused_list' % self.subnet_sample.range)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 250)
+
+    def test_subnets_get_first_unused_200_ok(self):
+        """GET on /subnets/<ip/mask> with QUERY_STRING header 'first_unused' should return 200 ok and data."""
+        ip_sample = Ipaddress(hostid=self.host_one, ipaddress='129.240.204.17')
+        clean_and_save(ip_sample)
+
+        response = self.client.get('/subnets/%s?first_unused' % self.subnet_sample.range)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, '129.240.204.4')
 
     def test_subnets_delete_204_no_content(self):
         """Deleting an existing entry with no adresses in use should return 204"""
