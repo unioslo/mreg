@@ -553,16 +553,16 @@ class SubnetDetail(ETAGMixin, generics.GenericAPIView):
 
         reserved = subnet.get_reserved_addresses()
         if request.META.get('QUERY_STRING') == 'used_count':
-            used_ipaddresses = self.get_used_ipaddresses_on_subnet(serializer.data)
-            return Response(len(list(used_ipaddresses)), status=status.HTTP_200_OK)
+            used_ipaddresses = self.get_used_ipaddresses_on_subnet(iprange)
+            return Response(len(used_ipaddresses), status=status.HTTP_200_OK)
         elif request.META.get('QUERY_STRING') == 'used_list':
-            used_ipaddresses = self.get_used_ipaddresses_on_subnet(serializer.data)
+            used_ipaddresses = self.get_used_ipaddresses_on_subnet(iprange)
             return Response(used_ipaddresses, status=status.HTTP_200_OK)
         elif request.META.get('QUERY_STRING') == 'unused_count':
-            unused_ipaddresses = self.get_unused_ipaddresses_on_subnet(serializer.data, reserved)
-            return Response(len(list(unused_ipaddresses)), status=status.HTTP_200_OK)
+            unused_ipaddresses = self.get_unused_ipaddresses_on_subnet(iprange, reserved)
+            return Response(len(unused_ipaddresses), status=status.HTTP_200_OK)
         elif request.META.get('QUERY_STRING') == 'unused_list':
-            unused_ipaddresses = self.get_unused_ipaddresses_on_subnet(serializer.data, reserved)
+            unused_ipaddresses = self.get_unused_ipaddresses_on_subnet(iprange, reserved)
             return Response(unused_ipaddresses, status=status.HTTP_200_OK)
         elif request.META.get('QUERY_STRING') == 'first_unused':
             ip = self.get_first_unused(serializer.data, reserved)
@@ -604,11 +604,11 @@ class SubnetDetail(ETAGMixin, generics.GenericAPIView):
         if not valid_range:
             return valid_range
 
+        subnet = get_object_or_404(Subnet, range=iprange)
         used_ipaddresses = self.get_used_ipaddresses_on_subnet(iprange)
         if used_ipaddresses:
             return Response({'ERROR': 'Subnet contains IP addresses that are in use'}, status=status.HTTP_409_CONFLICT)
 
-        subnet = get_object_or_404(Subnet, range=iprange)
         subnet.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -628,25 +628,25 @@ class SubnetDetail(ETAGMixin, generics.GenericAPIView):
         """
         Takes a subnet serializer data dict, and returns which ip-addresses on the subnet are used.
         """
-        network = ipaddress.ip_network(subnet['range'])
+        network = ipaddress.ip_network(subnet)
         from_ip = str(network.network_address)
         to_ip = str(network.broadcast_address)
-        ips = Ipaddress.objects.filter(ipaddress__gte=from_ip)
-        # XXX:  __lt does not work correctly with sqlite :( postgres is OK.
-        ips = ips.filter(ipaddress__lte=to_ip)
+        where_str = "ipaddress BETWEEN '{}' AND '{}'".format(from_ip, to_ip)
+        ips = Ipaddress.objects.extra(where=[where_str])
         used = {ipaddress.ip_address(i.ipaddress) for i in ips}
         return used
 
     def get_used_ipaddresses_on_subnet(self, subnet):
         """
-        Takes a subnet serializer data dict, and returns which ip-addresses on the subnet are used.
+        Takes a network range, and returns which ip-addresses on the subnet are used.
         """
         used = self._get_used_ippaddresses_on_subnet(subnet)
-        return map(str,sorted(used))
+        return list(map(str,sorted(used)))
 
     def get_unused_ipaddresses_on_subnet(self, subnet, reserved):
         """
-        Takes a subnet serializer data dict, and returns which ip-addresses on the subnet are unused.
+        Takes a network range and reserved addresses, and returns which
+        ip-addresses on the subnet are unused.
         """
         network = ipaddress.ip_network(subnet['range'])
         subnet_ips = []
@@ -662,7 +662,7 @@ class SubnetDetail(ETAGMixin, generics.GenericAPIView):
         subnet_ips = set(subnet_ips) - reserved
         used = self._get_used_ippaddresses_on_subnet(subnet)
         unused = subnet_ips - used
-        return map(str,sorted(unused))
+        return list(map(str,sorted(unused)))
 
     def get_first_unused(self, subnet, reserved):
         """
@@ -673,7 +673,7 @@ class SubnetDetail(ETAGMixin, generics.GenericAPIView):
         # Get the first unused address without using
         # get_unused_ipaddresses_on_subnet() as it is quite slow if the subnet
         # is large.
-        network = ipaddress.ip_network(subnet['range'])
+        network = ipaddress.ip_network(subnet)
         for ip in network.hosts():
             if ip in reserved:
                 continue
