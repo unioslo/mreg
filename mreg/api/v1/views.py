@@ -565,7 +565,7 @@ class SubnetDetail(ETAGMixin, generics.GenericAPIView):
             unused_ipaddresses = self.get_unused_ipaddresses_on_subnet(iprange, reserved)
             return Response(unused_ipaddresses, status=status.HTTP_200_OK)
         elif request.META.get('QUERY_STRING') == 'first_unused':
-            ip = self.get_first_unused(serializer.data, reserved)
+            ip = self.get_first_unused(iprange, reserved)
             if ip:
                 return Response(ip, status=status.HTTP_200_OK)
             else:
@@ -648,7 +648,7 @@ class SubnetDetail(ETAGMixin, generics.GenericAPIView):
         Takes a network range and reserved addresses, and returns which
         ip-addresses on the subnet are unused.
         """
-        network = ipaddress.ip_network(subnet['range'])
+        network = ipaddress.ip_network(subnet)
         subnet_ips = []
         if isinstance(network, ipaddress.IPv6Network):
             # Getting all availible IPs for a ipv6 prefix can easily cause
