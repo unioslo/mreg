@@ -3,7 +3,10 @@ import ipaddress
 from django.db import models
 from mreg.validators import *
 from mreg.utils import *
-
+#from django.dispatch import *
+#from django.db.models.signals import *
+from django.dispatch import receiver
+from django.db.models.signals import m2m_changed
 
 class NameServer(models.Model):
     nsid = models.AutoField(primary_key=True, serialize=True)
@@ -76,6 +79,7 @@ class ZoneMember(models.Model):
 
     class Meta:
         abstract = True
+
 
 
 class HinfoPreset(models.Model):
@@ -303,6 +307,44 @@ class Srv(ZoneMember):
             'target': idna_encode(qualify(self.target, zone))
         }
         return '{name:24} {ttl:5} IN {record_type:6} {priority} {weight} {port} {target}\n'.format_map(data)
+
+
+class HostGroup(models.Model):
+    hostgroup_name = models.CharField(max_length=50, unique=True)
+    parent = models.ManyToManyField('self', symmetrical=False, blank=True, related_name='groups')
+
+    def __str__(self):
+        return("%s" % (self.id))
+
+
+class HostGroupMember(models.Model):
+    hostid = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='hostid', related_name='hostgroupmember')
+    group = models.ForeignKey(HostGroup, on_delete=models.CASCADE,)
+
+    def __str__(self):
+        return('%s' % (self.id))
+
+
+@receiver(m2m_changed, sender=HostGroup.parent.through)
+def prevent_hostgroup_parent_recursion(sender, instance, action, model, reverse, pk_set, **kwargs):
+    """
+    pk_set contains the group(s) being added to a group
+    instance is the group getting new group members
+    This whole pk_set-function should be rewritten to handle multiple groups
+    """
+    if action == 'pre_add':
+
+        for host_id in pk_set:
+            child_id = host_id
+
+        parent_parents = HostGroup.objects.get(id=instance.id).parent.all()
+
+        for parent in parent_parents.iterator():
+            if child_id == parent.id:
+                raise ValidationError("Recursive memberships are not allowed. " + HostGroup.objects.get(id=instance.id).hostgroup_name + " is a member of " + HostGroup.objects.get(id=parent.id).hostgroup_name)
+                return
+    else:
+        return
 
 
 # TODO: Add user_id functionality when auth is implemented
