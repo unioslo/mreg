@@ -230,6 +230,7 @@ class Subnet(models.Model):
 
     class Meta:
         db_table = 'subnet'
+        ordering = ('range',)
 
     def __str__(self):
         return str(self.range)
@@ -243,6 +244,15 @@ class Subnet(models.Model):
         if isinstance(subnet, ipaddress.IPv4Network):
             ret.add(subnet.broadcast_address)
         return ret
+
+    @staticmethod
+    def overlap_check(subnet):
+        """
+        Check if a subnet overlaps existing subnet(s).
+        Return a list of overlapped subnets.
+        """
+        where = [ "range::inet && inet %s" ]
+        return Subnet.objects.extra(where=where, params=[str(subnet)])
 
 class Naptr(ZoneMember):
     naptrid = models.AutoField(primary_key=True, serialize=True)
