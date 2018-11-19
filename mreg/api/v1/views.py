@@ -481,9 +481,10 @@ class SubnetList(generics.ListAPIView):
     def post(self, request, *args, **kwargs):
         try:
             network = ipaddress.ip_network(request.data['range'])
-            overlap = self.overlap_check(network)
+            overlap = Subnet.overlap_check(network)
             if overlap:
-                return Response({'ERROR': 'Subnet overlaps with: {}'.format(network.supernet().with_prefixlen)},
+                info = ", ".join(map(str,overlap))
+                return Response({'ERROR': 'Subnet overlaps with: {}'.format(info)},
                                 status=status.HTTP_409_CONFLICT)
 
             serializer = self.get_serializer(data=request.data)
@@ -506,21 +507,6 @@ class SubnetList(generics.ListAPIView):
         """
         qs = super(SubnetList, self).get_queryset()
         return SubnetFilterSet(data=self.request.GET, queryset=qs).filter()
-
-    def overlap_check(self, subnet):
-        """
-        Recursively checks supernets for current subnet to look for overlap with existing entries.
-        If an entry is found it returns True (Overlap = True).
-        It will keep searching until it reaches a prefix length of 16 bits, which is
-        usually low enough to cover all relevant IPs. If you have more available addresses
-        than e.g 192.168.***.***, reduce the prefix length limit.
-        """
-        if subnet.prefixlen < 16:
-            return False
-        if self.queryset.filter(range=subnet.supernet().with_prefixlen).exists():
-            return True
-
-        return self.overlap_check(subnet.supernet())
 
 
 class SubnetDetail(ETAGMixin, generics.GenericAPIView):
