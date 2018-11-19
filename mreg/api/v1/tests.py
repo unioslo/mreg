@@ -889,6 +889,11 @@ class APISubnetsTestCase(TestCase):
         response = self.client.post('/subnets/', self.post_data_bad_mask)
         self.assertEqual(response.status_code, 400)
 
+    def test_subnets_post_409_overlap_conflict(self):
+        """Posting a subnet with a range which overlaps existing should return 409"""
+        response = self.client.post('/subnets/', self.post_data_overlap)
+        self.assertEqual(response.status_code, 409)
+
     def test_subnets_get_200_ok(self):
         """GET on an existing ip-range should return 200 OK."""
         response = self.client.get('/subnets/%s' % self.subnet_sample.range)
