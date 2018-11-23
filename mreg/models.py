@@ -3,6 +3,11 @@ import ipaddress
 from django.db import models
 from mreg.validators import *
 from mreg.utils import *
+<<<<<<< HEAD
+=======
+#from django.dispatch import *
+#from django.db.models.signals import *
+>>>>>>> 2951f62cb13ac26292038c8a2e49c53c23974911
 from django.dispatch import receiver
 from django.db.models.signals import m2m_changed
 
@@ -323,6 +328,7 @@ class HostGroupMember(models.Model):
         return('%s' % (self.id))
 
 
+<<<<<<< HEAD
 
 @receiver(m2m_changed, sender=HostGroup.parent.through)
 def prevent_hostgroup_parent_recursion(sender, instance, action, model, reverse, pk_set, **kwargs):
@@ -335,6 +341,17 @@ def prevent_hostgroup_parent_recursion(sender, instance, action, model, reverse,
     This whole pk_set-function should be rewritten to handle multiple groups
     """
     if action == 'pre_add':
+=======
+@receiver(m2m_changed, sender=HostGroup.parent.through)
+def prevent_hostgroup_parent_recursion(sender, instance, action, model, reverse, pk_set, **kwargs):
+    """
+    pk_set contains the group(s) being added to a group
+    instance is the group getting new group members
+    This whole pk_set-function should be rewritten to handle multiple groups
+    """
+    if action == 'pre_add':
+
+>>>>>>> 2951f62cb13ac26292038c8a2e49c53c23974911
         for host_id in pk_set:
             child_id = host_id
 
@@ -342,11 +359,16 @@ def prevent_hostgroup_parent_recursion(sender, instance, action, model, reverse,
 
         for parent in parent_parents.iterator():
             if child_id == parent.id:
+<<<<<<< HEAD
                 raise ValidationError("Recursive memberships are not allowed. Group is a member of " + HostGroup.objects.get(id=parent.id).hostgroup_name)
                 return
             elif HostGroup.objects.get(id=parent.id).parent.all():
                 pk_set = {child_id}
                 prevent_hostgroup_parent_recursion(sender, parent, action, model, reverse, pk_set, **kwargs)
+=======
+                raise ValidationError("Recursive memberships are not allowed. " + HostGroup.objects.get(id=instance.id).hostgroup_name + " is a member of " + HostGroup.objects.get(id=parent.id).hostgroup_name)
+                return
+>>>>>>> 2951f62cb13ac26292038c8a2e49c53c23974911
     else:
         return
 
