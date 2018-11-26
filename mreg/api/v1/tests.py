@@ -759,14 +759,17 @@ class APIIPaddressesTestCase(TestCase):
         self.post_data_full = {'hostid': self.host_one.hostid,
                                'ipaddress': '129.240.203.197'}
         self.post_data_full_conflict = {'hostid': self.host_one.hostid,
-                                        'ipaddress': '129.240.111.112'}
+                                        'ipaddress': '129.240.111.111'}
+        self.post_data_full_duplicate_ip = {'hostid': self.host_two.hostid,
+                                            'ipaddress': '129.240.111.111'}
         self.patch_data_ip = {'ipaddress': '129.240.203.198'}
+        self.patch_bad_ip = {'ipaddress': '129.240.300.1'}
 
         self.client = APIClient()
 
     def test_ipaddress_get_200_ok(self):
         """"Getting an existing entry should return 200"""
-        response = self.client.get('/ipaddresses/%s' % self.ipaddress_one.ipaddress)
+        response = self.client.get('/ipaddresses/%s' % self.ipaddress_one.id)
         self.assertEqual(response.status_code, 200)
 
     def test_ipaddress_get_404_not_found(self):
@@ -778,34 +781,43 @@ class APIIPaddressesTestCase(TestCase):
         """"Posting a new ip should return 201 and location"""
         response = self.client.post('/ipaddresses/', self.post_data_full)
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(response['Location'], '/ipaddresses/%s' % self.post_data_full['ipaddress'])
 
-    def test_ipaddress_post_409_conflict_ip(self):
-        """"Posting a new ipaddress with an ip already in use should return 409"""
+    def test_ipaddress_post_400_conflict_ip(self):
+        """"Posting an existing ip for a host should return 400"""
         response = self.client.post('/ipaddresses/', self.post_data_full_conflict)
-        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.status_code, 400)
+
+    def test_ipaddress_post_201_two_hosts_share_ip(self):
+        """"Posting a new ipaddress with an ip already in use should return 200"""
+        response = self.client.post('/ipaddresses/', self.post_data_full_duplicate_ip)
+        self.assertEqual(response.status_code, 201)
 
     def test_ipaddress_patch_204_no_content(self):
         """Patching an existing and valid entry should return 204 and Location"""
-        response = self.client.patch('/ipaddresses/%s' % self.ipaddress_one.ipaddress, self.patch_data_ip)
+        response = self.client.patch('/ipaddresses/%s' % self.ipaddress_one.id, self.patch_data_ip)
         self.assertEqual(response.status_code, 204)
-        self.assertEqual(response['Location'], '/ipaddresses/%s' % self.patch_data_ip['ipaddress'])
+        self.assertEqual(response['Location'], '/ipaddresses/%s' % self.ipaddress_one.id)
 
     def test_ipaddress_patch_400_bad_request(self):
         """Patching with invalid data should return 400"""
-        response = self.client.patch('/ipaddresses/%s' % self.ipaddress_one.ipaddress,
+        response = self.client.patch('/ipaddresses/%s' % self.ipaddress_one.id,
                                      data={'this': 'is', 'so': 'wrong'})
+        self.assertEqual(response.status_code, 400)
+
+    def test_ipaddress_patch_400_bad_ip(self):
+        """Patching with invalid data should return 400"""
+        response = self.client.patch('/ipaddresses/%s' % self.ipaddress_one.id, self.patch_bad_ip)
         self.assertEqual(response.status_code, 400)
 
     def test_ipaddress_patch_404_not_found(self):
         """Patching a non-existing entry should return 404"""
-        response = self.client.patch('/ipaddresses/193.101.168.2', self.patch_data_ip)
+        response = self.client.patch('/ipaddresses/1234567890', self.patch_data_ip)
         self.assertEqual(response.status_code, 404)
 
     def test_ipaddress_patch_409_conflict_ip(self):
         """Patching an entry with an ip that already exists should return 409"""
-        response = self.client.patch('/ipaddresses/%s' % self.ipaddress_one.ipaddress,
-                                     {'ipaddress': self.ipaddress_two.ipaddress})
+        response = self.client.patch('/ipaddresses/%s' % self.ipaddress_one.id,
+                                     {'ipaddress': str(self.ipaddress_one.ipaddress)})
         self.assertEqual(response.status_code, 409)
 
 
