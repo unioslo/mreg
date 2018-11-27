@@ -162,7 +162,7 @@ class PtrOverride(models.Model):
         db_table = 'ptr_override'
 
     def __str__(self):
-        return str(self.ipaddress)
+        return "{} -> {}".format(str(self.ipaddress), str(self.hostid.name))
 
     def zf_string(self, zone):
         """String representation for zonefile export."""
