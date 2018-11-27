@@ -129,11 +129,12 @@ class Host(ZoneMember):
 
 class Ipaddress(models.Model):
     hostid = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='hostid', related_name='ipaddress')
-    ipaddress = models.GenericIPAddressField(unique=True)
+    ipaddress = models.GenericIPAddressField()
     macaddress = models.TextField(blank=True, null=True, validators=[validate_mac_address])
 
     class Meta:
         db_table = 'ipaddress'
+        unique_together = (('hostid', 'ipaddress'), )
 
     def __str__(self):
         return "{} -> {}".format(str(self.ipaddress), str(self.macaddress) or "None")

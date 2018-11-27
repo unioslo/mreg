@@ -1,15 +1,17 @@
 from rest_framework import generics
-from django.http import Http404, QueryDict
 from django.core.exceptions import ObjectDoesNotExist
+from django.db import transaction
+from django.http import Http404, QueryDict
 from django.shortcuts import get_object_or_404
-from mreg.models import *
-from mreg.api.v1.serializers import *
 from rest_framework_extensions.etag.mixins import ETAGMixin
 from rest_framework import renderers
 from rest_framework.response import Response
 from rest_framework import status
 from url_filter.filtersets import ModelFilterSet
 import ipaddress
+
+from mreg.models import *
+from mreg.api.v1.serializers import *
 
 from .zonefile import ZoneFile
 
@@ -193,11 +195,7 @@ class HostList(generics.GenericAPIView):
             if hostserializer.is_valid(raise_exception=True):
                 try:
                     ipaddress.ip_address(ipkey)
-                    try:
-                        Ipaddress.objects.get(ipaddress=ipkey)
-                        return Response(status=status.HTTP_409_CONFLICT, data={'ERROR': "IP address already exists"})
-                    except Ipaddress.DoesNotExist:
-                        # This is good to go
+                    with transaction.atomic():
                         hostserializer.save()
                         ipdata = {'hostid': host.pk, 'ipaddress': ipkey}
                         ip = Ipaddress()
@@ -232,14 +230,7 @@ class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = HostSerializer
 
     def get_object(self, queryset=queryset):
-        query = self.kwargs['pk']
-        try:
-            ipaddress.ip_address(query)
-            ip = get_object_or_404(Ipaddress, ipaddress=query)
-            host = ip.hostid
-        except ValueError:
-            host = get_object_or_404(Host, name=query)
-        return host
+        return get_object_or_404(Host, name=self.kwargs['pk'])
 
     def patch(self, request, *args, **kwargs):
         query = self.kwargs['pk']
@@ -284,50 +275,38 @@ class IpaddressList(generics.ListCreateAPIView):
 
     def post(self, request, *args, **kwargs):
         if "ipaddress" in request.data:
-            if self.queryset.filter(ipaddress=request.data["ipaddress"]).exists():
-                content = {'ERROR': 'ip already already in use'}
-                return Response(content, status=status.HTTP_409_CONFLICT)
-
-            else:
-                ip = Ipaddress()
-                serializer = IpaddressSerializer(ip, data=request.data)
-                if serializer.is_valid(raise_exception=True):
-                    serializer.save()
-                    location = '/ipaddresses/%s' % ip.ipaddress
-                    return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
+            ip = Ipaddress()
+            serializer = IpaddressSerializer(ip, data=request.data)
+            if serializer.is_valid(raise_exception=True):
+                serializer.save()
+                location = '/ipaddresses/%s' % ip.id
+                return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
 
 
 class IpaddressDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     """
     get:
-    Returns details for the specified address. {id} can be replaced with {ipaddress}.
+    Returns details for the specified Ipaddress object by {id}.
 
     patch:
-    Update parts of the ipaddress. {id} can be replaced with {ipaddress}.
+    Update parts of the ipaddress.
 
     delete:
-    Delete the specified ipaddress. {id} can be replaced with {ipaddress}.
+    Delete the specified ipaddress.
     """
     queryset = Ipaddress.objects.all()
     serializer_class = IpaddressSerializer
 
-    def get_object(self, queryset=queryset):
-        query = self.kwargs['pk']
-        try:
-            ipaddress.ip_address(query)
-            ip = get_object_or_404(Ipaddress, ipaddress=query)
-        except ValueError:
-            content = {'ERROR': 'Not a valid IP address'}
-            return Response(content, status=status.HTTP_400_BAD_REQUEST)
-        return ip
-
     def patch(self, request, *args, **kwargs):
-        query = self.kwargs['pk']
+        ip = get_object_or_404(Ipaddress, id=self.kwargs['pk'])
+        serializer = IpaddressSerializer(ip, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
 
         if "ipaddress" in request.data:
-            if self.queryset.filter(ipaddress=request.data["ipaddress"]).exists():
-                content = {'ERROR': 'ipaddress already in use'}
-                return Response(content, status=status.HTTP_409_CONFLICT)
+            for i in self.queryset.filter(ipaddress=request.data["ipaddress"]):
+                if i.hostid == ip.hostid:
+                    content = {'ERROR': 'ipaddress already in use by the host'}
+                    return Response(content, status=status.HTTP_409_CONFLICT)
 
         if "macaddress" in request.data:
             if self.queryset.filter(macaddress=request.data["macaddress"]).exists():
@@ -335,12 +314,9 @@ class IpaddressDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
                            'ipaddress': self.queryset.get(macaddress=request.data['macaddress']).ipaddress}
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
-        ip = get_object_or_404(Ipaddress, ipaddress=query)
-        serializer = IpaddressSerializer(ip, data=request.data, partial=True)
-        if serializer.is_valid(raise_exception=True):
-            serializer.save()
-            location = '/ipaddresses/%s' % ip.ipaddress
-            return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
+        serializer.save()
+        location = '/ipaddresses/%s' % ip.id
+        return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
 class NaptrList(generics.ListCreateAPIView):

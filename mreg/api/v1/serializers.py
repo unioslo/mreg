@@ -36,7 +36,7 @@ class HinfoPresetSerializer(ValidationMixin, serializers.ModelSerializer):
 class IpaddressSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
         model = Ipaddress
-        fields = ('hostid', 'ipaddress', 'macaddress')
+        fields = '__all__'
 
 
 class TxtSerializer(ValidationMixin, serializers.ModelSerializer):
