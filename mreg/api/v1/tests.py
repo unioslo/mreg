@@ -252,7 +252,7 @@ class ModelPtrOverrideTestCase(TestCase):
         new_ptr = '10.0.0.3'
         self.ptr_sample.ipaddress = new_ptr
         clean_and_save(self.ptr_sample)
-        updated_ptr = PtrOverride.objects.filter(hostid__name='host1.example.org')[0].ipaddress
+        updated_ptr = PtrOverride.objects.filter(hostid__name='host1.example.org').first().ipaddress
         self.assertEqual(new_ptr, updated_ptr)
 
     def test_model_can_delete_ptr(self):

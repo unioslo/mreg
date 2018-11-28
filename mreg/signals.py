@@ -10,7 +10,7 @@ def _del_ptr(ipaddress):
     ptrs = PtrOverride.objects.filter(ipaddress=ipaddress)
     if ptrs:
         assert(len(ptrs) == 1)
-        ptrs[0].delete()
+        ptrs.first().delete()
 
 # Update PtrOverride whenever a Ipaddress is created or changed
 @receiver(pre_save, sender=Ipaddress)
