@@ -70,11 +70,9 @@ class ForwardFile(object):
 def get_ipaddresses(network):
     from_ip = str(network.network_address)
     to_ip = str(network.broadcast_address)
-    where_str = "ipaddress BETWEEN '{}' AND '{}'".format(from_ip, to_ip)
-    ips = Ipaddress.objects.extra(where=[where_str],
-                                  order_by=["ipaddress"])
+    ips = Ipaddress.objects.filter(ipaddress__range=(from_ip, to_ip)).order_by("ipaddress")
     override_ips = dict()
-    for p in PtrOverride.objects.extra(where=[where_str]):
+    for p in PtrOverride.objects.filter(ipaddress__range=(from_ip, to_ip)):
         override_ips[p.ipaddress] = p
 
     # XXX: send signal/mail to hostmaster(?) about issues with multiple_ip_no_ptr
