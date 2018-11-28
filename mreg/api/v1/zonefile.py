@@ -93,7 +93,6 @@ class IPv4ReverseFile(object):
 class IPv6ReverseFile(object):
 
     def generate(self, zone):
-        network = get_network_from_zonename(zone.name)
         data = zone.zf_string
         data += ';\n; Name servers\n;\n'
         for ns in zone.nameservers.all():
@@ -101,7 +100,7 @@ class IPv6ReverseFile(object):
         # TODO: delegated entries, if any
         data += ';\n; Delegations\n;\n'
         _prev_net = 'z'
-        for ip in zone.get_addresses():
+        for ip in zone.get_ipaddresses():
             rev = ipaddress.ip_address(ip.ipaddress).reverse_pointer
             # Add $ORIGIN between every new /64 found
             if not rev.endswith(_prev_net):
