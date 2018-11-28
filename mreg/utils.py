@@ -15,18 +15,6 @@ def clear_none(value):
     return value
 
 
-def reverse_ip(ip):
-    """
-    Reverses an IP-adddress
-    :param ip: IP-address to reverse
-    :return: IP-address in reverse
-    """
-    if isinstance(ipaddress.ip_address(ip), ipaddress.IPv6Address):
-        return ':'.join(reversed(ip.split(':')))
-    else:
-        return '.'.join(reversed(ip.split('.')))
-
-
 def qualify(name, zone, shortform=True):
     """
     Appends a punctuation mark to fully qualified names within a given zone.

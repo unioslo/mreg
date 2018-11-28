@@ -199,7 +199,7 @@ class PtrOverride(models.Model):
     def zf_string(self, zone):
         """String representation for zonefile export."""
         data = {
-            'name': reverse_ip(self.ipaddress) + '.in-addr.arpa.',
+            'name': ipaddress.ip_address(self.ipaddress).reverse_pointer,
             'record_data': idna_encode(qualify(self.hostid.name, zone)),
             'record_type': 'PTR',
         }
