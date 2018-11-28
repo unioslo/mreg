@@ -1,9 +1,35 @@
-from django.db.models.signals import post_save, post_delete
+from django.db.models.signals import pre_save, post_save, post_delete
 from django.dispatch import receiver
 from django.utils import timezone
 
 from mreg.models import *
 from mreg.api.v1.serializers import *
+
+
+def _del_ptr(ipaddress):
+    ptrs = PtrOverride.objects.filter(ipaddress=ipaddress)
+    if ptrs:
+        assert(len(ptrs) == 1)
+        ptrs.first().delete()
+
+# Update PtrOverride whenever a Ipaddress is created or changed
+@receiver(pre_save, sender=Ipaddress)
+def updated_ipaddress_fix_ptroverride(sender, instance, raw, using, update_fields, **kwargs):
+    if instance.id:
+        oldinstance = Ipaddress.objects.get(id=instance.id)
+        _del_ptr(oldinstance.ipaddress)
+    else:
+        # Can only add a PtrOverride if count == 1, otherwise we can not guess which
+        # one should get it.
+        if Ipaddress.objects.filter(ipaddress=instance.ipaddress).count() == 1:
+            hostid =  Ipaddress.objects.get(ipaddress=instance.ipaddress).hostid
+            ptr = PtrOverride.objects.create(hostid=hostid, ipaddress=instance.ipaddress)
+            ptr.save()
+
+# Remove old PtrOverride, if possible, when an Ipaddress is deleted.
+@receiver(post_delete, sender=Ipaddress)
+def deleted_ipaddress_fix_ptroverride(sender, instance, using, **kwargs):
+    _del_ptr(instance.ipaddress)
 
 # To log host history, an approach using post_save signals for related objects was chosen.
 # Ex: When you update an Ipaddress, the Hosts model object itself is not saved, so reading the
@@ -14,6 +40,7 @@ from mreg.api.v1.serializers import *
 #
 # Currently saves a JSON-snapshot of all data for the host.
 # TODO: Deleting a host should probably do something. Export/delete log for that host after some time?
+
 
 
 @receiver(post_save, sender=PtrOverride)

@@ -228,16 +228,16 @@ class ModelPtrOverrideTestCase(TestCase):
     def setUp(self):
         """Define the test client and other test variables."""
         # Needs sample host to test
-        self.host_one = Host(name='some-host.example.org',
-                             contact='mail@example.org',
-                             ttl=300,
-                             loc='23 58 23 N 10 43 50 E 80m',
-                             comment='some comment')
+        self.host_one = Host(name='host1.example.org',
+                             contact='mail@example.org')
+        self.host_two = Host(name='host2.example.org',
+                        contact='mail@example.org')
 
         clean_and_save(self.host_one)
+        clean_and_save(self.host_two)
 
-        self.ptr_sample = PtrOverride(hostid=Host.objects.get(name='some-host.example.org'),
-                                      ipaddress='129.240.202.123')
+        self.ptr_sample = PtrOverride(hostid=Host.objects.get(name='host1.example.org'),
+                                      ipaddress='10.0.0.2')
 
     def test_model_can_create_ptr(self):
         """Test that the model is able to create a PTR Override."""
@@ -249,10 +249,10 @@ class ModelPtrOverrideTestCase(TestCase):
     def test_model_can_change_ptr(self):
         """Test that the model is able to change a PTR Override."""
         clean_and_save(self.ptr_sample)
-        new_ptr = '129.240.202.124'
+        new_ptr = '10.0.0.3'
         self.ptr_sample.ipaddress = new_ptr
         clean_and_save(self.ptr_sample)
-        updated_ptr = PtrOverride.objects.filter(hostid__name='some-host.example.org')[0].ipaddress
+        updated_ptr = PtrOverride.objects.filter(hostid__name='host1.example.org').first().ipaddress
         self.assertEqual(new_ptr, updated_ptr)
 
     def test_model_can_delete_ptr(self):
@@ -262,6 +262,61 @@ class ModelPtrOverrideTestCase(TestCase):
         self.ptr_sample.delete()
         new_count = PtrOverride.objects.count()
         self.assertNotEqual(old_count, new_count)
+
+
+    def test_model_updated_by_added_ip(self):
+        """Test to check that an PtrOverride is added when two hosts share the same ip.
+           Also makes sure that the PtrOverride points to the first host which held the ip."""
+        initial_count = PtrOverride.objects.count()
+        ip_one = Ipaddress(hostid=self.host_one, ipaddress='10.0.0.1')
+        clean_and_save(ip_one)
+        one_count = PtrOverride.objects.count()
+        ip_two = Ipaddress(hostid=self.host_two, ipaddress='10.0.0.1')
+        clean_and_save(ip_two)
+        ptr =  PtrOverride.objects.first()
+        self.assertEqual(ptr.hostid, self.host_one)
+        self.assertEqual(ptr.ipaddress, '10.0.0.1')
+        self.assertEqual(initial_count, 0)
+        self.assertEqual(initial_count, one_count)
+        self.assertEqual(PtrOverride.objects.count(), 1)
+
+    def test_model_add_and_remove_ip(self):
+        """Test to check that an PtrOverride is added when two hosts share the same ip.
+           Also makes sure that the PtrOverride points to the first host which held the ip."""
+        initial_count = PtrOverride.objects.count()
+        ip_one = Ipaddress(hostid=self.host_one, ipaddress='10.0.0.1')
+        clean_and_save(ip_one)
+        one_count = PtrOverride.objects.count()
+        ip_two = Ipaddress(hostid=self.host_two, ipaddress='10.0.0.1')
+        clean_and_save(ip_two)
+        two_count = PtrOverride.objects.count()
+        ptr =  PtrOverride.objects.first()
+        self.assertEqual(ptr.hostid, self.host_one)
+        self.assertEqual(ptr.ipaddress, '10.0.0.1')
+        self.assertEqual(initial_count, 0)
+        self.assertEqual(initial_count, one_count)
+        self.assertEqual(two_count, 1)
+        self.host_one.delete()
+        self.assertEqual(PtrOverride.objects.count(), 0)
+
+    def test_model_two_ips_no_ptroverrides(self):
+        """When three or more hosts all have the same ipaddress and the first host
+        host, e.g. the one with the PtrOverride, is deleted, a new PtrOverride is
+        not created automatically.
+        """
+        def _add_ip(host, ipaddress):
+            ip = Ipaddress(hostid=host, ipaddress=ipaddress)
+            clean_and_save(ip)
+        _add_ip(self.host_one, '10.0.0.1')
+        _add_ip(self.host_two, '10.0.0.1')
+        host_three = Host(name='host3.example.org',
+                        contact='mail@example.org')
+
+        clean_and_save(host_three)
+        _add_ip(host_three, '10.0.0.1')
+        self.host_one.delete()
+        self.assertEqual(PtrOverride.objects.count(), 0)
+        self.assertEqual(Ipaddress.objects.filter(ipaddress='10.0.0.1').count(), 2)
 
 
 class ModelTxtTestCase(TestCase):

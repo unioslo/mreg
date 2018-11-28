@@ -1,8 +1,14 @@
 import ipaddress
 
+from collections import defaultdict
+
 from django.db import models
-from mreg.validators import *
-from mreg.utils import *
+
+from mreg.validators import (validate_hostname, validate_zonename,
+        validate_mac_address, validate_loc, validate_naptr_flag,
+        validate_srv_service_text, validate_zones_serialno)
+from mreg.utils import (encode_mail, clear_none, qualify, idna_encode,
+        get_network_from_zonename)
 
 
 class NameServer(models.Model):
@@ -69,6 +75,39 @@ $TTL {ttl}
                                          {expire}    ; Expire
                                          {ttl} )     ; Negative Cache\n""".format_map(data)
         return zf
+
+    @property
+    def network(self):
+        return get_network_from_zonename(self.name)
+
+    def get_ipaddresses(self):
+        network = self.network
+        from_ip = str(network.network_address)
+        to_ip = str(network.broadcast_address)
+        ips = Ipaddress.objects.filter(ipaddress__range=(from_ip, to_ip)).order_by("ipaddress")
+        override_ips = dict()
+        for p in PtrOverride.objects.filter(ipaddress__range=(from_ip, to_ip)):
+            override_ips[p.ipaddress] = p
+
+        # XXX: send signal/mail to hostmaster(?) about issues with multiple_ip_no_ptr
+        count = defaultdict(int)
+        for i in ips:
+            if i.ipaddress not in override_ips:
+                count[i.ipaddress] += 1
+        multiple_ip_no_ptr = {i: count[i] for i in count if count[i] > 1}
+        ptr_done = set()
+        # Use PtrOverrides when found, but only once. Also skip IPaddresses
+        # which have been used multiple times, but lacks a PtrOverride.
+        for i in ips:
+            ip = i.ipaddress
+            if ip in multiple_ip_no_ptr:
+                continue
+            if ip in override_ips:
+                if ip not in ptr_done:
+                    ptr_done.add(ip)
+                    yield override_ips[ip]
+            else:
+                yield i
 
 
 class ZoneMember(models.Model):
@@ -162,12 +201,12 @@ class PtrOverride(models.Model):
         db_table = 'ptr_override'
 
     def __str__(self):
-        return str(self.ipaddress)
+        return "{} -> {}".format(str(self.ipaddress), str(self.hostid.name))
 
     def zf_string(self, zone):
         """String representation for zonefile export."""
         data = {
-            'name': reverse_ip(self.ipaddress) + '.in-addr.arpa.',
+            'name': ipaddress.ip_address(self.ipaddress).reverse_pointer,
             'record_data': idna_encode(qualify(self.hostid.name, zone)),
             'record_type': 'PTR',
         }

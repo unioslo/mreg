@@ -1,6 +1,7 @@
-from mreg.models import Host, Ipaddress, Naptr, Srv, PtrOverride
-from mreg.utils import idna_encode, get_network_from_zonename
 import ipaddress
+
+from mreg.models import Host, Ipaddress, Naptr, Srv, PtrOverride
+from mreg.utils import idna_encode
 
 class ZoneFile(object):
     def __init__(self, zone):
@@ -64,61 +65,42 @@ class ForwardFile(object):
             data += srv.zf_string(zone.name)
         return data
 
+
 class IPv4ReverseFile(object):
 
     def __init__(self, zone):
         self.zone = zone
 
-    def get_ipaddresses(self, network):
-        from_ip = str(network.network_address)
-        to_ip = str(network.broadcast_address)
-        where_str = "ipaddress BETWEEN '{}' AND '{}'".format(from_ip, to_ip)
-        ips = Ipaddress.objects.extra(where=[where_str],
-                                      order_by=["ipaddress"])
-        # XXX: need to check ptroverrides
-        return ips
-
     def generate(self):
         zone = self.zone
-        network = get_network_from_zonename(zone.name)
         data = zone.zf_string
         data += ';\n; Name servers\n;\n'
         for ns in zone.nameservers.all():
             data += ns.zf_string(zone.name)
         # TODO: delegated entries, if any
-        data += ';\n; Subdomains\n;\n'
+        data += ';\n; Delegations \n;\n'
         _prev_net = 'z'
-        for ip in self.get_ipaddresses(network):
+        for ip in zone.get_ipaddresses():
             rev = ipaddress.ip_address(ip.ipaddress).reverse_pointer
             # Add $ORIGIN between every new /24 found
             if not rev.endswith(_prev_net):
-                _prev_net = rev[rev.find('.')+1:]
-                data += "$ORIGIN {}.\n".format(_prev_net)
+                _prev_net = rev[rev.find('.'):]
+                data += "$ORIGIN {}.\n".format(_prev_net[1::])
             ptrip = rev[:rev.find('.')]
             data += "{}\tPTR\t{}.\n".format(ptrip, idna_encode(ip.hostid.name))
         return data
 
 class IPv6ReverseFile(object):
 
-    def get_ipaddresses(self, network):
-        from_ip = str(network.network_address)
-        to_ip = str(network.broadcast_address)
-        where_str = "ipaddress BETWEEN '{}' AND '{}'".format(from_ip, to_ip)
-        ips = Ipaddress.objects.extra(where=[where_str],
-                                       order_by=["ipaddress"])
-        # XXX: need to check ptroverrides
-        return ips
-
     def generate(self, zone):
-        network = get_network_from_zonename(zone.name)
         data = zone.zf_string
         data += ';\n; Name servers\n;\n'
         for ns in zone.nameservers.all():
             data += ns.zf_string(zone.name)
         # TODO: delegated entries, if any
-        data += ';\n; Subdomains\n;\n'
+        data += ';\n; Delegations\n;\n'
         _prev_net = 'z'
-        for ip in self.get_ipaddresses(network):
+        for ip in zone.get_ipaddresses():
             rev = ipaddress.ip_address(ip.ipaddress).reverse_pointer
             # Add $ORIGIN between every new /64 found
             if not rev.endswith(_prev_net):
