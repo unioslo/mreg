@@ -1,7 +1,9 @@
 from django.test import TestCase
 from django.utils import timezone
-from mreg.models import *
 from rest_framework.test import APIClient
+
+from mreg.models import (Cname, HinfoPreset, Host, Ipaddress, NameServer,
+        Naptr, PtrOverride, Srv, Subnet, Txt, Zone, ModelChangeLog)
 
 def clean_and_save(entity):
     entity.full_clean()
