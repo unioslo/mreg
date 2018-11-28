@@ -10,8 +10,14 @@ from rest_framework import status
 from url_filter.filtersets import ModelFilterSet
 import ipaddress
 
-from mreg.models import *
-from mreg.api.v1.serializers import *
+from mreg.api.v1.serializers import (CnameSerializer, HinfoPresetSerializer,
+        HostSerializer, HostSaveSerializer, IpaddressSerializer,
+        NameServerSerializer, NaptrSerializer, PtrOverrideSerializer,
+        SrvSerializer, SubnetSerializer, TxtSerializer, ZoneSerializer,
+        ModelChangeLogSerializer)
+from mreg.models import (Cname, HinfoPreset, Host, Ipaddress, NameServer,
+        Naptr, PtrOverride, Srv, Subnet, Txt, Zone, ModelChangeLog)
+from mreg.utils import create_serialno
 
 from .zonefile import ZoneFile
 

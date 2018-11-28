@@ -1,9 +1,9 @@
 from rest_framework import serializers
 
-from mreg.models import *
-from mreg.utils import *
-from mreg.validators import validate_keys
-from mreg.validators import validate_ttl
+from mreg.models import (Cname, HinfoPreset, Host, Ipaddress, NameServer,
+        Naptr, PtrOverride, Srv, Subnet, Txt, Zone, ModelChangeLog)
+from mreg.utils import (create_serialno, nonify)
+from mreg.validators import (validate_keys, validate_ttl)
 
 
 class ValidationMixin(object):
