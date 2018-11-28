@@ -1,6 +1,9 @@
 import ipaddress
 
+from collections import defaultdict
+
 from django.db import models
+
 from mreg.validators import *
 from mreg.utils import *
 
@@ -69,6 +72,35 @@ $TTL {ttl}
                                          {expire}    ; Expire
                                          {ttl} )     ; Negative Cache\n""".format_map(data)
         return zf
+
+    def get_ipaddresses(self):
+        network = get_network_from_zonename(self.name)
+        from_ip = str(network.network_address)
+        to_ip = str(network.broadcast_address)
+        ips = Ipaddress.objects.filter(ipaddress__range=(from_ip, to_ip)).order_by("ipaddress")
+        override_ips = dict()
+        for p in PtrOverride.objects.filter(ipaddress__range=(from_ip, to_ip)):
+            override_ips[p.ipaddress] = p
+
+        # XXX: send signal/mail to hostmaster(?) about issues with multiple_ip_no_ptr
+        count = defaultdict(int)
+        for i in ips:
+            if i.ipaddress not in override_ips:
+                count[i.ipaddress] += 1
+        multiple_ip_no_ptr = {i: count[i] for i in count if count[i] > 1}
+        ptr_done = set()
+        # Use PtrOverrides when found, but only once. Also skip IPaddresses
+        # which have been used multiple times, but lacks a PtrOverride.
+        for i in ips:
+            ip = i.ipaddress
+            if ip in multiple_ip_no_ptr:
+                continue
+            if ip in override_ips:
+                if ip not in ptr_done:
+                    ptr_done.add(ip)
+                    yield override_ips[ip]
+            else:
+                yield i
 
 
 class ZoneMember(models.Model):

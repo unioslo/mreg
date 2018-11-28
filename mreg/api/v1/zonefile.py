@@ -1,9 +1,7 @@
 import ipaddress
 
-from collections import defaultdict
-
 from mreg.models import Host, Ipaddress, Naptr, Srv, PtrOverride
-from mreg.utils import idna_encode, get_network_from_zonename
+from mreg.utils import idna_encode
 
 class ZoneFile(object):
     def __init__(self, zone):
@@ -67,33 +65,6 @@ class ForwardFile(object):
             data += srv.zf_string(zone.name)
         return data
 
-def get_ipaddresses(network):
-    from_ip = str(network.network_address)
-    to_ip = str(network.broadcast_address)
-    ips = Ipaddress.objects.filter(ipaddress__range=(from_ip, to_ip)).order_by("ipaddress")
-    override_ips = dict()
-    for p in PtrOverride.objects.filter(ipaddress__range=(from_ip, to_ip)):
-        override_ips[p.ipaddress] = p
-
-    # XXX: send signal/mail to hostmaster(?) about issues with multiple_ip_no_ptr
-    count = defaultdict(int)
-    for i in ips:
-        if i.ipaddress not in override_ips:
-            count[i.ipaddress] += 1
-    multiple_ip_no_ptr = {i: count[i] for i in count if count[i] > 1}
-    ptr_done = set()
-    # Use PtrOverrides when found, but only once. Also skip IPaddresses
-    # which have been used multiple times, but lacks a PtrOverride.
-    for i in ips:
-        ip = i.ipaddress
-        if ip in multiple_ip_no_ptr:
-            continue
-        if ip in override_ips:
-            if ip not in ptr_done:
-                ptr_done.add(ip)
-                yield override_ips[ip]
-        else:
-            yield i
 
 class IPv4ReverseFile(object):
 
@@ -102,7 +73,6 @@ class IPv4ReverseFile(object):
 
     def generate(self):
         zone = self.zone
-        network = get_network_from_zonename(zone.name)
         data = zone.zf_string
         data += ';\n; Name servers\n;\n'
         for ns in zone.nameservers.all():
@@ -110,7 +80,7 @@ class IPv4ReverseFile(object):
         # TODO: delegated entries, if any
         data += ';\n; Delegations \n;\n'
         _prev_net = 'z'
-        for ip in get_ipaddresses(network):
+        for ip in zone.get_ipaddresses():
             rev = ipaddress.ip_address(ip.ipaddress).reverse_pointer
             # Add $ORIGIN between every new /24 found
             if not rev.endswith(_prev_net):
@@ -131,7 +101,7 @@ class IPv6ReverseFile(object):
         # TODO: delegated entries, if any
         data += ';\n; Delegations\n;\n'
         _prev_net = 'z'
-        for ip in get_ipaddresses(network):
+        for ip in zone.get_addresses():
             rev = ipaddress.ip_address(ip.ipaddress).reverse_pointer
             # Add $ORIGIN between every new /64 found
             if not rev.endswith(_prev_net):
