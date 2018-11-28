@@ -4,8 +4,11 @@ from collections import defaultdict
 
 from django.db import models
 
-from mreg.validators import *
-from mreg.utils import *
+from mreg.validators import (validate_hostname, validate_zonename,
+        validate_mac_address, validate_loc, validate_naptr_flag,
+        validate_srv_service_text, validate_zones_serialno)
+from mreg.utils import (encode_mail, clear_none, qualify, idna_encode,
+        get_network_from_zonename)
 
 
 class NameServer(models.Model):

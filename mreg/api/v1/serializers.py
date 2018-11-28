@@ -1,3 +1,5 @@
+from rest_framework import serializers
+
 from mreg.models import *
 from mreg.utils import *
 from mreg.validators import validate_keys
