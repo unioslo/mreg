@@ -73,8 +73,12 @@ $TTL {ttl}
                                          {ttl} )     ; Negative Cache\n""".format_map(data)
         return zf
 
+    @property
+    def network(self):
+        return get_network_from_zonename(self.name)
+
     def get_ipaddresses(self):
-        network = get_network_from_zonename(self.name)
+        network = self.network
         from_ip = str(network.network_address)
         to_ip = str(network.broadcast_address)
         ips = Ipaddress.objects.filter(ipaddress__range=(from_ip, to_ip)).order_by("ipaddress")
