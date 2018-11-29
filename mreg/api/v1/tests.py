@@ -1035,6 +1035,13 @@ class APISubnetsTestCase(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, '129.240.204.4')
 
+    def test_subnets_get_reserved_list(self):
+        """GET on /subnets/<ip/mask> with QUERY_STRING header 'reserved_list' should return 200 ok and data."""
+        response = self.client.get('/subnets/%s?reserved_list' % self.subnet_sample.range)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, ['129.240.204.0', '129.240.204.1',
+            '129.240.204.2', '129.240.204.3','129.240.204.255'])
+
     def test_subnets_delete_204_no_content(self):
         """Deleting an existing entry with no adresses in use should return 204"""
         response = self.client.post('/subnets/', self.post_data)
