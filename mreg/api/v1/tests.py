@@ -560,6 +560,12 @@ class APIHostsTestCase(TestCase):
         response = self.client.get('/hosts/%s' % self.host_one.name)
         self.assertEqual(response.status_code, 200)
 
+    def test_hosts_list_200_ok(self):
+        """List all hosts should return 200"""
+        response = self.client.get('/hosts/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()), 2)
+
     def test_hosts_get_404_not_found(self):
         """"Getting a non-existing entry should return 404"""
         response = self.client.get('/hosts/nonexistent.example.org')
