@@ -1,12 +1,11 @@
-from rest_framework import generics
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.http import Http404, QueryDict
 from django.shortcuts import get_object_or_404
-from rest_framework_extensions.etag.mixins import ETAGMixin
-from rest_framework import renderers
+from rest_framework import (generics, renderers, status)
+from rest_framework.exceptions import ParseError
 from rest_framework.response import Response
-from rest_framework import status
+from rest_framework_extensions.etag.mixins import ETAGMixin
 from url_filter.filtersets import ModelFilterSet
 import ipaddress
 
@@ -449,6 +448,21 @@ class SrvDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIVie
     serializer_class = SrvSerializer
 
 
+def _get_iprange(kwargs):
+    """
+    Helper function to get the range from the params dict.
+    :param kwargs: kwargs
+    :return: The iprange as a string, or raises an error
+    """
+    try:
+        ip = kwargs['ip']
+        mask = kwargs['range']
+        iprange = '%s/%s' % (ip, mask)
+        ipaddress.ip_network(iprange)
+        return iprange
+    except ValueError as error:
+        raise ParseError(detail=str(error))
+
 class SubnetList(generics.ListAPIView):
     """
     list:
@@ -508,14 +522,7 @@ class SubnetDetail(ETAGMixin, generics.GenericAPIView):
     lookup_field = 'range'
 
     def get(self, request, queryset=queryset, *args, **kwargs):
-        ip = self.kwargs['ip']
-        mask = self.kwargs['range']
-        iprange = '%s/%s' % (ip, mask)
-
-        valid_range = self.is_range(iprange)
-        if not valid_range:
-            return valid_range
-
+        iprange = _get_iprange(kwargs)
         subnet = get_object_or_404(Subnet, range=iprange)
 
         if request.META.get('QUERY_STRING') == 'used_count':
@@ -544,17 +551,10 @@ class SubnetDetail(ETAGMixin, generics.GenericAPIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def patch(self, request, *args, **kwargs):
-        ip = self.kwargs['ip']
-        mask = self.kwargs['range']
-        iprange = '%s/%s' % (ip, mask)
-        valid_range = self.is_range(iprange)
-
-        if not valid_range:
-            return valid_range
-
         if 'range' in request.data:
             return Response({'ERROR': 'Not allowed to change range'}, status=status.HTTP_403_FORBIDDEN)
 
+        iprange = _get_iprange(kwargs)
         subnet = get_object_or_404(Subnet, range=iprange)
         serializer = self.get_serializer(subnet, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -563,14 +563,7 @@ class SubnetDetail(ETAGMixin, generics.GenericAPIView):
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
     def delete(self, request, *args, **kwargs):
-        ip = self.kwargs['ip']
-        mask = self.kwargs['range']
-        iprange = '%s/%s' % (ip, mask)
-
-        valid_range = self.is_range(iprange)
-        if not valid_range:
-            return valid_range
-
+        iprange = _get_iprange(kwargs)
         subnet = get_object_or_404(Subnet, range=iprange)
         used_ipaddresses = subnet.get_used_ipaddresses()
         if used_ipaddresses:
@@ -579,17 +572,6 @@ class SubnetDetail(ETAGMixin, generics.GenericAPIView):
         subnet.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    def is_range(self, iprange):
-        """
-        Helper function to check if given string isn't a valid range
-        :param iprange: the IP range
-        :return: true or a response with an error that describes what's wrong with the string
-        """
-        try:
-            ipaddress.ip_network(iprange)
-            return True
-        except ValueError as error:
-            return Response({'ERROR': str(error)}, status=status.HTTP_400_BAD_REQUEST)
 
 class TxtList(generics.ListCreateAPIView):
     """
