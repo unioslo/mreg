@@ -275,15 +275,74 @@ class Subnet(models.Model):
     def __str__(self):
         return str(self.range)
 
-    def get_reserved_addresses(self):
+    @property
+    def network(self):
+        return ipaddress.ip_network(self.range)
+
+    def get_reserved_ipaddresses(self):
         """ Returns a set with the reserved ip addresses for the subnet."""
-        subnet = ipaddress.ip_network(self.range)
+        subnet = self.network
         ret = set([subnet.network_address])
         for i, ip in zip(range(self.reserved), subnet.hosts()):
             ret.add(ip)
         if isinstance(subnet, ipaddress.IPv4Network):
             ret.add(subnet.broadcast_address)
         return ret
+
+    def _get_used_ipaddresses(self):
+        from_ip = str(self.network.network_address)
+        to_ip = str(self.network.broadcast_address)
+        #where_str = "ipaddress BETWEEN '{}' AND '{}'".format(from_ip, to_ip)
+        #ips = Ipaddress.objects.extra(where=[where_str])
+        return Ipaddress.objects.filter(ipaddress__range=(from_ip, to_ip))
+
+    def get_used_ipaddresses(self):
+        """
+        Returns the used ipaddress on the subnet.
+        """
+        ips = self._get_used_ipaddresses()
+        used = {ipaddress.ip_address(i.ipaddress) for i in ips}
+        return used
+
+    def get_used_ipaddress_count(self):
+        """
+        Returns the number of used ipaddreses on the subnet.
+        """
+        return self._get_used_ipaddresses().count()
+
+    def get_unused_ipaddresses(self):
+        """
+        Returns which ip-addresses on the subnet are unused.
+        """
+        network_ips = []
+        if isinstance(self.network, ipaddress.IPv6Network):
+            # Getting all availible IPs for a ipv6 prefix can easily cause
+            # the webserver to hang due to lots and lots of IPs. Instead limit
+            # to the first 4000 hosts. Should probably be configurable.
+            for ip in self.network.hosts():
+                if len(network_ips) == 4000:
+                    break
+                network_ips.append(ip)
+        else:
+            network_ips = self.network.hosts()
+
+        reserved = self.get_reserved_ipaddresses()
+        used = self.get_used_ipaddresses()
+        return set(network_ips) - reserved - used
+
+    def get_first_unused(self):
+        """
+        Return the first unused IP found, if any.
+        """
+
+        reserved = self.get_reserved_ipaddresses()
+        used = self.get_used_ipaddresses()
+        for ip in self.network.hosts():
+            if ip in reserved:
+                continue
+            if ip not in used:
+                return str(ip)
+        return None
 
     @staticmethod
     def overlap_check(subnet):
