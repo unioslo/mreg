@@ -5,6 +5,7 @@ from django.shortcuts import get_object_or_404
 from rest_framework import (generics, renderers, status)
 from rest_framework.exceptions import ParseError
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework_extensions.etag.mixins import ETAGMixin
 from url_filter.filtersets import ModelFilterSet
 import ipaddress
@@ -840,6 +841,30 @@ class ModelChangeLogDetail(StrictCRUDMixin, generics.RetrieveAPIView):
             return Response(logs_by_date, status=status.HTTP_200_OK)
         except ModelChangeLog.DoesNotExist:
             raise Http404
+
+class ListDHCPHosts(APIView):
+    """
+    get:
+    Lists ipaddreses with macaddresses.
+    """
+    def get(self, request, *args, **kwargs):
+        if 'hosts' in kwargs:
+            if kwargs['hosts'] == 'v4-all':
+                iprange = '0.0.0.0/0'
+            elif kwargs['hosts'] == 'v6-all':
+                iprange = '::/0'
+            else:
+                raise Http404
+        else:
+            iprange = _get_iprange(kwargs)
+
+        network = ipaddress.ip_network(iprange)
+        from_ip = str(network.network_address)
+        to_ip = str(network.broadcast_address)
+        ips = Ipaddress.objects.filter(ipaddress__range=(from_ip, to_ip))
+        ips = ips.exclude(macaddress__exact='').order_by('ipaddress')
+        ips = ips.values('host__name','ipaddress','macaddress')
+        return Response(ips)
 
             
 class PlainTextRenderer(renderers.BaseRenderer):
