@@ -843,7 +843,10 @@ class ModelChangeLogDetail(StrictCRUDMixin, generics.RetrieveAPIView):
             raise Http404
 
 class ListDHCPHosts(APIView):
-
+    """
+    get:
+    Lists ipaddreses with macaddresses.
+    """
     def get(self, request, *args, **kwargs):
         if 'hosts' in kwargs:
             if kwargs['hosts'] == 'v4-all':
