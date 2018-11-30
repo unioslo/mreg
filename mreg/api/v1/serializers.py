@@ -57,32 +57,30 @@ class HostSerializer(ValidationMixin, serializers.ModelSerializer):
     """
     To properly represent a host we include its related objects.
     """
-    ipaddress = IpaddressSerializer(many=True, read_only=True)
-    cname = CnameSerializer(many=True, read_only=True)
-    txt = TxtSerializer(many=True, read_only=True)
-    ptr_override = PtrOverrideSerializer(many=True, read_only=True)
-    hinfo = HinfoPresetSerializer(required=False)['hinfoid']
+    ipaddresses = IpaddressSerializer(many=True, read_only=True)
+    cnames = CnameSerializer(many=True, read_only=True)
+    txts = TxtSerializer(many=True, read_only=True)
+    ptr_overrides = PtrOverrideSerializer(many=True, read_only=True)
+    hinfo = HinfoPresetSerializer(required=False)['id']
 
     class Meta:
         model = Host
-        fields = ('hostid', 'name', 'zoneid', 'contact', 'ttl', 'hinfo', 'loc',
-                  'comment', 'cname', 'ipaddress', 'txt', 'ptr_override')
+        fields = '__all__'
 
 
 class HostSaveSerializer(ValidationMixin, serializers.ModelSerializer):
     """
     Used for saving hosts, due to complications with nulling out a field by patching it with '-1'.
     """
-    ipaddress = IpaddressSerializer(many=True, read_only=True)
-    cname = CnameSerializer(many=True, read_only=True)
-    txt = TxtSerializer(many=True, read_only=True)
-    ptr_override = PtrOverrideSerializer(many=True, read_only=True)
+    ipaddresses = IpaddressSerializer(many=True, read_only=True)
+    cnames = CnameSerializer(many=True, read_only=True)
+    txts = TxtSerializer(many=True, read_only=True)
+    ptr_overrides = PtrOverrideSerializer(many=True, read_only=True)
     hinfo = serializers.IntegerField(required=False)
 
     class Meta:
         model = Host
-        fields = ('hostid', 'name', 'zoneid', 'contact', 'ttl', 'hinfo', 'loc',
-                  'comment', 'cname', 'ipaddress', 'txt', 'ptr_override')
+        fields = '__all__'
 
     def validate_hinfo(self, value):
         value = nonify(value)

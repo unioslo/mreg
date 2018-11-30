@@ -189,7 +189,7 @@ class HostList(generics.GenericAPIView):
                 return Response(status=status.HTTP_400_BAD_REQUEST,
                                 data={"ERROR": "Hostname not in a mreg zone"})
         hostdata = request.data.copy()
-        hostdata["zoneid"] = zoneid
+        hostdata["zone"] = zoneid
 
         if 'ipaddress' in request.data:
             ipkey = hostdata['ipaddress']
@@ -202,7 +202,7 @@ class HostList(generics.GenericAPIView):
                     ipaddress.ip_address(ipkey)
                     with transaction.atomic():
                         hostserializer.save()
-                        ipdata = {'hostid': host.pk, 'ipaddress': ipkey}
+                        ipdata = {'host': host.pk, 'ipaddress': ipkey}
                         ip = Ipaddress()
                         ipserializer = IpaddressSerializer(ip, data=ipdata)
                         if ipserializer.is_valid(raise_exception=True):
@@ -239,11 +239,6 @@ class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
 
     def patch(self, request, *args, **kwargs):
         query = self.kwargs['pk']
-
-        if "hostid" in request.data:
-            if self.queryset.filter(hostid=request.data["hostid"]).exists():
-                content = {'ERROR': 'hostid already in use'}
-                return Response(content, status=status.HTTP_409_CONFLICT)
 
         if "name" in request.data:
             if self.queryset.filter(name=request.data["name"]).exists():
@@ -309,7 +304,7 @@ class IpaddressDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
 
         if "ipaddress" in request.data:
             for i in self.queryset.filter(ipaddress=request.data["ipaddress"]):
-                if i.hostid == ip.hostid:
+                if i.host == ip.host:
                     content = {'ERROR': 'ipaddress already in use by the host'}
                     return Response(content, status=status.HTTP_409_CONFLICT)
 
@@ -657,11 +652,11 @@ class ZoneList(generics.ListAPIView):
         for nameserver in nameservers:
             try:
                 ns = self.queryset_ns.get(name=nameserver)
-                zone.nameservers.add(ns.nsid)
+                zone.nameservers.add(ns.id)
             except NameServer.DoesNotExist:
                 ns = NameServer(name=nameserver)
                 ns.save()
-                zone.nameservers.add(ns.nsid)
+                zone.nameservers.add(ns.id)
         zone.save()
         return Response(status=status.HTTP_201_CREATED, headers={'Location': '/zones/%s' % data['name']})
 
@@ -687,11 +682,6 @@ class ZoneDetail(ETAGMixin, generics.RetrieveAPIView):
     # TODO: Implement authentication
     def patch(self, request, *args, **kwargs):
         query = self.kwargs[self.lookup_field]
-
-        if "zoneid" in request.data:
-            if self.queryset.filter(zoneid=request.data["zoneid"]).exists():
-                content = {'ERROR': 'zoneid already in use'}
-                return Response(content, status=status.HTTP_409_CONFLICT)
 
         if "name" in request.data:
             content = {'ERROR': 'Not allowed to change name'}
@@ -735,8 +725,8 @@ class ZoneDetail(ETAGMixin, generics.RetrieveAPIView):
 
 
     def get_zone_by_hostname(self, name):
-        """Get zoneid for a hostname.
-	Return zoneid or None if not found."""
+        """Get a zone's id for a hostname.
+	Return zone's id or None if not found."""
 
         def _get_reverse_order(lst):
             """Return index of sorted zones"""
@@ -752,7 +742,7 @@ class ZoneDetail(ETAGMixin, generics.RetrieveAPIView):
         for n in _get_reverse_order(zones):
             z = zones[n]
             if z.name and name.endswith(z.name):
-                return z.zoneid
+                return z.id
         return None
 
 

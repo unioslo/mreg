@@ -12,7 +12,6 @@ from mreg.utils import (encode_mail, clear_none, qualify, idna_encode,
 
 
 class NameServer(models.Model):
-    nsid = models.AutoField(primary_key=True, serialize=True)
     name = models.CharField(unique=True, max_length=253, validators=[validate_hostname])
     ttl = models.IntegerField(blank=True, null=True)
 
@@ -33,7 +32,6 @@ class NameServer(models.Model):
 
 
 class Zone(models.Model):
-    zoneid = models.AutoField(primary_key=True, serialize=True)
     name = models.CharField(unique=True, max_length=253, validators=[validate_zonename])
     primary_ns = models.CharField(max_length=253, validators=[validate_hostname])
     nameservers = models.ManyToManyField(NameServer, db_column='ns')
@@ -111,14 +109,13 @@ $TTL {ttl}
 
 
 class ZoneMember(models.Model):
-    zoneid = models.ForeignKey(Zone, models.DO_NOTHING, db_column='zone', blank=True, null=True)
+    zone = models.ForeignKey(Zone, models.DO_NOTHING, db_column='zone', blank=True, null=True)
 
     class Meta:
         abstract = True
 
 
 class HinfoPreset(models.Model):
-    hinfoid = models.AutoField(primary_key=True, serialize=True)
     cpu = models.TextField()
     os = models.TextField()
 
@@ -141,7 +138,6 @@ class HinfoPreset(models.Model):
 
 
 class Host(ZoneMember):
-    hostid = models.AutoField(primary_key=True, serialize=True)
     name = models.CharField(unique=True, max_length=253, validators=[validate_hostname])
     contact = models.EmailField()
     ttl = models.IntegerField(blank=True, null=True)
@@ -167,13 +163,13 @@ class Host(ZoneMember):
 
 
 class Ipaddress(models.Model):
-    hostid = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='hostid', related_name='ipaddress')
+    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='ipaddresses')
     ipaddress = models.GenericIPAddressField()
     macaddress = models.TextField(blank=True, null=True, validators=[validate_mac_address])
 
     class Meta:
         db_table = 'ipaddress'
-        unique_together = (('hostid', 'ipaddress'), )
+        unique_together = (('host', 'ipaddress'), )
 
     def __str__(self):
         return "{} -> {}".format(str(self.ipaddress), str(self.macaddress) or "None")
@@ -185,8 +181,8 @@ class Ipaddress(models.Model):
         else:
             iptype = 'AAAA'
         data = {
-            'name': idna_encode(qualify(self.hostid.name, zone)),
-            'ttl': clear_none(self.hostid.ttl),
+            'name': idna_encode(qualify(self.host.name, zone)),
+            'ttl': clear_none(self.host.ttl),
             'record_type': iptype,
             'record_data': self.ipaddress,
         }
@@ -194,28 +190,27 @@ class Ipaddress(models.Model):
 
 
 class PtrOverride(models.Model):
-    hostid = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='hostid', related_name='ptr_override')
+    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='ptr_overrides')
     ipaddress = models.GenericIPAddressField(unique=True)
 
     class Meta:
         db_table = 'ptr_override'
 
     def __str__(self):
-        return "{} -> {}".format(str(self.ipaddress), str(self.hostid.name))
+        return "{} -> {}".format(str(self.ipaddress), str(self.host.name))
 
     def zf_string(self, zone):
         """String representation for zonefile export."""
         data = {
             'name': ipaddress.ip_address(self.ipaddress).reverse_pointer,
-            'record_data': idna_encode(qualify(self.hostid.name, zone)),
+            'record_data': idna_encode(qualify(self.host.name, zone)),
             'record_type': 'PTR',
         }
         return '{name:30} IN {record_type:6} {record_data}\n'.format_map(data)
 
 
 class Txt(ZoneMember):
-    txtid = models.AutoField(primary_key=True, serialize=True)
-    hostid = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='hostid', related_name='txt')
+    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='txts')
     txt = models.TextField(max_length=255)
 
     class Meta:
@@ -227,8 +222,8 @@ class Txt(ZoneMember):
     def zf_string(self, zone):
         """String representation for zonefile export."""
         data = {
-            'name': idna_encode(qualify(self.hostid.name, zone)),
-            'ttl': clear_none(self.hostid.ttl),
+            'name': idna_encode(qualify(self.host.name, zone)),
+            'ttl': clear_none(self.host.ttl),
             'record_type': 'TXT',
             'record_data': '\"%s\"' % self.txt,
         }
@@ -236,7 +231,7 @@ class Txt(ZoneMember):
 
 
 class Cname(ZoneMember):
-    hostid = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='hostid', related_name='cname')
+    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='cnames')
     cname = models.TextField()
     ttl = models.IntegerField(blank=True, null=True)
 
@@ -244,12 +239,12 @@ class Cname(ZoneMember):
         db_table = 'cname'
 
     def __str__(self):
-        return "{} -> {}".format(str(self.hostid), str(self.cname))
+        return "{} -> {}".format(str(self.host), str(self.cname))
 
     def zf_string(self, zone):
         """String representation for zonefile export."""
         data = {
-            'name': idna_encode(qualify(self.hostid.name, zone)),
+            'name': idna_encode(qualify(self.host.name, zone)),
             'ttl': clear_none(self.ttl),
             'record_type': 'CNAME',
             'record_data': idna_encode(qualify(self.cname, zone)),
@@ -258,7 +253,6 @@ class Cname(ZoneMember):
 
 
 class Subnet(models.Model):
-    subnetid = models.AutoField(primary_key=True, serialize=True)
     range = models.TextField(unique=True)
     description = models.TextField(blank=True, null=True)
     vlan = models.IntegerField(blank=True, null=True)
@@ -354,8 +348,7 @@ class Subnet(models.Model):
         return Subnet.objects.extra(where=where, params=[str(subnet)])
 
 class Naptr(ZoneMember):
-    naptrid = models.AutoField(primary_key=True, serialize=True)
-    hostid = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='hostid', related_name='naptr')
+    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='naptrs')
     preference = models.IntegerField(blank=True, null=True)
     orderv = models.IntegerField(blank=True, null=True)
     flag = models.CharField(max_length=1, blank=True, null=True, validators=[validate_naptr_flag])
@@ -367,13 +360,14 @@ class Naptr(ZoneMember):
         db_table = 'naptr'
 
     def __str__(self):
-        return str(self.hostid)
+        #XXX: make better
+        return str(self.host)
 
     def zf_string(self, zone):
         """String representation for zonefile export."""
         data = {
-            'name': idna_encode(qualify(self.hostid.name, zone)),
-            'ttl': clear_none(self.hostid.ttl),
+            'name': idna_encode(qualify(self.host.name, zone)),
+            'ttl': clear_none(self.host.ttl),
             'record_type': 'NAPTR',
             'order': clear_none(self.orderv),
             'preference': clear_none(self.preference),
@@ -386,7 +380,6 @@ class Naptr(ZoneMember):
 
 
 class Srv(ZoneMember):
-    srvid = models.AutoField(primary_key=True, serialize=True)
     service = models.TextField(validators=[validate_srv_service_text])
     priority = models.IntegerField(blank=True, null=True)
     weight = models.IntegerField(blank=True, null=True)
