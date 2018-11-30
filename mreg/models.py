@@ -142,8 +142,8 @@ class Host(ZoneMember):
     contact = models.EmailField()
     ttl = models.IntegerField(blank=True, null=True)
     hinfo = models.ForeignKey(HinfoPreset, models.DO_NOTHING, db_column='hinfo', blank=True, null=True)
-    loc = models.TextField(blank=True, null=True, validators=[validate_loc])
-    comment = models.TextField(blank=True, null=True)
+    loc = models.TextField(blank=True, validators=[validate_loc])
+    comment = models.TextField(blank=True)
 
     class Meta:
         db_table = 'host'
@@ -165,7 +165,7 @@ class Host(ZoneMember):
 class Ipaddress(models.Model):
     host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='ipaddresses')
     ipaddress = models.GenericIPAddressField()
-    macaddress = models.TextField(blank=True, null=True, validators=[validate_mac_address])
+    macaddress = models.TextField(blank=True, validators=[validate_mac_address])
 
     class Meta:
         db_table = 'ipaddress'
@@ -254,11 +254,11 @@ class Cname(ZoneMember):
 
 class Subnet(models.Model):
     range = models.TextField(unique=True)
-    description = models.TextField(blank=True, null=True)
+    description = models.TextField(blank=True)
     vlan = models.IntegerField(blank=True, null=True)
     dns_delegated = models.NullBooleanField()
-    category = models.TextField(blank=True, null=True)
-    location = models.TextField(blank=True, null=True)
+    category = models.TextField(blank=True)
+    location = models.TextField(blank=True)
     frozen = models.NullBooleanField()
     reserved = models.PositiveIntegerField(default=3)
 
@@ -351,9 +351,9 @@ class Naptr(ZoneMember):
     host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='naptrs')
     preference = models.IntegerField(blank=True, null=True)
     orderv = models.IntegerField(blank=True, null=True)
-    flag = models.CharField(max_length=1, blank=True, null=True, validators=[validate_naptr_flag])
+    flag = models.CharField(max_length=1, blank=True, validators=[validate_naptr_flag])
     service = models.TextField()
-    regex = models.TextField(blank=True, null=True)
+    regex = models.TextField(blank=True)
     replacement = models.TextField()
 
     class Meta:
@@ -385,7 +385,7 @@ class Srv(ZoneMember):
     weight = models.IntegerField(blank=True, null=True)
     port = models.IntegerField(blank=True, null=True)
     ttl = models.IntegerField(blank=True, null=True)
-    target = models.TextField(blank=True, null=True)
+    target = models.TextField()
 
     class Meta:
         db_table = 'srv'
