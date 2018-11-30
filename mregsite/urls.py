@@ -1,5 +1,5 @@
 from django.contrib import admin
-from django.urls import path
+from django.urls import include, path
 from mreg.api.v1 import views
 from rest_framework_swagger.views import get_swagger_view
 
@@ -35,6 +35,7 @@ urlpatterns = [
     path('zonefiles/<pk>', views.ZoneFileDetail.as_view()),
     path('history/', views.ModelChangeLogList.as_view(), kwargs={'resource': 'model_change_logs'}),
     path('history/<table>/<pk>', views.ModelChangeLogDetail.as_view(), kwargs={'resource': 'model_change_logs'}),
+    path('', include('mreg.api.v1.urls')),
     path('admin/', admin.site.urls),
     path('docs/', schema_view),
 ]
