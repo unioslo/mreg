@@ -23,8 +23,8 @@ def updated_ipaddress_fix_ptroverride(sender, instance, raw, using, update_field
         # Can only add a PtrOverride if count == 1, otherwise we can not guess which
         # one should get it.
         if Ipaddress.objects.filter(ipaddress=instance.ipaddress).count() == 1:
-            hostid =  Ipaddress.objects.get(ipaddress=instance.ipaddress).hostid
-            ptr = PtrOverride.objects.create(hostid=hostid, ipaddress=instance.ipaddress)
+            host =  Ipaddress.objects.get(ipaddress=instance.ipaddress).host
+            ptr = PtrOverride.objects.create(host=host, ipaddress=instance.ipaddress)
             ptr.save()
 
 # Remove old PtrOverride, if possible, when an Ipaddress is deleted.
@@ -51,15 +51,15 @@ def deleted_ipaddress_fix_ptroverride(sender, instance, using, **kwargs):
 @receiver(post_save, sender=Naptr)
 def save_host_history_on_save(sender, instance, created, **kwargs):
     """Receives post_save signal for models that have a ForeignKey to Hosts and updates the host history log."""
-    hostdata = HostSerializer(Host.objects.get(hostid=instance.hostid_id)).data
+    hostdata = HostSerializer(Host.objects.get(pk=instance.host_id)).data
 
     # Cleaning up data from related tables
-    hostdata['ipaddress'] = [record['ipaddress'] for record in hostdata['ipaddress']]
-    hostdata['txt'] = [record['txt'] for record in hostdata['txt']]
-    hostdata['cname'] = [record['cname'] for record in hostdata['cname']]
-    hostdata['ptr_override'] = [record['ipaddress'] for record in hostdata['ptr_override']]
+    hostdata['ipaddresses'] = [record['ipaddress'] for record in hostdata['ipaddresses']]
+    hostdata['txts'] = [record['txt'] for record in hostdata['txts']]
+    hostdata['cnames'] = [record['cname'] for record in hostdata['cnames']]
+    hostdata['ptr_overrides'] = [record['ipaddress'] for record in hostdata['ptr_overrides']]
     new_log_entry = ModelChangeLog(table_name='host',
-                                   table_row=hostdata['hostid'],
+                                   table_row=hostdata['id'],
                                    data=hostdata,
                                    action='saved',
                                    timestamp=timezone.now())
@@ -73,16 +73,16 @@ def save_host_history_on_save(sender, instance, created, **kwargs):
 @receiver(post_delete, sender=Naptr)
 def save_host_history_on_delete(sender, instance, **kwargs):
     """Receives post_delete signal for models that have a ForeignKey to Hosts and updates the host history log."""
-    hostdata = HostSerializer(Host.objects.get(hostid=instance.hostid_id)).data
+    hostdata = HostSerializer(Host.objects.get(pk=instance.host_id)).data
 
     # Cleaning up data from related tables
-    hostdata['ipaddress'] = [record['ipaddress'] for record in hostdata['ipaddress']]
-    hostdata['txt'] = [record['txt'] for record in hostdata['txt']]
-    hostdata['cname'] = [record['cname'] for record in hostdata['cname']]
-    hostdata['ptr_override'] = [record['ipaddress'] for record in hostdata['ptr_override']]
+    hostdata['ipaddresses'] = [record['ipaddress'] for record in hostdata['ipaddresses']]
+    hostdata['txts'] = [record['txt'] for record in hostdata['txts']]
+    hostdata['cnames'] = [record['cname'] for record in hostdata['cnames']]
+    hostdata['ptr_overrides'] = [record['ipaddress'] for record in hostdata['ptr_overrides']]
 
     new_log_entry = ModelChangeLog(table_name='host',
-                                   table_row=hostdata['hostid'],
+                                   table_row=hostdata['id'],
                                    data=hostdata,
                                    action='deleted',
                                    timestamp=timezone.now())
