@@ -3,7 +3,7 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-        path('dhcphosts/v4/all', views.ListDHCPHosts.as_view(), kwargs={'hosts': 'v4-all'}),
-        path('dhcphosts/v6/all', views.ListDHCPHosts.as_view(), kwargs={'hosts': 'v6-all'}),
-        path('dhcphosts/<ip>/<range>', views.ListDHCPHosts.as_view()),
+        path('dhcphosts/v4/all', views.dhcphosts_all_v4),
+        path('dhcphosts/v6/all', views.dhcphosts_all_v6),
+        path('dhcphosts/<ip>/<range>', views.dhcphosts_by_range),
 ]
