@@ -88,7 +88,7 @@ def validate_zonename(name):
 
 def validate_mac_address(address):
     """Validates that the mac address is on a valid form."""
-    adr_regex = "^([a-fA-F0-9]{2}[-:]?){5}[a-fA-F0-9]{2}$"
+    adr_regex = "^([a-f0-9]{2}:){5}[a-f0-9]{2}$"
     validator = RegexValidator(adr_regex)
     validator(address)
 
