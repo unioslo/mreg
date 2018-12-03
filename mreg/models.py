@@ -215,6 +215,7 @@ class Txt(ZoneMember):
 
     class Meta:
         db_table = 'txt'
+        unique_together = ('host','txt')
 
     def __str__(self):
         return str(self.txt)
