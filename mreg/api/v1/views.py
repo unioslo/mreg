@@ -3,6 +3,7 @@ from django.db import transaction
 from django.http import Http404, QueryDict
 from django.shortcuts import get_object_or_404
 from rest_framework import (generics, renderers, status)
+from rest_framework.decorators import api_view
 from rest_framework.exceptions import ParseError
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -842,30 +843,28 @@ class ModelChangeLogDetail(StrictCRUDMixin, generics.RetrieveAPIView):
         except ModelChangeLog.DoesNotExist:
             raise Http404
 
-class ListDHCPHosts(APIView):
-    """
-    get:
-    Lists ipaddreses with macaddresses.
-    """
-    def get(self, request, *args, **kwargs):
-        if 'hosts' in kwargs:
-            if kwargs['hosts'] == 'v4-all':
-                iprange = '0.0.0.0/0'
-            elif kwargs['hosts'] == 'v6-all':
-                iprange = '::/0'
-            else:
-                raise Http404
-        else:
-            iprange = _get_iprange(kwargs)
 
-        network = ipaddress.ip_network(iprange)
-        from_ip = str(network.network_address)
-        to_ip = str(network.broadcast_address)
-        ips = Ipaddress.objects.filter(ipaddress__range=(from_ip, to_ip))
-        ips = ips.exclude(macaddress__exact='').order_by('ipaddress')
-        ips = ips.values('host__name','ipaddress','macaddress')
-        return Response(ips)
 
+def _dhcphosts_by_range(iprange):
+    network = ipaddress.ip_network(iprange)
+    from_ip = str(network.network_address)
+    to_ip = str(network.broadcast_address)
+    ips = Ipaddress.objects.filter(ipaddress__range=(from_ip, to_ip))
+    ips = ips.exclude(macaddress__exact='').order_by('ipaddress')
+    ips = ips.values('host__name','ipaddress','macaddress')
+    return Response(ips)
+
+@api_view()
+def dhcphosts_by_range(request, *args, **kwargs):
+    return _dhcphosts_by_range(_get_iprange(kwargs))
+
+@api_view()
+def dhcphosts_all_v4(request):
+    return _dhcphosts_by_range('0.0.0.0/0')
+
+@api_view()
+def dhcphosts_all_v6(request):
+    return _dhcphosts_by_range('::/0')
             
 class PlainTextRenderer(renderers.BaseRenderer):
     """
