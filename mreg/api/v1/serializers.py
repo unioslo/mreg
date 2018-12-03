@@ -22,6 +22,34 @@ class ValidationMixin(object):
             validate_ttl(value)
         return value
 
+class ForwardZoneMixin(ValidationMixin):
+    """Create a zone entry from the hostname."""
+
+    def _get_zone_by_hostname(self, name):
+        """Get a zone's id for a hostname.
+        Return zone's id or None if not found."""
+
+        def _get_reverse_order(lst):
+            """Return index of sorted zones"""
+            # We must sort the zones to assert that foo.example.org hosts
+            # does not end up in the example.org zone.  This is acheived by
+            # spelling the zone postfix backwards and sorting the
+            # resulting list backwards
+            lst = [str(x.name)[::-1] for x in lst]
+            t = range(len(lst))
+            return sorted(t, reverse=True)
+
+        zones = Zone.objects.all()
+        for n in _get_reverse_order(zones):
+            z = zones[n]
+            if z.name and name.endswith(z.name):
+                return z
+        return None
+
+    def validate(self, data):
+        data = super().validate(data)
+        data['zone'] = self._get_zone_by_hostname(data['name'])
+        return data
 
 class CnameSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
@@ -53,7 +81,7 @@ class PtrOverrideSerializer(ValidationMixin, serializers.ModelSerializer):
         fields = '__all__'
 
 
-class HostSerializer(ValidationMixin, serializers.ModelSerializer):
+class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
     """
     To properly represent a host we include its related objects.
     """
@@ -68,7 +96,7 @@ class HostSerializer(ValidationMixin, serializers.ModelSerializer):
         fields = '__all__'
 
 
-class HostSaveSerializer(ValidationMixin, serializers.ModelSerializer):
+class HostSaveSerializer(ForwardZoneMixin, serializers.ModelSerializer):
     """
     Used for saving hosts, due to complications with nulling out a field by patching it with '-1'.
     """
