@@ -185,15 +185,10 @@ class HostList(generics.GenericAPIView):
             if self.queryset.filter(name=request.data["name"]).exists():
                 content = {'ERROR': 'name already in use'}
                 return Response(content, status=status.HTTP_409_CONFLICT)
-            zd = ZoneDetail()
-            zoneid = zd.get_zone_by_hostname(name=request.data["name"])
-            if not zoneid:
-                return Response(status=status.HTTP_400_BAD_REQUEST,
-                                data={"ERROR": "Hostname not in a mreg zone"})
-        hostdata = request.data.copy()
-        hostdata["zone"] = zoneid
 
-        if 'ipaddress' in request.data:
+        hostdata = request.data.copy()
+
+        if 'ipaddress' in hostdata:
             ipkey = hostdata['ipaddress']
             del hostdata['ipaddress']
             host = Host()
@@ -724,29 +719,6 @@ class ZoneDetail(ETAGMixin, generics.RetrieveAPIView):
         zone.delete()
         location = '/zones/%s' % zone.name
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
-
-
-    def get_zone_by_hostname(self, name):
-        """Get a zone's id for a hostname.
-	Return zone's id or None if not found."""
-
-        def _get_reverse_order(lst):
-            """Return index of sorted zones"""
-            # We must sort the zones to assert that ifi.uio.no hosts
-            # does not end up in the uio.no zone.  This is acheived by
-            # spelling the zone postfix backwards and sorting the
-            # resulting list backwards
-            lst = [str(x.name)[::-1] for x in lst]
-            t = range(len(lst))
-            return sorted(t, reverse=True)
-
-        zones = self.get_queryset()
-        for n in _get_reverse_order(zones):
-            z = zones[n]
-            if z.name and name.endswith(z.name):
-                return z.id
-        return None
-
 
 class ZoneNameServerDetail(ETAGMixin, generics.GenericAPIView):
     """
