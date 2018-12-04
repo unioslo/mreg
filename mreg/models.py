@@ -6,7 +6,7 @@ from django.db import models
 
 from mreg.validators import (validate_hostname, validate_zonename,
         validate_mac_address, validate_loc, validate_naptr_flag,
-        validate_srv_service_text, validate_zones_serialno)
+        validate_srv_service_text, validate_zones_serialno, validate_16bit_uint)
 from mreg.utils import (encode_mail, clear_none, qualify, idna_encode,
         get_network_from_zonename)
 
@@ -350,8 +350,8 @@ class Subnet(models.Model):
 
 class Naptr(ZoneMember):
     host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='naptrs')
-    preference = models.IntegerField(blank=True, null=True)
-    orderv = models.IntegerField(blank=True, null=True)
+    preference = models.IntegerField(validators=[validate_16bit_uint])
+    orderv = models.IntegerField(validators=[validate_16bit_uint])
     flag = models.CharField(max_length=1, blank=True, validators=[validate_naptr_flag])
     service = models.TextField()
     regex = models.TextField(blank=True)
@@ -381,28 +381,30 @@ class Naptr(ZoneMember):
 
 
 class Srv(ZoneMember):
-    service = models.TextField(validators=[validate_srv_service_text])
-    priority = models.IntegerField(blank=True, null=True)
-    weight = models.IntegerField(blank=True, null=True)
-    port = models.IntegerField(blank=True, null=True)
+    name = models.TextField(validators=[validate_srv_service_text])
+    priority = models.IntegerField(validators=[validate_16bit_uint])
+    weight = models.IntegerField(validators=[validate_16bit_uint])
+    port = models.IntegerField(validators=[validate_16bit_uint])
     ttl = models.IntegerField(blank=True, null=True)
+    # XXX: target MUST not be a alias aka cname
     target = models.TextField()
 
     class Meta:
         db_table = 'srv'
+        unique_together = ('name','priority','weight','port','target')
 
     def __str__(self):
-        return str(self.service)
+        return str(self.name)
 
-    def zf_string(self):
+    def zf_string(self, zone):
         """String representation for zonefile export."""
         data = {
-            'name': idna_encode(qualify(self.service, zone)),
+            'name': idna_encode(qualify(self.name, zone)),
             'ttl': clear_none(self.ttl),
             'record_type': 'SRV',
-            'priority': clear_none(self.priority),
-            'weight': clear_none(self.weight),
-            'port': clear_none(self.port),
+            'priority': self.priority,
+            'weight': self.weight,
+            'port': self.port,
             'target': idna_encode(qualify(self.target, zone))
         }
         return '{name:24} {ttl:5} IN {record_type:6} {priority} {weight} {port} {target}\n'.format_map(data)

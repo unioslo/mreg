@@ -136,7 +136,7 @@ class NameServerSerializer(ValidationMixin, serializers.ModelSerializer):
         fields = '__all__'
 
 
-class SrvSerializer(ValidationMixin, serializers.ModelSerializer):
+class SrvSerializer(ForwardZoneMixin, serializers.ModelSerializer):
     class Meta:
         model = Srv
         fields = '__all__'

@@ -10,6 +10,11 @@ from .utils import get_network_from_zonename
 # TODO: Move some validators to client
 # TODO: Implement validation for retry, refresh, expire
 
+def validate_16bit_uint(value):
+    if value < 0:
+        raise ValidationError("Ensure this value is greater than or equal to 0.")
+    if value > 65535:
+        raise ValidationError("Ensure this value is less than or equal to 65535.")
 
 def validate_ttl(value):
     """Ensures a ttl-value is within accepted range."""

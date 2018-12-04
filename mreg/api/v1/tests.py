@@ -468,7 +468,7 @@ class ModelSrvTestCase(TestCase):
 
         clean_and_save(self.host_one)
 
-        self.srv_sample = Srv(service='_abc._udp.example.org',
+        self.srv_sample = Srv(name='_abc._udp.example.org',
                               priority=3,
                               weight=1,
                               port=5433,
