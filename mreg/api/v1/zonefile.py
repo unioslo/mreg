@@ -26,7 +26,7 @@ class ForwardFile(object):
             data += ip.zf_string(self.zone.name)
         if host.hinfo is not None:
             data += host.hinfo.zf_string
-        if host.loc is not None:
+        if host.loc:
             data += host.loc_string(self.zone.name)
         for cname in host.cnames.all():
             data += cname.zf_string(self.zone.name)
