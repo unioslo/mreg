@@ -1,6 +1,5 @@
-from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
-from django.http import Http404, QueryDict
+from django.http import Http404
 from django.shortcuts import get_object_or_404
 from rest_framework import (generics, renderers, status)
 from rest_framework.decorators import api_view
@@ -180,7 +179,6 @@ class HostList(generics.GenericAPIView):
         return Response(serializer.data)
 
     def post(self, request, *args, **kwargs):
-        zoneid = None
         if "name" in request.data:
             if self.queryset.filter(name=request.data["name"]).exists():
                 content = {'ERROR': 'name already in use'}
@@ -195,19 +193,15 @@ class HostList(generics.GenericAPIView):
             hostserializer = HostSerializer(host, data=hostdata)
 
             if hostserializer.is_valid(raise_exception=True):
-                try:
-                    ipaddress.ip_address(ipkey)
-                    with transaction.atomic():
-                        hostserializer.save()
-                        ipdata = {'host': host.pk, 'ipaddress': ipkey}
-                        ip = Ipaddress()
-                        ipserializer = IpaddressSerializer(ip, data=ipdata)
-                        if ipserializer.is_valid(raise_exception=True):
-                            ipserializer.save()
-                            location = '/hosts/%s' % host.name
-                            return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
-                except ValueError:
-                    return Response(status=status.HTTP_400_BAD_REQUEST)
+                with transaction.atomic():
+                    hostserializer.save()
+                    ipdata = {'host': host.pk, 'ipaddress': ipkey}
+                    ip = Ipaddress()
+                    ipserializer = IpaddressSerializer(ip, data=ipdata)
+                    if ipserializer.is_valid(raise_exception=True):
+                        ipserializer.save()
+                        location = '/hosts/%s' % host.name
+                        return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
         else:
             host = Host()
             hostserializer = HostSerializer(host, data=hostdata)
@@ -774,8 +768,8 @@ class ZoneNameServerDetail(ETAGMixin, generics.GenericAPIView):
         zone.save()
         location = 'zones/%s/nameservers' % query
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
-            
-            
+
+
 class ModelChangeLogList(generics.ListAPIView):
     """
     get:
