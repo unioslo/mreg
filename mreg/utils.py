@@ -63,14 +63,12 @@ def encode_mail(mail):
 
 def nonify(value):
     """
-    Checks if value is -1 or empty string and return None. If not, return original value.
+    Checks if value is -1, return empty string. If not, return original value.
     :param value: Value to check.
     :return: None or original value.
     """
     if value == -1:
-        return None
-    elif value == "":
-        return None
+        return ""
     else:
         return value
 
