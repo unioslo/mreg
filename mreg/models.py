@@ -165,7 +165,7 @@ class Host(ZoneMember):
 class Ipaddress(models.Model):
     host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='ipaddresses')
     ipaddress = models.GenericIPAddressField()
-    macaddress = models.TextField(blank=True, validators=[validate_mac_address])
+    macaddress = models.CharField(max_length=17, blank=True, validators=[validate_mac_address])
 
     class Meta:
         db_table = 'ipaddress'
@@ -347,6 +347,12 @@ class Subnet(models.Model):
         """
         where = [ "range::inet && inet %s" ]
         return Subnet.objects.extra(where=where, params=[str(subnet)])
+
+    @staticmethod
+    def get_subnet_by_ip(ip):
+        """Search and return a subnet which contains an IP address."""
+        where = [ "inet %s <<= range::inet" ]
+        return Subnet.objects.extra(where=where, params=[str(ip)]).first()
 
 class Naptr(ZoneMember):
     host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='naptrs')

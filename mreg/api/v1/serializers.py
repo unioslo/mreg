@@ -1,3 +1,5 @@
+import ipaddress
+
 from rest_framework import serializers
 
 from mreg.models import (Cname, HinfoPreset, Host, Ipaddress, NameServer,
@@ -68,6 +70,49 @@ class IpaddressSerializer(ValidationMixin, serializers.ModelSerializer):
         model = Ipaddress
         fields = '__all__'
 
+    def validate(self, data):
+        """
+        Make sure a macaddress are semi-unique:
+        - Unique if the IP is not in a subnet.
+        - Only in use by one IP per subnet.
+        - If the subnet has a vlan id, make sure it is only in use by one of
+          the subnets on the same vlan. Exception: allow both a ipv4 and ipv6
+          address on the same vlan to share the same mac address.
+        """
+
+        def _raise_if_mac_found(qs, mac):
+            if qs.filter(macaddress=mac).exists():
+                inuse_ip = qs.get(macaddress=mac).ipaddress
+                raise serializers.ValidationError(
+                    "macaddress already in use by {}".format(inuse_ip))
+
+        data = super().validate(data)
+        if data.get('macaddress'):
+            mac = data['macaddress']
+            macip = data.get('ipaddress') or self.instance.ipaddress
+            host = data.get('host') or self.instance.host
+            # If MAC and IP unchanged, nothing to validate.
+            if self.instance:
+                if self.instance.macaddress == mac and \
+                   self.instance.ipaddress == macip:
+                    return data
+            subnet = Subnet.get_subnet_by_ip(macip)
+            if not subnet:
+                # XXX: what to do? Currently just make sure it is a unique mac
+                _raise_if_mac_found(Ipaddress.objects, mac)
+                return data
+            if subnet.vlan:
+                subnets = Subnet.objects.filter(vlan=subnet.vlan)
+            else:
+                subnets = [subnet]
+            ipversion = ipaddress.ip_address(macip).version
+            for subnet in subnets:
+                # Allow mac to be bound to both an ipv4 and ipv6 address on the same vlan
+                if ipversion != subnet.network.version:
+                    continue
+                ips = subnet._get_used_ipaddresses()
+                _raise_if_mac_found(ips, mac)
+        return data
 
 class TxtSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
@@ -85,7 +130,7 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
     """
     To properly represent a host we include its related objects.
     """
-    ipaddresses = IpaddressSerializer(many=True, read_only=True)
+    ipaddresses = serializers.SerializerMethodField()
     cnames = CnameSerializer(many=True, read_only=True)
     txts = TxtSerializer(many=True, read_only=True)
     ptr_overrides = PtrOverrideSerializer(many=True, read_only=True)
@@ -94,6 +139,11 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
     class Meta:
         model = Host
         fields = '__all__'
+
+    def get_ipaddresses(self, instance):
+        ipaddresses = instance.ipaddresses.all().order_by('ipaddress')
+        return IpaddressSerializer(ipaddresses, many=True, read_only=True).data
+
 
 
 class HostSaveSerializer(ForwardZoneMixin, serializers.ModelSerializer):
