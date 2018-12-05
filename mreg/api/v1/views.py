@@ -266,19 +266,6 @@ class IpaddressList(generics.ListCreateAPIView):
         qs = super(IpaddressList, self).get_queryset()
         return IpaddressFilterSet(data=self.request.GET, queryset=qs).filter()
 
-    def get(self, request, *args, **kwargs):
-        serializer = IpaddressSerializer(self.get_queryset(), many=True)
-        return Response(serializer.data)
-
-    def post(self, request, *args, **kwargs):
-        if "ipaddress" in request.data:
-            ip = Ipaddress()
-            serializer = IpaddressSerializer(ip, data=request.data)
-            if serializer.is_valid(raise_exception=True):
-                serializer.save()
-                location = '/ipaddresses/%s' % ip.id
-                return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
-
 
 class IpaddressDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     """
@@ -293,27 +280,6 @@ class IpaddressDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     """
     queryset = Ipaddress.objects.all()
     serializer_class = IpaddressSerializer
-
-    def patch(self, request, *args, **kwargs):
-        ip = get_object_or_404(Ipaddress, id=self.kwargs['pk'])
-        serializer = IpaddressSerializer(ip, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-
-        if "ipaddress" in request.data:
-            for i in self.queryset.filter(ipaddress=request.data["ipaddress"]):
-                if i.host == ip.host:
-                    content = {'ERROR': 'ipaddress already in use by the host'}
-                    return Response(content, status=status.HTTP_409_CONFLICT)
-
-        if "macaddress" in request.data:
-            if self.queryset.filter(macaddress=request.data["macaddress"]).exists():
-                content = {'ERROR': 'macaddress already registered',
-                           'ipaddress': self.queryset.get(macaddress=request.data['macaddress']).ipaddress}
-                return Response(content, status=status.HTTP_409_CONFLICT)
-
-        serializer.save()
-        location = '/ipaddresses/%s' % ip.id
-        return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
 class NaptrList(generics.ListCreateAPIView):
@@ -822,7 +788,7 @@ def _dhcphosts_by_range(iprange):
     from_ip = str(network.network_address)
     to_ip = str(network.broadcast_address)
     ips = Ipaddress.objects.filter(ipaddress__range=(from_ip, to_ip))
-    ips = ips.exclude(macaddress__exact='').order_by('ipaddress')
+    ips = ips.exclude(macaddress='').order_by('ipaddress')
     ips = ips.values('host__name','ipaddress','macaddress')
     return Response(ips)
 
