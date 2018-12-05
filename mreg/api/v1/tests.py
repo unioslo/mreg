@@ -782,16 +782,10 @@ class APIIPaddressesTestCase(TestCase):
     def setUp(self):
         """Define the test client and other test variables."""
         self.host_one = Host(name='some-host.example.org',
-                             contact='mail@example.org',
-                             ttl=300,
-                             loc='23 58 23 N 10 43 50 E 80m',
-                             comment='some comment')
+                             contact='mail@example.org')
 
         self.host_two = Host(name='some-other-host.example.org',
-                             contact='mail@example.com',
-                             ttl=300,
-                             loc='23 56 23 N 10 43 50 E 80m',
-                             comment='some comment')
+                             contact='mail@example.com')
 
         clean_and_save(self.host_one)
         clean_and_save(self.host_two)
@@ -805,14 +799,12 @@ class APIIPaddressesTestCase(TestCase):
         clean_and_save(self.ipaddress_one)
         clean_and_save(self.ipaddress_two)
 
-        self.post_data_ip = {'ipaddress': '129.240.203.197'}
-
         self.post_data_full = {'host': self.host_one.id,
                                'ipaddress': '129.240.203.197'}
         self.post_data_full_conflict = {'host': self.host_one.id,
-                                        'ipaddress': '129.240.111.111'}
+                                        'ipaddress': self.ipaddress_one.ipaddress}
         self.post_data_full_duplicate_ip = {'host': self.host_two.id,
-                                            'ipaddress': '129.240.111.111'}
+                                            'ipaddress': self.ipaddress_one.ipaddress}
         self.patch_data_ip = {'ipaddress': '129.240.203.198'}
         self.patch_bad_ip = {'ipaddress': '129.240.300.1'}
 
@@ -829,7 +821,7 @@ class APIIPaddressesTestCase(TestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_ipaddress_post_201_created(self):
-        """"Posting a new ip should return 201 and location"""
+        """"Posting a new ip should return 201"""
         response = self.client.post('/ipaddresses/', self.post_data_full)
         self.assertEqual(response.status_code, 201)
 
@@ -839,15 +831,20 @@ class APIIPaddressesTestCase(TestCase):
         self.assertEqual(response.status_code, 400)
 
     def test_ipaddress_post_201_two_hosts_share_ip(self):
-        """"Posting a new ipaddress with an ip already in use should return 200"""
+        """"Posting a new ipaddress with an ip already in use should return 201"""
         response = self.client.post('/ipaddresses/', self.post_data_full_duplicate_ip)
         self.assertEqual(response.status_code, 201)
 
-    def test_ipaddress_patch_204_no_content(self):
-        """Patching an existing and valid entry should return 204 and Location"""
+    def test_ipaddress_patch_200_ok(self):
+        """Patching an existing and valid entry should return 200"""
         response = self.client.patch('/ipaddresses/%s' % self.ipaddress_one.id, self.patch_data_ip)
-        self.assertEqual(response.status_code, 204)
-        self.assertEqual(response['Location'], '/ipaddresses/%s' % self.ipaddress_one.id)
+        self.assertEqual(response.status_code, 200)
+
+    def test_ipaddress_patch_200_own_ip(self):
+        """Patching an entry with its own ip should return 200"""
+        response = self.client.patch('/ipaddresses/%s' % self.ipaddress_one.id,
+                                     {'ipaddress': str(self.ipaddress_one.ipaddress)})
+        self.assertEqual(response.status_code, 200)
 
     def test_ipaddress_patch_400_bad_request(self):
         """Patching with invalid data should return 400"""
@@ -865,11 +862,108 @@ class APIIPaddressesTestCase(TestCase):
         response = self.client.patch('/ipaddresses/1234567890', self.patch_data_ip)
         self.assertEqual(response.status_code, 404)
 
-    def test_ipaddress_patch_409_conflict_ip(self):
-        """Patching an entry with an ip that already exists should return 409"""
+
+class APIMACaddressTestCase(TestCase):
+    """This class defines the test suite for api/ipaddresses with macadresses"""
+
+    def setUp(self):
+        """Define the test client and other test variables."""
+        self.host_one = Host(name='host1.example.org',
+                             contact='mail@example.org')
+
+        self.host_two = Host(name='host2.example.org',
+                             contact='mail@example.com')
+
+        clean_and_save(self.host_one)
+        clean_and_save(self.host_two)
+
+        self.ipaddress_one = Ipaddress(host=self.host_one,
+                                       ipaddress='10.0.0.10',
+                                       macaddress='aa:bb:cc:00:00:10')
+
+        self.ipaddress_two = Ipaddress(host=self.host_two,
+                                       ipaddress='10.0.0.11',
+                                       macaddress='aa:bb:cc:00:00:11')
+
+        clean_and_save(self.ipaddress_one)
+        clean_and_save(self.ipaddress_two)
+
+        self.post_data_full = {'host': self.host_one.id,
+                               'ipaddress': '10.0.0.12',
+                               'macaddress': 'aa:bb:cc:00:00:12'}
+        self.post_data_full_conflict = {'host': self.host_one.id,
+                                        'ipaddress': self.ipaddress_one.ipaddress,
+                                        'macaddress': self.ipaddress_one.macaddress}
+        self.patch_mac = {'macaddress': 'aa:bb:cc:00:00:ff'}
+        self.patch_mac_in_use = {'macaddress': self.ipaddress_two.macaddress}
+        self.patch_ip_and_mac = {'ipaddress': '10.0.0.13',
+                                 'macaddress': 'aa:bb:cc:00:00:ff'}
+        self.client = APIClient()
+
+    def test_mac_post_ip_with_mac_201_ok(self):
+        """Post a new IP with MAC should return 201 ok."""
+        response = self.client.post('/ipaddresses/', self.post_data_full)
+        self.assertEqual(response.status_code, 201)
+
+    def test_mac_post_conflict_ip_and_mac_400_bad_request(self):
+        """"Posting an existing IP and mac IP a host should return 400."""
+        response = self.client.post('/ipaddresses/', self.post_data_full_conflict)
+        self.assertEqual(response.status_code, 400)
+
+    def test_mac_patch_mac_200_ok(self):
+        """Patch an IP with a new mac should return 200 ok."""
         response = self.client.patch('/ipaddresses/%s' % self.ipaddress_one.id,
-                                     {'ipaddress': str(self.ipaddress_one.ipaddress)})
-        self.assertEqual(response.status_code, 409)
+                                    self.patch_mac)
+        self.assertEqual(response.status_code, 200)
+
+    def test_mac_patch_mac_in_use_400_bad_request(self):
+        """Patch an IP with a MAC in use should return 400 bad request."""
+        response = self.client.patch('/ipaddresses/%s' % self.ipaddress_one.id,
+                                    self.patch_mac_in_use)
+        self.assertEqual(response.status_code, 400)
+
+    def test_mac_patch_invalid_mac_400_bad_request(self):
+        """ Patch an IP with invalid MAC should return 400 bad request."""
+        for mac in ('00:00:00:00:00:XX', '00:00:00:00:00', 'AA:BB:cc:dd:ee:ff'):
+            response = self.client.patch('/ipaddresses/%s' % self.ipaddress_one.id,
+                                         {'macaddress': mac})
+            self.assertEqual(response.status_code, 400)
+
+    def test_mac_patch_ip_and_mac_200_ok(self):
+        """Patch an IP with a new IP and MAC should return 200 ok."""
+        response = self.client.patch('/ipaddresses/%s' % self.ipaddress_one.id,
+                                    self.patch_ip_and_mac)
+        self.assertEqual(response.status_code, 200)
+
+    def test_mac_with_subnet(self):
+        self.subnet_one = Subnet(range='10.0.0.0/24')
+        clean_and_save(self.subnet_one)
+        self.test_mac_post_ip_with_mac_201_ok()
+        self.test_mac_patch_ip_and_mac_200_ok()
+        self.test_mac_patch_mac_200_ok()
+
+    def test_mac_with_subnet_vlan(self):
+        self.subnet_one = Subnet(range='10.0.0.0/24', vlan=10)
+        self.subnet_two = Subnet(range='10.0.1.0/24', vlan=10)
+        self.subnet_ipv6 = Subnet(range='2001:db8:1::/64', vlan=10)
+        clean_and_save(self.subnet_one)
+        clean_and_save(self.subnet_two)
+        clean_and_save(self.subnet_ipv6)
+        self.test_mac_post_ip_with_mac_201_ok()
+        self.test_mac_patch_ip_and_mac_200_ok()
+        self.test_mac_patch_mac_200_ok()
+        # Make sure it is allowed to add a mac to both IPv4 and IPv6
+        # addresses on the same vlan
+        reponse = self.client.post('/ipaddresses/',
+                                   {'host': self.host_one.id,
+                                    'ipaddress': '10.0.1.10',
+                                    'macaddress': '11:22:33:44:55:66'})
+        self.assertEqual(reponse.status_code, 201)
+        reponse = self.client.post('/ipaddresses/',
+                                   {'host': self.host_one.id,
+                                    'ipaddress': '2001:db8:1::10',
+                                    'macaddress': '11:22:33:44:55:66'})
+        self.assertEqual(reponse.status_code, 201)
 
 
 class APISubnetsTestCase(TestCase):
