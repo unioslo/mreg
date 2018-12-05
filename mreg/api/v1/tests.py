@@ -47,6 +47,20 @@ class ModelHostsTestCase(TestCase):
         new_count = Host.objects.count()
         self.assertNotEqual(old_count, new_count)
 
+    def test_model_host_can_alter_loc(self):
+        """
+        Test that the model can validate and store all examples
+        from RFC1876, section 4 "Example data".
+        """
+        clean_and_save(self.host_one)
+        for loc in ('42 21 54 N 71 06 18 W -24m 30m',
+                    '42 21 43.952 N 71 5 6.344 W -24m 1m 200m',
+                    '52 14 05 N 00 08 50 E 10m',
+                    '32 7 19 S 116 2 25 E 10m',
+                    '42 21 28.764 N 71 00 51.617 W -44m 2000m'):
+            self.host_one.loc = loc
+            clean_and_save(self.host_one)
+
 
 class ModelZoneTestCase(TestCase):
     """This class defines the test suite for the Zone model."""
