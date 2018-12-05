@@ -591,6 +591,16 @@ class APIHostsTestCase(TestCase):
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response['Location'], '/hosts/%s' % self.post_data['name'])
 
+    def test_hosts_post_400_invalid_ip(self):
+        """"Posting a new host with an invalid IP should return 400"""
+        post_data = {'name': 'failing.example.org', 'ipaddress': '300.400.500.600',
+                     'contact': 'fail@example.org'}
+        response = self.client.post('/hosts/', post_data)
+        self.assertEqual(response.status_code, 400)
+        response = self.client.get('/hosts/failing.example.org')
+        self.assertEqual(response.status_code, 404)
+
+
     def test_hosts_post_409_conflict_name(self):
         """"Posting a new host with a name already in use should return 409"""
         response = self.client.post('/hosts/', self.post_data_name)
