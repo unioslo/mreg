@@ -916,6 +916,12 @@ class APIMACaddressTestCase(TestCase):
                                     self.patch_mac)
         self.assertEqual(response.status_code, 200)
 
+    def test_mac_remove_mac_200_ok(self):
+        """Patch an IP to remove MAC should return 200 ok."""
+        response = self.client.patch('/ipaddresses/%s' % self.ipaddress_one.id,
+                                     {'macaddress': ''})
+        self.assertEqual(response.status_code, 200)
+
     def test_mac_patch_mac_in_use_400_bad_request(self):
         """Patch an IP with a MAC in use should return 400 bad request."""
         response = self.client.patch('/ipaddresses/%s' % self.ipaddress_one.id,
