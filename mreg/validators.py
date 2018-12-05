@@ -100,7 +100,7 @@ def validate_mac_address(address):
 
 def validate_loc(location):
     """Validates that the loc input is on a valid form."""
-    loc_regex = "\d+ \d+ \d+ [NS] \d+ \d+ \d+ [EW] \d+m"
+    loc_regex = "^\d+( \d+ \d+(\.\d+)?)? [NS] \d+( \d+ \d+(\.\d+)?)? [EW] -?\d+m?( \d+m?( \d+m?)?)?$"
     validator = RegexValidator(loc_regex)
     validator(location)
 
