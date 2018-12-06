@@ -22,16 +22,13 @@ class ForwardFile(object):
 
     def host_data(self, host):
         data = ""
-        for ip in host.ipaddresses.all():
-            data += ip.zf_string(self.zone.name)
+        for i in ('ipaddresses', 'cnames', 'naptrs', 'txts'):
+            for j in getattr(host, i).all():
+                data += j.zf_string(self.zone.name)
         if host.hinfo is not None:
             data += host.hinfo.zf_string
         if host.loc:
             data += host.loc_string(self.zone.name)
-        for cname in host.cnames.all():
-            data += cname.zf_string(self.zone.name)
-        for txt in host.txts.all():
-            data += txt.zf_string(self.zone.name)
         return data
 
 
@@ -55,10 +52,6 @@ class ForwardFile(object):
         for host in hosts:
             data += self.host_data(host)
         # Print misc entries
-        data += ';\n; Name authority pointers\n;\n'
-        naptrs = Naptr.objects.filter(zone=zone.id)
-        for naptr in naptrs:
-            data += naptr.zf_string(zone.name)
         data += ';\n; Services\n;\n'
         srvs = Srv.objects.filter(zone=zone.id)
         for srv in srvs:
