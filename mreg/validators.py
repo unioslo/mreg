@@ -16,12 +16,18 @@ def validate_16bit_uint(value):
     if value > 65535:
         raise ValidationError("Ensure this value is less than or equal to 65535.")
 
+def validate_31bit_uint(value):
+    if value < 0:
+        raise ValidationError("Ensure this value is greater than or equal to 0.")
+    if value > 2**31-1:
+        raise ValidationError("Ensure this value is less than or equal to 2147483647.")
+
 def validate_ttl(value):
     """Ensures a ttl-value is within accepted range."""
     if value < 300:
-        raise serializers.ValidationError("Ensure this value is greater than or equal to 300.")
+        raise ValidationError("Ensure this value is greater than or equal to 300.")
     if value > 68400:
-        raise serializers.ValidationError("Ensure this value is less than or equal to 68400.")
+        raise ValidationError("Ensure this value is less than or equal to 68400.")
 
 def validate_hostname(name):
     """ Validate a hostname. """
@@ -94,7 +100,8 @@ def validate_zonename(name):
 def validate_mac_address(address):
     """Validates that the mac address is on a valid form."""
     adr_regex = "^([a-f0-9]{2}:){5}[a-f0-9]{2}$"
-    validator = RegexValidator(adr_regex)
+    validator = RegexValidator(adr_regex,
+                               message="Must be on form: aa:bb:cc:00:11:22")
     validator(address)
 
 
@@ -107,15 +114,15 @@ def validate_loc(location):
 
 def validate_naptr_flag(flag):
     """Validates that the naptr model flag input is valid."""
-    flag_regex = "^[sAUP]$"
-    validator = RegexValidator(flag_regex)
+    flag_regex = "^[a-z0-9]$"
+    validator = RegexValidator(flag_regex, message="Must match: " + flag_regex)
     validator(flag)
 
 
 def validate_srv_service_text(servicetext):
     """Validates that the srv service text input is valid."""
     servicetext_regex = '^_[a-z]+\._(tcp|udp)'
-    validator = RegexValidator(servicetext_regex)
+    validator = RegexValidator(servicetext_regex, message="Must match: " + servicetext_regex)
     validator(servicetext)
 
 

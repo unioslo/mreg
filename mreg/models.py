@@ -6,7 +6,8 @@ from django.db import models
 
 from mreg.validators import (validate_hostname, validate_zonename,
         validate_mac_address, validate_loc, validate_naptr_flag,
-        validate_srv_service_text, validate_zones_serialno, validate_16bit_uint)
+        validate_srv_service_text, validate_zones_serialno,
+        validate_16bit_uint)
 from mreg.utils import (encode_mail, clear_none, qualify, idna_encode,
         get_network_from_zonename)
 
@@ -131,8 +132,8 @@ class HinfoPreset(models.Model):
         """String representation for zonefile export."""
         data = {
             'record_type': 'HINFO',
-            'cpu': clear_none(self.cpu),
-            'os': clear_none(self.os)
+            'cpu': self.cpu,
+            'os': self.os
         }
         return '                                  {record_type:6} {cpu} {os}\n'.format_map(data)
 
@@ -354,34 +355,44 @@ class Subnet(models.Model):
         where = [ "inet %s <<= range::inet" ]
         return Subnet.objects.extra(where=where, params=[str(ip)]).first()
 
-class Naptr(ZoneMember):
+class Naptr(models.Model):
     host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='naptrs')
     preference = models.IntegerField(validators=[validate_16bit_uint])
-    orderv = models.IntegerField(validators=[validate_16bit_uint])
+    order = models.IntegerField(validators=[validate_16bit_uint])
     flag = models.CharField(max_length=1, blank=True, validators=[validate_naptr_flag])
-    service = models.TextField()
+    service = models.CharField(max_length=255, blank=True)
     regex = models.TextField(blank=True)
-    replacement = models.TextField()
+    replacement = models.CharField(max_length=255)
 
     class Meta:
         db_table = 'naptr'
+        unique_together = ('host', 'preference', 'order', 'flag', 'service',
+                           'regex', 'replacement')
+        ordering = ('preference', 'order', 'flag', 'service', 'regex', 'replacement')
 
     def __str__(self):
-        #XXX: make better
-        return str(self.host)
+        return "{} -> {} {} {} {} {} {}".format(self.host, self.preference,
+                                                self.order, self.flag,
+                                                self.service, self.regex,
+                                                self.replacement)
 
     def zf_string(self, zone):
         """String representation for zonefile export."""
+        if self.flag in ('a', 's'):
+            replacement = idna_encode(qualify(self.replacement, zone))
+        else:
+            replacement = self.replacement
+
         data = {
             'name': idna_encode(qualify(self.host.name, zone)),
             'ttl': clear_none(self.host.ttl),
             'record_type': 'NAPTR',
-            'order': clear_none(self.orderv),
-            'preference': clear_none(self.preference),
-            'flag': clear_none(self.flag),
+            'order': self.order,
+            'preference': self.preference,
+            'flag': self.flag,
             'service': self.service,
-            'regex': clear_none(self.regex),
-            'replacement': self.replacement,
+            'regex': self.regex,
+            'replacement': replacement,
         }
         return '{name:24} {ttl:5} IN {record_type:6} {order} {preference} \"{flag}\" \"{service}\" \"{regex}\" {replacement}\n'.format_map(data)
 
@@ -393,11 +404,12 @@ class Srv(ZoneMember):
     port = models.IntegerField(validators=[validate_16bit_uint])
     ttl = models.IntegerField(blank=True, null=True)
     # XXX: target MUST not be a alias aka cname
-    target = models.TextField()
+    target = models.CharField(max_length=255)
 
     class Meta:
         db_table = 'srv'
-        unique_together = ('name','priority','weight','port','target')
+        unique_together = ('name', 'priority', 'weight', 'port', 'target')
+        ordering = ('name', 'priority', 'weight', 'port', 'target')
 
     def __str__(self):
         return str(self.name)

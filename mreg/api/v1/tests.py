@@ -437,9 +437,9 @@ class ModelNaptrTestCase(TestCase):
 
         self.naptr_sample = Naptr(host=Host.objects.get(name='some-host.example.org'),
                                   preference=1,
-                                  orderv=1,
-                                  flag='A',
-                                  service='_abc_tcp_def',
+                                  order=1,
+                                  flag='a',
+                                  service='SER+VICE',
                                   regex='^naptrregex',
                                   replacement='some replacement')
 
@@ -453,7 +453,7 @@ class ModelNaptrTestCase(TestCase):
     def test_model_can_change_naptr(self):
         """Test that the model is able to change a naptr entry."""
         clean_and_save(self.naptr_sample)
-        new_flag = 'U'
+        new_flag = 'u'
         self.naptr_sample.flag = new_flag
         clean_and_save(self.naptr_sample)
         updated_flag = Naptr.objects.get(pk=self.naptr_sample.id).flag
