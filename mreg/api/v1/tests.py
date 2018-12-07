@@ -612,6 +612,12 @@ class APIHostsTestCase(TestCase):
         self.assertEqual(response.status_code, 204)
         self.assertEqual(response['Location'], '/hosts/%s' % self.patch_data['name'])
 
+    def test_hosts_patch_without_name_204_no_content(self):
+        """Patching an existing entry without having name in patch should
+        return 204"""
+        response = self.client.patch('/hosts/%s' % self.host_one.name, {"ttl": 5000})
+        self.assertEqual(response.status_code, 204)
+
     def test_hosts_patch_400_bad_request(self):
         """Patching with invalid data should return 400"""
         response = self.client.patch('/hosts/%s' % self.host_one.name, data={'this': 'is', 'so': 'wrong'})

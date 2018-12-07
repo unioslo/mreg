@@ -50,7 +50,8 @@ class ForwardZoneMixin(ValidationMixin):
 
     def validate(self, data):
         data = super().validate(data)
-        data['zone'] = self._get_zone_by_hostname(data['name'])
+        if data.get('name'):
+            data['zone'] = self._get_zone_by_hostname(data['name'])
         return data
 
 class CnameSerializer(ValidationMixin, serializers.ModelSerializer):
