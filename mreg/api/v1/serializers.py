@@ -1,5 +1,6 @@
 import ipaddress
 
+from django.utils import timezone
 from rest_framework import serializers
 
 from mreg.models import (Cname, HinfoPreset, Host, Ipaddress, NameServer,
@@ -208,6 +209,12 @@ class ZoneSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
         model = Zone
         fields = '__all__'
+
+    def validate(self, data):
+        data = super().validate(data)
+        if data.get('serialno'):
+            data['serialno_updated_at'] = timezone.now()
+        return data
 
     def create(self):
         return Zone(**self.validated_data)
