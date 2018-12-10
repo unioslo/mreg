@@ -1,15 +1,17 @@
 import ipaddress
 
 from collections import defaultdict
+from datetime import timedelta
 
 from django.db import models
+from django.utils import timezone
 
 from mreg.validators import (validate_hostname, validate_zonename,
         validate_mac_address, validate_loc, validate_naptr_flag,
         validate_srv_service_text, validate_zones_serialno,
         validate_16bit_uint)
-from mreg.utils import (encode_mail, clear_none, qualify, idna_encode,
-        get_network_from_zonename)
+from mreg.utils import (create_serialno, encode_mail, clear_none, qualify,
+        idna_encode, get_network_from_zonename)
 
 
 class NameServer(models.Model):
@@ -34,10 +36,12 @@ class NameServer(models.Model):
 
 class Zone(models.Model):
     name = models.CharField(unique=True, max_length=253, validators=[validate_zonename])
+    updated_at = models.DateTimeField(auto_now=True)
     primary_ns = models.CharField(max_length=253, validators=[validate_hostname])
     nameservers = models.ManyToManyField(NameServer, db_column='ns')
     email = models.EmailField()
-    serialno = models.BigIntegerField(blank=True, null=True, validators=[validate_zones_serialno])
+    serialno = models.BigIntegerField(default=create_serialno, validators=[validate_zones_serialno])
+    serialno_updated_at = models.DateTimeField(default=timezone.now)
     # TODO: Configurable? Ask hostmaster
     refresh = models.IntegerField(default=10800)
     retry = models.IntegerField(default=3600)
@@ -64,6 +68,8 @@ class Zone(models.Model):
             'refresh': self.refresh,
             'retry': self.retry,
             'expire': self.expire,
+            'zupdated_at': self.updated_at,
+            'supdated_at': self.serialno_updated_at
         }
         zf = """$ORIGIN {origin}
 $TTL {ttl}
@@ -72,8 +78,24 @@ $TTL {ttl}
                                          {refresh}   ; Refresh
                                          {retry}     ; Retry
                                          {expire}    ; Expire
-                                         {ttl} )     ; Negative Cache\n""".format_map(data)
+                                         {ttl} )     ; Negative Cache
+; zone.updated_at: {zupdated_at}
+; zone.serialno_updated_at: {supdated_at}
+""".format_map(data)
         return zf
+
+    def update_serialno(self, force=False):
+        """Update serialno if zone has been updated since the serial number
+        was updated.
+        """
+        # Need the have a timedelta as serialno_update_at is set before
+        # zone.save() which updates zone.updated_at, but also to not exhaust
+        # the 100 possible daily serial numbers.
+        if force or \
+          self.updated_at > self.serialno_updated_at + timedelta(minutes=1):
+            self.serialno = create_serialno(self.serialno)
+            self.serialno_updated_at = timezone.now()
+            self.save()
 
     @property
     def network(self):
@@ -210,7 +232,7 @@ class PtrOverride(models.Model):
         return '{name:30} IN {record_type:6} {record_data}\n'.format_map(data)
 
 
-class Txt(ZoneMember):
+class Txt(models.Model):
     host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='txts')
     txt = models.TextField(max_length=255)
 
