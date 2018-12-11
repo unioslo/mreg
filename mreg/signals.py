@@ -3,7 +3,7 @@ from django.dispatch import receiver
 from django.utils import timezone
 
 from mreg.models import (Cname, Host, Ipaddress, ModelChangeLog, Naptr,
-        PtrOverride, Txt)
+        PtrOverride, Srv, Txt, ZoneMember)
 from mreg.api.v1.serializers import HostSerializer
 
 
@@ -23,7 +23,7 @@ def updated_ipaddress_fix_ptroverride(sender, instance, raw, using, update_field
         # Can only add a PtrOverride if count == 1, otherwise we can not guess which
         # one should get it.
         if Ipaddress.objects.filter(ipaddress=instance.ipaddress).count() == 1:
-            host =  Ipaddress.objects.get(ipaddress=instance.ipaddress).host
+            host = Ipaddress.objects.get(ipaddress=instance.ipaddress).host
             ptr = PtrOverride.objects.create(host=host, ipaddress=instance.ipaddress)
             ptr.save()
 
@@ -31,6 +31,56 @@ def updated_ipaddress_fix_ptroverride(sender, instance, raw, using, update_field
 @receiver(post_delete, sender=Ipaddress)
 def deleted_ipaddress_fix_ptroverride(sender, instance, using, **kwargs):
     _del_ptr(instance.ipaddress)
+
+def _update_zone_for_ip(ip):
+    # For now..
+    pass
+
+
+def _common_update_zone(signal, sender, instance):
+    zones = set()
+
+    if isinstance(instance, ZoneMember):
+        zones.add(instance.zone)
+        if signal == "pre_save" and instance.id:
+            oldzone = sender.objects.get(id=instance.id).zone
+            zones.add(oldzone)
+
+    if hasattr(instance, 'host'):
+        zones.add(instance.host.zone)
+        if signal == "pre_save" == instance.host.id:
+            oldzone = Host.objecs.get(id=instance.host.id).zone
+            zones.add(oldzone)
+
+    if sender in (Ipaddress, PtrOverride):
+        _update_zone_for_ip(instance.ipaddress)
+
+    for zone in zones:
+        if zone:
+            zone.save()
+
+
+@receiver(pre_save, sender=Cname)
+@receiver(pre_save, sender=Ipaddress)
+@receiver(pre_save, sender=Host)
+@receiver(pre_save, sender=Naptr)
+@receiver(pre_save, sender=PtrOverride)
+@receiver(pre_save, sender=Srv)
+@receiver(pre_save, sender=Txt)
+def updated_objects_update_zone_serial(sender, instance, raw, using, update_fields, **kwargs):
+    _common_update_zone("pre_save", sender, instance)
+
+
+# Update zone serial when objects are gone
+@receiver(post_delete, sender=Cname)
+@receiver(post_delete, sender=Ipaddress)
+@receiver(post_delete, sender=Host)
+@receiver(post_delete, sender=Naptr)
+@receiver(post_delete, sender=PtrOverride)
+@receiver(post_delete, sender=Srv)
+@receiver(post_delete, sender=Txt)
+def deleted_objects_update_zone_serial(sender, instance, using, **kwargs):
+    _common_update_zone("post_delete", sender, instance)
 
 # To log host history, an approach using post_save signals for related objects was chosen.
 # Ex: When you update an Ipaddress, the Hosts model object itself is not saved, so reading the
@@ -41,7 +91,6 @@ def deleted_ipaddress_fix_ptroverride(sender, instance, using, **kwargs):
 #
 # Currently saves a JSON-snapshot of all data for the host.
 # TODO: Deleting a host should probably do something. Export/delete log for that host after some time?
-
 
 
 @receiver(post_save, sender=PtrOverride)

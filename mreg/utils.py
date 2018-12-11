@@ -73,7 +73,7 @@ def nonify(value):
         return value
 
 
-def create_serialno(serialno):
+def create_serialno(serialno=0):
     """
     Creates an updated serialnumber based on the provided serialnumber
     :param serialno: 10-digit serialnumber
@@ -83,11 +83,16 @@ def create_serialno(serialno):
     if today > serialno//100:
         return today*100
     else:
-        return serialno+1
+        # Each day can only have 100 serials
+        # XXX: maybe send a signal?
+        if today*100 + 99 == serialno:
+            return serialno
+        else:
+            return serialno+1
 
 def get_network_from_zonename(name):
     """
-    Returns a ippadress.ip_network for given zonename
+    Returns a ipaddress.ip_network for given zonename
     """
     if name.endswith(".in-addr.arpa"):
         name = name.replace('.in-addr.arpa','')
