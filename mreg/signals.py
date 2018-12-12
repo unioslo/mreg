@@ -105,7 +105,7 @@ def save_host_history_on_save(sender, instance, created, **kwargs):
     # Cleaning up data from related tables
     hostdata['ipaddresses'] = [record['ipaddress'] for record in hostdata['ipaddresses']]
     hostdata['txts'] = [record['txt'] for record in hostdata['txts']]
-    hostdata['cnames'] = [record['cname'] for record in hostdata['cnames']]
+    hostdata['cnames'] = [record['name'] for record in hostdata['cnames']]
     hostdata['ptr_overrides'] = [record['ipaddress'] for record in hostdata['ptr_overrides']]
     new_log_entry = ModelChangeLog(table_name='host',
                                    table_row=hostdata['id'],
@@ -127,7 +127,7 @@ def save_host_history_on_delete(sender, instance, **kwargs):
     # Cleaning up data from related tables
     hostdata['ipaddresses'] = [record['ipaddress'] for record in hostdata['ipaddresses']]
     hostdata['txts'] = [record['txt'] for record in hostdata['txts']]
-    hostdata['cnames'] = [record['cname'] for record in hostdata['cnames']]
+    hostdata['cnames'] = [record['name'] for record in hostdata['cnames']]
     hostdata['ptr_overrides'] = [record['ipaddress'] for record in hostdata['ptr_overrides']]
 
     new_log_entry = ModelChangeLog(table_name='host',
