@@ -1,6 +1,6 @@
 import ipaddress
 
-from mreg.models import Host, Srv
+from mreg.models import Cname, Host, Srv
 from mreg.utils import idna_encode
 
 
@@ -23,8 +23,12 @@ class ForwardFile(object):
 
     def host_data(self, host):
         data = ""
-        for i in ('ipaddresses', 'cnames', 'naptrs', 'txts'):
+        for i in ('ipaddresses', 'naptrs', 'txts',):
             for j in getattr(host, i).all():
+                data += j.zf_string(self.zone.name)
+        # For entries where the host is the resource record
+        for i in ('cnames', ):
+            for j in getattr(host, i).filter(zone=self.zone):
                 data += j.zf_string(self.zone.name)
         if host.hinfo is not None:
             data += host.hinfo.zf_string
@@ -57,6 +61,10 @@ class ForwardFile(object):
         srvs = Srv.objects.filter(zone=zone.id)
         for srv in srvs:
             data += srv.zf_string(zone.name)
+        data += ';\n; Cnames pointing out of the zone\n;\n'
+        cnames = Cname.objects.filter(zone=zone.id).exclude(host__zone=zone.id)
+        for cname in cnames:
+            data += cname.zf_string(zone.name)
         return data
 
 
