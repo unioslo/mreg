@@ -1,7 +1,8 @@
 import ipaddress
 
-from mreg.models import Host, Ipaddress, Naptr, Srv, PtrOverride
+from mreg.models import Host, Srv
 from mreg.utils import idna_encode
+
 
 class ZoneFile(object):
     def __init__(self, zone):
@@ -82,6 +83,7 @@ class IPv4ReverseFile(object):
             ptrip = rev[:rev.find('.')]
             data += "{}\tPTR\t{}.\n".format(ptrip, idna_encode(ip.host.name))
         return data
+
 
 class IPv6ReverseFile(object):
 

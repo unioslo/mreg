@@ -1,6 +1,9 @@
+import ipaddress
+
 from django.db import transaction
 from django.http import Http404
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import (filters, generics, renderers, status)
 from rest_framework.decorators import api_view
 from rest_framework.exceptions import ParseError
@@ -8,7 +11,6 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_extensions.etag.mixins import ETAGMixin
 from url_filter.filtersets import ModelFilterSet
-import ipaddress
 
 from mreg.api.v1.serializers import (CnameSerializer, HinfoPresetSerializer,
         HostNameSerializer, HostSerializer, HostSaveSerializer,
@@ -573,17 +575,6 @@ class ZoneList(generics.ListAPIView):
     queryset_ns = NameServer.objects.all()
     serializer_class = ZoneSerializer
 
-    def get_zoneserial():
-        """
-        Get the latest updated serialno from all zones
-        :return: 10-digit serialno
-        """
-        serials = Zone.objects.values_list('serialno', flat=True)
-        if serials:
-            return max(serials)
-        else:
-            return 0
-
     def get_queryset(self):
         """
         Applies filtering to the queryset
@@ -600,7 +591,6 @@ class ZoneList(generics.ListAPIView):
         data = request.data.copy()
         nameservers = request.POST.getlist('primary_ns')
         data['primary_ns'] = nameservers[0]
-        data['serialno'] = create_serialno(ZoneList.get_zoneserial())
 
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
@@ -646,11 +636,6 @@ class ZoneDetail(ETAGMixin, generics.RetrieveAPIView):
             content = {'ERROR': 'Not allowed to change name'}
             return Response(content, status=status.HTTP_403_FORBIDDEN)
 
-        if "serialno" in request.data:
-            if self.queryset.filter(serialno=request.data["serialno"]).exists():
-                content = {'ERROR': 'serialno already in use'}
-                return Response(content, status=status.HTTP_409_CONFLICT)
-
         if "nameservers" in request.data:
             content = {'ERROR': 'Not allowed to patch nameservers, use zones/{}/nameservers'.format(query)}
             return Response(content, status=status.HTTP_403_FORBIDDEN)
@@ -661,9 +646,7 @@ class ZoneDetail(ETAGMixin, generics.RetrieveAPIView):
             if request.data['primary_ns'] not in [nameserver['name'] for nameserver in zone.nameservers.values()]:
                 content = {'ERROR': "%s is not one of %s's nameservers" % (request.data['primary_ns'], query)}
                 return Response(content, status=status.HTTP_403_FORBIDDEN)
-        data = request.data.copy()
-        data['serialno'] = create_serialno(ZoneList.get_zoneserial())
-        serializer = self.get_serializer(zone, data=data, partial=True)
+        serializer = self.get_serializer(zone, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         location = '/zones/%s' % zone.name
@@ -731,7 +714,6 @@ class ZoneNameServerDetail(ETAGMixin, generics.GenericAPIView):
             except Host.DoesNotExist:
                 return Response({'ERROR': "No host entry for %s" % nameserver}, status=status.HTTP_404_NOT_FOUND)
 
-        zone.serialno = create_serialno(ZoneList.get_zoneserial())
         zone.primary_ns = request.data.getlist('primary_ns')[0]
         zone.save()
         location = 'zones/%s/nameservers' % query
@@ -824,5 +806,7 @@ class ZoneFileDetail(generics.GenericAPIView):
 
     def get(self, request, *args, **kwargs):
         zone = get_object_or_404(Zone, name=self.kwargs['pk'])
+        # XXX: a force argument to force serialno update?
+        zone.update_serialno()
         zonefile = ZoneFile(zone)
         return Response(zonefile.generate())

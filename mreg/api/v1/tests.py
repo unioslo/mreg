@@ -4,6 +4,7 @@ from rest_framework.test import APIClient
 
 from mreg.models import (Cname, HinfoPreset, Host, Ipaddress, NameServer,
         Naptr, PtrOverride, Srv, Subnet, Txt, Zone, ModelChangeLog)
+from mreg.utils import create_serialno
 
 def clean_and_save(entity):
     entity.full_clean()
@@ -694,7 +695,8 @@ class APIZonesTestCase(TestCase):
         self.client.post('/zones/', self.post_data_two)
         response_one = self.client.get('/zones/%s' % self.post_data_one['name'])
         response_two = self.client.get('/zones/%s' % self.post_data_two['name'])
-        self.assertEqual(response_one.data['serialno'], response_two.data['serialno'] - 1)
+        self.assertEqual(response_one.data['serialno'], response_two.data['serialno'])
+        self.assertEqual(response_one.data['serialno'], create_serialno())
 
     def test_zones_patch_403_forbidden_name(self):
         """"Trying to patch the name of an entry should return 403"""
@@ -713,12 +715,6 @@ class APIZonesTestCase(TestCase):
         """"Patching a non-existing entry should return 404"""
         response = self.client.patch('/zones/nonexisting.uio.no', self.patch_data)
         self.assertEqual(response.status_code, 404)
-
-    def test_zones_patch_409_conflict_serialno(self):
-        """"Patching a entry with a serialno already in use should return 409"""
-        response = self.client.get('/zones/%s' % self.zone_one.name)
-        response = self.client.patch('/zones/%s' % self.zone_one.name, {'serialno': response.data['serialno']})
-        self.assertEqual(response.status_code, 409)
 
     def test_zones_patch_204_no_content(self):
         """"Patching an existing entry with valid data should return 204"""
