@@ -1,6 +1,6 @@
 from django.test import TestCase
 from django.utils import timezone
-from rest_framework.test import APIClient
+from rest_framework.test import APIClient, APITestCase
 
 from mreg.models import (Cname, HinfoPreset, Host, Ipaddress, NameServer,
         Naptr, PtrOverride, Srv, Subnet, Txt, Zone, ModelChangeLog)
@@ -386,15 +386,12 @@ class ModelCnameTestCase(TestCase):
         """Define the test client and other test variables."""
         # Needs sample host to test properly
         self.host_one = Host(name='some-host.example.org',
-                             contact='mail@example.org',
-                             ttl=300,
-                             loc='23 58 23 N 10 43 50 E 80m',
-                             comment='some comment')
+                             contact='mail@example.org')
 
         clean_and_save(self.host_one)
 
         self.cname_sample = Cname(host=Host.objects.get(name='some-host.example.org'),
-                                  cname='some-cname',
+                                  name='some-cname.example.org',
                                   ttl=300)
 
     def test_model_can_create_cname(self):
@@ -407,10 +404,10 @@ class ModelCnameTestCase(TestCase):
     def test_model_can_change_cname(self):
         """Test that the model is able to change a cname entry."""
         clean_and_save(self.cname_sample)
-        new_cname = 'some-new-cname'
-        self.cname_sample.cname = new_cname
+        new_cname = 'some-new-cname.example.org'
+        self.cname_sample.name = new_cname
         clean_and_save(self.cname_sample)
-        updated_cname = Cname.objects.filter(host__name='some-host.example.org')[0].cname
+        updated_cname = Cname.objects.filter(host__name='some-host.example.org')[0].name
         self.assertEqual(new_cname, updated_cname)
 
     def test_model_can_delete_cname(self):
@@ -996,6 +993,69 @@ class APIMACaddressTestCase(TestCase):
                                     'ipaddress': '2001:db8:1::10',
                                     'macaddress': '11:22:33:44:55:66'})
         self.assertEqual(reponse.status_code, 201)
+
+
+class APICnamesTestCase(APITestCase):
+    """This class defines the test suite for api/cnames """
+    def setUp(self):
+        self.zone_one = Zone(name='example.org',
+                             primary_ns='ns.example.org',
+                             email='hostmaster@example.org')
+        self.zone_two = Zone(name='example.net',
+                             primary_ns='ns.example.net',
+                             email='hostmaster@example.org')
+        clean_and_save(self.zone_one)
+        clean_and_save(self.zone_two)
+
+        self.post_host_one = {'name': 'host1.example.org',
+                              'contact': 'mail@example.org' }
+        self.client.post('/hosts/', self.post_host_one)
+        self.host_one = self.client.get('/hosts/%s' % self.post_host_one['name']).data
+        self.post_host_two = {'name': 'host2.example.org',
+                              'contact': 'mail@example.org' }
+        self.client.post('/hosts/', self.post_host_two)
+        self.host_two = self.client.get('/hosts/%s' % self.post_host_two['name']).data
+
+        self.post_data = {'name': 'host-alias.example.org',
+                          'host': self.host_one['id'],
+                          'ttl': 5000 }
+
+    def test_cname_post_201_ok(self):
+        """ Posting a cname should return 201 OK"""
+        response = self.client.post('/cnames/', self.post_data)
+        self.assertEqual(response.status_code, 201)
+
+    def test_cname_get_200_ok(self):
+        """GET on an existing cname should return 200 OK."""
+        self.client.post('/cnames/', self.post_data)
+        response = self.client.get('/cnames/%s' % self.post_data['name'])
+        self.assertEqual(response.status_code, 200)
+
+    def test_cname_post_hostname_in_use_400_bad_request(self):
+        response = self.client.post('/cnames/', {'host': self.host_one['id'],
+                                                 'name': self.host_two['name']})
+        self.assertEqual(response.status_code, 400)
+
+    def test_cname_post_nonexistant_host_400_bad_request(self):
+        """Adding a cname with a unknown host will return 400 bad request."""
+        response = self.client.post('/cnames/', {'host': 1,
+                                                 'name': 'alias.example.org'})
+        self.assertEqual(response.status_code, 400)
+
+    def test_cname_post_name_not_in_a_zone_400_bad_requst(self):
+        """Add a cname with a name without an existing zone if forbidden"""
+        response = self.client.post('/cnames/', {'host': self.host_one['id'],
+                                                 'name': 'host.example.com'})
+        self.assertEqual(response.status_code, 400)
+
+    def test_cname_patch_204_ok(self):
+        """ Patching a cname should return 204 OK"""
+        self.client.post('/cnames/', self.post_data)
+        response = self.client.patch('/cnames/%s' % self.host_one['name'],
+                                     {'ttl': '500',
+                                      'name': 'new-alias.example.org'})
+        print(response['Location'])
+        self.assertEqual(response.status_code, 204)
 
 
 class APISubnetsTestCase(TestCase):
