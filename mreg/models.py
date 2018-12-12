@@ -256,22 +256,23 @@ class Txt(models.Model):
 
 class Cname(ZoneMember):
     host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='cnames')
-    cname = models.TextField()
+    name = models.CharField(max_length=255, unique=True)
     ttl = models.IntegerField(blank=True, null=True)
 
     class Meta:
         db_table = 'cname'
+        ordering = ('name',)
 
     def __str__(self):
-        return "{} -> {}".format(str(self.host), str(self.cname))
+        return "{} -> {}".format(str(self.name), str(self.host))
 
     def zf_string(self, zone):
         """String representation for zonefile export."""
         data = {
-            'name': idna_encode(qualify(self.host.name, zone)),
+            'name': idna_encode(qualify(self.name, zone)),
             'ttl': clear_none(self.ttl),
             'record_type': 'CNAME',
-            'record_data': idna_encode(qualify(self.cname, zone)),
+            'record_data': idna_encode(qualify(self.host.name, zone)),
         }
         return '{name:24} {ttl:5} IN {record_type:6} {record_data:39}\n'.format_map(data)
 
