@@ -28,7 +28,8 @@ class ValidationMixin(object):
 class ForwardZoneMixin(ValidationMixin):
     """Create a zone entry from the hostname."""
 
-    def _get_zone_by_hostname(self, name):
+    @staticmethod
+    def _get_zone_by_hostname(name):
         """Get a zone's id for a hostname.
         Return zone's id or None if not found."""
 
@@ -55,10 +56,23 @@ class ForwardZoneMixin(ValidationMixin):
             data['zone'] = self._get_zone_by_hostname(data['name'])
         return data
 
-class CnameSerializer(ValidationMixin, serializers.ModelSerializer):
+
+class CnameSerializer(ForwardZoneMixin, serializers.ModelSerializer):
     class Meta:
         model = Cname
         fields = '__all__'
+
+    def validate(self, data):
+        data = super().validate(data)
+        if data.get('name'):
+            if not data['zone']:
+                raise serializers.ValidationError(
+                        "No zone found for {}. Rejecting CNAME.".format(data['name']))
+            elif Host.objects.filter(name=data['name']).exists():
+                raise serializers.ValidationError(
+                    "Name in use by existing host.")
+
+        return data
 
 
 class HinfoPresetSerializer(ValidationMixin, serializers.ModelSerializer):
