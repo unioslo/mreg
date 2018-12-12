@@ -90,12 +90,12 @@ class StrictCRUDMixin(object):
     def patch(self, request, *args, **kwargs):
         queryset = self.get_queryset()
         serializer_class = self.get_serializer_class()
-        obj = get_object_or_404(queryset, pk=self.kwargs[self.lookup_field])
+        obj = get_object_or_404(queryset)
         serializer = serializer_class(obj, data=request.data, partial=True)
         if serializer.is_valid(raise_exception=True):
             serializer.save()
             resource = self.kwargs['resource']
-            location = '/%s/%s' % (resource, obj.pk)
+            location = '/%s/%s' % (resource, getattr(obj, self.lookup_field))
             return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
@@ -109,6 +109,7 @@ class CnameList(generics.ListCreateAPIView):
     """
     queryset = Cname.objects.all()
     serializer_class = CnameSerializer
+    lookup_field = 'name'
 
     def get_queryset(self):
         qs = super(CnameList, self).get_queryset()
@@ -128,6 +129,7 @@ class CnameDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIV
     """
     queryset = Cname.objects.all()
     serializer_class = CnameSerializer
+    lookup_field = 'name'
 
 
 class HinfoPresetList(generics.ListCreateAPIView):
