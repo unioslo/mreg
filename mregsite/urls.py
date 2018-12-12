@@ -10,7 +10,7 @@ schema_view = get_swagger_view(title='mreg API')
 # The resource keyword argument is used by StrictCRUDMixin to determine the base url for generic views
 urlpatterns = [
     path('cnames/', views.CnameList.as_view(), kwargs={'resource': 'cnames'}),
-    path('cnames/<pk>', views.CnameDetail.as_view(), kwargs={'resource': 'cnames'}),
+    path('cnames/<name>', views.CnameDetail.as_view(), kwargs={'resource': 'cnames'}),
     path('hinfopresets/', views.HinfoPresetList.as_view(), kwargs={'resource': 'hinfopresets'}),
     path('hinfopresets/<pk>', views.HinfoPresetDetail.as_view(), kwargs={'resource': 'hinfopresets'}),
     path('hosts/', views.HostList.as_view(), kwargs={'resource': 'hosts'}),
