@@ -1054,7 +1054,6 @@ class APICnamesTestCase(APITestCase):
         response = self.client.patch('/cnames/%s' % self.host_one['name'],
                                      {'ttl': '500',
                                       'name': 'new-alias.example.org'})
-        print(response['Location'])
         self.assertEqual(response.status_code, 204)
 
 
