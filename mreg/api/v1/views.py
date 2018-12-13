@@ -4,7 +4,7 @@ from django.db import transaction
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from rest_framework import (generics, renderers, status)
+from rest_framework import (filters, generics, renderers, status)
 from rest_framework.decorators import api_view
 from rest_framework.exceptions import ParseError
 from rest_framework.response import Response
@@ -259,6 +259,8 @@ class IpaddressList(generics.ListCreateAPIView):
     """
     queryset = Ipaddress.objects.all()
     serializer_class = IpaddressSerializer
+    filter_backends = (filters.OrderingFilter,)
+    ordering_fields = ('host', 'ipaddress', 'macaddress')
 
     def get_queryset(self):
         qs = super(IpaddressList, self).get_queryset()
