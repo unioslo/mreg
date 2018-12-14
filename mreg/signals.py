@@ -1,8 +1,10 @@
-from django.db.models.signals import pre_save, post_save, post_delete
+from django.db.models.signals import pre_save, post_save, post_delete, m2m_changed
 from django.dispatch import receiver
 from django.utils import timezone
 
-from mreg.models import (Cname, Host, Ipaddress, ModelChangeLog, Naptr,
+from django.core.exceptions import ValidationError
+
+from mreg.models import (Cname, Host, HostGroup, Ipaddress, ModelChangeLog, Naptr,
         PtrOverride, Srv, Txt, ZoneMember)
 from mreg.api.v1.serializers import HostSerializer
 
@@ -136,3 +138,31 @@ def save_host_history_on_delete(sender, instance, **kwargs):
                                    action='deleted',
                                    timestamp=timezone.now())
     new_log_entry.save()
+
+
+@receiver(m2m_changed, sender=HostGroup.parent.through)
+def prevent_hostgroup_parent_recursion(sender, instance, action, model, reverse, pk_set, **kwargs):
+    """
+    pk_set contains the group(s) being added to a group
+    instance is the group getting new group members
+    This whole pk_set-function should be rewritten to handle multiple groups
+    """
+    if action == 'pre_add':
+        for host_id in pk_set:
+            child_id = host_id
+
+        parent_parents = HostGroup.objects.get(id=instance.id).parent.all()
+
+        for parent in parent_parents.iterator():
+            if child_id == parent.id:
+                raise ValidationError(
+                    _('Recursive memberships are not allowed. The group is a member of %(group)s'),
+                    code='invalid',
+                    params={'group' : HostGroup.objects.get(id=parent.id).hostgroup_name})
+                return
+            elif HostGroup.objects.get(id=parent.id).parent.all():
+                pk_set = {child_id}
+                prevent_hostgroup_parent_recursion(sender, parent, action, model, reverse, pk_set, **kwargs)
+    else:
+        return
+

@@ -451,6 +451,22 @@ class Srv(ZoneMember):
         return '{name:24} {ttl:5} IN {record_type:6} {priority} {weight} {port} {target}\n'.format_map(data)
 
 
+class HostGroup(models.Model):
+    hostgroup_name = models.CharField(max_length=50, unique=True)
+    parent = models.ManyToManyField('self', symmetrical=False, blank=True, related_name='groups')
+
+    def __str__(self):
+        return("%s" % (self.id))
+
+
+class HostGroupMember(models.Model):
+    hostid = models.ForeignKey(Host, on_delete=models.PROTECT, db_column='hostid', related_name='hostgroupmember')
+    group = models.ForeignKey(HostGroup, on_delete=models.PROTECT)
+
+    def __str__(self):
+        return('%s' % (self.id))
+
+
 # TODO: Add user_id functionality when auth is implemented
 class ModelChangeLog(models.Model):
     # user_id = models.BigIntegerField(db_index=True)
