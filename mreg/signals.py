@@ -3,6 +3,7 @@ from django.dispatch import receiver
 from django.utils import timezone
 
 from django.core.exceptions import ValidationError
+from django.utils.translation import ugettext as _
 
 from mreg.models import (Cname, Host, HostGroup, Ipaddress, ModelChangeLog, Naptr,
         PtrOverride, Srv, Txt, ZoneMember)
