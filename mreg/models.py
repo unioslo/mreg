@@ -20,18 +20,22 @@ class NameServer(models.Model):
 
     class Meta:
         db_table = 'ns'
+        ordering = ('name',)
 
     def __str__(self):
         return str(self.name)
 
-    def zf_string(self, zone):
+    def zf_string(self, zone, subzone=None):
         """String representation for zonefile export."""
+        if subzone:
+            subzone = idna_encode(qualify(subzone, zone))
         data = {
+            'subzone': clear_none(subzone),
             'ttl': clear_none(self.ttl),
             'record_type': 'NS',
             'record_data': idna_encode(qualify(self.name, zone))
         }
-        return '                         {ttl:5} IN {record_type:6} {record_data}\n'.format_map(data)
+        return '{subzone:24} {ttl:5} IN {record_type:6} {record_data}\n'.format_map(data)
 
 
 class Zone(models.Model):
