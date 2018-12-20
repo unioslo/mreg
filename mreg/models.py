@@ -109,7 +109,7 @@ $TTL {ttl}
         network = self.network
         from_ip = str(network.network_address)
         to_ip = str(network.broadcast_address)
-        ips = Ipaddress.objects.filter(ipaddress__range=(from_ip, to_ip)).order_by("ipaddress")
+        ips = Ipaddress.objects.filter(ipaddress__range=(from_ip, to_ip))
         override_ips = dict()
         for p in PtrOverride.objects.filter(ipaddress__range=(from_ip, to_ip)):
             override_ips[p.ipaddress] = p
@@ -123,6 +123,10 @@ $TTL {ttl}
         ptr_done = set()
         # Use PtrOverrides when found, but only once. Also skip IPaddresses
         # which have been used multiple times, but lacks a PtrOverride.
+        result = []
+        def _add_to_result(item):
+            result.append((ipaddress.ip_address(item.ipaddress), item.host.name))
+
         for i in ips:
             ip = i.ipaddress
             if ip in multiple_ip_no_ptr:
@@ -130,10 +134,18 @@ $TTL {ttl}
             if ip in override_ips:
                 if ip not in ptr_done:
                     ptr_done.add(ip)
-                    yield override_ips[ip]
+                    _add_to_result(override_ips[ip])
             else:
-                yield i
+                _add_to_result(i)
+        # Add PtrOverrides which actually don't override anything,
+        # but are only used as PTRs without any Ipaddress object creating
+        # forward entries.
+        for k, v in override_ips.items():
+            if k not in ptr_done:
+                _add_to_result(v)
 
+        # Return sorted by IP
+        return sorted(result, key=lambda i: i[0])
 
 class ZoneMember(models.Model):
     zone = models.ForeignKey(Zone, models.DO_NOTHING, db_column='zone', blank=True, null=True)
@@ -285,10 +297,10 @@ class Subnet(models.Model):
     range = models.TextField(unique=True)
     description = models.TextField(blank=True)
     vlan = models.IntegerField(blank=True, null=True)
-    dns_delegated = models.NullBooleanField()
+    dns_delegated = models.BooleanField(default=False)
     category = models.TextField(blank=True)
     location = models.TextField(blank=True)
-    frozen = models.NullBooleanField()
+    frozen = models.BooleanField(default=False)
     reserved = models.PositiveIntegerField(default=3)
 
     class Meta:
