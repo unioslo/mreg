@@ -88,6 +88,10 @@ $TTL {ttl}
 """.format_map(data)
         return zf
 
+    @property
+    def network(self):
+        return get_network_from_zonename(self.name)
+
     def update_serialno(self, force=False):
         """Update serialno if zone has been updated since the serial number
         was updated.

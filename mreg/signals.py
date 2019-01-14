@@ -1,9 +1,11 @@
+import ipaddress
+
 from django.db.models.signals import pre_save, post_save, post_delete
 from django.dispatch import receiver
 from django.utils import timezone
 
 from mreg.models import (Cname, Host, Ipaddress, ModelChangeLog, Naptr,
-        PtrOverride, Srv, Txt, ZoneMember)
+        PtrOverride, Srv, Txt, Zone, ZoneMember)
 from mreg.api.v1.serializers import HostSerializer
 
 
@@ -32,9 +34,19 @@ def updated_ipaddress_fix_ptroverride(sender, instance, raw, using, update_field
 def deleted_ipaddress_fix_ptroverride(sender, instance, using, **kwargs):
     _del_ptr(instance.ipaddress)
 
-def _update_zone_for_ip(ip):
-    # For now..
-    pass
+
+def _get_zone_for_ip(ip):
+    ip = ipaddress.ip_address(ip)
+    if ip.version == 4:
+        # endswith = 10.in-addr.arpa for 10.2.3.4
+        endswith = ip.reverse_pointer.split('.', 3)[-1]
+    elif ip.version == 6:
+        # endswith = 1.0.0.2.ip6.arpa for 2001:db8::1
+        endswith = ip.reverse_pointer.split('.', 28)[-1]
+    for zone in Zone.objects.filter(name__endswith=endswith):
+        if ip in zone.network:
+            return zone
+    return None
 
 
 def _common_update_zone(signal, sender, instance):
@@ -48,12 +60,26 @@ def _common_update_zone(signal, sender, instance):
 
     if hasattr(instance, 'host'):
         zones.add(instance.host.zone)
-        if signal == "pre_save" == instance.host.id:
-            oldzone = Host.objecs.get(id=instance.host.id).zone
+        if signal == "pre_save" and instance.host.id:
+            oldzone = Host.objects.get(id=instance.host.id).zone
             zones.add(oldzone)
 
     if sender in (Ipaddress, PtrOverride):
-        _update_zone_for_ip(instance.ipaddress)
+        zone = _get_zone_for_ip(instance.ipaddress)
+        zones.add(zone)
+
+    # Check if host has been renamed, and if so, update other zones
+    # where the host is used. Such as reverse zones, Cname targets etc.
+    if signal == "pre_save" and sender == Host and instance.id:
+        oldname = Host.objects.get(id=instance.id).name
+        if instance.name != oldname:
+            # XXX: add SRV in after usit-gd/mreg#192
+            for model in (Cname,):
+                for i in model.objects.filter(host=instance):
+                    zones.add(i.zone)
+            for model in (Ipaddress, PtrOverride):
+                for i in model.objects.filter(host=instance):
+                    zones.add(_get_zone_for_ip(i.ipaddress))
 
     for zone in zones:
         if zone:
