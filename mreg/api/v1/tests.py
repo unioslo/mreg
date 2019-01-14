@@ -545,6 +545,55 @@ class ModelChangeLogTestCase(TestCase):
         self.assertNotEqual(old_count, new_count)
 
 
+class APIAutoupdateZonesTestCase(APITestCase):
+    """This class tests the autoupdate of Zones' updated_at whenever
+       various models are added/deleted/renamed/changed etc."""
+
+    def setUp(self):
+        """Add the a couple of zones and hosts for used in testing."""
+        self.host1 = {"name": "host1.example.org",
+                      "ipaddress": "10.10.0.1",
+                      "contact": "mail@example.org"}
+        self.zone_exampleorg = Zone(name='example.org',
+                                    primary_ns='ns.example.org',
+                                    email='hostmaster@example.org')
+        self.zone_examplecom = Zone(name='example.com',
+                                    primary_ns='ns.example.com',
+                                    email='hostmaster@example.com')
+        self.zone_1010 = Zone(name='10.10.in-addr.arpa',
+                              primary_ns='ns.example.org',
+                              email='hostmaster@example.org')
+        clean_and_save(self.zone_exampleorg)
+        clean_and_save(self.zone_examplecom)
+        clean_and_save(self.zone_1010)
+
+    def test_add_host(self):
+        old_org_updated_at = self.zone_exampleorg.updated_at
+        old_1010_updated_at = self.zone_1010.updated_at
+        self.client.post('/hosts/', self.host1)
+        self.zone_exampleorg.refresh_from_db()
+        self.zone_1010.refresh_from_db()
+        self.assertGreater(self.zone_exampleorg.updated_at, old_org_updated_at)
+        self.assertGreater(self.zone_1010.updated_at, old_1010_updated_at)
+
+    def test_rename_host(self):
+        self.client.post('/hosts/', self.host1)
+        self.zone_exampleorg.refresh_from_db()
+        self.zone_examplecom.refresh_from_db()
+        self.zone_1010.refresh_from_db()
+        old_org_updated_at = self.zone_exampleorg.updated_at
+        old_com_updated_at = self.zone_examplecom.updated_at
+        old_1010_updated_at = self.zone_1010.updated_at
+        self.client.patch('/hosts/host1.example.org',
+                          {"name": "host1.example.com"})
+        self.zone_exampleorg.refresh_from_db()
+        self.zone_examplecom.refresh_from_db()
+        self.zone_1010.refresh_from_db()
+        self.assertGreater(self.zone_exampleorg.updated_at, old_org_updated_at)
+        self.assertGreater(self.zone_examplecom.updated_at, old_com_updated_at)
+        self.assertGreater(self.zone_1010.updated_at, old_1010_updated_at)
+
+
 class APIHostsTestCase(TestCase):
     """This class defines the test suite for api/hosts"""
 
