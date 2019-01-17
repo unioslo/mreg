@@ -3,7 +3,7 @@ import ipaddress
 from collections import defaultdict
 from datetime import timedelta
 
-from django.db import models
+from django.db import DatabaseError, models, transaction
 from django.utils import timezone
 
 from mreg.validators import (validate_hostname, validate_zonename,
@@ -41,6 +41,7 @@ class NameServer(models.Model):
 class Zone(models.Model):
     name = models.CharField(unique=True, max_length=253, validators=[validate_zonename])
     updated_at = models.DateTimeField(auto_now=True)
+    updated = models.BooleanField(default=False)
     primary_ns = models.CharField(max_length=253, validators=[validate_hostname])
     nameservers = models.ManyToManyField(NameServer, db_column='ns')
     email = models.EmailField()
@@ -96,14 +97,19 @@ $TTL {ttl}
         """Update serialno if zone has been updated since the serial number
         was updated.
         """
-        # Need the have a timedelta as serialno_update_at is set before
-        # zone.save() which updates zone.updated_at, but also to not exhaust
+        # Need the have a timedelta as serialno_updated_at to not exhaust
         # the 100 possible daily serial numbers.
-        if force or \
-          self.updated_at > self.serialno_updated_at + timedelta(minutes=1):
+        min_delta = timedelta(minutes=1)
+        if force or self.updated and \
+          timezone.now() > self.serialno_updated_at + min_delta:
             self.serialno = create_serialno(self.serialno)
             self.serialno_updated_at = timezone.now()
-            self.save()
+            self.updated = False
+            try:
+                with transaction.atomic():
+                    self.save()
+            except DatabaseError:
+                pass
 
     @property
     def network(self):

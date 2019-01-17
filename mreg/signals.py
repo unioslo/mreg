@@ -12,8 +12,8 @@ from mreg.api.v1.serializers import HostSerializer
 def _del_ptr(ipaddress):
     ptrs = PtrOverride.objects.filter(ipaddress=ipaddress)
     if ptrs:
-        assert(len(ptrs) == 1)
-        ptrs.first().delete()
+        assert(ptrs.count() == 1)
+        ptrs.delete()
 
 # Update PtrOverride whenever a Ipaddress is created or changed
 @receiver(pre_save, sender=Ipaddress)
@@ -83,6 +83,7 @@ def _common_update_zone(signal, sender, instance):
 
     for zone in zones:
         if zone:
+            zone.updated = True
             zone.save()
 
 
