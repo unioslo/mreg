@@ -770,27 +770,33 @@ class ModelChangeLogDetail(MregBaseClass, generics.RetrieveAPIView):
             raise Http404
 
 
-
 def _dhcphosts_by_range(iprange):
     network = ipaddress.ip_network(iprange)
     from_ip = str(network.network_address)
     to_ip = str(network.broadcast_address)
     ips = Ipaddress.objects.filter(ipaddress__range=(from_ip, to_ip))
     ips = ips.exclude(macaddress='').order_by('ipaddress')
-    ips = ips.values('host__name','ipaddress','macaddress')
+    ips = ips.values('host__name', 'ipaddress', 'macaddress')
     return Response(ips)
 
-@api_view()
-def dhcphosts_by_range(request, *args, **kwargs):
-    return _dhcphosts_by_range(_get_iprange(kwargs))
 
-@api_view()
-def dhcphosts_all_v4(request):
-    return _dhcphosts_by_range('0.0.0.0/0')
+class DhcpHostsAllV4(MregBaseClass, generics.GenericAPIView):
 
-@api_view()
-def dhcphosts_all_v6(request):
-    return _dhcphosts_by_range('::/0')
+    def get(self, request, *args, **kwargs):
+        return _dhcphosts_by_range('0.0.0.0/0')
+
+
+class DhcpHostsAllV6(MregBaseClass, generics.GenericAPIView):
+
+    def get(self, request, *args, **kwargs):
+        return _dhcphosts_by_range('::/0')
+
+
+class DhcpHostsByRange(MregBaseClass, generics.GenericAPIView):
+
+    def get(self, request, *args, **kwargs):
+        return _dhcphosts_by_range(_get_iprange(kwargs))
+
             
 class PlainTextRenderer(renderers.BaseRenderer):
     """
