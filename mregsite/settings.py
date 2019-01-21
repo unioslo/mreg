@@ -26,6 +26,15 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
+AUTHENTICATION_BACKENDS = (
+    'django_auth_ldap.backend.LDAPBackend',
+    'django.contrib.auth.backends.ModelBackend',
+)
+
+AUTH_LDAP_SERVER_URI = "ldap://ldap.example.com"
+AUTH_LDAP_USER_DN_TEMPLATE = "uid=%(user)s,ou=users,dc=example,dc=com"
+AUTH_LDAP_START_TLS = True
+AUTH_LDAP_CACHE_TIMEOUT = 3600
 
 # Application definition
 
@@ -38,8 +47,9 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework_swagger',
-    'mreg',
+    'rest_framework.authtoken',
     'django_logging',
+    'mreg'
 ]
 
 MIDDLEWARE = [
@@ -128,9 +138,12 @@ REST_FRAMEWORK_EXTENSIONS = {
         'rest_framework_extensions.utils.default_object_etag_func',
     'DEFAULT_LIST_ETAG_FUNC':
         'rest_framework_extensions.utils.default_list_etag_func',
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.permissions.DjangoModelPermissionsOrAnonReadOnly'
-    ],
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework.authentication.TokenAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticated',
+    ),
 }
 
 # Django logging settings. To enable the default django request/response logging for API in stdout,
