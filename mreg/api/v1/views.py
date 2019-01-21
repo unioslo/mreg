@@ -81,14 +81,7 @@ class ZoneFilterSet(ModelFilterSet):
     class Meta(object):
         model = Zone
 
-class MregBaseClass(object):
-    authentication_classes = (TokenAuthentication,)
-    permission_classes = (IsAuthenticated,)
-
-class MregListCreateAPIView(MregBaseClass, generics.ListCreateAPIView):
-    pass
-
-class MregRetrieveUpdateDestroyAPIView(MregBaseClass, ETAGMixin,
+class MregRetrieveUpdateDestroyAPIView(ETAGMixin,
         generics.RetrieveUpdateDestroyAPIView):
     """
     Applies stricter handling of HTTP requests and responses.
@@ -108,7 +101,7 @@ class MregRetrieveUpdateDestroyAPIView(MregBaseClass, ETAGMixin,
             return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
-class CnameList(MregListCreateAPIView):
+class CnameList(generics.ListCreateAPIView):
     """
     get:
     Lists all cnames / aliases.
@@ -141,7 +134,7 @@ class CnameDetail(MregRetrieveUpdateDestroyAPIView):
     lookup_field = 'name'
 
 
-class HinfoPresetList(MregListCreateAPIView):
+class HinfoPresetList(generics.ListCreateAPIView):
     """
     get:
     Lists all hinfo presets.
@@ -172,7 +165,7 @@ class HinfoPresetDetail(MregRetrieveUpdateDestroyAPIView):
     serializer_class = HinfoPresetSerializer
 
 
-class HostList(MregListCreateAPIView):
+class HostList(generics.ListCreateAPIView):
     """
     get:
     Lists all hostnames.
@@ -254,7 +247,7 @@ class HostDetail(MregRetrieveUpdateDestroyAPIView):
             return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
-class IpaddressList(MregListCreateAPIView):
+class IpaddressList(generics.ListCreateAPIView):
     """
     get:
     Lists all ipaddresses in use.
@@ -272,7 +265,7 @@ class IpaddressList(MregListCreateAPIView):
         return IpaddressFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class IpaddressDetail(MregBaseClass, generics.RetrieveUpdateDestroyAPIView):
+class IpaddressDetail(generics.RetrieveUpdateDestroyAPIView):
     """
     get:
     Returns details for the specified Ipaddress object by {id}.
@@ -287,7 +280,7 @@ class IpaddressDetail(MregBaseClass, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = IpaddressSerializer
 
 
-class NaptrList(MregListCreateAPIView):
+class NaptrList(generics.ListCreateAPIView):
     """
     get:
     List all Naptr-records.
@@ -318,7 +311,7 @@ class NaptrDetail(MregRetrieveUpdateDestroyAPIView):
     serializer_class = NaptrSerializer
 
 
-class NameServerList(MregListCreateAPIView):
+class NameServerList(generics.ListCreateAPIView):
     """
     get:
     List all nameserver-records.
@@ -349,7 +342,7 @@ class NameServerDetail(MregRetrieveUpdateDestroyAPIView):
     serializer_class = NameServerSerializer
 
 
-class PtrOverrideList(MregListCreateAPIView):
+class PtrOverrideList(generics.ListCreateAPIView):
     """
     get:
     List all ptr-overrides.
@@ -380,7 +373,7 @@ class PtrOverrideDetail(MregRetrieveUpdateDestroyAPIView):
     serializer_class = PtrOverrideSerializer
 
 
-class SrvList(MregListCreateAPIView):
+class SrvList(generics.ListCreateAPIView):
     """
     get:
     List all service records.
@@ -426,7 +419,7 @@ def _get_iprange(kwargs):
     except ValueError as error:
         raise ParseError(detail=str(error))
 
-class SubnetList(MregListCreateAPIView):
+class SubnetList(generics.ListCreateAPIView):
     """
     list:
     Returns a list of subnets
@@ -536,7 +529,7 @@ class SubnetDetail(MregRetrieveUpdateDestroyAPIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class TxtList(MregListCreateAPIView):
+class TxtList(generics.ListCreateAPIView):
     """
     get:
     Returns a list of all txt-records.
@@ -568,7 +561,7 @@ class TxtDetail(MregRetrieveUpdateDestroyAPIView):
     serializer_class = TxtSerializer
 
 
-class ZoneList(MregListCreateAPIView):
+class ZoneList(generics.ListCreateAPIView):
     """
     get:
     Returns a list of all zones.
@@ -730,7 +723,7 @@ class ZoneNameServerDetail(ETAGMixin, generics.GenericAPIView):
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
-class ModelChangeLogList(MregBaseClass, generics.ListAPIView):
+class ModelChangeLogList(generics.ListAPIView):
     """
     get:
     Lists the models/tables with registered entries. To access the history of an object, GET /{tablename}/{object-id}
@@ -747,7 +740,7 @@ class ModelChangeLogList(MregBaseClass, generics.ListAPIView):
         return Response(data=tables, status=status.HTTP_200_OK)
 
 
-class ModelChangeLogDetail(MregBaseClass, generics.RetrieveAPIView):
+class ModelChangeLogDetail(generics.RetrieveAPIView):
     """
     get:
     Retrieve all log entries for an object in a table.
@@ -780,19 +773,19 @@ def _dhcphosts_by_range(iprange):
     return Response(ips)
 
 
-class DhcpHostsAllV4(MregBaseClass, generics.GenericAPIView):
+class DhcpHostsAllV4(generics.GenericAPIView):
 
     def get(self, request, *args, **kwargs):
         return _dhcphosts_by_range('0.0.0.0/0')
 
 
-class DhcpHostsAllV6(MregBaseClass, generics.GenericAPIView):
+class DhcpHostsAllV6(generics.GenericAPIView):
 
     def get(self, request, *args, **kwargs):
         return _dhcphosts_by_range('::/0')
 
 
-class DhcpHostsByRange(MregBaseClass, generics.GenericAPIView):
+class DhcpHostsByRange(generics.GenericAPIView):
 
     def get(self, request, *args, **kwargs):
         return _dhcphosts_by_range(_get_iprange(kwargs))
@@ -809,7 +802,7 @@ class PlainTextRenderer(renderers.BaseRenderer):
         return data
 
 
-class ZoneFileDetail(MregBaseClass, generics.GenericAPIView):
+class ZoneFileDetail(generics.GenericAPIView):
     """
     Handles a DNS zone file in plaintext.
     All models should have a zf_string method that outputs its relevant data.
