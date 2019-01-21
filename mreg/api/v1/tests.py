@@ -1,6 +1,6 @@
 from django.test import TestCase
 from django.utils import timezone
-from rest_framework.test import APIClient, APITestCase
+from rest_framework.test import APITestCase
 
 from mreg.models import (Cname, HinfoPreset, Host, Ipaddress, NameServer,
         Naptr, PtrOverride, Srv, Subnet, Txt, Zone, ModelChangeLog)
@@ -594,7 +594,7 @@ class APIAutoupdateZonesTestCase(APITestCase):
         self.assertGreater(self.zone_1010.updated_at, old_1010_updated_at)
 
 
-class APIHostsTestCase(TestCase):
+class APIHostsTestCase(APITestCase):
     """This class defines the test suite for api/hosts"""
 
     def setUp(self):
@@ -614,7 +614,6 @@ class APIHostsTestCase(TestCase):
         clean_and_save(self.host_one)
         clean_and_save(self.host_two)
         clean_and_save(self.zone_sample)
-        self.client = APIClient()
 
     def test_hosts_get_200_ok(self):
         """"Getting an existing entry should return 200"""
@@ -681,7 +680,7 @@ class APIHostsTestCase(TestCase):
         self.assertEqual(response.status_code, 409)
 
 
-class APIZonesTestCase(TestCase):
+class APIZonesTestCase(APITestCase):
     """"This class defines the test suite for api/zones """
 
     def setUp(self):
@@ -711,7 +710,6 @@ class APIZonesTestCase(TestCase):
         clean_and_save(self.ns_one)
         clean_and_save(self.ns_two)
         clean_and_save(self.zone_one)
-        self.client = APIClient()
 
     def test_zones_get_404_not_found(self):
         """"Getting a non-existing entry should return 404"""
@@ -782,7 +780,7 @@ class APIZonesTestCase(TestCase):
         """"Deleting an entry with registered entries should require force"""
 
 
-class APIZonesNsTestCase(TestCase):
+class APIZonesNsTestCase(APITestCase):
     """"This class defines the test suite for api/zones/<name>/nameservers/ """
 
     def setUp(self):
@@ -793,7 +791,6 @@ class APIZonesNsTestCase(TestCase):
         self.ns_two = Host(name='ns2.uio.no', contact='mail@example.org')
         clean_and_save(self.ns_one)
         clean_and_save(self.ns_two)
-        self.client = APIClient()
 
     def test_zones_ns_get_200_ok(self):
         """"Getting the list of nameservers of a existing zone should return 200"""
@@ -848,7 +845,7 @@ class APIZonesNsTestCase(TestCase):
         self.assertEqual(response.data, self.post_data['primary_ns'])
 
 
-class APIIPaddressesTestCase(TestCase):
+class APIIPaddressesTestCase(APITestCase):
     """This class defines the test suite for api/ipaddresses"""
 
     def setUp(self):
@@ -879,8 +876,6 @@ class APIIPaddressesTestCase(TestCase):
                                             'ipaddress': self.ipaddress_one.ipaddress}
         self.patch_data_ip = {'ipaddress': '129.240.203.198'}
         self.patch_bad_ip = {'ipaddress': '129.240.300.1'}
-
-        self.client = APIClient()
 
     def test_ipaddress_get_200_ok(self):
         """"Getting an existing entry should return 200"""
@@ -935,7 +930,7 @@ class APIIPaddressesTestCase(TestCase):
         self.assertEqual(response.status_code, 404)
 
 
-class APIMACaddressTestCase(TestCase):
+class APIMACaddressTestCase(APITestCase):
     """This class defines the test suite for api/ipaddresses with macadresses"""
 
     def setUp(self):
@@ -970,7 +965,6 @@ class APIMACaddressTestCase(TestCase):
         self.patch_mac_in_use = {'macaddress': self.ipaddress_two.macaddress}
         self.patch_ip_and_mac = {'ipaddress': '10.0.0.13',
                                  'macaddress': 'aa:bb:cc:00:00:ff'}
-        self.client = APIClient()
 
     def test_mac_post_ip_with_mac_201_ok(self):
         """Post a new IP with MAC should return 201 ok."""
@@ -1106,7 +1100,7 @@ class APICnamesTestCase(APITestCase):
         self.assertEqual(response.status_code, 204)
 
 
-class APISubnetsTestCase(TestCase):
+class APISubnetsTestCase(APITestCase):
     """"This class defines the test suite for api/subnets """
     def setUp(self):
         """Define the test client and other variables."""
@@ -1169,7 +1163,6 @@ class APISubnetsTestCase(TestCase):
             'vlan': '435',
             'dns_delegated': 'False',
         }
-        self.client = APIClient()
 
     def test_subnets_post_201_created(self):
         """Posting a subnet should return 201"""
@@ -1289,7 +1282,7 @@ class APISubnetsTestCase(TestCase):
         self.assertEqual(response.status_code, 409)
 
 
-class APIModelChangeLogsTestCase(TestCase):
+class APIModelChangeLogsTestCase(APITestCase):
     """This class defines the test suite for api/history """
 
     def setUp(self):
@@ -1314,7 +1307,6 @@ class APIModelChangeLogsTestCase(TestCase):
                                             action='saved',
                                             timestamp=timezone.now())
         clean_and_save(self.log_entry_one)
-        self.client = APIClient()
 
     def test_history_get_200_OK(self):
         """Get on /history/ should return a list of table names that have entries, and 200 OK."""
