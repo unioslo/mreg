@@ -1,6 +1,8 @@
+from django.contrib.auth.models import User
 from django.test import TestCase
 from django.utils import timezone
-from rest_framework.test import APITestCase
+from rest_framework.authtoken.models import Token
+from rest_framework.test import APIClient, APITestCase
 
 from mreg.models import (Cname, HinfoPreset, Host, Ipaddress, NameServer,
         Naptr, PtrOverride, Srv, Subnet, Txt, Zone, ModelChangeLog)
@@ -545,12 +547,20 @@ class ModelChangeLogTestCase(TestCase):
         self.assertNotEqual(old_count, new_count)
 
 
+def get_token_client():
+    user, created = User.objects.get_or_create(username='nobody')
+    token, created = Token.objects.get_or_create(user=user)
+    client = APIClient()
+    client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
+    return client
+
 class APIAutoupdateZonesTestCase(APITestCase):
     """This class tests the autoupdate of Zones' updated_at whenever
        various models are added/deleted/renamed/changed etc."""
 
     def setUp(self):
         """Add the a couple of zones and hosts for used in testing."""
+        self.client = get_token_client()
         self.host1 = {"name": "host1.example.org",
                       "ipaddress": "10.10.0.1",
                       "contact": "mail@example.org"}
@@ -594,7 +604,7 @@ class APIAutoupdateZonesTestCase(APITestCase):
         self.assertGreater(self.zone_1010.updated_at, old_1010_updated_at)
 
 
-class APIHostsTestCase(APITestCase):
+class APIHostsTestCase(TestCase):
     """This class defines the test suite for api/hosts"""
 
     def setUp(self):
@@ -614,6 +624,7 @@ class APIHostsTestCase(APITestCase):
         clean_and_save(self.host_one)
         clean_and_save(self.host_two)
         clean_and_save(self.zone_sample)
+        self.client = get_token_client()
 
     def test_hosts_get_200_ok(self):
         """"Getting an existing entry should return 200"""
@@ -685,6 +696,7 @@ class APIZonesTestCase(APITestCase):
 
     def setUp(self):
         """Define the test client and other variables."""
+        self.client = get_token_client()
         self.zone_one = Zone(
             name="matnat.uio.no",
             primary_ns="ns1.uio.no",
@@ -785,6 +797,7 @@ class APIZonesNsTestCase(APITestCase):
 
     def setUp(self):
         """Define the test client and other variables."""
+        self.client = get_token_client()
         self.post_data = {'name': 'hf.uio.no', 'primary_ns': ['ns2.uio.no'],
                           'email': 'hostmaster@uio.no', 'refresh': 400, 'retry': 300, 'expire': 800, 'ttl': 350}
         self.ns_one = Host(name='ns1.uio.no', contact='mail@example.org')
@@ -850,6 +863,7 @@ class APIIPaddressesTestCase(APITestCase):
 
     def setUp(self):
         """Define the test client and other test variables."""
+        self.client = get_token_client()
         self.host_one = Host(name='some-host.example.org',
                              contact='mail@example.org')
 
@@ -935,6 +949,7 @@ class APIMACaddressTestCase(APITestCase):
 
     def setUp(self):
         """Define the test client and other test variables."""
+        self.client = get_token_client()
         self.host_one = Host(name='host1.example.org',
                              contact='mail@example.org')
 
@@ -1041,6 +1056,7 @@ class APIMACaddressTestCase(APITestCase):
 class APICnamesTestCase(APITestCase):
     """This class defines the test suite for api/cnames """
     def setUp(self):
+        self.client = get_token_client()
         self.zone_one = Zone(name='example.org',
                              primary_ns='ns.example.org',
                              email='hostmaster@example.org')
@@ -1104,6 +1120,7 @@ class APISubnetsTestCase(APITestCase):
     """"This class defines the test suite for api/subnets """
     def setUp(self):
         """Define the test client and other variables."""
+        self.client = get_token_client()
         self.subnet_sample = Subnet(range='129.240.204.0/24',
                                     description='some description',
                                     vlan=123,
@@ -1287,6 +1304,7 @@ class APIModelChangeLogsTestCase(APITestCase):
 
     def setUp(self):
         """Define the test client and other variables."""
+        self.client = get_token_client()
         self.host_one = Host(name='some-host.example.org',
                              contact='mail@example.org',
                              ttl=300,
