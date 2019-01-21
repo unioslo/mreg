@@ -133,17 +133,20 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 
-REST_FRAMEWORK_EXTENSIONS = {
-    'DEFAULT_OBJECT_ETAG_FUNC':
-        'rest_framework_extensions.utils.default_object_etag_func',
-    'DEFAULT_LIST_ETAG_FUNC':
-        'rest_framework_extensions.utils.default_list_etag_func',
+REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework.authentication.TokenAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
+}
+
+REST_FRAMEWORK_EXTENSIONS = {
+    'DEFAULT_OBJECT_ETAG_FUNC':
+        'rest_framework_extensions.utils.default_object_etag_func',
+    'DEFAULT_LIST_ETAG_FUNC':
+        'rest_framework_extensions.utils.default_list_etag_func',
 }
 
 # Django logging settings. To enable the default django request/response logging for API in stdout,
