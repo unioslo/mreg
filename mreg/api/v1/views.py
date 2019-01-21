@@ -5,6 +5,8 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import (filters, generics, renderers, status)
+from rest_framework.authentication import TokenAuthentication
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import api_view
 from rest_framework.exceptions import ParseError
 from rest_framework.response import Response
@@ -79,8 +81,15 @@ class ZoneFilterSet(ModelFilterSet):
     class Meta(object):
         model = Zone
 
+class MregBaseClass(object):
+    authentication_classes = (TokenAuthentication,)
+    permission_classes = (IsAuthenticated,)
 
-class StrictCRUDMixin(object):
+class MregListCreateAPIView(MregBaseClass, generics.ListCreateAPIView):
+    pass
+
+class MregRetrieveUpdateDestroyAPIView(MregBaseClass, ETAGMixin,
+        generics.RetrieveUpdateDestroyAPIView):
     """
     Applies stricter handling of HTTP requests and responses.
     Apply this mixin to generic classes that don't implement their own CRUD-operations.
@@ -99,7 +108,7 @@ class StrictCRUDMixin(object):
             return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
-class CnameList(generics.ListCreateAPIView):
+class CnameList(MregListCreateAPIView):
     """
     get:
     Lists all cnames / aliases.
@@ -116,7 +125,7 @@ class CnameList(generics.ListCreateAPIView):
         return CnameFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class CnameDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+class CnameDetail(MregRetrieveUpdateDestroyAPIView):
     """
     get:
     Returns details for the specified cname.
@@ -132,7 +141,7 @@ class CnameDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIV
     lookup_field = 'name'
 
 
-class HinfoPresetList(generics.ListCreateAPIView):
+class HinfoPresetList(MregListCreateAPIView):
     """
     get:
     Lists all hinfo presets.
@@ -148,7 +157,7 @@ class HinfoPresetList(generics.ListCreateAPIView):
         return HinfoFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class HinfoPresetDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+class HinfoPresetDetail(MregRetrieveUpdateDestroyAPIView):
     """
     get:
     Returns details for a hinfo preset.
@@ -163,7 +172,7 @@ class HinfoPresetDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestr
     serializer_class = HinfoPresetSerializer
 
 
-class HostList(generics.GenericAPIView):
+class HostList(MregListCreateAPIView):
     """
     get:
     Lists all hostnames.
@@ -177,10 +186,6 @@ class HostList(generics.GenericAPIView):
     def get_queryset(self):
         qs = super(HostList, self).get_queryset()
         return HostFilterSet(data=self.request.GET, queryset=qs).filter()
-
-    def get(self, request, *args, **kwargs):
-        serializer = HostNameSerializer(self.get_queryset(), many=True)
-        return Response(serializer.data)
 
     def post(self, request, *args, **kwargs):
         if "name" in request.data:
@@ -215,7 +220,7 @@ class HostList(generics.GenericAPIView):
                 return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
 
 
-class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+class HostDetail(MregRetrieveUpdateDestroyAPIView):
     """
     get:
     Returns details for the specified host. Includes relations like IP address/a-records, ptr-records, cnames.
@@ -249,7 +254,7 @@ class HostDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
             return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
-class IpaddressList(generics.ListCreateAPIView):
+class IpaddressList(MregListCreateAPIView):
     """
     get:
     Lists all ipaddresses in use.
@@ -267,7 +272,7 @@ class IpaddressList(generics.ListCreateAPIView):
         return IpaddressFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class IpaddressDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+class IpaddressDetail(MregBaseClass, generics.RetrieveUpdateDestroyAPIView):
     """
     get:
     Returns details for the specified Ipaddress object by {id}.
@@ -282,7 +287,7 @@ class IpaddressDetail(ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = IpaddressSerializer
 
 
-class NaptrList(generics.ListCreateAPIView):
+class NaptrList(MregListCreateAPIView):
     """
     get:
     List all Naptr-records.
@@ -298,7 +303,7 @@ class NaptrList(generics.ListCreateAPIView):
         return NaptrFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class NaptrDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+class NaptrDetail(MregRetrieveUpdateDestroyAPIView):
     """
     get:
     Returns details for the specified Naptr-record.
@@ -313,7 +318,7 @@ class NaptrDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIV
     serializer_class = NaptrSerializer
 
 
-class NameServerList(generics.ListCreateAPIView):
+class NameServerList(MregListCreateAPIView):
     """
     get:
     List all nameserver-records.
@@ -329,7 +334,7 @@ class NameServerList(generics.ListCreateAPIView):
         return NameServerFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class NameServerDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+class NameServerDetail(MregRetrieveUpdateDestroyAPIView):
     """
     get:
     Returns details for the specified nameserver-record.
@@ -344,7 +349,7 @@ class NameServerDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestro
     serializer_class = NameServerSerializer
 
 
-class PtrOverrideList(generics.ListCreateAPIView):
+class PtrOverrideList(MregListCreateAPIView):
     """
     get:
     List all ptr-overrides.
@@ -360,7 +365,7 @@ class PtrOverrideList(generics.ListCreateAPIView):
         return PtrOverrideFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class PtrOverrideDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+class PtrOverrideDetail(MregRetrieveUpdateDestroyAPIView):
     """
     get:
     Returns details for the specified ptr-override.
@@ -375,7 +380,7 @@ class PtrOverrideDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestr
     serializer_class = PtrOverrideSerializer
 
 
-class SrvList(generics.ListCreateAPIView):
+class SrvList(MregListCreateAPIView):
     """
     get:
     List all service records.
@@ -391,7 +396,7 @@ class SrvList(generics.ListCreateAPIView):
         return SrvFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class SrvDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+class SrvDetail(MregRetrieveUpdateDestroyAPIView):
     """
     get:
     Returns details for the specified srvice record.
@@ -421,7 +426,7 @@ def _get_iprange(kwargs):
     except ValueError as error:
         raise ParseError(detail=str(error))
 
-class SubnetList(generics.ListAPIView):
+class SubnetList(MregListCreateAPIView):
     """
     list:
     Returns a list of subnets
@@ -463,7 +468,7 @@ class SubnetList(generics.ListAPIView):
         return SubnetFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class SubnetDetail(ETAGMixin, generics.GenericAPIView):
+class SubnetDetail(MregRetrieveUpdateDestroyAPIView):
     """
     get:
     List details for a subnet. Query parameter ?used_list returns list of used IP addresses on the subnet
@@ -531,7 +536,7 @@ class SubnetDetail(ETAGMixin, generics.GenericAPIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class TxtList(generics.ListCreateAPIView):
+class TxtList(MregListCreateAPIView):
     """
     get:
     Returns a list of all txt-records.
@@ -548,7 +553,7 @@ class TxtList(generics.ListCreateAPIView):
         return TxtFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class TxtDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIView):
+class TxtDetail(MregRetrieveUpdateDestroyAPIView):
     """
      get:
      List details for a txt-record.
@@ -563,7 +568,7 @@ class TxtDetail(StrictCRUDMixin, ETAGMixin, generics.RetrieveUpdateDestroyAPIVie
     serializer_class = TxtSerializer
 
 
-class ZoneList(generics.ListAPIView):
+class ZoneList(MregListCreateAPIView):
     """
     get:
     Returns a list of all zones.
@@ -572,6 +577,10 @@ class ZoneList(generics.ListAPIView):
     Create a zone. The primary_ns field is a list where the first element will be the primary nameserver.
 
     """
+
+    authentication_classes = (TokenAuthentication,)
+    permission_classes = (IsAuthenticated,)
+
     queryset = Zone.objects.all()
     queryset_hosts = Host.objects.all()
     queryset_ns = NameServer.objects.all()
@@ -612,7 +621,7 @@ class ZoneList(generics.ListAPIView):
         return Response(status=status.HTTP_201_CREATED, headers={'Location': '/zones/%s' % data['name']})
 
 
-class ZoneDetail(ETAGMixin, generics.RetrieveAPIView):
+class ZoneDetail(MregRetrieveUpdateDestroyAPIView):
     """
     get:
     List details for a zone.
@@ -630,7 +639,6 @@ class ZoneDetail(ETAGMixin, generics.RetrieveAPIView):
     serializer_class = ZoneSerializer
     lookup_field = 'name'
 
-    # TODO: Implement authentication
     def patch(self, request, *args, **kwargs):
         query = self.kwargs[self.lookup_field]
 
@@ -722,7 +730,7 @@ class ZoneNameServerDetail(ETAGMixin, generics.GenericAPIView):
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
-class ModelChangeLogList(generics.ListAPIView):
+class ModelChangeLogList(MregBaseClass, generics.ListAPIView):
     """
     get:
     Lists the models/tables with registered entries. To access the history of an object, GET /{tablename}/{object-id}
@@ -739,7 +747,7 @@ class ModelChangeLogList(generics.ListAPIView):
         return Response(data=tables, status=status.HTTP_200_OK)
 
 
-class ModelChangeLogDetail(StrictCRUDMixin, generics.RetrieveAPIView):
+class ModelChangeLogDetail(MregBaseClass, generics.RetrieveAPIView):
     """
     get:
     Retrieve all log entries for an object in a table.
@@ -795,7 +803,7 @@ class PlainTextRenderer(renderers.BaseRenderer):
         return data
 
 
-class ZoneFileDetail(generics.GenericAPIView):
+class ZoneFileDetail(MregBaseClass, generics.GenericAPIView):
     """
     Handles a DNS zone file in plaintext.
     All models should have a zf_string method that outputs its relevant data.
