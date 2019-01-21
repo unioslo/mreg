@@ -1,3 +1,5 @@
+import ipaddress
+
 import idna
 
 from django.core.validators import RegexValidator, MinValueValidator, MaxValueValidator
@@ -103,6 +105,13 @@ def validate_mac_address(address):
     validator = RegexValidator(adr_regex,
                                message="Must be on form: aa:bb:cc:00:11:22")
     validator(address)
+
+def validate_network(network):
+    """Validate that the network given as a string is valid network."""
+    try:
+        ipaddress.ip_network(network)
+    except ValueError as e:
+        raise ValidationError(str(e))
 
 
 def validate_loc(location):
