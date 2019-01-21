@@ -421,6 +421,20 @@ def _get_iprange(kwargs):
     except ValueError as error:
         raise ParseError(detail=str(error))
 
+def _overlap_check(range, exclude=None):
+    try:
+        network = ipaddress.ip_network(range)
+    except ValueError as error:
+        raise ParseError(detail=str(error))
+
+    overlap = Subnet.overlap_check(network)
+    if exclude:
+        overlap = overlap.exclude(id=exclude.id)
+    if overlap:
+        info = ", ".join(map(str,overlap))
+        return Response({'ERROR': 'Subnet overlaps with: {}'.format(info)},
+                        status=status.HTTP_409_CONFLICT)
+
 class SubnetList(generics.ListAPIView):
     """
     list:
@@ -433,26 +447,20 @@ class SubnetList(generics.ListAPIView):
     serializer_class = SubnetSerializer
 
     def post(self, request, *args, **kwargs):
-        try:
-            network = ipaddress.ip_network(request.data['range'])
-            overlap = Subnet.overlap_check(network)
-            if overlap:
-                info = ", ".join(map(str,overlap))
-                return Response({'ERROR': 'Subnet overlaps with: {}'.format(info)},
-                                status=status.HTTP_409_CONFLICT)
+        error = _overlap_check(request.data['range'])
+        if error:
+            return error
+        network = ipaddress.ip_network(request.data['range'])
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        subnet = serializer.create()
+        # Changed the default value of reserved if the size of the subnet is too low
+        if network.num_addresses <= 4:
+            subnet.reserved = min(2, network.num_addresses)
+        subnet.save()
+        location = '/subnets/%s' % request.data
+        return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
 
-            serializer = self.get_serializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
-            subnet = serializer.create()
-            # Changed the default value of reserved if the size of the subnet is too low
-            if network.num_addresses <= 4:
-                subnet.reserved = min(2, network.num_addresses)
-            subnet.save()
-            location = '/subnets/%s' % request.data
-            return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
-
-        except ValueError as error:
-            return Response({'ERROR': str(error)}, status=status.HTTP_400_BAD_REQUEST)
 
     def get_queryset(self):
         """
@@ -509,11 +517,12 @@ class SubnetDetail(ETAGMixin, generics.GenericAPIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def patch(self, request, *args, **kwargs):
-        if 'range' in request.data:
-            return Response({'ERROR': 'Not allowed to change range'}, status=status.HTTP_403_FORBIDDEN)
-
         iprange = _get_iprange(kwargs)
         subnet = get_object_or_404(Subnet, range=iprange)
+        if 'range' in request.data:
+            error = _overlap_check(request.data['range'], exclude=subnet)
+            if error:
+                return error
         serializer = self.get_serializer(subnet, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
