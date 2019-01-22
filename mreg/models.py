@@ -9,7 +9,7 @@ from django.utils import timezone
 from mreg.validators import (validate_hostname, validate_zonename,
         validate_mac_address, validate_loc, validate_naptr_flag,
         validate_srv_service_text, validate_zones_serialno,
-        validate_16bit_uint)
+        validate_16bit_uint, validate_network)
 from mreg.utils import (create_serialno, encode_mail, clear_none, qualify,
         idna_encode, get_network_from_zonename)
 
@@ -304,7 +304,7 @@ class Cname(ZoneMember):
 
 
 class Subnet(models.Model):
-    range = models.TextField(unique=True)
+    range = models.TextField(unique=True, validators=[validate_network])
     description = models.TextField(blank=True)
     vlan = models.IntegerField(blank=True, null=True)
     dns_delegated = models.BooleanField(default=False)

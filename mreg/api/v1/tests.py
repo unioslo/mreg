@@ -158,12 +158,12 @@ class ModelSubnetTestCase(TestCase):
 
     def setUp(self):
         """Define the test client and other test variables."""
-        self.subnet_sample = Subnet(range='129.240.202.0/20',
+        self.subnet_sample = Subnet(range='10.0.0.0/20',
                                     description='some description',
                                     vlan=123,
                                     dns_delegated=False,
                                     category='so',
-                                    location='silurveien',
+                                    location='Test location',
                                     frozen=False)
 
     def test_model_can_create_ns(self):
@@ -1121,26 +1121,23 @@ class APISubnetsTestCase(APITestCase):
     def setUp(self):
         """Define the test client and other variables."""
         self.client = get_token_client()
-        self.subnet_sample = Subnet(range='129.240.204.0/24',
+        self.subnet_sample = Subnet(range='10.0.0.0/24',
                                     description='some description',
                                     vlan=123,
                                     dns_delegated=False,
                                     category='so',
-                                    location='silurveien',
+                                    location='Location 1',
                                     frozen=False)
-        self.subnet_sample_two = Subnet(range='129.240.205.0/28',
+        self.subnet_sample_two = Subnet(range='10.0.1.0/28',
                                         description='some description',
                                         vlan=135,
                                         dns_delegated=False,
                                         category='so',
-                                        location='silurveien',
+                                        location='Location 2',
                                         frozen=False)
 
         self.host_one = Host(name='some-host.example.org',
-                             contact='mail@example.org',
-                             ttl=300,
-                             loc='23 58 23 N 10 43 50 E 80m',
-                             comment='some comment')
+                             contact='mail@example.org')
         clean_and_save(self.host_one)
         clean_and_save(self.subnet_sample)
         clean_and_save(self.subnet_sample_two)
@@ -1154,7 +1151,8 @@ class APISubnetsTestCase(APITestCase):
         }
 
         self.patch_data_vlan = {'vlan': '435'}
-        self.patch_data_range = {'range': '129.240.205.0/28'}
+        self.patch_data_range = {'range': '10.0.0.0/28'}
+        self.patch_data_range_overlap = {'range': '10.0.1.0/29'}
 
         self.post_data = {
             'range': '192.0.2.0/29',
@@ -1175,7 +1173,7 @@ class APISubnetsTestCase(APITestCase):
             'dns_delegated': 'False',
         }
         self.post_data_overlap = {
-            'range': '129.240.205.0/29',
+            'range': '10.0.1.0/29',
             'description': 'Test subnet',
             'vlan': '435',
             'dns_delegated': 'False',
@@ -1212,25 +1210,31 @@ class APISubnetsTestCase(APITestCase):
         self.assertEqual(response.status_code, 204)
         self.assertEqual(response['Location'], '/subnets/%s' % self.subnet_sample.range)
 
+    def test_subnets_patch_204_non_overlapping_range(self):
+        """Patching an entry with a non-overlapping range should return 204"""
+        response = self.client.patch('/subnets/%s' % self.subnet_sample.range, data=self.patch_data_range)
+        self.assertEqual(response.status_code, 204)
+
     def test_subnets_patch_400_bad_request(self):
         """Patching with invalid data should return 400"""
         response = self.client.patch('/subnets/%s' % self.subnet_sample.range,
                                      data={'this': 'is', 'so': 'wrong'})
         self.assertEqual(response.status_code, 400)
 
-    def test_subnets_patch_403_forbidden_range(self):
-        """Patching an entry with a range should return 403"""
-        response = self.client.patch('/subnets/%s' % self.subnet_sample.range, data=self.patch_data_range)
-        self.assertEqual(response.status_code, 403)
-
     def test_subnets_patch_404_not_found(self):
         """Patching a non-existing entry should return 404"""
         response = self.client.patch('/subnets/193.101.168.0/29', self.patch_data)
         self.assertEqual(response.status_code, 404)
 
+    def test_subnets_patch_409_forbidden_range(self):
+        """Patching an entry with an overlapping range should return 409"""
+        response = self.client.patch('/subnets/%s' % self.subnet_sample.range,
+                data=self.patch_data_range_overlap)
+        self.assertEqual(response.status_code, 409)
+
     def test_subnets_get_usedcount_200_ok(self):
         """GET on /subnets/<ip/mask> with QUERY_STRING header 'used_count' should return 200 ok and data."""
-        ip_sample = Ipaddress(host=self.host_one, ipaddress='129.240.204.17')
+        ip_sample = Ipaddress(host=self.host_one, ipaddress='10.0.0.17')
         clean_and_save(ip_sample)
 
         response = self.client.get('/subnets/%s?used_count' % self.subnet_sample.range)
@@ -1239,16 +1243,16 @@ class APISubnetsTestCase(APITestCase):
 
     def test_subnets_get_usedlist_200_ok(self):
         """GET on /subnets/<ip/mask> with QUERY_STRING header 'used_list' should return 200 ok and data."""
-        ip_sample = Ipaddress(host=self.host_one, ipaddress='129.240.204.17')
+        ip_sample = Ipaddress(host=self.host_one, ipaddress='10.0.0.17')
         clean_and_save(ip_sample)
 
         response = self.client.get('/subnets/%s?used_list' % self.subnet_sample.range)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data, ['129.240.204.17'])
+        self.assertEqual(response.data, ['10.0.0.17'])
 
     def test_subnets_get_unusedcount_200_ok(self):
         """GET on /subnets/<ip/mask> with QUERY_STRING header 'unused_count' should return 200 ok and data."""
-        ip_sample = Ipaddress(host=self.host_one, ipaddress='129.240.204.17')
+        ip_sample = Ipaddress(host=self.host_one, ipaddress='10.0.0.17')
         clean_and_save(ip_sample)
 
         response = self.client.get('/subnets/%s?unused_count' % self.subnet_sample.range)
@@ -1257,7 +1261,7 @@ class APISubnetsTestCase(APITestCase):
 
     def test_subnets_get_unusedlist_200_ok(self):
         """GET on /subnets/<ip/mask> with QUERY_STRING header 'unused_list' should return 200 ok and data."""
-        ip_sample = Ipaddress(host=self.host_one, ipaddress='129.240.204.17')
+        ip_sample = Ipaddress(host=self.host_one, ipaddress='10.0.0.17')
         clean_and_save(ip_sample)
 
         response = self.client.get('/subnets/%s?unused_list' % self.subnet_sample.range)
@@ -1266,19 +1270,19 @@ class APISubnetsTestCase(APITestCase):
 
     def test_subnets_get_first_unused_200_ok(self):
         """GET on /subnets/<ip/mask> with QUERY_STRING header 'first_unused' should return 200 ok and data."""
-        ip_sample = Ipaddress(host=self.host_one, ipaddress='129.240.204.17')
+        ip_sample = Ipaddress(host=self.host_one, ipaddress='10.0.0.17')
         clean_and_save(ip_sample)
 
         response = self.client.get('/subnets/%s?first_unused' % self.subnet_sample.range)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data, '129.240.204.4')
+        self.assertEqual(response.data, '10.0.0.4')
 
     def test_subnets_get_reserved_list(self):
         """GET on /subnets/<ip/mask> with QUERY_STRING header 'reserved_list' should return 200 ok and data."""
         response = self.client.get('/subnets/%s?reserved_list' % self.subnet_sample.range)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data, ['129.240.204.0', '129.240.204.1',
-            '129.240.204.2', '129.240.204.3','129.240.204.255'])
+        self.assertEqual(response.data, ['10.0.0.0', '10.0.0.1',
+            '10.0.0.2', '10.0.0.3','10.0.0.255'])
 
     def test_subnets_delete_204_no_content(self):
         """Deleting an existing entry with no adresses in use should return 204"""
