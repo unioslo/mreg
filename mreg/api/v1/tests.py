@@ -1,5 +1,7 @@
+from django.contrib.auth.models import User
 from django.test import TestCase
 from django.utils import timezone
+from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient, APITestCase
 
 from mreg.models import (Cname, HinfoPreset, Host, Ipaddress, NameServer,
@@ -545,12 +547,20 @@ class ModelChangeLogTestCase(TestCase):
         self.assertNotEqual(old_count, new_count)
 
 
+def get_token_client():
+    user, created = User.objects.get_or_create(username='nobody')
+    token, created = Token.objects.get_or_create(user=user)
+    client = APIClient()
+    client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
+    return client
+
 class APIAutoupdateZonesTestCase(APITestCase):
     """This class tests the autoupdate of Zones' updated_at whenever
        various models are added/deleted/renamed/changed etc."""
 
     def setUp(self):
         """Add the a couple of zones and hosts for used in testing."""
+        self.client = get_token_client()
         self.host1 = {"name": "host1.example.org",
                       "ipaddress": "10.10.0.1",
                       "contact": "mail@example.org"}
@@ -614,7 +624,7 @@ class APIHostsTestCase(TestCase):
         clean_and_save(self.host_one)
         clean_and_save(self.host_two)
         clean_and_save(self.zone_sample)
-        self.client = APIClient()
+        self.client = get_token_client()
 
     def test_hosts_get_200_ok(self):
         """"Getting an existing entry should return 200"""
@@ -681,11 +691,12 @@ class APIHostsTestCase(TestCase):
         self.assertEqual(response.status_code, 409)
 
 
-class APIZonesTestCase(TestCase):
+class APIZonesTestCase(APITestCase):
     """"This class defines the test suite for api/zones """
 
     def setUp(self):
         """Define the test client and other variables."""
+        self.client = get_token_client()
         self.zone_one = Zone(
             name="matnat.uio.no",
             primary_ns="ns1.uio.no",
@@ -711,7 +722,6 @@ class APIZonesTestCase(TestCase):
         clean_and_save(self.ns_one)
         clean_and_save(self.ns_two)
         clean_and_save(self.zone_one)
-        self.client = APIClient()
 
     def test_zones_get_404_not_found(self):
         """"Getting a non-existing entry should return 404"""
@@ -782,18 +792,18 @@ class APIZonesTestCase(TestCase):
         """"Deleting an entry with registered entries should require force"""
 
 
-class APIZonesNsTestCase(TestCase):
+class APIZonesNsTestCase(APITestCase):
     """"This class defines the test suite for api/zones/<name>/nameservers/ """
 
     def setUp(self):
         """Define the test client and other variables."""
+        self.client = get_token_client()
         self.post_data = {'name': 'hf.uio.no', 'primary_ns': ['ns2.uio.no'],
                           'email': 'hostmaster@uio.no', 'refresh': 400, 'retry': 300, 'expire': 800, 'ttl': 350}
         self.ns_one = Host(name='ns1.uio.no', contact='mail@example.org')
         self.ns_two = Host(name='ns2.uio.no', contact='mail@example.org')
         clean_and_save(self.ns_one)
         clean_and_save(self.ns_two)
-        self.client = APIClient()
 
     def test_zones_ns_get_200_ok(self):
         """"Getting the list of nameservers of a existing zone should return 200"""
@@ -848,11 +858,12 @@ class APIZonesNsTestCase(TestCase):
         self.assertEqual(response.data, self.post_data['primary_ns'])
 
 
-class APIIPaddressesTestCase(TestCase):
+class APIIPaddressesTestCase(APITestCase):
     """This class defines the test suite for api/ipaddresses"""
 
     def setUp(self):
         """Define the test client and other test variables."""
+        self.client = get_token_client()
         self.host_one = Host(name='some-host.example.org',
                              contact='mail@example.org')
 
@@ -879,8 +890,6 @@ class APIIPaddressesTestCase(TestCase):
                                             'ipaddress': self.ipaddress_one.ipaddress}
         self.patch_data_ip = {'ipaddress': '129.240.203.198'}
         self.patch_bad_ip = {'ipaddress': '129.240.300.1'}
-
-        self.client = APIClient()
 
     def test_ipaddress_get_200_ok(self):
         """"Getting an existing entry should return 200"""
@@ -935,11 +944,12 @@ class APIIPaddressesTestCase(TestCase):
         self.assertEqual(response.status_code, 404)
 
 
-class APIMACaddressTestCase(TestCase):
+class APIMACaddressTestCase(APITestCase):
     """This class defines the test suite for api/ipaddresses with macadresses"""
 
     def setUp(self):
         """Define the test client and other test variables."""
+        self.client = get_token_client()
         self.host_one = Host(name='host1.example.org',
                              contact='mail@example.org')
 
@@ -970,7 +980,6 @@ class APIMACaddressTestCase(TestCase):
         self.patch_mac_in_use = {'macaddress': self.ipaddress_two.macaddress}
         self.patch_ip_and_mac = {'ipaddress': '10.0.0.13',
                                  'macaddress': 'aa:bb:cc:00:00:ff'}
-        self.client = APIClient()
 
     def test_mac_post_ip_with_mac_201_ok(self):
         """Post a new IP with MAC should return 201 ok."""
@@ -1047,6 +1056,7 @@ class APIMACaddressTestCase(TestCase):
 class APICnamesTestCase(APITestCase):
     """This class defines the test suite for api/cnames """
     def setUp(self):
+        self.client = get_token_client()
         self.zone_one = Zone(name='example.org',
                              primary_ns='ns.example.org',
                              email='hostmaster@example.org')
@@ -1106,10 +1116,11 @@ class APICnamesTestCase(APITestCase):
         self.assertEqual(response.status_code, 204)
 
 
-class APISubnetsTestCase(TestCase):
+class APISubnetsTestCase(APITestCase):
     """"This class defines the test suite for api/subnets """
     def setUp(self):
         """Define the test client and other variables."""
+        self.client = get_token_client()
         self.subnet_sample = Subnet(range='129.240.204.0/24',
                                     description='some description',
                                     vlan=123,
@@ -1169,7 +1180,6 @@ class APISubnetsTestCase(TestCase):
             'vlan': '435',
             'dns_delegated': 'False',
         }
-        self.client = APIClient()
 
     def test_subnets_post_201_created(self):
         """Posting a subnet should return 201"""
@@ -1289,11 +1299,12 @@ class APISubnetsTestCase(TestCase):
         self.assertEqual(response.status_code, 409)
 
 
-class APIModelChangeLogsTestCase(TestCase):
+class APIModelChangeLogsTestCase(APITestCase):
     """This class defines the test suite for api/history """
 
     def setUp(self):
         """Define the test client and other variables."""
+        self.client = get_token_client()
         self.host_one = Host(name='some-host.example.org',
                              contact='mail@example.org',
                              ttl=300,
@@ -1314,7 +1325,6 @@ class APIModelChangeLogsTestCase(TestCase):
                                             action='saved',
                                             timestamp=timezone.now())
         clean_and_save(self.log_entry_one)
-        self.client = APIClient()
 
     def test_history_get_200_OK(self):
         """Get on /history/ should return a list of table names that have entries, and 200 OK."""
