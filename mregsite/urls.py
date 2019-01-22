@@ -36,6 +36,7 @@ urlpatterns = [
     path('history/', views.ModelChangeLogList.as_view(), kwargs={'resource': 'model_change_logs'}),
     path('history/<table>/<pk>', views.ModelChangeLogDetail.as_view(), kwargs={'resource': 'model_change_logs'}),
     path('', include('mreg.api.v1.urls')),
+    path('api/', include('mreg.api.urls')),
     path('admin/', admin.site.urls),
     path('docs/', schema_view),
 ]
