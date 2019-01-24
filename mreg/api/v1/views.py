@@ -96,7 +96,9 @@ class MregRetrieveUpdateDestroyAPIView(ETAGMixin,
         serializer = serializer_class(obj, data=request.data, partial=True)
         if serializer.is_valid(raise_exception=True):
             serializer.save()
-            resource = self.kwargs['resource']
+            # Currently all APIs on root path. Must adjust if we move to /api/resource
+            # or /api/v1/resource etc.
+            resource = request.path.split("/")[1]
             location = '/%s/%s' % (resource, getattr(obj, self.lookup_field))
             return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
