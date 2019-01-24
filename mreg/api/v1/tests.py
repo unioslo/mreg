@@ -1214,6 +1214,7 @@ class APISubnetsTestCase(APITestCase):
         """Patching an entry with a non-overlapping range should return 204"""
         response = self.client.patch('/subnets/%s' % self.subnet_sample.range, data=self.patch_data_range)
         self.assertEqual(response.status_code, 204)
+        self.assertEqual(response['Location'], '/subnets/%s' % self.patch_data_range['range'])
 
     def test_subnets_patch_400_bad_request(self):
         """Patching with invalid data should return 400"""
@@ -1233,53 +1234,53 @@ class APISubnetsTestCase(APITestCase):
         self.assertEqual(response.status_code, 409)
 
     def test_subnets_get_usedcount_200_ok(self):
-        """GET on /subnets/<ip/mask> with QUERY_STRING header 'used_count' should return 200 ok and data."""
+        """GET on /subnets/<ip/mask>/used_count return 200 ok and data."""
         ip_sample = Ipaddress(host=self.host_one, ipaddress='10.0.0.17')
         clean_and_save(ip_sample)
 
-        response = self.client.get('/subnets/%s?used_count' % self.subnet_sample.range)
+        response = self.client.get('/subnets/%s/used_count' % self.subnet_sample.range)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, 1)
 
     def test_subnets_get_usedlist_200_ok(self):
-        """GET on /subnets/<ip/mask> with QUERY_STRING header 'used_list' should return 200 ok and data."""
+        """GET on /subnets/<ip/mask>/used_list should return 200 ok and data."""
         ip_sample = Ipaddress(host=self.host_one, ipaddress='10.0.0.17')
         clean_and_save(ip_sample)
 
-        response = self.client.get('/subnets/%s?used_list' % self.subnet_sample.range)
+        response = self.client.get('/subnets/%s/used_list' % self.subnet_sample.range)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, ['10.0.0.17'])
 
     def test_subnets_get_unusedcount_200_ok(self):
-        """GET on /subnets/<ip/mask> with QUERY_STRING header 'unused_count' should return 200 ok and data."""
+        """GET on /subnets/<ip/mask>/unused_count should return 200 ok and data."""
         ip_sample = Ipaddress(host=self.host_one, ipaddress='10.0.0.17')
         clean_and_save(ip_sample)
 
-        response = self.client.get('/subnets/%s?unused_count' % self.subnet_sample.range)
+        response = self.client.get('/subnets/%s/unused_count' % self.subnet_sample.range)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, 250)
 
     def test_subnets_get_unusedlist_200_ok(self):
-        """GET on /subnets/<ip/mask> with QUERY_STRING header 'unused_list' should return 200 ok and data."""
+        """GET on /subnets/<ip/mask>/unused_list should return 200 ok and data."""
         ip_sample = Ipaddress(host=self.host_one, ipaddress='10.0.0.17')
         clean_and_save(ip_sample)
 
-        response = self.client.get('/subnets/%s?unused_list' % self.subnet_sample.range)
+        response = self.client.get('/subnets/%s/unused_list' % self.subnet_sample.range)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 250)
 
     def test_subnets_get_first_unused_200_ok(self):
-        """GET on /subnets/<ip/mask> with QUERY_STRING header 'first_unused' should return 200 ok and data."""
+        """GET on /subnets/<ip/mask>/first_unused should return 200 ok and data."""
         ip_sample = Ipaddress(host=self.host_one, ipaddress='10.0.0.17')
         clean_and_save(ip_sample)
 
-        response = self.client.get('/subnets/%s?first_unused' % self.subnet_sample.range)
+        response = self.client.get('/subnets/%s/first_unused' % self.subnet_sample.range)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, '10.0.0.4')
 
     def test_subnets_get_reserved_list(self):
-        """GET on /subnets/<ip/mask> with QUERY_STRING header 'reserved_list' should return 200 ok and data."""
-        response = self.client.get('/subnets/%s?reserved_list' % self.subnet_sample.range)
+        """GET on /subnets/<ip/mask>/reserverd_list should return 200 ok and data."""
+        response = self.client.get('/subnets/%s/reserved_list' % self.subnet_sample.range)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, ['10.0.0.0', '10.0.0.1',
             '10.0.0.2', '10.0.0.3','10.0.0.255'])

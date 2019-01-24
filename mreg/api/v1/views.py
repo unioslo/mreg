@@ -470,6 +470,10 @@ class SubnetList(generics.ListAPIView):
         qs = super(SubnetList, self).get_queryset()
         return SubnetFilterSet(data=self.request.GET, queryset=qs).filter()
 
+def _get_subnet(kwargs):
+    iprange = _get_iprange(kwargs)
+    return get_object_or_404(Subnet, range=iprange)
+
 
 class SubnetDetail(MregRetrieveUpdateDestroyAPIView):
     """
@@ -488,37 +492,12 @@ class SubnetDetail(MregRetrieveUpdateDestroyAPIView):
     lookup_field = 'range'
 
     def get(self, request, queryset=queryset, *args, **kwargs):
-        iprange = _get_iprange(kwargs)
-        subnet = get_object_or_404(Subnet, range=iprange)
-
-        if request.META.get('QUERY_STRING') == 'used_count':
-            return Response(subnet.get_used_ipaddress_count(), status=status.HTTP_200_OK)
-        elif request.META.get('QUERY_STRING') == 'used_list':
-            used_ipaddresses = list(map(str, sorted(subnet.get_used_ipaddresses())))
-            return Response(used_ipaddresses, status=status.HTTP_200_OK)
-        elif request.META.get('QUERY_STRING') == 'unused_count':
-            unused_ipaddresses = subnet.get_unused_ipaddresses()
-            return Response(len(unused_ipaddresses), status=status.HTTP_200_OK)
-        elif request.META.get('QUERY_STRING') == 'unused_list':
-            unused_ipaddresses = list(map(str, sorted(subnet.get_unused_ipaddresses())))
-            return Response(unused_ipaddresses, status=status.HTTP_200_OK)
-        elif request.META.get('QUERY_STRING') == 'first_unused':
-            ip = subnet.get_first_unused()
-            if ip:
-                return Response(ip, status=status.HTTP_200_OK)
-            else:
-                content = {'ERROR': 'No available IPs'}
-                return Response(content, status=status.HTTP_404_NOT_FOUND)
-        elif request.META.get('QUERY_STRING') == 'reserved_list':
-            reserved = list(map(str, sorted(subnet.get_reserved_ipaddresses())))
-            return Response(reserved, status=status.HTTP_200_OK)
-
+        subnet = _get_subnet(kwargs)
         serializer = self.get_serializer(subnet)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def patch(self, request, *args, **kwargs):
-        iprange = _get_iprange(kwargs)
-        subnet = get_object_or_404(Subnet, range=iprange)
+        subnet = _get_subnet(kwargs)
         if 'range' in request.data:
             error = _overlap_check(request.data['range'], exclude=subnet)
             if error:
@@ -526,18 +505,63 @@ class SubnetDetail(MregRetrieveUpdateDestroyAPIView):
         serializer = self.get_serializer(subnet, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        location = '/subnets/%s' % iprange
+        location = '/subnets/%s' % subnet.range
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
     def delete(self, request, *args, **kwargs):
-        iprange = _get_iprange(kwargs)
-        subnet = get_object_or_404(Subnet, range=iprange)
+        subnet = _get_subnet(kwargs)
         used_ipaddresses = subnet.get_used_ipaddresses()
         if used_ipaddresses:
             return Response({'ERROR': 'Subnet contains IP addresses that are in use'}, status=status.HTTP_409_CONFLICT)
 
         subnet.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view()
+def subnet_first_unused(request, *args, **kwargs):
+    subnet = _get_subnet(kwargs)
+    ip = subnet.get_first_unused()
+    if ip:
+        return Response(ip, status=status.HTTP_200_OK)
+    else:
+        content = {'ERROR': 'No available IPs'}
+        return Response(content, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view()
+def subnet_reserved_list(request, *args, **kwargs):
+    subnet = _get_subnet(kwargs)
+    reserved = list(map(str, sorted(subnet.get_reserved_ipaddresses())))
+    return Response(reserved, status=status.HTTP_200_OK)
+
+
+@api_view()
+def subnet_used_count(request, *args, **kwargs):
+    subnet = _get_subnet(kwargs)
+    return Response(subnet.get_used_ipaddress_count(), status=status.HTTP_200_OK)
+
+
+@api_view()
+def subnet_used_list(request, *args, **kwargs):
+    subnet = _get_subnet(kwargs)
+    used_ipaddresses = list(map(str, sorted(subnet.get_used_ipaddresses())))
+    return Response(used_ipaddresses, status=status.HTTP_200_OK)
+
+
+@api_view()
+def subnet_unused_count(request, *args, **kwargs):
+    subnet = _get_subnet(kwargs)
+    unused_ipaddresses = subnet.get_unused_ipaddresses()
+    return Response(len(unused_ipaddresses), status=status.HTTP_200_OK)
+
+
+@api_view()
+def subnet_unused_list(request, *args, **kwargs):
+    subnet = _get_subnet(kwargs)
+    unused_ipaddresses = list(map(str, sorted(subnet.get_unused_ipaddresses())))
+    return Response(unused_ipaddresses, status=status.HTTP_200_OK)
+
 
 
 class TxtList(generics.ListCreateAPIView):
