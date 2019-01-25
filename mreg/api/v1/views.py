@@ -543,6 +543,16 @@ def subnet_first_unused(request, *args, **kwargs):
 
 
 @api_view()
+def subnet_ptroverride_list(request, *args, **kwargs):
+    subnet = _get_subnet(kwargs)
+    from_ip = str(subnet.network.network_address)
+    to_ip = str(subnet.network.broadcast_address)
+    ptrs = PtrOverride.objects.filter(ipaddress__range=(from_ip, to_ip))
+    ptr_list = [ i.ipaddress for i in ptrs ]
+    return Response(ptr_list, status=status.HTTP_200_OK)
+
+
+@api_view()
 def subnet_reserved_list(request, *args, **kwargs):
     subnet = _get_subnet(kwargs)
     reserved = list(map(str, sorted(subnet.get_reserved_ipaddresses())))

@@ -1289,6 +1289,17 @@ class APISubnetsTestCase(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, '10.0.0.4')
 
+    def test_subnets_get_ptroverride_list(self):
+        """GET on /subnets/<ip/mask>/ptroverride_list should return 200 ok and data."""
+        response = self.client.get('/subnets/%s/ptroverride_list' % self.subnet_sample.range)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, [])
+        ptr = PtrOverride(host=self.host_one, ipaddress='10.0.0.10')
+        clean_and_save(ptr)
+        response = self.client.get('/subnets/%s/ptroverride_list' % self.subnet_sample.range)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, ['10.0.0.10'])
+
     def test_subnets_get_reserved_list(self):
         """GET on /subnets/<ip/mask>/reserverd_list should return 200 ok and data."""
         response = self.client.get('/subnets/%s/reserved_list' % self.subnet_sample.range)
