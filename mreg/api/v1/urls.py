@@ -23,6 +23,7 @@ urlpatterns = [
     path('srvs/', views.SrvList.as_view()),
     path('srvs/<pk>', views.SrvDetail.as_view()),
     path('subnets/', views.SubnetList.as_view()),
+    path('subnets/ip/<ip>', views.subnet_by_ip),
     path('subnets/<ip>/<range>', views.SubnetDetail.as_view()),
     path('subnets/<ip>/<range>/first_unused', views.subnet_first_unused),
     path('subnets/<ip>/<range>/reserved_list', views.subnet_reserved_list),
