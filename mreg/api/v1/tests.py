@@ -1233,6 +1233,17 @@ class APISubnetsTestCase(APITestCase):
                 data=self.patch_data_range_overlap)
         self.assertEqual(response.status_code, 409)
 
+    def test_subnets_get_subnet_by_ip_200_ok(self):
+        """GET on an ip in a known subnet should return 200 OK."""
+        response = self.client.get('/subnets/ip/10.0.0.5')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['range'], self.subnet_sample.range)
+
+    def test_subnets_get_subnet_unknown_by_ip_404_not_found(self):
+        """GET on on an IP in a unknown subnet should return 404 not found."""
+        response = self.client.get('/subnets/ip/127.0.0.1')
+        self.assertEqual(response.status_code, 404)
+
     def test_subnets_get_usedcount_200_ok(self):
         """GET on /subnets/<ip/mask>/used_count return 200 ok and data."""
         ip_sample = Ipaddress(host=self.host_one, ipaddress='10.0.0.17')

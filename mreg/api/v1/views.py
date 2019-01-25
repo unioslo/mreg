@@ -517,6 +517,19 @@ class SubnetDetail(MregRetrieveUpdateDestroyAPIView):
         subnet.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+@api_view()
+def subnet_by_ip(request, *args, **kwargs):
+    try:
+        ip = ipaddress.ip_address(kwargs['ip'])
+    except ValueError as error:
+        raise ParseError(detail=str(error))
+    subnet = Subnet.get_subnet_by_ip(str(ip))
+    if subnet:
+        serializer = SubnetSerializer(subnet)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    else:
+        raise Http404
+
 
 @api_view()
 def subnet_first_unused(request, *args, **kwargs):
