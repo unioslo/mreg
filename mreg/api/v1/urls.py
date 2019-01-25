@@ -26,6 +26,7 @@ urlpatterns = [
     path('subnets/ip/<ip>', views.subnet_by_ip),
     path('subnets/<ip>/<range>', views.SubnetDetail.as_view()),
     path('subnets/<ip>/<range>/first_unused', views.subnet_first_unused),
+    path('subnets/<ip>/<range>/ptroverride_list', views.subnet_ptroverride_list),
     path('subnets/<ip>/<range>/reserved_list', views.subnet_reserved_list),
     path('subnets/<ip>/<range>/used_count', views.subnet_used_count),
     path('subnets/<ip>/<range>/used_list', views.subnet_used_list),
