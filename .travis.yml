@@ -1,0 +1,10 @@
+language: python
+python:
+  - 3.6
+services:
+  - postgresql
+before_script:
+  - python manage.py migrate
+  - python manage.py loaddata mreg/fixtures/fixtures.json
+script:
+  - python manage.py test
