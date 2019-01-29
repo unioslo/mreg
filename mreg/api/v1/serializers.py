@@ -4,7 +4,7 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from mreg.models import (Cname, HinfoPreset, Host, Ipaddress, NameServer,
-        Naptr, PtrOverride, Srv, Subnet, Txt, Zone, ModelChangeLog)
+        Naptr, PtrOverride, Srv, Network, Txt, Zone, ModelChangeLog)
 from mreg.utils import (create_serialno, nonify)
 from mreg.validators import (validate_keys, validate_ttl)
 
@@ -89,10 +89,10 @@ class IpaddressSerializer(ValidationMixin, serializers.ModelSerializer):
     def validate(self, data):
         """
         Make sure a macaddress are semi-unique:
-        - Unique if the IP is not in a subnet.
-        - Only in use by one IP per subnet.
-        - If the subnet has a vlan id, make sure it is only in use by one of
-          the subnets on the same vlan. Exception: allow both a ipv4 and ipv6
+        - Unique if the IP is not in a network.
+        - Only in use by one IP per network.
+        - If the network has a vlan id, make sure it is only in use by one of
+          the networks on the same vlan. Exception: allow both a ipv4 and ipv6
           address on the same vlan to share the same mac address.
         """
 
@@ -112,21 +112,21 @@ class IpaddressSerializer(ValidationMixin, serializers.ModelSerializer):
                 if self.instance.macaddress == mac and \
                    self.instance.ipaddress == macip:
                     return data
-            subnet = Subnet.get_subnet_by_ip(macip)
-            if not subnet:
+            network = Network.get_network_by_ip(macip)
+            if not network:
                 # XXX: what to do? Currently just make sure it is a unique mac
                 _raise_if_mac_found(Ipaddress.objects, mac)
                 return data
-            if subnet.vlan:
-                subnets = Subnet.objects.filter(vlan=subnet.vlan)
+            if network.vlan:
+                networks = Network.objects.filter(vlan=network.vlan)
             else:
-                subnets = [subnet]
+                networks = [network]
             ipversion = ipaddress.ip_address(macip).version
-            for subnet in subnets:
+            for network in networks:
                 # Allow mac to be bound to both an ipv4 and ipv6 address on the same vlan
-                if ipversion != subnet.network.version:
+                if ipversion != network.network.version:
                     continue
-                ips = subnet._get_used_ipaddresses()
+                ips = network._get_used_ipaddresses()
                 _raise_if_mac_found(ips, mac)
         return data
 
@@ -208,13 +208,13 @@ class SrvSerializer(ForwardZoneMixin, serializers.ModelSerializer):
         fields = '__all__'
 
 
-class SubnetSerializer(ValidationMixin, serializers.ModelSerializer):
+class NetworkSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
-        model = Subnet
+        model = Network
         fields = '__all__'
 
     def create(self):
-        return Subnet(**self.validated_data)
+        return Network(**self.validated_data)
 
 
 class ZoneSerializer(ValidationMixin, serializers.ModelSerializer):

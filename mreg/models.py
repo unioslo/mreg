@@ -303,7 +303,7 @@ class Cname(ZoneMember):
         return '{name:24} {ttl:5} IN {record_type:6} {record_data:39}\n'.format_map(data)
 
 
-class Subnet(models.Model):
+class Network(models.Model):
     range = models.TextField(unique=True, validators=[validate_network])
     description = models.TextField(blank=True)
     vlan = models.IntegerField(blank=True, null=True)
@@ -314,7 +314,7 @@ class Subnet(models.Model):
     reserved = models.PositiveIntegerField(default=3)
 
     class Meta:
-        db_table = 'subnet'
+        db_table = 'network'
         ordering = ('range',)
 
     def __str__(self):
@@ -325,13 +325,13 @@ class Subnet(models.Model):
         return ipaddress.ip_network(self.range)
 
     def get_reserved_ipaddresses(self):
-        """ Returns a set with the reserved ip addresses for the subnet."""
-        subnet = self.network
-        ret = set([subnet.network_address])
-        for i, ip in zip(range(self.reserved), subnet.hosts()):
+        """ Returns a set with the reserved ip addresses for the network."""
+        network = self.network
+        ret = set([network.network_address])
+        for i, ip in zip(range(self.reserved), network.hosts()):
             ret.add(ip)
-        if isinstance(subnet, ipaddress.IPv4Network):
-            ret.add(subnet.broadcast_address)
+        if isinstance(network, ipaddress.IPv4Network):
+            ret.add(network.broadcast_address)
         return ret
 
     def _get_used_ipaddresses(self):
@@ -343,7 +343,7 @@ class Subnet(models.Model):
 
     def get_used_ipaddresses(self):
         """
-        Returns the used ipaddress on the subnet.
+        Returns the used ipaddress on the network.
         """
         ips = self._get_used_ipaddresses()
         used = {ipaddress.ip_address(i.ipaddress) for i in ips}
@@ -351,13 +351,13 @@ class Subnet(models.Model):
 
     def get_used_ipaddress_count(self):
         """
-        Returns the number of used ipaddreses on the subnet.
+        Returns the number of used ipaddreses on the network.
         """
         return self._get_used_ipaddresses().count()
 
     def get_unused_ipaddresses(self):
         """
-        Returns which ip-addresses on the subnet are unused.
+        Returns which ip-addresses on the network are unused.
         """
         network_ips = []
         if isinstance(self.network, ipaddress.IPv6Network):
@@ -390,19 +390,19 @@ class Subnet(models.Model):
         return None
 
     @staticmethod
-    def overlap_check(subnet):
+    def overlap_check(network):
         """
-        Check if a subnet overlaps existing subnet(s).
-        Return a list of overlapped subnets.
+        Check if a network overlaps existing network(s).
+        Return a list of overlapped networks.
         """
         where = [ "range::inet && inet %s" ]
-        return Subnet.objects.extra(where=where, params=[str(subnet)])
+        return Network.objects.extra(where=where, params=[str(network)])
 
     @staticmethod
-    def get_subnet_by_ip(ip):
-        """Search and return a subnet which contains an IP address."""
+    def get_network_by_ip(ip):
+        """Search and return a network which contains an IP address."""
         where = [ "inet %s <<= range::inet" ]
-        return Subnet.objects.extra(where=where, params=[str(ip)]).first()
+        return Network.objects.extra(where=where, params=[str(ip)]).first()
 
 class Naptr(models.Model):
     host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='naptrs')

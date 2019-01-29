@@ -5,7 +5,7 @@ from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient, APITestCase
 
 from mreg.models import (Cname, HinfoPreset, Host, Ipaddress, NameServer,
-        Naptr, PtrOverride, Srv, Subnet, Txt, Zone, ModelChangeLog)
+        Naptr, PtrOverride, Srv, Network, Txt, Zone, ModelChangeLog)
 from mreg.utils import create_serialno
 
 def clean_and_save(entity):
@@ -153,12 +153,12 @@ class ModelNameServerTestCase(TestCase):
         self.assertNotEqual(old_count, new_count)
 
 
-class ModelSubnetTestCase(TestCase):
-    """This class defines the test suite for the Subnet model."""
+class ModelNetworkTestCase(TestCase):
+    """This class defines the test suite for the Network model."""
 
     def setUp(self):
         """Define the test client and other test variables."""
-        self.subnet_sample = Subnet(range='10.0.0.0/20',
+        self.network_sample = Network(range='10.0.0.0/20',
                                     description='some description',
                                     vlan=123,
                                     dns_delegated=False,
@@ -167,28 +167,28 @@ class ModelSubnetTestCase(TestCase):
                                     frozen=False)
 
     def test_model_can_create_ns(self):
-        """Test that the model is able to create a Subnet."""
-        old_count = Subnet.objects.count()
-        clean_and_save(self.subnet_sample)
-        new_count = Subnet.objects.count()
+        """Test that the model is able to create a Network."""
+        old_count = Network.objects.count()
+        clean_and_save(self.network_sample)
+        new_count = Network.objects.count()
         self.assertNotEqual(old_count, new_count)
 
     def test_model_can_change_ns(self):
-        """Test that the model is able to change a Subnet."""
-        clean_and_save(self.subnet_sample)
+        """Test that the model is able to change a Network."""
+        clean_and_save(self.network_sample)
         new_vlan = 321
-        subnet_sample_id = self.subnet_sample.id
-        self.subnet_sample.vlan = new_vlan
-        clean_and_save(self.subnet_sample)
-        updated_vlan = Subnet.objects.get(pk=subnet_sample_id).vlan
+        network_sample_id = self.network_sample.id
+        self.network_sample.vlan = new_vlan
+        clean_and_save(self.network_sample)
+        updated_vlan = Network.objects.get(pk=network_sample_id).vlan
         self.assertEqual(new_vlan, updated_vlan)
 
     def test_model_can_delete_ns(self):
-        """Test that the model is able to delete a Subnet."""
-        clean_and_save(self.subnet_sample)
-        old_count = Subnet.objects.count()
-        self.subnet_sample.delete()
-        new_count = Subnet.objects.count()
+        """Test that the model is able to delete a Network."""
+        clean_and_save(self.network_sample)
+        old_count = Network.objects.count()
+        self.network_sample.delete()
+        new_count = Network.objects.count()
         self.assertNotEqual(old_count, new_count)
 
 
@@ -197,20 +197,20 @@ class ModelIpaddressTestCase(TestCase):
 
     def setUp(self):
         """Define the test client and other test variables."""
-        # Needs sample host and sample subnet to test properly
+        # Needs sample host and sample network to test properly
         self.host_one = Host(name='some-host.example.org',
                              contact='mail@example.org',
                              ttl=300,
                              loc='23 58 23 N 10 43 50 E 80m',
                              comment='some comment')
 
-        self.subnet_sample = Subnet(range='129.240.202.0/20',
+        self.network_sample = Network(range='129.240.202.0/20',
                                     description='some description',
                                     vlan=123,
                                     dns_delegated=False)
 
         clean_and_save(self.host_one)
-        # clean_and_save(self.subnet_sample) # Needed when subnet ForeignKey is implemented.
+        # clean_and_save(self.network_sample) # Needed when network ForeignKey is implemented.
 
         self.ipaddress_sample = Ipaddress(host=Host.objects.get(name='some-host.example.org'),
                                           ipaddress='129.240.202.123',
@@ -1022,20 +1022,20 @@ class APIMACaddressTestCase(APITestCase):
                                     self.patch_ip_and_mac)
         self.assertEqual(response.status_code, 200)
 
-    def test_mac_with_subnet(self):
-        self.subnet_one = Subnet(range='10.0.0.0/24')
-        clean_and_save(self.subnet_one)
+    def test_mac_with_network(self):
+        self.network_one = Network(range='10.0.0.0/24')
+        clean_and_save(self.network_one)
         self.test_mac_post_ip_with_mac_201_ok()
         self.test_mac_patch_ip_and_mac_200_ok()
         self.test_mac_patch_mac_200_ok()
 
-    def test_mac_with_subnet_vlan(self):
-        self.subnet_one = Subnet(range='10.0.0.0/24', vlan=10)
-        self.subnet_two = Subnet(range='10.0.1.0/24', vlan=10)
-        self.subnet_ipv6 = Subnet(range='2001:db8:1::/64', vlan=10)
-        clean_and_save(self.subnet_one)
-        clean_and_save(self.subnet_two)
-        clean_and_save(self.subnet_ipv6)
+    def test_mac_with_network_vlan(self):
+        self.network_one = Network(range='10.0.0.0/24', vlan=10)
+        self.network_two = Network(range='10.0.1.0/24', vlan=10)
+        self.network_ipv6 = Network(range='2001:db8:1::/64', vlan=10)
+        clean_and_save(self.network_one)
+        clean_and_save(self.network_two)
+        clean_and_save(self.network_ipv6)
         self.test_mac_post_ip_with_mac_201_ok()
         self.test_mac_patch_ip_and_mac_200_ok()
         self.test_mac_patch_mac_200_ok()
@@ -1116,19 +1116,19 @@ class APICnamesTestCase(APITestCase):
         self.assertEqual(response.status_code, 204)
 
 
-class APISubnetsTestCase(APITestCase):
-    """"This class defines the test suite for api/subnets """
+class APINetworksTestCase(APITestCase):
+    """"This class defines the test suite for api/networks """
     def setUp(self):
         """Define the test client and other variables."""
         self.client = get_token_client()
-        self.subnet_sample = Subnet(range='10.0.0.0/24',
+        self.network_sample = Network(range='10.0.0.0/24',
                                     description='some description',
                                     vlan=123,
                                     dns_delegated=False,
                                     category='so',
                                     location='Location 1',
                                     frozen=False)
-        self.subnet_sample_two = Subnet(range='10.0.1.0/28',
+        self.network_sample_two = Network(range='10.0.1.0/28',
                                         description='some description',
                                         vlan=135,
                                         dns_delegated=False,
@@ -1139,11 +1139,11 @@ class APISubnetsTestCase(APITestCase):
         self.host_one = Host(name='some-host.example.org',
                              contact='mail@example.org')
         clean_and_save(self.host_one)
-        clean_and_save(self.subnet_sample)
-        clean_and_save(self.subnet_sample_two)
+        clean_and_save(self.network_sample)
+        clean_and_save(self.network_sample_two)
 
         self.patch_data = {
-            'description': 'Test subnet',
+            'description': 'Test network',
             'vlan': '435',
             'dns_delegated': 'False',
             'category': 'si',
@@ -1156,173 +1156,173 @@ class APISubnetsTestCase(APITestCase):
 
         self.post_data = {
             'range': '192.0.2.0/29',
-            'description': 'Test subnet',
+            'description': 'Test network',
             'vlan': '435',
             'dns_delegated': 'False',
         }
         self.post_data_bad_ip = {
             'range': '192.0.2.0.95/29',
-            'description': 'Test subnet',
+            'description': 'Test network',
             'vlan': '435',
             'dns_delegated': 'False',
         }
         self.post_data_bad_mask = {
             'range': '192.0.2.0/2549',
-            'description': 'Test subnet',
+            'description': 'Test network',
             'vlan': '435',
             'dns_delegated': 'False',
         }
         self.post_data_overlap = {
             'range': '10.0.1.0/29',
-            'description': 'Test subnet',
+            'description': 'Test network',
             'vlan': '435',
             'dns_delegated': 'False',
         }
 
-    def test_subnets_post_201_created(self):
-        """Posting a subnet should return 201"""
-        response = self.client.post('/subnets/', self.post_data)
+    def test_networks_post_201_created(self):
+        """Posting a network should return 201"""
+        response = self.client.post('/networks/', self.post_data)
         self.assertEqual(response.status_code, 201)
 
-    def test_subnets_post_400_bad_request_ip(self):
-        """Posting a subnet with a range that has a malformed IP should return 400"""
-        response = self.client.post('/subnets/', self.post_data_bad_ip)
+    def test_networks_post_400_bad_request_ip(self):
+        """Posting a network with a range that has a malformed IP should return 400"""
+        response = self.client.post('/networks/', self.post_data_bad_ip)
         self.assertEqual(response.status_code, 400)
 
-    def test_subnets_post_400_bad_request_mask(self):
-        """Posting a subnet with a range that has a malformed mask should return 400"""
-        response = self.client.post('/subnets/', self.post_data_bad_mask)
+    def test_networks_post_400_bad_request_mask(self):
+        """Posting a network with a range that has a malformed mask should return 400"""
+        response = self.client.post('/networks/', self.post_data_bad_mask)
         self.assertEqual(response.status_code, 400)
 
-    def test_subnets_post_409_overlap_conflict(self):
-        """Posting a subnet with a range which overlaps existing should return 409"""
-        response = self.client.post('/subnets/', self.post_data_overlap)
+    def test_networks_post_409_overlap_conflict(self):
+        """Posting a network with a range which overlaps existing should return 409"""
+        response = self.client.post('/networks/', self.post_data_overlap)
         self.assertEqual(response.status_code, 409)
 
-    def test_subnets_get_200_ok(self):
+    def test_networks_get_200_ok(self):
         """GET on an existing ip-range should return 200 OK."""
-        response = self.client.get('/subnets/%s' % self.subnet_sample.range)
+        response = self.client.get('/networks/%s' % self.network_sample.range)
         self.assertEqual(response.status_code, 200)
 
-    def test_subnets_patch_204_no_content(self):
+    def test_networks_patch_204_no_content(self):
         """Patching an existing and valid entry should return 204 and Location"""
-        response = self.client.patch('/subnets/%s' % self.subnet_sample.range, self.patch_data)
+        response = self.client.patch('/networks/%s' % self.network_sample.range, self.patch_data)
         self.assertEqual(response.status_code, 204)
-        self.assertEqual(response['Location'], '/subnets/%s' % self.subnet_sample.range)
+        self.assertEqual(response['Location'], '/networks/%s' % self.network_sample.range)
 
-    def test_subnets_patch_204_non_overlapping_range(self):
+    def test_networks_patch_204_non_overlapping_range(self):
         """Patching an entry with a non-overlapping range should return 204"""
-        response = self.client.patch('/subnets/%s' % self.subnet_sample.range, data=self.patch_data_range)
+        response = self.client.patch('/networks/%s' % self.network_sample.range, data=self.patch_data_range)
         self.assertEqual(response.status_code, 204)
-        self.assertEqual(response['Location'], '/subnets/%s' % self.patch_data_range['range'])
+        self.assertEqual(response['Location'], '/networks/%s' % self.patch_data_range['range'])
 
-    def test_subnets_patch_400_bad_request(self):
+    def test_networks_patch_400_bad_request(self):
         """Patching with invalid data should return 400"""
-        response = self.client.patch('/subnets/%s' % self.subnet_sample.range,
+        response = self.client.patch('/networks/%s' % self.network_sample.range,
                                      data={'this': 'is', 'so': 'wrong'})
         self.assertEqual(response.status_code, 400)
 
-    def test_subnets_patch_404_not_found(self):
+    def test_networks_patch_404_not_found(self):
         """Patching a non-existing entry should return 404"""
-        response = self.client.patch('/subnets/193.101.168.0/29', self.patch_data)
+        response = self.client.patch('/networks/193.101.168.0/29', self.patch_data)
         self.assertEqual(response.status_code, 404)
 
-    def test_subnets_patch_409_forbidden_range(self):
+    def test_networks_patch_409_forbidden_range(self):
         """Patching an entry with an overlapping range should return 409"""
-        response = self.client.patch('/subnets/%s' % self.subnet_sample.range,
+        response = self.client.patch('/networks/%s' % self.network_sample.range,
                 data=self.patch_data_range_overlap)
         self.assertEqual(response.status_code, 409)
 
-    def test_subnets_get_subnet_by_ip_200_ok(self):
-        """GET on an ip in a known subnet should return 200 OK."""
-        response = self.client.get('/subnets/ip/10.0.0.5')
+    def test_networks_get_network_by_ip_200_ok(self):
+        """GET on an ip in a known network should return 200 OK."""
+        response = self.client.get('/networks/ip/10.0.0.5')
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data['range'], self.subnet_sample.range)
+        self.assertEqual(response.data['range'], self.network_sample.range)
 
-    def test_subnets_get_subnet_unknown_by_ip_404_not_found(self):
-        """GET on on an IP in a unknown subnet should return 404 not found."""
-        response = self.client.get('/subnets/ip/127.0.0.1')
+    def test_networks_get_network_unknown_by_ip_404_not_found(self):
+        """GET on on an IP in a unknown network should return 404 not found."""
+        response = self.client.get('/networks/ip/127.0.0.1')
         self.assertEqual(response.status_code, 404)
 
-    def test_subnets_get_usedcount_200_ok(self):
-        """GET on /subnets/<ip/mask>/used_count return 200 ok and data."""
+    def test_networks_get_usedcount_200_ok(self):
+        """GET on /networks/<ip/mask>/used_count return 200 ok and data."""
         ip_sample = Ipaddress(host=self.host_one, ipaddress='10.0.0.17')
         clean_and_save(ip_sample)
 
-        response = self.client.get('/subnets/%s/used_count' % self.subnet_sample.range)
+        response = self.client.get('/networks/%s/used_count' % self.network_sample.range)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, 1)
 
-    def test_subnets_get_usedlist_200_ok(self):
-        """GET on /subnets/<ip/mask>/used_list should return 200 ok and data."""
+    def test_networks_get_usedlist_200_ok(self):
+        """GET on /networks/<ip/mask>/used_list should return 200 ok and data."""
         ip_sample = Ipaddress(host=self.host_one, ipaddress='10.0.0.17')
         clean_and_save(ip_sample)
 
-        response = self.client.get('/subnets/%s/used_list' % self.subnet_sample.range)
+        response = self.client.get('/networks/%s/used_list' % self.network_sample.range)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, ['10.0.0.17'])
 
-    def test_subnets_get_unusedcount_200_ok(self):
-        """GET on /subnets/<ip/mask>/unused_count should return 200 ok and data."""
+    def test_networks_get_unusedcount_200_ok(self):
+        """GET on /networks/<ip/mask>/unused_count should return 200 ok and data."""
         ip_sample = Ipaddress(host=self.host_one, ipaddress='10.0.0.17')
         clean_and_save(ip_sample)
 
-        response = self.client.get('/subnets/%s/unused_count' % self.subnet_sample.range)
+        response = self.client.get('/networks/%s/unused_count' % self.network_sample.range)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, 250)
 
-    def test_subnets_get_unusedlist_200_ok(self):
-        """GET on /subnets/<ip/mask>/unused_list should return 200 ok and data."""
+    def test_networks_get_unusedlist_200_ok(self):
+        """GET on /networks/<ip/mask>/unused_list should return 200 ok and data."""
         ip_sample = Ipaddress(host=self.host_one, ipaddress='10.0.0.17')
         clean_and_save(ip_sample)
 
-        response = self.client.get('/subnets/%s/unused_list' % self.subnet_sample.range)
+        response = self.client.get('/networks/%s/unused_list' % self.network_sample.range)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 250)
 
-    def test_subnets_get_first_unused_200_ok(self):
-        """GET on /subnets/<ip/mask>/first_unused should return 200 ok and data."""
+    def test_networks_get_first_unused_200_ok(self):
+        """GET on /networks/<ip/mask>/first_unused should return 200 ok and data."""
         ip_sample = Ipaddress(host=self.host_one, ipaddress='10.0.0.17')
         clean_and_save(ip_sample)
 
-        response = self.client.get('/subnets/%s/first_unused' % self.subnet_sample.range)
+        response = self.client.get('/networks/%s/first_unused' % self.network_sample.range)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, '10.0.0.4')
 
-    def test_subnets_get_ptroverride_list(self):
-        """GET on /subnets/<ip/mask>/ptroverride_list should return 200 ok and data."""
-        response = self.client.get('/subnets/%s/ptroverride_list' % self.subnet_sample.range)
+    def test_networks_get_ptroverride_list(self):
+        """GET on /networks/<ip/mask>/ptroverride_list should return 200 ok and data."""
+        response = self.client.get('/networks/%s/ptroverride_list' % self.network_sample.range)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, [])
         ptr = PtrOverride(host=self.host_one, ipaddress='10.0.0.10')
         clean_and_save(ptr)
-        response = self.client.get('/subnets/%s/ptroverride_list' % self.subnet_sample.range)
+        response = self.client.get('/networks/%s/ptroverride_list' % self.network_sample.range)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, ['10.0.0.10'])
 
-    def test_subnets_get_reserved_list(self):
-        """GET on /subnets/<ip/mask>/reserverd_list should return 200 ok and data."""
-        response = self.client.get('/subnets/%s/reserved_list' % self.subnet_sample.range)
+    def test_networks_get_reserved_list(self):
+        """GET on /networks/<ip/mask>/reserverd_list should return 200 ok and data."""
+        response = self.client.get('/networks/%s/reserved_list' % self.network_sample.range)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, ['10.0.0.0', '10.0.0.1',
             '10.0.0.2', '10.0.0.3','10.0.0.255'])
 
-    def test_subnets_delete_204_no_content(self):
+    def test_networks_delete_204_no_content(self):
         """Deleting an existing entry with no adresses in use should return 204"""
-        response = self.client.post('/subnets/', self.post_data)
+        response = self.client.post('/networks/', self.post_data)
         self.assertEqual(response.status_code, 201)
-        response = self.client.delete('/subnets/%s' % self.post_data['range'])
+        response = self.client.delete('/networks/%s' % self.post_data['range'])
         self.assertEqual(response.status_code, 204)
 
-    def test_subnets_delete_409_conflict(self):
+    def test_networks_delete_409_conflict(self):
         """Deleting an existing entry with  adresses in use should return 409"""
-        response = self.client.post('/subnets/', self.post_data)
+        response = self.client.post('/networks/', self.post_data)
         self.assertEqual(response.status_code, 201)
 
         ip_sample = Ipaddress(host=self.host_one, ipaddress='192.0.2.1')
         clean_and_save(ip_sample)
 
-        response = self.client.delete('/subnets/%s' % self.post_data['range'])
+        response = self.client.delete('/networks/%s' % self.post_data['range'])
         self.assertEqual(response.status_code, 409)
 
 
