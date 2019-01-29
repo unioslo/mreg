@@ -17,10 +17,10 @@ from url_filter.filtersets import ModelFilterSet
 from mreg.api.v1.serializers import (CnameSerializer, HinfoPresetSerializer,
         HostNameSerializer, HostSerializer, HostSaveSerializer,
         IpaddressSerializer, NameServerSerializer, NaptrSerializer,
-        PtrOverrideSerializer, SrvSerializer, SubnetSerializer, TxtSerializer,
+        PtrOverrideSerializer, SrvSerializer, NetworkSerializer, TxtSerializer,
         ZoneSerializer, ModelChangeLogSerializer)
 from mreg.models import (Cname, HinfoPreset, Host, Ipaddress, NameServer,
-        Naptr, PtrOverride, Srv, Subnet, Txt, Zone, ModelChangeLog)
+        Naptr, PtrOverride, Srv, Network, Txt, Zone, ModelChangeLog)
 from mreg.utils import create_serialno
 
 from .zonefile import ZoneFile
@@ -67,9 +67,9 @@ class SrvFilterSet(ModelFilterSet):
         model = Srv
 
 
-class SubnetFilterSet(ModelFilterSet):
+class NetworkFilterSet(ModelFilterSet):
     class Meta(object):
-        model = Subnet
+        model = Network
 
 
 class TxtFilterSet(ModelFilterSet):
@@ -427,114 +427,114 @@ def _overlap_check(range, exclude=None):
     except ValueError as error:
         raise ParseError(detail=str(error))
 
-    overlap = Subnet.overlap_check(network)
+    overlap = Network.overlap_check(network)
     if exclude:
         overlap = overlap.exclude(id=exclude.id)
     if overlap:
         info = ", ".join(map(str,overlap))
-        return Response({'ERROR': 'Subnet overlaps with: {}'.format(info)},
+        return Response({'ERROR': 'Network overlaps with: {}'.format(info)},
                         status=status.HTTP_409_CONFLICT)
 
-class SubnetList(generics.ListAPIView):
+class NetworkList(generics.ListAPIView):
     """
     list:
-    Returns a list of subnets
+    Returns a list of networks
 
     post:
-    Create a new subnet. The new subnet can't overlap with any existing subnets.
+    Create a new network. The new network can't overlap with any existing networks.
     """
-    queryset = Subnet.objects.all()
-    serializer_class = SubnetSerializer
+    queryset = Network.objects.all()
+    serializer_class = NetworkSerializer
 
     def post(self, request, *args, **kwargs):
         error = _overlap_check(request.data['range'])
         if error:
             return error
-        network = ipaddress.ip_network(request.data['range'])
+        ip_network = ipaddress.ip_network(request.data['range'])
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        subnet = serializer.create()
-        # Changed the default value of reserved if the size of the subnet is too low
-        if network.num_addresses <= 4:
-            subnet.reserved = min(2, network.num_addresses)
-        subnet.save()
-        location = '/subnets/%s' % request.data
+        network = serializer.create()
+        # Changed the default value of reserved if the size of the network is too low
+        if ip_network.num_addresses <= 4:
+            network.reserved = min(2, ip_network.num_addresses)
+        network.save()
+        location = '/networks/%s' % request.data
         return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
 
 
     def get_queryset(self):
         """
         Applies filtering to the queryset
-        :return: filtered list of subnets
+        :return: filtered list of networks
         """
-        qs = super(SubnetList, self).get_queryset()
-        return SubnetFilterSet(data=self.request.GET, queryset=qs).filter()
+        qs = super(NetworkList, self).get_queryset()
+        return NetworkFilterSet(data=self.request.GET, queryset=qs).filter()
 
-def _get_subnet(kwargs):
+def _get_network(kwargs):
     iprange = _get_iprange(kwargs)
-    return get_object_or_404(Subnet, range=iprange)
+    return get_object_or_404(Network, range=iprange)
 
 
-class SubnetDetail(MregRetrieveUpdateDestroyAPIView):
+class NetworkDetail(MregRetrieveUpdateDestroyAPIView):
     """
     get:
-    List details for a subnet. Query parameter ?used_list returns list of used IP addresses on the subnet
+    List details for a network. Query parameter ?used_list returns list of used IP addresses on the network
 
     patch:
-    Partially update a subnet. Updating a zone's range is not allowed
+    Partially update a network. Updating a zone's range is not allowed
 
     delete:
-    Deletes a subnet unless it has IP addresses that are still in use
+    Deletes a network unless it has IP addresses that are still in use
     """
-    queryset = Subnet.objects.all()
-    serializer_class = SubnetSerializer
+    queryset = Network.objects.all()
+    serializer_class = NetworkSerializer
 
     lookup_field = 'range'
 
     def get(self, request, queryset=queryset, *args, **kwargs):
-        subnet = _get_subnet(kwargs)
-        serializer = self.get_serializer(subnet)
+        network = _get_network(kwargs)
+        serializer = self.get_serializer(network)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def patch(self, request, *args, **kwargs):
-        subnet = _get_subnet(kwargs)
+        network = _get_network(kwargs)
         if 'range' in request.data:
-            error = _overlap_check(request.data['range'], exclude=subnet)
+            error = _overlap_check(request.data['range'], exclude=network)
             if error:
                 return error
-        serializer = self.get_serializer(subnet, data=request.data, partial=True)
+        serializer = self.get_serializer(network, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        location = '/subnets/%s' % subnet.range
+        location = '/networks/%s' % network.range
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
     def delete(self, request, *args, **kwargs):
-        subnet = _get_subnet(kwargs)
-        used_ipaddresses = subnet.get_used_ipaddresses()
+        network = _get_network(kwargs)
+        used_ipaddresses = network.get_used_ipaddresses()
         if used_ipaddresses:
-            return Response({'ERROR': 'Subnet contains IP addresses that are in use'}, status=status.HTTP_409_CONFLICT)
+            return Response({'ERROR': 'Network contains IP addresses that are in use'}, status=status.HTTP_409_CONFLICT)
 
-        subnet.delete()
+        network.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 @api_view()
-def subnet_by_ip(request, *args, **kwargs):
+def network_by_ip(request, *args, **kwargs):
     try:
         ip = ipaddress.ip_address(kwargs['ip'])
     except ValueError as error:
         raise ParseError(detail=str(error))
-    subnet = Subnet.get_subnet_by_ip(str(ip))
-    if subnet:
-        serializer = SubnetSerializer(subnet)
+    network = Network.get_network_by_ip(str(ip))
+    if network:
+        serializer = NetworkSerializer(network)
         return Response(serializer.data, status=status.HTTP_200_OK)
     else:
         raise Http404
 
 
 @api_view()
-def subnet_first_unused(request, *args, **kwargs):
-    subnet = _get_subnet(kwargs)
-    ip = subnet.get_first_unused()
+def network_first_unused(request, *args, **kwargs):
+    network = _get_network(kwargs)
+    ip = network.get_first_unused()
     if ip:
         return Response(ip, status=status.HTTP_200_OK)
     else:
@@ -543,46 +543,46 @@ def subnet_first_unused(request, *args, **kwargs):
 
 
 @api_view()
-def subnet_ptroverride_list(request, *args, **kwargs):
-    subnet = _get_subnet(kwargs)
-    from_ip = str(subnet.network.network_address)
-    to_ip = str(subnet.network.broadcast_address)
+def network_ptroverride_list(request, *args, **kwargs):
+    network = _get_network(kwargs)
+    from_ip = str(network.network.network_address)
+    to_ip = str(network.network.broadcast_address)
     ptrs = PtrOverride.objects.filter(ipaddress__range=(from_ip, to_ip))
     ptr_list = [ i.ipaddress for i in ptrs ]
     return Response(ptr_list, status=status.HTTP_200_OK)
 
 
 @api_view()
-def subnet_reserved_list(request, *args, **kwargs):
-    subnet = _get_subnet(kwargs)
-    reserved = list(map(str, sorted(subnet.get_reserved_ipaddresses())))
+def network_reserved_list(request, *args, **kwargs):
+    network = _get_network(kwargs)
+    reserved = list(map(str, sorted(network.get_reserved_ipaddresses())))
     return Response(reserved, status=status.HTTP_200_OK)
 
 
 @api_view()
-def subnet_used_count(request, *args, **kwargs):
-    subnet = _get_subnet(kwargs)
-    return Response(subnet.get_used_ipaddress_count(), status=status.HTTP_200_OK)
+def network_used_count(request, *args, **kwargs):
+    network = _get_network(kwargs)
+    return Response(network.get_used_ipaddress_count(), status=status.HTTP_200_OK)
 
 
 @api_view()
-def subnet_used_list(request, *args, **kwargs):
-    subnet = _get_subnet(kwargs)
-    used_ipaddresses = list(map(str, sorted(subnet.get_used_ipaddresses())))
+def network_used_list(request, *args, **kwargs):
+    network = _get_network(kwargs)
+    used_ipaddresses = list(map(str, sorted(network.get_used_ipaddresses())))
     return Response(used_ipaddresses, status=status.HTTP_200_OK)
 
 
 @api_view()
-def subnet_unused_count(request, *args, **kwargs):
-    subnet = _get_subnet(kwargs)
-    unused_ipaddresses = subnet.get_unused_ipaddresses()
+def network_unused_count(request, *args, **kwargs):
+    network = _get_network(kwargs)
+    unused_ipaddresses = network.get_unused_ipaddresses()
     return Response(len(unused_ipaddresses), status=status.HTTP_200_OK)
 
 
 @api_view()
-def subnet_unused_list(request, *args, **kwargs):
-    subnet = _get_subnet(kwargs)
-    unused_ipaddresses = list(map(str, sorted(subnet.get_unused_ipaddresses())))
+def network_unused_list(request, *args, **kwargs):
+    network = _get_network(kwargs)
+    unused_ipaddresses = list(map(str, sorted(network.get_unused_ipaddresses())))
     return Response(unused_ipaddresses, status=status.HTTP_200_OK)
 
 
