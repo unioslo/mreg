@@ -7,10 +7,9 @@ python:
 services:
   - postgresql
 addons:
-  postgresql: "9.4"
+  postgresql: "11.1"
 before_script:
   - psql -c 'create database travisci;' -U postgres
   - python manage.py migrate
-  - python manage.py loaddata mreg/fixtures/fixtures.json
 script:
   - python manage.py test
