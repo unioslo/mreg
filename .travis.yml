@@ -11,9 +11,8 @@ addons:
   postgresql: "11"
 before_install:
   - sudo apt-get update
-  - sudo apt-get install --yes postgresql-11
-  - sudo apt-get install --yes postgresql-client-11
-  - sudo /etc/init.d/postgresql restart
+  - sudo apt-get install -y postgresql-11
+  - /usr/lib/postgresql/11/bin/pg_ctl -D /var/lib/postgresql/11/main -l logfile start
   - sleep 2
 before_script:
   - psql -c 'create database travisci;' -U postgres
