@@ -1,6 +1,7 @@
 branches:
   only:
   - travis-ci
+dist: xenial
 language: python
 python:
   - 3.6
@@ -8,6 +9,12 @@ services:
   - postgresql
 addons:
   postgresql: "11"
+before_install:
+  - sudo apt-get update
+  - sudo apt-get install --yes postgresql-11
+  - sudo apt-get install --yes postgresql-client-11
+  - sudo /etc/init.d/postgresql restart
+  - sleep 2
 before_script:
   - psql -c 'create database travisci;' -U postgres
   - python manage.py migrate
