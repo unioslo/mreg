@@ -1,6 +1,6 @@
 branches:
   only:
-  - travis-ci
+  - /.*/
 dist: xenial
 language: python
 python:
