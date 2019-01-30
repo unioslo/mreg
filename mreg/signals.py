@@ -5,7 +5,7 @@ from django.dispatch import receiver
 from django.utils import timezone
 
 from mreg.models import (Cname, Host, Ipaddress, ModelChangeLog, Naptr,
-        PtrOverride, Srv, Txt, Zone, ZoneMember)
+                         PtrOverride, Srv, Txt, ReverseZone, ForwardZoneMember)
 from mreg.api.v1.serializers import HostSerializer
 
 
@@ -43,7 +43,7 @@ def _get_zone_for_ip(ip):
     elif ip.version == 6:
         # endswith = 1.0.0.2.ip6.arpa for 2001:db8::1
         endswith = ip.reverse_pointer.split('.', 28)[-1]
-    for zone in Zone.objects.filter(name__endswith=endswith):
+    for zone in ReverseZone.objects.filter(name__endswith=endswith):
         if ip in zone.network:
             return zone
     return None
@@ -52,7 +52,7 @@ def _get_zone_for_ip(ip):
 def _common_update_zone(signal, sender, instance):
     zones = set()
 
-    if isinstance(instance, ZoneMember):
+    if isinstance(instance, ForwardZoneMember):
         zones.add(instance.zone)
         if signal == "pre_save" and instance.id:
             oldzone = sender.objects.get(id=instance.id).zone

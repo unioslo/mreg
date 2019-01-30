@@ -68,8 +68,8 @@ def validate_hostname(name):
                 raise ValidationError(
                         "Label '{}' could not be idna encoded: {}".format(label, e))
 
-def validate_zonename(name):
-    """ Validate a zonename."""
+def validate_reverse_zone_name(name):
+    """ Validate a reverse zone name."""
 
     validate_hostname(name)
     labels = name.split(".")
