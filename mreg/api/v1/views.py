@@ -18,9 +18,10 @@ from mreg.api.v1.serializers import (CnameSerializer, HinfoPresetSerializer,
         HostNameSerializer, HostSerializer, HostSaveSerializer,
         IpaddressSerializer, NameServerSerializer, NaptrSerializer,
         PtrOverrideSerializer, SrvSerializer, NetworkSerializer, TxtSerializer,
-        ZoneSerializer, ModelChangeLogSerializer)
-from mreg.models import (Cname, HinfoPreset, Host, Ipaddress, NameServer,
-        Naptr, PtrOverride, Srv, Network, Txt, Zone, ModelChangeLog)
+        ForwardZoneSerializer, ReverseZoneSerializer, ModelChangeLogSerializer)
+from mreg.models import (Cname, ForwardZone, HinfoPreset, Host, Ipaddress,
+                         NameServer, Naptr, Network, PtrOverride, ReverseZone,
+                         Srv, Txt, ModelChangeLog)
 from mreg.utils import create_serialno
 
 from .zonefile import ZoneFile
@@ -77,9 +78,13 @@ class TxtFilterSet(ModelFilterSet):
         model = Txt
 
 
-class ZoneFilterSet(ModelFilterSet):
-    class Meta(object):
-        model = Zone
+class ForwardZoneFilterSet(ModelFilterSet):
+    class Meta:
+        model = ForwardZone
+
+class ReverseZoneFilterSet(ModelFilterSet):
+    class Meta:
+        model = ReverseZone
 
 class MregRetrieveUpdateDestroyAPIView(ETAGMixin,
         generics.RetrieveUpdateDestroyAPIView):
@@ -629,24 +634,37 @@ class ZoneList(generics.ListCreateAPIView):
 
     """
 
-    authentication_classes = (TokenAuthentication,)
-    permission_classes = (IsAuthenticated,)
-
-    queryset = Zone.objects.all()
     queryset_hosts = Host.objects.all()
     queryset_ns = NameServer.objects.all()
-    serializer_class = ZoneSerializer
 
-    def get_queryset(self):
+    def get_queryset(self, name=None):
         """
-        Applies filtering to the queryset
-        :return: filtered list of zones
+        #Applies filtering to the queryset
+        #:return: filtered list of zones
         """
-        qs = super(ZoneList, self).get_queryset()
-        return ZoneFilterSet(data=self.request.GET, queryset=qs).filter()
+        def get_forward():
+            self.queryset = ForwardZone.objects.all()
+            qs = super(ZoneList, self).get_queryset()
+            self.serializer_class = ForwardZoneSerializer
+            return ForwardZoneFilterSet(data=self.request.GET, queryset=qs).filter()
+
+        def get_reverse():
+            self.queryset = ReverseZone.objects.all()
+            qs = super(ZoneList, self).get_queryset()
+            self.serializer_class = ReverseZoneSerializer
+            return ReverseZoneFilterSet(data=self.request.GET, queryset=qs).filter()
+
+        if name:
+            if name.endswith(".arpa"):
+                return get_reverse()
+            else:
+                return get_forward()
+        else:
+            return get_forward().union(get_reverse())
 
     def post(self, request, *args, **kwargs):
-        if self.queryset.filter(name=request.data["name"]).exists():
+        qs = self.get_queryset(name=request.data["name"])
+        if qs.filter(name=request.data["name"]).exists():
             content = {'ERROR': 'Zone name already in use'}
             return Response(content, status=status.HTTP_409_CONFLICT)
         # A copy is required since the original is immutable
@@ -669,7 +687,8 @@ class ZoneList(generics.ListCreateAPIView):
                 ns.save()
                 zone.nameservers.add(ns.id)
         zone.save()
-        return Response(status=status.HTTP_201_CREATED, headers={'Location': '/zones/%s' % data['name']})
+        location = f"/zones/{zone.name}"
+        return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
 
 
 class ZoneDetail(MregRetrieveUpdateDestroyAPIView):
@@ -684,11 +703,20 @@ class ZoneDetail(MregRetrieveUpdateDestroyAPIView):
     delete:
     Delete a zone.
     """
-    queryset = Zone.objects.all()
-    queryset_hosts = Zone.objects.all()
     queryset_ns = NameServer.objects.all()
-    serializer_class = ZoneSerializer
     lookup_field = 'name'
+
+    def get_queryset(self):
+        zonename = self.kwargs[self.lookup_field]
+
+        if zonename.endswith(".arpa"):
+            self.serializer_class = ReverseZoneSerializer
+            self.queryset = ReverseZone.objects.all()
+        else:
+            self.serializer_class = ForwardZoneSerializer
+            self.queryset = ForwardZone.objects.all()
+        qs = super().get_queryset()
+        return qs
 
     def patch(self, request, *args, **kwargs):
         query = self.kwargs[self.lookup_field]
@@ -701,7 +729,7 @@ class ZoneDetail(MregRetrieveUpdateDestroyAPIView):
             content = {'ERROR': 'Not allowed to patch nameservers, use zones/{}/nameservers'.format(query)}
             return Response(content, status=status.HTTP_403_FORBIDDEN)
 
-        zone = get_object_or_404(Zone, name=query)
+        zone = get_object_or_404(self.get_queryset(), name=query)
         # Check if primary_ns is in the zone's list of nameservers
         if "primary_ns" in request.data:
             if request.data['primary_ns'] not in [nameserver['name'] for nameserver in zone.nameservers.values()]:
@@ -710,12 +738,13 @@ class ZoneDetail(MregRetrieveUpdateDestroyAPIView):
         serializer = self.get_serializer(zone, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        location = '/zones/%s' % zone.name
+        resource = request.path.split("/")[1]
+        location = f"/{resource}/{zone.name}"
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
     def delete(self, request, *args, **kwargs):
         query = self.kwargs[self.lookup_field]
-        zone = get_object_or_404(Zone, name=query)
+        zone = get_object_or_404(self.get_queryset(), name=query)
 
         for nameserver in zone.nameservers.values():
             ns = self.queryset_ns.get(name=nameserver['name'])
@@ -723,8 +752,9 @@ class ZoneDetail(MregRetrieveUpdateDestroyAPIView):
                 ns.delete()
 
         zone.delete()
-        location = '/zones/%s' % zone.name
+        location = f"/zones/{zone.name}"
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
+
 
 class ZoneNameServerDetail(ETAGMixin, generics.GenericAPIView):
     """
@@ -732,30 +762,42 @@ class ZoneNameServerDetail(ETAGMixin, generics.GenericAPIView):
     Returns a list of nameservers for a given zone.
 
     patch:
-    Set the nameserver list of a zone. Requires all the nameservers of the zone and removes the ones not mentioned.
+    Set the nameserver list of a zone. Requires all the nameservers of the zone
+    and removes the ones not mentioned.
     """
-    queryset = Zone.objects.all()
+
     queryset_ns = NameServer.objects.all()
     queryset_hosts = Host.objects.all()
-    serializer_class = ZoneSerializer
 
     lookup_field = 'name'
 
+    def get_queryset(self):
+        zonename = self.kwargs[self.lookup_field]
+
+        if zonename.endswith(".arpa"):
+            self.serializer_class = ReverseZoneSerializer
+            self.queryset = ReverseZone.objects.all()
+        else:
+            self.serializer_class = ForwardZoneSerializer
+            self.queryset = ForwardZone.objects.all()
+        qs = super().get_queryset()
+        return qs
+
     def get(self, request, *args, **kwargs):
         query = self.kwargs[self.lookup_field]
-        zone = get_object_or_404(Zone, name=query)
+        zone = get_object_or_404(self.get_queryset(), name=query)
         return Response([ns['name'] for ns in zone.nameservers.values()], status=status.HTTP_200_OK)
 
     def patch(self, request, *args, **kwargs):
         query = self.kwargs[self.lookup_field]
-        zone = get_object_or_404(Zone, name=query)
+        zone = get_object_or_404(self.get_queryset(), name=query)
         if 'primary_ns' not in request.data:
             return Response({'ERROR': 'No nameserver found in body'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Check existing  nameservers and delete them if this zone is the only one that uses them
         for nameserver in zone.nameservers.values():
             ns = self.queryset_ns.get(name=nameserver['name'])
-            if ns.zone_set.count() == 1:
+            if ns.forwardzone_set.count() == 1:
                 ns.delete()
         # Clear remaining references
         zone.nameservers.clear()
@@ -777,7 +819,7 @@ class ZoneNameServerDetail(ETAGMixin, generics.GenericAPIView):
 
         zone.primary_ns = request.data.getlist('primary_ns')[0]
         zone.save()
-        location = 'zones/%s/nameservers' % query
+        location = f"/zones/{query}/nameservers"
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
@@ -834,6 +876,7 @@ def _dhcphosts_by_range(iprange):
 class DhcpHostsAllV4(generics.GenericAPIView):
 
     def get(self, request, *args, **kwargs):
+        print(request.user.ldap_user)
         return _dhcphosts_by_range('0.0.0.0/0')
 
 
@@ -868,11 +911,11 @@ class ZoneFileDetail(generics.GenericAPIView):
     get:
     Generate zonefile for a given zone.
     """
-    queryset = Zone.objects.all()
+    queryset = ForwardZone.objects.all()
     renderer_classes = (PlainTextRenderer, )
 
     def get(self, request, *args, **kwargs):
-        zone = get_object_or_404(Zone, name=self.kwargs['pk'])
+        zone = get_object_or_404(self.queryset, name=self.kwargs['pk'])
         # XXX: a force argument to force serialno update?
         zone.update_serialno()
         zonefile = ZoneFile(zone)

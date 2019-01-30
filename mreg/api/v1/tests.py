@@ -5,7 +5,9 @@ from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient, APITestCase
 
 from mreg.models import (Cname, HinfoPreset, Host, Ipaddress, NameServer,
-        Naptr, PtrOverride, Srv, Network, Txt, Zone, ModelChangeLog)
+                         Naptr, PtrOverride, Srv, Network, Txt, ForwardZone,
+                         ReverseZone, ModelChangeLog)
+
 from mreg.utils import create_serialno
 
 def clean_and_save(entity):
@@ -65,26 +67,26 @@ class ModelHostsTestCase(TestCase):
             clean_and_save(self.host_one)
 
 
-class ModelZoneTestCase(TestCase):
-    """This class defines the test suite for the Zone model."""
+class ModelForwardZoneTestCase(TestCase):
+    """This class defines the test suite for the ForwardZone model."""
 
-    # TODO: test this for sub-zones (usit.uio.no) and "top"-zones (usit.no)?
+    # TODO: test this for sub-zones (sub.example.org)
     def setUp(self):
         """Define the test client and other test variables."""
-        self.zone_sample = Zone(name='example.org',
-                                primary_ns='ns.example.org',
-                                email='hostmaster@example.org',
-                                serialno=1234567890,
-                                refresh=400,
-                                retry=300,
-                                expire=800,
-                                ttl=300)
+        self.zone_sample = ForwardZone(name='example.org',
+                                       primary_ns='ns.example.org',
+                                       email='hostmaster@example.org',
+                                       serialno=1234567890,
+                                       refresh=400,
+                                       retry=300,
+                                       expire=800,
+                                       ttl=300)
 
     def test_model_can_create_a_zone(self):
         """Test that the model is able to create a zone."""
-        old_count = Zone.objects.count()
+        old_count = ForwardZone.objects.count()
         clean_and_save(self.zone_sample)
-        new_count = Zone.objects.count()
+        new_count = ForwardZone.objects.count()
         self.assertNotEqual(old_count, new_count)
 
     def test_model_can_change_a_zone(self):
@@ -92,18 +94,18 @@ class ModelZoneTestCase(TestCase):
         clean_and_save(self.zone_sample)
         old_name = self.zone_sample.name
         new_name = 'example.com'
-        zone_sample_id = Zone.objects.get(name=old_name).id
+        zone_sample_id = ForwardZone.objects.get(name=old_name).id
         self.zone_sample.name = new_name
         clean_and_save(self.zone_sample)
-        updated_name = Zone.objects.get(pk=zone_sample_id).name
+        updated_name = ForwardZone.objects.get(pk=zone_sample_id).name
         self.assertEqual(new_name, updated_name)
 
     def test_model_can_delete_a_zone(self):
         """Test that the model is able to delete a zone."""
         clean_and_save(self.zone_sample)
-        old_count = Zone.objects.count()
+        old_count = ForwardZone.objects.count()
         self.zone_sample.delete()
-        new_count = Zone.objects.count()
+        new_count = ForwardZone.objects.count()
         self.assertNotEqual(old_count, new_count)
 
 
@@ -112,14 +114,9 @@ class ModelNameServerTestCase(TestCase):
 
     def setUp(self):
         """Define the test client and other test variables."""
-        self.zone_sample = Zone(name='example.org',
-                                primary_ns='some-ns-server.example.org',
-                                email='hostmaster@example.org',
-                                serialno=1234567890,
-                                refresh=400,
-                                retry=300,
-                                expire=800,
-                                ttl=300)
+        self.zone_sample = ForwardZone(name='example.org',
+                                       primary_ns='some-ns-server.example.org',
+                                       email='hostmaster@example.org')
 
         clean_and_save(self.zone_sample)
 
@@ -555,7 +552,7 @@ def get_token_client():
     return client
 
 class APIAutoupdateZonesTestCase(APITestCase):
-    """This class tests the autoupdate of Zones' updated_at whenever
+    """This class tests the autoupdate of zones' updated_at whenever
        various models are added/deleted/renamed/changed etc."""
 
     def setUp(self):
@@ -564,15 +561,15 @@ class APIAutoupdateZonesTestCase(APITestCase):
         self.host1 = {"name": "host1.example.org",
                       "ipaddress": "10.10.0.1",
                       "contact": "mail@example.org"}
-        self.zone_exampleorg = Zone(name='example.org',
-                                    primary_ns='ns.example.org',
-                                    email='hostmaster@example.org')
-        self.zone_examplecom = Zone(name='example.com',
-                                    primary_ns='ns.example.com',
-                                    email='hostmaster@example.com')
-        self.zone_1010 = Zone(name='10.10.in-addr.arpa',
-                              primary_ns='ns.example.org',
-                              email='hostmaster@example.org')
+        self.zone_exampleorg = ForwardZone(name='example.org',
+                                           primary_ns='ns.example.org',
+                                           email='hostmaster@example.org')
+        self.zone_examplecom = ForwardZone(name='example.com',
+                                           primary_ns='ns.example.com',
+                                           email='hostmaster@example.com')
+        self.zone_1010 = ReverseZone(name='10.10.in-addr.arpa',
+                                     primary_ns='ns.example.org',
+                                     email='hostmaster@example.org')
         clean_and_save(self.zone_exampleorg)
         clean_and_save(self.zone_examplecom)
         clean_and_save(self.zone_1010)
@@ -617,10 +614,9 @@ class APIHostsTestCase(TestCase):
                           'contact': 'hostmaster@example.org'}
         self.post_data_name = {'name': 'host1.example.org', "ipaddress": '127.0.0.2',
                                'contact': 'hostmaster@example.org'}
-        self.zone_sample = Zone(name='example.org',
-                                primary_ns='ns.example.org',
-                                email='hostmaster@example.org',
-                                serialno=1234567890)
+        self.zone_sample = ForwardZone(name='example.org',
+                                       primary_ns='ns.example.org',
+                                       email='hostmaster@example.org')
         clean_and_save(self.host_one)
         clean_and_save(self.host_two)
         clean_and_save(self.zone_sample)
@@ -680,6 +676,11 @@ class APIHostsTestCase(TestCase):
         response = self.client.patch('/hosts/%s' % self.host_one.name, data={'this': 'is', 'so': 'wrong'})
         self.assertEqual(response.status_code, 400)
 
+    def test_hosts_patch_400_bad_ttl(self):
+        """Patching with invalid ttl should return 400"""
+        response = self.client.patch('/hosts/%s' % self.host_one.name, data={'ttl': 100})
+        self.assertEqual(response.status_code, 400)
+
     def test_hosts_patch_404_not_found(self):
         """Patching a non-existing entry should return 404"""
         response = self.client.patch('/hosts/feil-navn/', self.patch_data)
@@ -697,7 +698,7 @@ class APIZonesTestCase(APITestCase):
     def setUp(self):
         """Define the test client and other variables."""
         self.client = get_token_client()
-        self.zone_one = Zone(
+        self.zone_one = ForwardZone(
             name="matnat.uio.no",
             primary_ns="ns1.uio.no",
             email="hostmaster@uio.no",
@@ -1057,12 +1058,12 @@ class APICnamesTestCase(APITestCase):
     """This class defines the test suite for api/cnames """
     def setUp(self):
         self.client = get_token_client()
-        self.zone_one = Zone(name='example.org',
-                             primary_ns='ns.example.org',
-                             email='hostmaster@example.org')
-        self.zone_two = Zone(name='example.net',
-                             primary_ns='ns.example.net',
-                             email='hostmaster@example.org')
+        self.zone_one = ForwardZone(name='example.org',
+                                    primary_ns='ns.example.org',
+                                    email='hostmaster@example.org')
+        self.zone_two = ForwardZone(name='example.net',
+                                    primary_ns='ns.example.net',
+                                    email='hostmaster@example.org')
         clean_and_save(self.zone_one)
         clean_and_save(self.zone_two)
 

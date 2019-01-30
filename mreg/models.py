@@ -6,17 +6,18 @@ from datetime import timedelta
 from django.db import DatabaseError, models, transaction
 from django.utils import timezone
 
-from mreg.validators import (validate_hostname, validate_zonename,
-        validate_mac_address, validate_loc, validate_naptr_flag,
-        validate_srv_service_text, validate_zones_serialno,
-        validate_16bit_uint, validate_network)
+from mreg.validators import (validate_hostname, validate_reverse_zone_name,
+                             validate_mac_address, validate_loc,
+                             validate_naptr_flag, validate_srv_service_text,
+                             validate_zones_serialno, validate_16bit_uint,
+                             validate_network, validate_ttl)
 from mreg.utils import (create_serialno, encode_mail, clear_none, qualify,
         idna_encode, get_network_from_zonename)
 
 
 class NameServer(models.Model):
     name = models.CharField(unique=True, max_length=253, validators=[validate_hostname])
-    ttl = models.IntegerField(blank=True, null=True)
+    ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
 
     class Meta:
         db_table = 'ns'
@@ -38,8 +39,7 @@ class NameServer(models.Model):
         return '{subzone:24} {ttl:5} IN {record_type:6} {record_data}\n'.format_map(data)
 
 
-class Zone(models.Model):
-    name = models.CharField(unique=True, max_length=253, validators=[validate_zonename])
+class BaseZone(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     updated = models.BooleanField(default=False)
     primary_ns = models.CharField(max_length=253, validators=[validate_hostname])
@@ -51,10 +51,10 @@ class Zone(models.Model):
     refresh = models.IntegerField(default=10800)
     retry = models.IntegerField(default=3600)
     expire = models.IntegerField(default=1814400)
-    ttl = models.IntegerField(default=43200)
+    ttl = models.IntegerField(default=43200, validators=[validate_ttl])
 
     class Meta:
-        db_table = 'zone'
+        abstract = True
 
     def __str__(self):
         return str(self.name)
@@ -89,10 +89,6 @@ $TTL {ttl}
 """.format_map(data)
         return zf
 
-    @property
-    def network(self):
-        return get_network_from_zonename(self.name)
-
     def update_serialno(self, force=False):
         """Update serialno if zone has been updated since the serial number
         was updated.
@@ -110,6 +106,19 @@ $TTL {ttl}
                     self.save()
             except DatabaseError:
                 pass
+
+class ForwardZone(BaseZone):
+    name = models.CharField(unique=True, max_length=253, validators=[validate_hostname])
+
+    class Meta:
+        db_table = 'forward_zone'
+
+
+class ReverseZone(BaseZone):
+    name = models.CharField(unique=True, max_length=253, validators=[validate_reverse_zone_name])
+
+    class Meta:
+        db_table = 'reverse_zone'
 
     @property
     def network(self):
@@ -134,6 +143,7 @@ $TTL {ttl}
         # Use PtrOverrides when found, but only once. Also skip IPaddresses
         # which have been used multiple times, but lacks a PtrOverride.
         result = []
+
         def _add_to_result(item):
             result.append((ipaddress.ip_address(item.ipaddress), item.host.name))
 
@@ -157,12 +167,12 @@ $TTL {ttl}
         # Return sorted by IP
         return sorted(result, key=lambda i: i[0])
 
-class ZoneMember(models.Model):
-    zone = models.ForeignKey(Zone, models.DO_NOTHING, db_column='zone', blank=True, null=True)
+
+class ForwardZoneMember(models.Model):
+    zone = models.ForeignKey(ForwardZone, models.DO_NOTHING, db_column='zone', blank=True, null=True)
 
     class Meta:
         abstract = True
-
 
 class HinfoPreset(models.Model):
     cpu = models.TextField()
@@ -186,10 +196,10 @@ class HinfoPreset(models.Model):
         return '                                  {record_type:6} {cpu} {os}\n'.format_map(data)
 
 
-class Host(ZoneMember):
+class Host(ForwardZoneMember):
     name = models.CharField(unique=True, max_length=253, validators=[validate_hostname])
     contact = models.EmailField()
-    ttl = models.IntegerField(blank=True, null=True)
+    ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
     hinfo = models.ForeignKey(HinfoPreset, models.DO_NOTHING, db_column='hinfo', blank=True, null=True)
     loc = models.TextField(blank=True, validators=[validate_loc])
     comment = models.TextField(blank=True)
@@ -280,10 +290,10 @@ class Txt(models.Model):
         return '{name:24} {ttl:5} IN {record_type:6} {record_data:39}\n'.format_map(data)
 
 
-class Cname(ZoneMember):
+class Cname(ForwardZoneMember):
     host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='cnames')
     name = models.CharField(max_length=255, unique=True)
-    ttl = models.IntegerField(blank=True, null=True)
+    ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
 
     class Meta:
         db_table = 'cname'
@@ -446,12 +456,12 @@ class Naptr(models.Model):
         return '{name:24} {ttl:5} IN {record_type:6} {order} {preference} \"{flag}\" \"{service}\" \"{regex}\" {replacement}\n'.format_map(data)
 
 
-class Srv(ZoneMember):
+class Srv(ForwardZoneMember):
     name = models.TextField(validators=[validate_srv_service_text])
     priority = models.IntegerField(validators=[validate_16bit_uint])
     weight = models.IntegerField(validators=[validate_16bit_uint])
     port = models.IntegerField(validators=[validate_16bit_uint])
-    ttl = models.IntegerField(blank=True, null=True)
+    ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
     # XXX: target MUST not be a alias aka cname
     target = models.CharField(max_length=255)
 

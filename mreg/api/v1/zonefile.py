@@ -1,7 +1,6 @@
-import ipaddress
-
-from mreg.models import Cname, Host, Srv, Zone
+from mreg.models import Cname, Host, Srv, ForwardZone
 from mreg.utils import idna_encode
+
 
 class ZoneFile(object):
     def __init__(self, zone):
@@ -14,6 +13,7 @@ class ZoneFile(object):
 
     def generate(self):
         return self.zonetype.generate()
+
 
 class ForwardFile(object):
 
@@ -63,7 +63,7 @@ class ForwardFile(object):
 
     def get_subdomains(self):
         data = ""
-        subzones = Zone.objects.filter(name__endswith="." + self.zone.name)
+        subzones = ForwardZone.objects.filter(name__endswith="." + self.zone.name)
         for subzone in subzones.order_by('name'):
             for ns in subzone.nameservers.all():
                 data += ns.zf_string(self.zone.name, subzone=subzone.name)

@@ -4,9 +4,11 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from mreg.models import (Cname, HinfoPreset, Host, Ipaddress, NameServer,
-        Naptr, PtrOverride, Srv, Network, Txt, Zone, ModelChangeLog)
-from mreg.utils import (create_serialno, nonify)
-from mreg.validators import (validate_keys, validate_ttl)
+                         Naptr, PtrOverride, Srv, Network, Txt, ForwardZone,
+                         ReverseZone, ModelChangeLog)
+
+from mreg.utils import nonify
+from mreg.validators import validate_keys
 
 
 class ValidationMixin(object):
@@ -18,12 +20,6 @@ class ValidationMixin(object):
         data = {key: nonify(value) for key, value in data.items()}
         return data
 
-    def validate_ttl(self, value):
-        """Ensures ttl is within range. -1 equals None/Null"""
-        value = nonify(value)
-        if value:
-            validate_ttl(value)
-        return value
 
 class ForwardZoneMixin(ValidationMixin):
     """Create a zone entry from the hostname."""
@@ -43,7 +39,7 @@ class ForwardZoneMixin(ValidationMixin):
             t = range(len(lst))
             return sorted(t, reverse=True)
 
-        zones = Zone.objects.all()
+        zones = ForwardZone.objects.all()
         for n in _get_reverse_order(zones):
             z = zones[n]
             if z.name and name.endswith(z.name):
@@ -217,11 +213,10 @@ class NetworkSerializer(ValidationMixin, serializers.ModelSerializer):
         return Network(**self.validated_data)
 
 
-class ZoneSerializer(ValidationMixin, serializers.ModelSerializer):
+class BaseZoneSerializer(ValidationMixin, serializers.ModelSerializer):
     nameservers = NameServerSerializer(read_only=True, many=True)
 
     class Meta:
-        model = Zone
         fields = '__all__'
 
     def validate(self, data):
@@ -231,8 +226,18 @@ class ZoneSerializer(ValidationMixin, serializers.ModelSerializer):
         return data
 
     def create(self):
-        return Zone(**self.validated_data)
+        return self.Meta.model(**self.validated_data)
 
+
+class ForwardZoneSerializer(BaseZoneSerializer):
+
+    class Meta(BaseZoneSerializer.Meta):
+        model = ForwardZone
+
+class ReverseZoneSerializer(BaseZoneSerializer):
+
+    class Meta(BaseZoneSerializer.Meta):
+        model = ReverseZone
 
 class ModelChangeLogSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
