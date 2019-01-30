@@ -10,9 +10,12 @@ services:
 addons:
   postgresql: "11"
 before_install:
+  - wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+  - sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -sc)-pgdg main" > /etc/apt/sources.list.d/PostgreSQL.list'
   - sudo apt-get update
   - sudo apt-get install -y postgresql-11
-  - sudo -u postgres /usr/lib/postgresql/11/bin/pg_ctl -D /var/lib/postgresql/11/main -l logfile start
+  - sudo sed -i 's/local\s\+all\s\+postgres\s\+peer/local all postgres trust/' /etc/postgresql/11/main/pg_hba.conf 
+  - sudo systemctl restart postgresql.service
   - sleep 2
 before_script:
   - psql -c 'create database travisci;' -U postgres
