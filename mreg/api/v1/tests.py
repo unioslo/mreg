@@ -726,66 +726,66 @@ class APIZonesTestCase(APITestCase):
 
     def test_zones_get_404_not_found(self):
         """"Getting a non-existing entry should return 404"""
-        response = self.client.get('/forwardzones/nonexisting.uio.no')
+        response = self.client.get('/zones/nonexisting.uio.no')
         self.assertEqual(response.status_code, 404)
 
     def test_zones_get_200_ok(self):
         """"Getting an existing entry should return 200"""
-        response = self.client.get('/forwardzones/%s' % self.zone_one.name)
+        response = self.client.get('/zones/%s' % self.zone_one.name)
         self.assertEqual(response.status_code, 200)
 
     def test_zones_post_409_name_conflict(self):
         """"Posting a entry that uses a name that is already taken should return 409"""
-        response = self.client.get('/forwardzones/%s' % self.zone_one.name)
-        response = self.client.post('/forwardzones/', {'name': response.data['name']})
+        response = self.client.get('/zones/%s' % self.zone_one.name)
+        response = self.client.post('/zones/', {'name': response.data['name']})
         self.assertEqual(response.status_code, 409)
 
     def test_zones_post_201_created(self):
         """"Posting a new zone should return 201 and location"""
-        response = self.client.post('/forwardzones/', self.post_data_one)
+        response = self.client.post('/zones/', self.post_data_one)
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(response['Location'], '/forwardzones/%s' % self.post_data_one['name'])
+        self.assertEqual(response['Location'], '/zones/%s' % self.post_data_one['name'])
 
     def test_zones_post_serialno(self):
         """serialno should be based on the current date and a sequential number"""
-        self.client.post('/forwardzones/', self.post_data_one)
-        self.client.post('/forwardzones/', self.post_data_two)
-        response_one = self.client.get('/forwardzones/%s' % self.post_data_one['name'])
-        response_two = self.client.get('/forwardzones/%s' % self.post_data_two['name'])
+        self.client.post('/zones/', self.post_data_one)
+        self.client.post('/zones/', self.post_data_two)
+        response_one = self.client.get('/zones/%s' % self.post_data_one['name'])
+        response_two = self.client.get('/zones/%s' % self.post_data_two['name'])
         self.assertEqual(response_one.data['serialno'], response_two.data['serialno'])
         self.assertEqual(response_one.data['serialno'], create_serialno())
 
     def test_zones_patch_403_forbidden_name(self):
         """"Trying to patch the name of an entry should return 403"""
-        response = self.client.get('/forwardzones/%s' % self.zone_one.name)
-        response = self.client.patch('/forwardzones/%s' % self.zone_one.name, {'name': response.data['name']})
+        response = self.client.get('/zones/%s' % self.zone_one.name)
+        response = self.client.patch('/zones/%s' % self.zone_one.name, {'name': response.data['name']})
         self.assertEqual(response.status_code, 403)
 
     def test_zones_patch_403_forbidden_primary_ns(self):
         """Trying to patch the primary_ns to be a nameserver that isn't in the nameservers list should return 403"""
-        response = self.client.post('/forwardzones/', self.post_data_two)
+        response = self.client.post('/zones/', self.post_data_two)
         self.assertEqual(response.status_code, 201)
-        response = self.client.patch('/forwardzones/%s' % self.post_data_two['name'], {'primary_ns': self.host_three.name})
+        response = self.client.patch('/zones/%s' % self.post_data_two['name'], {'primary_ns': self.host_three.name})
         self.assertEqual(response.status_code, 403)
 
     def test_zones_patch_404_not_found(self):
         """"Patching a non-existing entry should return 404"""
-        response = self.client.patch('/forwardzones/nonexisting.uio.no', self.patch_data)
+        response = self.client.patch('/zones/nonexisting.uio.no', self.patch_data)
         self.assertEqual(response.status_code, 404)
 
     def test_zones_patch_204_no_content(self):
         """"Patching an existing entry with valid data should return 204"""
-        response = self.client.patch('/forwardzones/%s' % self.zone_one.name, self.patch_data)
+        response = self.client.patch('/zones/%s' % self.zone_one.name, self.patch_data)
         self.assertEqual(response.status_code, 204)
 
     def test_zones_delete_204_no_content(self):
         """"Deleting an existing entry with no conflicts should return 204"""
-        response = self.client.delete('/forwardzones/%s' % self.zone_one.name)
+        response = self.client.delete('/zones/%s' % self.zone_one.name)
         self.assertEqual(response.status_code, 204)
 
     def test_zones_404_not_found(self):
         """"Deleting a non-existing entry should return 404"""
-        response = self.client.delete('/forwardzones/nonexisting.uio.no')
+        response = self.client.delete('/zones/nonexisting.uio.no')
         self.assertEqual(response.status_code, 404)
 
     def test_zones_403_forbidden(self):
@@ -808,33 +808,33 @@ class APIZonesNsTestCase(APITestCase):
 
     def test_zones_ns_get_200_ok(self):
         """"Getting the list of nameservers of a existing zone should return 200"""
-        self.client.post('/forwardzones/', self.post_data)
-        response = self.client.get('/forwardzones/%s/nameservers' % self.post_data['name'])
+        self.client.post('/zones/', self.post_data)
+        response = self.client.get('/zones/%s/nameservers' % self.post_data['name'])
         self.assertEqual(response.status_code, 200)
 
     def test_zones_ns_get_404_not_found(self):
         """"Getting the list of nameservers of a non-existing zone should return 404"""
-        response = self.client.delete('/forwardzones/nonexisting.uio.no/nameservers/')
+        response = self.client.delete('/zones/nonexisting.uio.no/nameservers/')
         self.assertEqual(response.status_code, 404)
 
     def test_zones_ns_patch_204_no_content(self):
         """"Patching the list of nameservers with an existing nameserver should return 204"""
-        self.client.post('/forwardzones/', self.post_data)
-        response = self.client.patch('/forwardzones/%s/nameservers' % self.post_data['name'],
+        self.client.post('/zones/', self.post_data)
+        response = self.client.patch('/zones/%s/nameservers' % self.post_data['name'],
                                      {'primary_ns': self.post_data['primary_ns'] + [self.ns_one.name]})
         self.assertEqual(response.status_code, 204)
 
     def test_zones_ns_patch_400_bad_request(self):
         """"Patching the list of nameservers with a bad request body should return 404"""
-        self.client.post('/forwardzones/', self.post_data)
-        response = self.client.patch('/forwardzones/%s/nameservers' % self.post_data['name'],
+        self.client.post('/zones/', self.post_data)
+        response = self.client.patch('/zones/%s/nameservers' % self.post_data['name'],
                                      {'garbage': self.ns_one.name})
         self.assertEqual(response.status_code, 400)
 
     def test_zones_ns_patch_404_not_found(self):
         """"Patching the list of nameservers with a non-existing nameserver should return 404"""
-        self.client.post('/forwardzones/', self.post_data)
-        response = self.client.patch('/forwardzones/%s/nameservers' % self.post_data['name'],
+        self.client.post('/zones/', self.post_data)
+        response = self.client.patch('/zones/%s/nameservers' % self.post_data['name'],
                                      {'primary_ns': ['nonexisting-ns.uio.no']})
         self.assertEqual(response.status_code, 404)
 
@@ -842,20 +842,20 @@ class APIZonesNsTestCase(APITestCase):
         """Deleting a nameserver from an existing zone should return 204"""
 
         # TODO: This test needs some cleanup and work. See comments
-        self.client.post('/forwardzones/', self.post_data)
+        self.client.post('/zones/', self.post_data)
 
-        response = self.client.patch('/forwardzones/%s/nameservers' % self.post_data['name'],
+        response = self.client.patch('/zones/%s/nameservers' % self.post_data['name'],
                                      {'primary_ns': self.post_data['primary_ns'] + [self.ns_one.name]})
         self.assertEqual(response.status_code, 204)
 
-        response = self.client.get('/forwardzones/%s/nameservers' % self.post_data['name'])
+        response = self.client.get('/zones/%s/nameservers' % self.post_data['name'])
         self.assertEqual(response.status_code, 200)
 
-        response = self.client.patch('/forwardzones/%s/nameservers' % self.post_data['name'],
+        response = self.client.patch('/zones/%s/nameservers' % self.post_data['name'],
                                      {'primary_ns': self.ns_two.name})
         self.assertEqual(response.status_code, 204)
 
-        response = self.client.get('/forwardzones/%s/nameservers' % self.post_data['name'])
+        response = self.client.get('/zones/%s/nameservers' % self.post_data['name'])
         self.assertEqual(response.data, self.post_data['primary_ns'])
 
 
