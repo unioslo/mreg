@@ -692,31 +692,28 @@ class APIHostsTestCase(TestCase):
         self.assertEqual(response.status_code, 409)
 
 
-class APIZonesTestCase(APITestCase):
-    """"This class defines the test suite for api/zones """
+class APIForwardZonesTestCase(APITestCase):
+    """"This class defines the test suite for forward zones API """
 
     def setUp(self):
         """Define the test client and other variables."""
         self.client = get_token_client()
         self.zone_one = ForwardZone(
-            name="matnat.uio.no",
-            primary_ns="ns1.uio.no",
-            email="hostmaster@uio.no",
-            serialno="2018070500",
-            refresh=400,
-            retry=300,
-            expire=800,
-            ttl=300
-        )
-        self.host_one = Host(name='ns1.uio.no', contact='hostmaster@uio.no')
-        self.host_two = Host(name='ns2.uio.no', contact='hostmaster@uio.no')
-        self.host_three = Host(name='ns3.uio.no', contact='hostmaster@uio.no')
-        self.ns_one = NameServer(name='ns1.uio.no', ttl=400)
-        self.ns_two = NameServer(name='ns2.uio.no', ttl=400)
-        self.post_data_one = {'name': 'hf.uio.no', 'primary_ns': ['ns1.uio.no', 'ns2.uio.no'],
-                              'email': 'hostmaster@uio.no', 'refresh': 400, 'retry': 300, 'expire': 800, 'ttl': 350}
-        self.post_data_two = {'name': 'sv.uio.no', 'primary_ns': ['ns1.uio.no', 'ns2.uio.no'],
-                              'email': 'hostmaster@uio.no', 'refresh': 400, 'retry': 300, 'expire': 800, 'ttl': 350}
+            name="example.org",
+            primary_ns="ns1.example.org",
+            email="hostmaster@example.org")
+        self.host_one = Host(name='ns1.example.org', contact="hostmaster@example.org")
+        self.host_two = Host(name='ns2.example.org', contact="hostmaster@example.org")
+        self.host_three = Host(name='ns3.example.org', contact="hostmaster@example.org")
+        self.ns_one = NameServer(name='ns1.example.org', ttl=400)
+        self.ns_two = NameServer(name='ns2.example.org', ttl=400)
+        self.post_data_one = {'name': 'example.com',
+                              'primary_ns': ['ns1.example.org', 'ns2.example.org'],
+                              'email': "hostmaster@example.org",
+                              'refresh': 400, 'retry': 300, 'expire': 800, 'ttl': 350}
+        self.post_data_two = {'name': 'example.net',
+                              'primary_ns': ['ns1.example.org', 'ns2.example.org'],
+                              'email': "hostmaster@example.org"}
         self.patch_data = {'refresh': '500', 'expire': '1000'}
         clean_and_save(self.host_one)
         clean_and_save(self.host_two)
@@ -726,7 +723,7 @@ class APIZonesTestCase(APITestCase):
 
     def test_zones_get_404_not_found(self):
         """"Getting a non-existing entry should return 404"""
-        response = self.client.get('/zones/nonexisting.uio.no')
+        response = self.client.get('/zones/nonexisting.example.org')
         self.assertEqual(response.status_code, 404)
 
     def test_zones_get_200_ok(self):
@@ -770,7 +767,7 @@ class APIZonesTestCase(APITestCase):
 
     def test_zones_patch_404_not_found(self):
         """"Patching a non-existing entry should return 404"""
-        response = self.client.patch('/zones/nonexisting.uio.no', self.patch_data)
+        response = self.client.patch("/zones/nonexisting.example.org", self.patch_data)
         self.assertEqual(response.status_code, 404)
 
     def test_zones_patch_204_no_content(self):
@@ -785,7 +782,7 @@ class APIZonesTestCase(APITestCase):
 
     def test_zones_404_not_found(self):
         """"Deleting a non-existing entry should return 404"""
-        response = self.client.delete('/zones/nonexisting.uio.no')
+        response = self.client.delete("/zones/nonexisting.example.org")
         self.assertEqual(response.status_code, 404)
 
     def test_zones_403_forbidden(self):
@@ -799,22 +796,24 @@ class APIZonesNsTestCase(APITestCase):
     def setUp(self):
         """Define the test client and other variables."""
         self.client = get_token_client()
-        self.post_data = {'name': 'hf.uio.no', 'primary_ns': ['ns2.uio.no'],
-                          'email': 'hostmaster@uio.no', 'refresh': 400, 'retry': 300, 'expire': 800, 'ttl': 350}
-        self.ns_one = Host(name='ns1.uio.no', contact='mail@example.org')
-        self.ns_two = Host(name='ns2.uio.no', contact='mail@example.org')
+        self.post_data = {'name': 'example.org', 'primary_ns': ['ns2.example.org'],
+                          'email': "hostmaster@example.org"}
+        self.ns_one = Host(name='ns1.example.org', contact='mail@example.org')
+        self.ns_two = Host(name='ns2.example.org', contact='mail@example.org')
         clean_and_save(self.ns_one)
         clean_and_save(self.ns_two)
 
     def test_zones_ns_get_200_ok(self):
         """"Getting the list of nameservers of a existing zone should return 200"""
+        self.assertEqual(NameServer.objects.count(), 0)
         self.client.post('/zones/', self.post_data)
+        self.assertEqual(NameServer.objects.count(), 1)
         response = self.client.get('/zones/%s/nameservers' % self.post_data['name'])
         self.assertEqual(response.status_code, 200)
 
     def test_zones_ns_get_404_not_found(self):
         """"Getting the list of nameservers of a non-existing zone should return 404"""
-        response = self.client.delete('/zones/nonexisting.uio.no/nameservers/')
+        response = self.client.delete('/zones/example.com/nameservers/')
         self.assertEqual(response.status_code, 404)
 
     def test_zones_ns_patch_204_no_content(self):
@@ -835,18 +834,23 @@ class APIZonesNsTestCase(APITestCase):
         """"Patching the list of nameservers with a non-existing nameserver should return 404"""
         self.client.post('/zones/', self.post_data)
         response = self.client.patch('/zones/%s/nameservers' % self.post_data['name'],
-                                     {'primary_ns': ['nonexisting-ns.uio.no']})
+                                     {'primary_ns': ['nonexisting-ns.example.org']})
+        # XXX: This is now valid, as the NS might point to a server in a zone which we
+        # don't control. Might be possible to check if the attempted NS is in a
+        # zone we control and then be stricter.
+        return
         self.assertEqual(response.status_code, 404)
 
     def test_zones_ns_delete_204_no_content_zone(self):
         """Deleting a nameserver from an existing zone should return 204"""
-
+        self.assertFalse(NameServer.objects.exists())
         # TODO: This test needs some cleanup and work. See comments
         self.client.post('/zones/', self.post_data)
 
         response = self.client.patch('/zones/%s/nameservers' % self.post_data['name'],
                                      {'primary_ns': self.post_data['primary_ns'] + [self.ns_one.name]})
         self.assertEqual(response.status_code, 204)
+        self.assertEqual(NameServer.objects.count(), 2)
 
         response = self.client.get('/zones/%s/nameservers' % self.post_data['name'])
         self.assertEqual(response.status_code, 200)
@@ -854,9 +858,13 @@ class APIZonesNsTestCase(APITestCase):
         response = self.client.patch('/zones/%s/nameservers' % self.post_data['name'],
                                      {'primary_ns': self.ns_two.name})
         self.assertEqual(response.status_code, 204)
+        self.assertEqual(NameServer.objects.count(), 1)
 
         response = self.client.get('/zones/%s/nameservers' % self.post_data['name'])
         self.assertEqual(response.data, self.post_data['primary_ns'])
+        response = self.client.delete('/zones/%s' % self.post_data['name'])
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(NameServer.objects.exists())
 
 
 class APIIPaddressesTestCase(APITestCase):
