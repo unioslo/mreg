@@ -634,7 +634,6 @@ class ZoneList(generics.ListCreateAPIView):
 
     """
 
-    queryset_hosts = Host.objects.all()
     queryset_ns = NameServer.objects.all()
 
     def get_queryset(self, name=None):
@@ -677,16 +676,7 @@ class ZoneList(generics.ListCreateAPIView):
         zone = serializer.create()
         zone.save()
 
-        # Check if nameserver is an existing host and add it as a nameserver to the zone
-        for nameserver in nameservers:
-            try:
-                ns = self.queryset_ns.get(name=nameserver)
-                zone.nameservers.add(ns.id)
-            except NameServer.DoesNotExist:
-                ns = NameServer(name=nameserver)
-                ns.save()
-                zone.nameservers.add(ns.id)
-        zone.save()
+        zone.update_nameservers(nameservers)
         location = f"/zones/{zone.name}"
         return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
 
@@ -703,7 +693,7 @@ class ZoneDetail(MregRetrieveUpdateDestroyAPIView):
     delete:
     Delete a zone.
     """
-    queryset_ns = NameServer.objects.all()
+
     lookup_field = 'name'
 
     def get_queryset(self):
@@ -726,31 +716,25 @@ class ZoneDetail(MregRetrieveUpdateDestroyAPIView):
             return Response(content, status=status.HTTP_403_FORBIDDEN)
 
         if "nameservers" in request.data:
-            content = {'ERROR': 'Not allowed to patch nameservers, use zones/{}/nameservers'.format(query)}
+            content = {'ERROR': 'Not allowed to patch nameservers, use /zones/{}/nameservers'.format(query)}
             return Response(content, status=status.HTTP_403_FORBIDDEN)
 
         zone = get_object_or_404(self.get_queryset(), name=query)
         # Check if primary_ns is in the zone's list of nameservers
         if "primary_ns" in request.data:
-            if request.data['primary_ns'] not in [nameserver['name'] for nameserver in zone.nameservers.values()]:
+            if request.data['primary_ns'] not in [nameserver.name for nameserver in zone.nameservers.all()]:
                 content = {'ERROR': "%s is not one of %s's nameservers" % (request.data['primary_ns'], query)}
                 return Response(content, status=status.HTTP_403_FORBIDDEN)
         serializer = self.get_serializer(zone, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        resource = request.path.split("/")[1]
-        location = f"/{resource}/{zone.name}"
+        location = f"/zones/{zone.name}"
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
     def delete(self, request, *args, **kwargs):
         query = self.kwargs[self.lookup_field]
         zone = get_object_or_404(self.get_queryset(), name=query)
-
-        for nameserver in zone.nameservers.values():
-            ns = self.queryset_ns.get(name=nameserver['name'])
-            if ns.zone_set.count() == 1:
-                ns.delete()
-
+        zone.remove_nameservers()
         zone.delete()
         location = f"/zones/{zone.name}"
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
@@ -765,9 +749,6 @@ class ZoneNameServerDetail(ETAGMixin, generics.GenericAPIView):
     Set the nameserver list of a zone. Requires all the nameservers of the zone
     and removes the ones not mentioned.
     """
-
-    queryset_ns = NameServer.objects.all()
-    queryset_hosts = Host.objects.all()
 
     lookup_field = 'name'
 
@@ -786,7 +767,7 @@ class ZoneNameServerDetail(ETAGMixin, generics.GenericAPIView):
     def get(self, request, *args, **kwargs):
         query = self.kwargs[self.lookup_field]
         zone = get_object_or_404(self.get_queryset(), name=query)
-        return Response([ns['name'] for ns in zone.nameservers.values()], status=status.HTTP_200_OK)
+        return Response([ns.name for ns in zone.nameservers.all()], status=status.HTTP_200_OK)
 
     def patch(self, request, *args, **kwargs):
         query = self.kwargs[self.lookup_field]
@@ -794,29 +775,7 @@ class ZoneNameServerDetail(ETAGMixin, generics.GenericAPIView):
         if 'primary_ns' not in request.data:
             return Response({'ERROR': 'No nameserver found in body'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Check existing  nameservers and delete them if this zone is the only one that uses them
-        for nameserver in zone.nameservers.values():
-            ns = self.queryset_ns.get(name=nameserver['name'])
-            if ns.forwardzone_set.count() == 1:
-                ns.delete()
-        # Clear remaining references
-        zone.nameservers.clear()
-
-        for nameserver in request.data.getlist('primary_ns'):
-            # Check if a hosts with the name exists
-            try:
-                self.queryset_hosts.get(name=nameserver)
-                # Check if there already is a entry in the table
-                try:
-                    ns = self.queryset_ns.get(name=nameserver)
-                    zone.nameservers.add(ns)
-                except NameServer.DoesNotExist:
-                    ns = NameServer(name=nameserver)
-                    ns.save()
-                    zone.nameservers.add(ns)
-            except Host.DoesNotExist:
-                return Response({'ERROR': "No host entry for %s" % nameserver}, status=status.HTTP_404_NOT_FOUND)
-
+        zone.update_nameservers(request.data.getlist('primary_ns'))
         zone.primary_ns = request.data.getlist('primary_ns')[0]
         zone.save()
         location = f"/zones/{query}/nameservers"

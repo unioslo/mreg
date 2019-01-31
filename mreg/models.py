@@ -39,7 +39,39 @@ class NameServer(models.Model):
         return '{subzone:24} {ttl:5} IN {record_type:6} {record_data}\n'.format_map(data)
 
 
-class BaseZone(models.Model):
+class ZoneHelpers:
+    def update_nameservers(self, new_ns):
+        existing = set([i.name for i in self.nameservers.all()])
+        remove_ns = existing - set(new_ns)
+        add_ns = set(new_ns) - existing
+
+        # Remove ns from zone and also delete the NameServer if only
+        # used by this zone.
+        for ns in remove_ns:
+            ns = NameServer.objects.get(name=ns)
+            usedcount = 0
+            #Must check all zone sets
+            for i in ('forwardzone', 'reversezone'):
+                usedcount += getattr(ns, f"{i}_set").count()
+
+            if usedcount == 1:
+                ns.delete()
+            self.nameservers.remove(ns)
+
+        for ns in add_ns:
+            try:
+                ns = NameServer.objects.get(name=ns)
+            except NameServer.DoesNotExist:
+                ns = NameServer(name=ns)
+                ns.save()
+            self.nameservers.add(ns)
+        self.save()
+
+    def remove_nameservers(self):
+        self.update_nameservers([])
+
+
+class BaseZone(models.Model, ZoneHelpers):
     updated_at = models.DateTimeField(auto_now=True)
     updated = models.BooleanField(default=False)
     primary_ns = models.CharField(max_length=253, validators=[validate_hostname])
@@ -107,6 +139,7 @@ $TTL {ttl}
             except DatabaseError:
                 pass
 
+
 class ForwardZone(BaseZone):
     name = models.CharField(unique=True, max_length=253, validators=[validate_hostname])
 
@@ -166,6 +199,24 @@ class ReverseZone(BaseZone):
 
         # Return sorted by IP
         return sorted(result, key=lambda i: i[0])
+
+
+class ForwardZoneDelegation(models.Model, ZoneHelpers):
+    zone = models.ForeignKey(ForwardZone, on_delete=models.CASCADE, db_column='zone', related_name='delegations')
+    name = models.CharField(unique=True, max_length=253, validators=[validate_hostname])
+    nameservers = models.ManyToManyField(NameServer, db_column='ns')
+
+    class Meta:
+        db_table = 'forward_zone_delegation'
+
+
+class ReverseZoneDelegation(models.Model, ZoneHelpers):
+    zone = models.ForeignKey(ReverseZone, on_delete=models.CASCADE, db_column='zone', related_name='delegations')
+    name = models.CharField(unique=True, max_length=253, validators=[validate_reverse_zone_name])
+    nameservers = models.ManyToManyField(NameServer, db_column='ns')
+
+    class Meta:
+        db_table = 'reverse_zone_delegation'
 
 
 class ForwardZoneMember(models.Model):
