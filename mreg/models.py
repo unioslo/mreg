@@ -38,6 +38,10 @@ class NameServer(models.Model):
         }
         return '{subzone:24} {ttl:5} IN {record_type:6} {record_data}\n'.format_map(data)
 
+    @staticmethod
+    def validate_name(name):
+        validate_hostname(name)
+
 
 class ZoneHelpers:
     def update_nameservers(self, new_ns):
@@ -51,7 +55,8 @@ class ZoneHelpers:
             ns = NameServer.objects.get(name=ns)
             usedcount = 0
             #Must check all zone sets
-            for i in ('forwardzone', 'reversezone'):
+            for i in ('forwardzone', 'reversezone', 'forwardzonedelegation',
+                      'reversezonedelegation'):
                 usedcount += getattr(ns, f"{i}_set").count()
 
             if usedcount == 1:
@@ -209,6 +214,9 @@ class ForwardZoneDelegation(models.Model, ZoneHelpers):
     class Meta:
         db_table = 'forward_zone_delegation'
 
+    def __str__(self):
+        return f"{self.zone.name} {self.name}"
+
 
 class ReverseZoneDelegation(models.Model, ZoneHelpers):
     zone = models.ForeignKey(ReverseZone, on_delete=models.CASCADE, db_column='zone', related_name='delegations')
@@ -217,6 +225,9 @@ class ReverseZoneDelegation(models.Model, ZoneHelpers):
 
     class Meta:
         db_table = 'reverse_zone_delegation'
+
+    def __str__(self):
+        return f"{self.zone.name} {self.name}"
 
 
 class ForwardZoneMember(models.Model):
