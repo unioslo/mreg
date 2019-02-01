@@ -14,12 +14,58 @@ class ZoneFile(object):
     def generate(self):
         return self.zonetype.generate()
 
-
-class ForwardFile(object):
+class Common:
 
     def __init__(self, zone):
         self.zone = zone
         self.glue_done = set()
+
+    def get_glue(self, ns):
+        """Returns glue for a nameserver. If already used return blank"""
+        if ns in self.glue_done:
+            return ""
+        else:
+            self.glue_done.add(ns)
+        if not ns.endswith("." + self.zone.name):
+            return ""
+        try:
+            host = Host.objects.get(name=ns)
+        except Host.DoesNotExist:
+            #XXX: signal hostmaster?
+            return f"OPS: missing glue for {ns}\n"
+        if not host.ipaddresses.exists():
+            #XXX: signal hostmaster?
+            return f"OPS: no ipaddress for name server {ns}\n"
+        # self's name servers do not need glue, as they will come later
+        # in the zonefile.
+        if host.zone == self.zone:
+            return ""
+        data = ""
+        for ip in host.ipaddresses.all():
+            data += ip.zf_string(self.zone.name)
+        return data
+
+    def get_ns_data(self, qs):
+        data = ""
+        for sub in qs:
+            nameservers = sub.nameservers.all()
+            if not nameservers.exists():
+                # XXX What to do?
+                return f"OPS: NO NS FOR {sub.name}\n"
+            for ns in nameservers:
+                data += ns.zf_string(self.zone.name, subzone=sub.name)
+                data += self.get_glue(ns.name)
+        return data
+
+    def get_delegations(self):
+        data = ""
+        delegations = self.zone.delegations.all().order_by("name")
+        data += self.get_ns_data(delegations)
+        if data:
+            data = ';\n; Delegations\n;\n' + data
+        return data
+
+class ForwardFile(Common):
 
     def host_data(self, host):
         data = ""
@@ -36,38 +82,10 @@ class ForwardFile(object):
             data += host.loc_string(self.zone.name)
         return data
 
-    def get_glue(self, ns):
-        """Returns glue for a nameserver. If already used return blank"""
-        if ns in self.glue_done:
-            return ""
-        else:
-            self.glue_done.add(ns)
-        if not ns.endswith("." + self.zone.name):
-            return ""
-        try:
-            host = Host.objects.get(name=ns)
-        except Host.DoesNotExist:
-            #XXX: signal hostmaster?
-            return "OPS: missing glue for %s\n" % ns
-        if not host.ipaddresses.exists():
-            #XXX: signal hostmaster?
-            return "OPS: no ipaddress for name server %s\n" % ns
-        # self's name servers do not need glue, as they will come later
-        # in the zonefile.
-        if host.zone == self.zone:
-            return ""
-        data = ""
-        for ip in host.ipaddresses.all():
-            data += ip.zf_string(self.zone.name)
-        return data
-
     def get_subdomains(self):
         data = ""
         subzones = ForwardZone.objects.filter(name__endswith="." + self.zone.name)
-        for subzone in subzones.order_by('name'):
-            for ns in subzone.nameservers.all():
-                data += ns.zf_string(self.zone.name, subzone=subzone.name)
-                data += self.get_glue(ns.name)
+        data += self.get_ns_data(subzones.order_by("name"))
         if data:
             data = ';\n; Subdomains\n;\n' + data
         return data
@@ -80,6 +98,7 @@ class ForwardFile(object):
         for ns in zone.nameservers.all():
             data += ns.zf_string(zone.name)
 
+        data += self.get_delegations()
         data += self.get_subdomains()
         try:
             root = Host.objects.get(name=zone.name)
@@ -108,10 +127,7 @@ class ForwardFile(object):
         return data
 
 
-class IPv4ReverseFile(object):
-
-    def __init__(self, zone):
-        self.zone = zone
+class IPv4ReverseFile(Common):
 
     def generate(self):
         zone = self.zone
@@ -119,8 +135,7 @@ class IPv4ReverseFile(object):
         data += ';\n; Name servers\n;\n'
         for ns in zone.nameservers.all():
             data += ns.zf_string(zone.name)
-        # TODO: delegated entries, if any
-        data += ';\n; Delegations \n;\n'
+        data += self.get_delegations()
         _prev_net = 'z'
         for ip, hostname in zone.get_ipaddresses():
             rev = ip.reverse_pointer
@@ -133,15 +148,15 @@ class IPv4ReverseFile(object):
         return data
 
 
-class IPv6ReverseFile(object):
+class IPv6ReverseFile(Common):
 
-    def generate(self, zone):
+    def generate(self):
+        zone = self.zone
         data = zone.zf_string
         data += ';\n; Name servers\n;\n'
         for ns in zone.nameservers.all():
             data += ns.zf_string(zone.name)
-        # TODO: delegated entries, if any
-        data += ';\n; Delegations\n;\n'
+        data += self.get_delegations()
         _prev_net = 'z'
         for ip, hostname in zone.get_ipaddresses():
             rev = ip.reverse_pointer
