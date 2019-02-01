@@ -790,6 +790,214 @@ class APIForwardZonesTestCase(APITestCase):
         """"Deleting an entry with registered entries should require force"""
 
 
+class APIZonesForwardDelegationTestCase(APITestCase):
+    """ This class defines test testsuite for api/zones/<name>/delegations/
+        But only for ForwardZones.
+    """
+
+    def setUp(self):
+        """Define the test client and other variables."""
+        self.client = get_token_client()
+        self.data_exampleorg = {'name': 'example.org',
+                                'primary_ns': ['ns1.example.org', 'ns2.example.org'],
+                                'email': "hostmaster@example.org"}
+        self.client.post("/zones/", self.data_exampleorg)
+
+    def test_get_delegation_200_ok(self):
+        response = self.client.get(f"/zones/example.org/delegations/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, [])
+
+    def test_delegate_forward_201_ok(self):
+        path = "/zones/example.org/delegations/"
+        data = {'name': 'delegated.example.org',
+                'nameservers': ['ns1.example.org', 'ns1.delegated.example.org']}
+        response = self.client.post(path, data)
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response['Location'], f"{path}delegated.example.org")
+
+    def test_delegate_forward_zonefiles_200_ok(self):
+        self.test_delegate_forward_201_ok()
+        response = self.client.get('/zonefiles/example.org')
+        self.assertEqual(response.status_code, 200)
+
+    def test_delegate_forward_badname_400_bad_request(self):
+        path = "/zones/example.org/delegations/"
+        bad = {'name': 'delegated.example.com',
+               'nameservers': ['ns1.example.org', 'ns2.example.org']}
+        response = self.client.post(path, bad)
+        self.assertEqual(response.status_code, 400)
+
+    def test_delegate_forward_no_ns_400_bad_request(self):
+        path = "/zones/example.org/delegations/"
+        bad = {'name': 'delegated.example.org',
+               'nameservers': []}
+        response = self.client.post(path, bad)
+        self.assertEqual(response.status_code, 400)
+        bad = {'name': 'delegated.example.org' }
+        response = self.client.post(path, bad)
+        self.assertEqual(response.status_code, 400)
+
+    def test_delegate_forward_duplicate_ns_400_bad_request(self):
+        path = "/zones/example.org/delegations/"
+        bad = {'name': 'delegated.example.org',
+               'nameservers': ['ns1.example.org', 'ns1.example.org']}
+        response = self.client.post(path, bad)
+        self.assertEqual(response.status_code, 400)
+
+    def test_delegate_forward_invalid_ns_400_bad_request(self):
+        path = "/zones/example.org/delegations/"
+        bad = {'name': 'delegated.example.org',
+               'nameservers': ['ns1', ]}
+        response = self.client.post(path, bad)
+        self.assertEqual(response.status_code, 400)
+        bad = {'name': 'delegated.example.org',
+               'nameservers': ['2"#¤2342.tld', ]}
+        response = self.client.post(path, bad)
+        self.assertEqual(response.status_code, 400)
+
+    def test_delegate_forward_nameservers_list_200_ok(self):
+        path = "/zones/example.org/delegations/"
+        self.test_delegate_forward_201_ok()
+        response = self.client.get(f"{path}delegated.example.org")
+        self.assertEqual(response.status_code, 200)
+        nameservers = [i['name'] for i in response.json()['nameservers']]
+        self.assertEqual(len(nameservers), 2)
+        for ns in nameservers:
+            self.assertTrue(NameServer.objects.filter(name=ns).exists())
+
+    def test_forward_list_delegations_200_ok(self):
+        path = "/zones/example.org/delegations/"
+        self.test_delegate_forward_201_ok()
+        response = self.client.get(path)
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(len(data), 1)
+        self.assertTrue(data[0]['name'], 'delegated.example.org')
+
+    def test_forward_delete_delegattion_204_ok(self):
+        self.test_forward_list_delegations_200_ok()
+        path = "/zones/example.org/delegations/delegated.example.org"
+        self.assertEqual(NameServer.objects.count(), 3)
+        response = self.client.delete(path)
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(response['Location'], path)
+        self.assertEqual(NameServer.objects.count(), 2)
+        path = "/zones/example.org/delegations/"
+        response = self.client.get(path)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, [])
+
+
+class APIZonesReverseDelegationTestCase(APITestCase):
+    """ This class defines test testsuite for api/zones/<name>/delegations/
+        But only for ReverseZones.
+    """
+
+    def setUp(self):
+        """Define the test client and other variables."""
+        self.client = get_token_client()
+        self.data_rev1010 = {'name': '10.10.in-addr.arpa',
+                             'primary_ns': ['ns1.example.org', 'ns2.example.org'],
+                             'email': "hostmaster@example.org"}
+        self.data_revdb8 = {'name': '8.b.d.0.1.0.0.2.ip6.arpa',
+                            'primary_ns': ['ns1.example.org', 'ns2.example.org'],
+                            'email': "hostmaster@example.org"}
+
+        self.del_101010 = {'name': '10.10.10.in-addr.arpa',
+                           'nameservers': ['ns1.example.org', 'ns2.example.org']}
+        self.del_10101010 = {'name': '10.10.10.10.in-addr.arpa',
+                             'nameservers': ['ns1.example.org', 'ns2.example.org']}
+        self.del_2001db810 = {'name': '0.1.0.0.8.b.d.0.1.0.0.2.ip6.arpa',
+                              'nameservers': ['ns1.example.org', 'ns2.example.org']}
+
+        self.client.post("/zones/", self.data_rev1010)
+        self.client.post("/zones/", self.data_revdb8)
+
+    def test_get_delegation_200_ok(self):
+        def assertempty(data):
+            response = self.client.get(f"/zones/{data['name']}/delegations/")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.data, [])
+        for data in ('rev1010', 'revdb8'):
+            assertempty(getattr(self, f"data_{data}"))
+
+    def test_delegate_ipv4_201_ok(self):
+        path = "/zones/10.10.in-addr.arpa/delegations/"
+        response = self.client.post(path, self.del_101010)
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response['Location'], f"{path}10.10.10.in-addr.arpa")
+        response = self.client.post(path, self.del_10101010)
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response['Location'], f"{path}10.10.10.10.in-addr.arpa")
+
+    def test_delegate_ipv4_zonefiles_200_ok(self):
+        self.test_delegate_ipv4_201_ok()
+        response = self.client.get('/zonefiles/10.10.in-addr.arpa')
+        self.assertEqual(response.status_code, 200)
+
+    def test_delegate_ipv4_badname_400_bad_request(self):
+        path = "/zones/10.10.in-addr.arpa/delegations/"
+        bad = {'name': 'delegated.example.com',
+               'nameservers': ['ns1.example.org', 'ns2.example.org']}
+        response = self.client.post(path, bad)
+        self.assertEqual(response.status_code, 400)
+
+    def test_delegate_ipv4_invalid_zone_400_bad_request(self):
+        path = "/zones/10.10.in-addr.arpa/delegations/"
+        bad = {'name': '300.10.10.in-addr.arpa',
+               'nameservers': ['ns1.example.org', 'ns2.example.org']}
+        response = self.client.post(path, bad)
+        self.assertEqual(response.status_code, 400)
+        bad = {'name': '10.10.10.10.10.in-addr.arpa',
+               'nameservers': ['ns1.example.org', 'ns2.example.org']}
+        response = self.client.post(path, bad)
+        self.assertEqual(response.status_code, 400)
+        bad = {'name': 'foo.10.10.in-addr.arpa',
+               'nameservers': ['ns1.example.org', 'ns2.example.org']}
+        response = self.client.post(path, bad)
+        self.assertEqual(response.status_code, 400)
+
+    def test_delegate_ipv4_wrong_inet_400_bad_request(self):
+        path = "/zones/10.10.in-addr.arpa/delegations/"
+        bad = {'name': '0.0.0.0.0.1.0.0.8.b.d.0.1.0.0.2.ip6.arpa',
+               'nameservers': ['ns1.example.org', 'ns2.example.org']}
+        response = self.client.post(path, bad)
+        self.assertEqual(response.status_code, 400)
+
+    def test_delegate_duplicate_409_conflict(self):
+        path = "/zones/10.10.in-addr.arpa/delegations/"
+        response = self.client.post(path, self.del_101010)
+        self.assertEqual(response.status_code, 201)
+        response = self.client.post(path, self.del_101010)
+        self.assertEqual(response.status_code, 409)
+
+    def test_delegate_ipv6_201_ok(self):
+        path = "/zones/8.b.d.0.1.0.0.2.ip6.arpa/delegations/"
+        response = self.client.post(path, self.del_2001db810)
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response['Location'], f"{path}{self.del_2001db810['name']}")
+
+    def test_delegate_ipv6_zonefiles_200_ok(self):
+        self.test_delegate_ipv6_201_ok()
+        response = self.client.get('/zonefiles/8.b.d.0.1.0.0.2.ip6.arpa')
+        self.assertEqual(response.status_code, 200)
+
+    def test_delegate_ipv6_badname_400_bad_request(self):
+        path = "/zones/8.b.d.0.1.0.0.2.ip6.arpa/delegations/"
+        bad = {'name': 'delegated.example.com',
+               'nameservers': ['ns1.example.org', 'ns2.example.org']}
+        response = self.client.post(path, bad)
+        self.assertEqual(response.status_code, 400)
+
+    def test_delegate_ipv6_wrong_inet_400_bad_request(self):
+        path = "/zones/8.b.d.0.1.0.0.2.ip6.arpa/delegations/"
+        bad = {'name': '10.10.in-addr.arpa',
+               'nameservers': ['ns1.example.org', 'ns2.example.org']}
+        response = self.client.post(path, bad)
+        self.assertEqual(response.status_code, 400)
+
+
 class APIZonesNsTestCase(APITestCase):
     """"This class defines the test suite for api/zones/<name>/nameservers/ """
 
@@ -1050,16 +1258,16 @@ class APIMACaddressTestCase(APITestCase):
         self.test_mac_patch_mac_200_ok()
         # Make sure it is allowed to add a mac to both IPv4 and IPv6
         # addresses on the same vlan
-        reponse = self.client.post('/ipaddresses/',
-                                   {'host': self.host_one.id,
-                                    'ipaddress': '10.0.1.10',
-                                    'macaddress': '11:22:33:44:55:66'})
-        self.assertEqual(reponse.status_code, 201)
-        reponse = self.client.post('/ipaddresses/',
-                                   {'host': self.host_one.id,
-                                    'ipaddress': '2001:db8:1::10',
-                                    'macaddress': '11:22:33:44:55:66'})
-        self.assertEqual(reponse.status_code, 201)
+        response = self.client.post('/ipaddresses/',
+                                    {'host': self.host_one.id,
+                                     'ipaddress': '10.0.1.10',
+                                     'macaddress': '11:22:33:44:55:66'})
+        self.assertEqual(response.status_code, 201)
+        response = self.client.post('/ipaddresses/',
+                                    {'host': self.host_one.id,
+                                     'ipaddress': '2001:db8:1::10',
+                                     'macaddress': '11:22:33:44:55:66'})
+        self.assertEqual(response.status_code, 201)
 
 
 class APICnamesTestCase(APITestCase):
