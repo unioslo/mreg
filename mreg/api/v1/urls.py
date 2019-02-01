@@ -36,8 +36,10 @@ urlpatterns = [
     path('txts/<pk>', views.TxtDetail.as_view()),
     path('zones/', views.ZoneList.as_view()),
     path('zones/<name>', views.ZoneDetail.as_view()),
+    path('zones/<name>/delegations/', views.ZoneDelegationList.as_view()),
+    path('zones/<name>/delegations/<delegation>', views.ZoneDelegationDetail.as_view()),
     path('zones/<name>/nameservers', views.ZoneNameServerDetail.as_view()),
-    path('zonefiles/<pk>', views.ZoneFileDetail.as_view()),
+    path('zonefiles/<name>', views.ZoneFileDetail.as_view()),
     path('history/', views.ModelChangeLogList.as_view()),
     path('history/<table>/<pk>', views.ModelChangeLogDetail.as_view()),
 ]

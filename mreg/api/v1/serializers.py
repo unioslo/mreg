@@ -5,7 +5,8 @@ from rest_framework import serializers
 
 from mreg.models import (Cname, HinfoPreset, Host, Ipaddress, NameServer,
                          Naptr, PtrOverride, Srv, Network, Txt, ForwardZone,
-                         ReverseZone, ModelChangeLog)
+                         ForwardZoneDelegation, ReverseZone,
+                         ReverseZoneDelegation, ModelChangeLog)
 
 from mreg.utils import nonify
 from mreg.validators import validate_keys
@@ -231,13 +232,45 @@ class BaseZoneSerializer(ValidationMixin, serializers.ModelSerializer):
 
 class ForwardZoneSerializer(BaseZoneSerializer):
 
+
     class Meta(BaseZoneSerializer.Meta):
         model = ForwardZone
+
 
 class ReverseZoneSerializer(BaseZoneSerializer):
 
     class Meta(BaseZoneSerializer.Meta):
         model = ReverseZone
+
+
+class BaseZoneDelegationSerializer(BaseZoneSerializer):
+
+    class Meta(BaseZoneSerializer.Meta):
+        pass
+
+    def validate(self, data):
+        data = super().validate(data)
+        if data.get('name') and data.get('zone'):
+            parentzone = data.get('zone')
+            name = data.get('name')
+            if not name.endswith(f".{parentzone.name}"):
+                raise serializers.ValidationError(
+                    f"Delegation {name} is not contained in {parentzone}")
+        return data
+
+
+
+class ForwardZoneDelegationSerializer(BaseZoneDelegationSerializer):
+
+    class Meta(BaseZoneDelegationSerializer.Meta):
+        model = ForwardZoneDelegation
+
+
+class ReverseZoneDelegationSerializer(BaseZoneDelegationSerializer):
+
+    class Meta(BaseZoneSerializer.Meta):
+        model = ReverseZoneDelegation
+
 
 class ModelChangeLogSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
