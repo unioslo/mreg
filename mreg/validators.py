@@ -76,28 +76,26 @@ def validate_reverse_zone_name(name):
     if name.endswith("in-addr.arpa"):
         octets = labels[:-2]
         if len(octets) > 4:
-            raise ValidationError("Reverse zone is not valid")
+            raise ValidationError("Reverse zone is not valid: too long")
         try:
             [ int(octet) for octet in octets ]
         except ValueError:
             raise ValidationError("Non-integers in the octets in reverse zone")
-        try:
-            network = get_network_from_zonename(name)
-        except ValueError:
-            raise ValidationError("Not a valid reverse zone")
-
-    if name.endswith("ip6.arpa"):
+    elif name.endswith("ip6.arpa"):
         hexes = labels[:-2]
         if len(hexes) > 32:
-            raise ValidationError("Reverse zone is not valid")
+            raise ValidationError("Reverse zone is not valid: too long")
         try:
             [ int(i, 16) for i in hexes ]
         except ValueError:
             raise ValidationError("Non-hex in the reverse zone")
-        try:
-            network = get_network_from_zonename(name)
-        except ValueError:
-            raise ValidationError("Not a valid reverse zone")
+    else:
+        raise ValidationError("Not a valid reverse zone")
+
+    try:
+        get_network_from_zonename(name)
+    except ValueError as error:
+        raise ValidationError(f"Invalid network from name: {error}")
 
 def validate_mac_address(address):
     """Validates that the mac address is on a valid form."""
