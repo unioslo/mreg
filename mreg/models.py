@@ -167,10 +167,12 @@ class ReverseZone(BaseZone):
         from_ip = str(network.network_address)
         to_ip = str(network.broadcast_address)
         ips = Ipaddress.objects.filter(ipaddress__range=(from_ip, to_ip))
+        ips = ips.select_related('host')
         override_ips = dict()
-        for p in PtrOverride.objects.filter(ipaddress__range=(from_ip, to_ip)):
+        ptrs = PtrOverride.objects.filter(ipaddress__range=(from_ip, to_ip))
+        ptrs = ptrs.select_related('host')
+        for p in ptrs:
             override_ips[p.ipaddress] = p
-
         # XXX: send signal/mail to hostmaster(?) about issues with multiple_ip_no_ptr
         count = defaultdict(int)
         for i in ips:
@@ -183,7 +185,8 @@ class ReverseZone(BaseZone):
         result = []
 
         def _add_to_result(item):
-            result.append((ipaddress.ip_address(item.ipaddress), item.host.name))
+            ttl = item.host.ttl or ""
+            result.append((ipaddress.ip_address(item.ipaddress), ttl, item.host.name))
 
         for i in ips:
             ip = i.ipaddress

@@ -47,6 +47,7 @@ class Common:
 
     def get_ns_data(self, qs):
         data = ""
+        qs = qs.prefetch_related("nameservers")
         for sub in qs:
             nameservers = sub.nameservers.all()
             if not nameservers.exists():
@@ -74,8 +75,10 @@ class ForwardFile(Common):
                 data += j.zf_string(self.zone.name)
         # For entries where the host is the resource record
         for i in ('cnames', ):
-            for j in getattr(host, i).filter(zone=self.zone):
-                data += j.zf_string(self.zone.name)
+            # Avoid trashing the QuerySet cache with .filter(zone=self.zone)
+            for j in getattr(host, i).all():
+                if j.zone == self.zone:
+                    data += j.zf_string(self.zone.name)
         if host.hinfo is not None:
             data += host.hinfo.zf_string
         if host.loc:
@@ -105,7 +108,7 @@ class ForwardFile(Common):
             root_data = self.host_data(root)
             if root_data:
                 data += ";\n"
-                data +="@" + root_data
+                data += "@" + root_data
                 data += ";\n"
         except Host.DoesNotExist:
             pass
@@ -113,6 +116,9 @@ class ForwardFile(Common):
         data += ';\n; Host addresses\n;\n'
         hosts = Host.objects.filter(zone=zone.id).order_by('name')
         hosts = hosts.exclude(name=zone.name)
+        hosts = hosts.select_related('hinfo', 'zone')
+        hosts = hosts.prefetch_related('cnames', 'ipaddresses', 'naptrs',
+                                       'txts')
         for host in hosts:
             data += self.host_data(host)
         # Print misc entries
@@ -137,14 +143,14 @@ class IPv4ReverseFile(Common):
             data += ns.zf_string(zone.name)
         data += self.get_delegations()
         _prev_net = 'z'
-        for ip, hostname in zone.get_ipaddresses():
+        for ip, ttl, hostname in zone.get_ipaddresses():
             rev = ip.reverse_pointer
             # Add $ORIGIN between every new /24 found
             if not rev.endswith(_prev_net):
                 _prev_net = rev[rev.find('.'):]
                 data += "$ORIGIN {}.\n".format(_prev_net[1::])
             ptrip = rev[:rev.find('.')]
-            data += "{}\tPTR\t{}.\n".format(ptrip, idna_encode(hostname))
+            data += "{} {}\tPTR\t{}.\n".format(ptrip, ttl, idna_encode(hostname))
         return data
 
 
@@ -158,11 +164,11 @@ class IPv6ReverseFile(Common):
             data += ns.zf_string(zone.name)
         data += self.get_delegations()
         _prev_net = 'z'
-        for ip, hostname in zone.get_ipaddresses():
+        for ip, ttl, hostname in zone.get_ipaddresses():
             rev = ip.reverse_pointer
             # Add $ORIGIN between every new /64 found
             if not rev.endswith(_prev_net):
                 _prev_net = rev[32:]
                 data += "$ORIGIN {}.\n".format(_prev_net)
-            data += "{}\tPTR\t{}.\n".format(rev[:31], idna_encode(hostname))
+            data += "{} {}\tPTR\t{}.\n".format(rev[:31], ttl, idna_encode(hostname))
         return data
