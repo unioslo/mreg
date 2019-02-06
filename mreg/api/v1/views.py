@@ -137,7 +137,7 @@ class CnameList(generics.ListCreateAPIView):
     lookup_field = 'name'
 
     def get_queryset(self):
-        qs = super(CnameList, self).get_queryset()
+        qs = super().get_queryset()
         return CnameFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
@@ -169,7 +169,7 @@ class HinfoPresetList(generics.ListCreateAPIView):
     serializer_class = HinfoPresetSerializer
 
     def get_queryset(self):
-        qs = super(HinfoPresetList, self).get_queryset()
+        qs = super().get_queryset()
         return HinfoFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
@@ -200,7 +200,7 @@ class HostList(generics.ListCreateAPIView):
     serializer_class = HostSerializer
 
     def get_queryset(self):
-        qs = super(HostList, self).get_queryset()
+        qs = super().get_queryset()
         return HostFilterSet(data=self.request.GET, queryset=qs).filter()
 
     def post(self, request, *args, **kwargs):
@@ -284,7 +284,7 @@ class IpaddressList(generics.ListCreateAPIView):
     ordering_fields = ('host', 'ipaddress', 'macaddress')
 
     def get_queryset(self):
-        qs = super(IpaddressList, self).get_queryset()
+        qs = super().get_queryset()
         return IpaddressFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
@@ -315,7 +315,7 @@ class NaptrList(generics.ListCreateAPIView):
     serializer_class = NaptrSerializer
 
     def get_queryset(self):
-        qs = super(NaptrList, self).get_queryset()
+        qs = super().get_queryset()
         return NaptrFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
@@ -346,7 +346,7 @@ class NameServerList(generics.ListCreateAPIView):
     serializer_class = NameServerSerializer
 
     def get_queryset(self):
-        qs = super(NameServerList, self).get_queryset()
+        qs = super().get_queryset()
         return NameServerFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
@@ -377,7 +377,7 @@ class PtrOverrideList(generics.ListCreateAPIView):
     serializer_class = PtrOverrideSerializer
 
     def get_queryset(self):
-        qs = super(PtrOverrideList, self).get_queryset()
+        qs = super().get_queryset()
         return PtrOverrideFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
@@ -408,7 +408,7 @@ class SrvList(generics.ListCreateAPIView):
     serializer_class = SrvSerializer
 
     def get_queryset(self):
-        qs = super(SrvList, self).get_queryset()
+        qs = super().get_queryset()
         return SrvFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
@@ -488,7 +488,7 @@ class NetworkList(generics.ListAPIView):
         Applies filtering to the queryset
         :return: filtered list of networks
         """
-        qs = super(NetworkList, self).get_queryset()
+        qs = super().get_queryset()
         return NetworkFilterSet(data=self.request.GET, queryset=qs).filter()
 
 def _get_network(kwargs):
@@ -607,7 +607,6 @@ def network_unused_list(request, *args, **kwargs):
     return Response(unused_ipaddresses, status=status.HTTP_200_OK)
 
 
-
 class TxtList(generics.ListCreateAPIView):
     """
     get:
@@ -621,7 +620,7 @@ class TxtList(generics.ListCreateAPIView):
     serializer_class = TxtSerializer
 
     def get_queryset(self):
-        qs = super(TxtList, self).get_queryset()
+        qs = super().get_queryset()
         return TxtFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
