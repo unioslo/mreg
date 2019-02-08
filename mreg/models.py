@@ -151,6 +151,30 @@ class ForwardZone(BaseZone):
     class Meta:
         db_table = 'forward_zone'
 
+    @staticmethod
+    def get_zone_by_hostname(name):
+        """Get zone by hostname.
+        Return zone or None if not found."""
+
+        def _get_reverse_order(lst):
+            """Return index of sorted zones"""
+            # We must sort the zones to assert that foo.example.org hosts
+            # does not end up in the example.org zone.  This is achieved by
+            # spelling the zone postfix backwards and sorting the resulting
+            # list backwards
+            lst = [str(x.name)[::-1] for x in lst]
+            t = range(len(lst))
+            return sorted(t, key=lambda i: lst[i], reverse=True)
+
+        zones = ForwardZone.objects.all()
+        for n in _get_reverse_order(zones):
+            z = zones[n]
+            if z.name == name:
+                return z
+            elif name.endswith(f".{z.name}"):
+                return z
+        return None
+
 
 class ReverseZone(BaseZone):
     name = models.CharField(unique=True, max_length=253, validators=[validate_reverse_zone_name])
