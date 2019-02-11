@@ -580,6 +580,8 @@ class APIAutoupdateZonesTestCase(APITestCase):
         self.client.post('/hosts/', self.host1)
         self.zone_exampleorg.refresh_from_db()
         self.zone_1010.refresh_from_db()
+        self.assertTrue(self.zone_exampleorg.updated)
+        self.assertTrue(self.zone_1010.updated)
         self.assertGreater(self.zone_exampleorg.updated_at, old_org_updated_at)
         self.assertGreater(self.zone_1010.updated_at, old_1010_updated_at)
 
@@ -596,9 +598,114 @@ class APIAutoupdateZonesTestCase(APITestCase):
         self.zone_exampleorg.refresh_from_db()
         self.zone_examplecom.refresh_from_db()
         self.zone_1010.refresh_from_db()
-        self.assertGreater(self.zone_exampleorg.updated_at, old_org_updated_at)
+        self.assertTrue(self.zone_examplecom.updated)
+        self.assertTrue(self.zone_exampleorg.updated)
+        self.assertTrue(self.zone_1010.updated)
         self.assertGreater(self.zone_examplecom.updated_at, old_com_updated_at)
+        self.assertGreater(self.zone_exampleorg.updated_at, old_org_updated_at)
         self.assertGreater(self.zone_1010.updated_at, old_1010_updated_at)
+
+class APIAutoupdateHostZoneTestCase(APITestCase):
+    """This class tests that a Host's zone attribute is correct and updated
+       when renaming etc.
+       """
+
+    def setUp(self):
+        """Add the a couple of zones and hosts for used in testing."""
+        self.client = get_token_client()
+        self.zone_org = ForwardZone(name='example.org',
+                                    primary_ns='ns.example.org',
+                                    email='hostmaster@example.org')
+        self.zone_long = ForwardZone(name='longexample.org',
+                                     primary_ns='ns.example.org',
+                                     email='hostmaster@example.org')
+        self.zone_sub = ForwardZone(name='sub.example.org',
+                                    primary_ns='ns.example.org',
+                                    email='hostmaster@example.org')
+        self.zone_com = ForwardZone(name='example.com',
+                                    primary_ns='ns.example.com',
+                                    email='hostmaster@example.com')
+        self.zone_1010 = ReverseZone(name='10.10.in-addr.arpa',
+                                     primary_ns='ns.example.org',
+                                     email='hostmaster@example.org')
+
+        self.org_host1 = {"name": "host1.example.org",
+                         "ipaddress": "10.10.0.1",
+                         "contact": "mail@example.org"}
+        self.org_host2 = {"name": "example.org",
+                          "ipaddress": "10.10.0.2",
+                          "contact": "mail@example.org"}
+        self.sub_host1 = {"name": "host1.sub.example.org",
+                          "ipaddress": "10.20.0.1",
+                          "contact": "mail@example.org"}
+        self.sub_host2 = {"name": "sub.example.org",
+                          "ipaddress": "10.20.0.1",
+                          "contact": "mail@example.org"}
+        self.long_host1 = {"name": "host1.longexample.org",
+                           "ipaddress": "10.30.0.1",
+                           "contact": "mail@example.org"}
+        self.long_host2 = {"name": "longexample.org",
+                           "ipaddress": "10.30.0.2",
+                           "contact": "mail@example.org"}
+        clean_and_save(self.zone_org)
+        clean_and_save(self.zone_long)
+        clean_and_save(self.zone_com)
+        clean_and_save(self.zone_sub)
+        clean_and_save(self.zone_1010)
+
+    def test_add_host_known_zone(self):
+        res = self.client.post("/hosts/", self.org_host1)
+        self.assertEqual(res.status_code, 201)
+        res = self.client.post("/hosts/", self.org_host2)
+        self.assertEqual(res.status_code, 201)
+        res = self.client.post("/hosts/", self.sub_host1)
+        self.assertEqual(res.status_code, 201)
+        res = self.client.post("/hosts/", self.sub_host2)
+        self.assertEqual(res.status_code, 201)
+        res = self.client.post("/hosts/", self.long_host1)
+        self.assertEqual(res.status_code, 201)
+        res = self.client.post("/hosts/", self.long_host2)
+        self.assertEqual(res.status_code, 201)
+
+        res =  self.client.get("/hosts/{}".format(self.org_host1['name']))
+        self.assertEqual(res.json()['zone'], self.zone_org.id)
+        res =  self.client.get("/hosts/{}".format(self.org_host2['name']))
+        self.assertEqual(res.json()['zone'], self.zone_org.id)
+        res =  self.client.get("/hosts/{}".format(self.sub_host1['name']))
+        self.assertEqual(res.json()['zone'], self.zone_sub.id)
+        res =  self.client.get("/hosts/{}".format(self.sub_host2['name']))
+        self.assertEqual(res.json()['zone'], self.zone_sub.id)
+        res =  self.client.get("/hosts/{}".format(self.long_host1['name']))
+        self.assertEqual(res.json()['zone'], self.zone_long.id)
+        res =  self.client.get("/hosts/{}".format(self.long_host2['name']))
+        self.assertEqual(res.json()['zone'], self.zone_long.id)
+
+    def test_add_to_non_existant(self):
+        data = {"name": "host1.example.net",
+                "ipaddress": "10.10.0.10",
+                "contact": "mail@example.org"}
+        res = self.client.post("/hosts/", data)
+        self.assertEqual(res.status_code, 201)
+        res = self.client.get(f"/hosts/{data['name']}")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()['zone'], None)
+
+
+    def test_rename_host_to_valid_zone(self):
+        self.client.post('/hosts/', self.org_host1)
+        self.client.patch('/hosts/host1.example.org',
+                          {"name": "host1.example.com"})
+        res = self.client.get(f"/hosts/host1.example.com")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()['zone'], self.zone_com.id)
+
+    def test_rename_host_to_unknown_zone(self):
+        self.client.post('/hosts/', self.org_host1)
+        self.client.patch('/hosts/host1.example.org',
+                          {"name": "host1.example.net"})
+        res = self.client.get(f"/hosts/host1.example.net")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()['zone'], None)
 
 
 class APIHostsTestCase(TestCase):

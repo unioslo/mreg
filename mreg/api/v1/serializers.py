@@ -25,32 +25,10 @@ class ValidationMixin(object):
 class ForwardZoneMixin(ValidationMixin):
     """Create a zone entry from the hostname."""
 
-    @staticmethod
-    def _get_zone_by_hostname(name):
-        """Get a zone's id for a hostname.
-        Return zone's id or None if not found."""
-
-        def _get_reverse_order(lst):
-            """Return index of sorted zones"""
-            # We must sort the zones to assert that foo.example.org hosts
-            # does not end up in the example.org zone.  This is acheived by
-            # spelling the zone postfix backwards and sorting the
-            # resulting list backwards
-            lst = [str(x.name)[::-1] for x in lst]
-            t = range(len(lst))
-            return sorted(t, reverse=True)
-
-        zones = ForwardZone.objects.all()
-        for n in _get_reverse_order(zones):
-            z = zones[n]
-            if z.name and name.endswith(z.name):
-                return z
-        return None
-
     def validate(self, data):
         data = super().validate(data)
         if data.get('name'):
-            data['zone'] = self._get_zone_by_hostname(data['name'])
+            data['zone'] = ForwardZone.get_zone_by_hostname(data['name'])
         return data
 
 
