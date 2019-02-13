@@ -33,52 +33,52 @@ from .zonefile import ZoneFile
 
 # These filtersets are used for applying generic filtering to all objects.
 class CnameFilterSet(ModelFilterSet):
-    class Meta(object):
+    class Meta:
         model = Cname
 
 
 class HinfoFilterSet(ModelFilterSet):
-    class Meta(object):
+    class Meta:
         model = HinfoPreset
 
 
 class HostFilterSet(ModelFilterSet):
-    class Meta(object):
+    class Meta:
         model = Host
 
 
 class IpaddressFilterSet(ModelFilterSet):
-    class Meta(object):
+    class Meta:
         model = Ipaddress
 
 
 class NaptrFilterSet(ModelFilterSet):
-    class Meta(object):
+    class Meta:
         model = Naptr
 
 
 class NameServerFilterSet(ModelFilterSet):
-    class Meta(object):
+    class Meta:
         model = NameServer
 
 
 class PtrOverrideFilterSet(ModelFilterSet):
-    class Meta(object):
+    class Meta:
         model = PtrOverride
 
 
 class SrvFilterSet(ModelFilterSet):
-    class Meta(object):
+    class Meta:
         model = Srv
 
 
 class NetworkFilterSet(ModelFilterSet):
-    class Meta(object):
+    class Meta:
         model = Network
 
 
 class TxtFilterSet(ModelFilterSet):
-    class Meta(object):
+    class Meta:
         model = Txt
 
 

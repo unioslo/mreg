@@ -12,7 +12,7 @@ from mreg.utils import nonify
 from mreg.validators import validate_keys
 
 
-class ValidationMixin(object):
+class ValidationMixin:
     """Provides standard validation of data fields"""
 
     def validate(self, data):
