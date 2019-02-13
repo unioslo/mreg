@@ -1,12 +1,15 @@
 import ipaddress
 
-from django.db.models.signals import pre_save, post_save, post_delete
+from django.db.models.signals import pre_save, post_save, post_delete, pre_delete
 from django.dispatch import receiver
 from django.utils import timezone
 
 from mreg.models import (Cname, Host, Ipaddress, ModelChangeLog, Naptr,
-                         PtrOverride, Srv, Txt, ReverseZone, ForwardZoneMember)
+                         PtrOverride, Srv, Txt, ReverseZone, ForwardZoneMember, NameServer, ForwardZoneDelegation,ReverseZoneDelegation, ReverseZone, ForwardZone)
 from mreg.api.v1.serializers import HostSerializer
+from rest_framework.exceptions import PermissionDenied
+
+
 
 
 def _del_ptr(ipaddress):
@@ -163,3 +166,26 @@ def save_host_history_on_delete(sender, instance, **kwargs):
                                    action='deleted',
                                    timestamp=timezone.now())
     new_log_entry.save()
+
+@receiver(pre_delete, sender=Ipaddress)
+@receiver(pre_delete, sender=Host)
+def prevent_nameserver_deletion(sender, instance, using, **kwargs):
+    if isinstance(instance, Host):
+        nameserver = NameServer.objects.filter(name=instance.name).first()
+    else:
+        # Go here if ipaddress-instance, then check for more than 1 IPaddress
+        nameserver = NameServer.objects.filter(name=instance.host.name).first()
+        if instance.host.ipaddresses.count() > 1:
+            return
+
+    if nameserver:
+        usedcount = 0
+        for i in ('forwardzone', 'reversezone', 'forwardzonedelegation',
+                  'reversezonedelegation'):
+            usedcount += getattr(nameserver, f"{i}_set").count()
+
+        if usedcount >= 1:
+                    raise PermissionDenied(detail='This host is a nameserver and cannot be deleted untill it has been removed from all zones its setup as a nameserver')
+    else:
+        return
+
