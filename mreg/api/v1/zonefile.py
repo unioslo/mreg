@@ -1,8 +1,12 @@
-from mreg.models import Cname, Host, Srv, ForwardZone
-from mreg.utils import idna_encode
+import ipaddress
+
+from collections import defaultdict
+
+from mreg.models import Cname, ForwardZone, Host, Ipaddress, Naptr, Srv, Txt
+from mreg.utils import clear_none, idna_encode, qualify
 
 
-class ZoneFile(object):
+class ZoneFile:
     def __init__(self, zone):
         if zone.name.endswith('.in-addr.arpa'):
             self.zonetype = IPv4ReverseFile(zone)
@@ -61,40 +65,127 @@ class Common:
     def get_delegations(self):
         data = ""
         delegations = self.zone.delegations.all().order_by("name")
-        data += self.get_ns_data(delegations)
-        if data:
+        if delegations:
+            data += self.get_ns_data(delegations)
             data = ';\n; Delegations\n;\n' + data
         return data
 
 class ForwardFile(Common):
 
+    def ip_zf_string(self, name, ttl, ip):
+        if ip.version == 4:
+            iptype = "A"
+        else:
+            iptype = "AAAA"
+
+        data = {
+            'name': idna_encode(qualify(name, self.zone.name)),
+            'ttl': clear_none(ttl),
+            'record_type': iptype,
+            'record_data': str(ip),
+        }
+        return '{name:24} {ttl:5} IN {record_type:6} {record_data:39}\n'.format_map(data)
+
+    def txt_zf_string(self, name, ttl, txt):
+
+        data = {
+            'name': idna_encode(qualify(name, self.zone.name)),
+            'ttl': clear_none(ttl),
+            'record_type': "TXT",
+            'record_data': f'"{txt}"'
+        }
+        return '{name:24} {ttl:5} IN {record_type:6} {record_data:39}\n'.format_map(data)
+
+    def naptr_zf_string(self, name, ttl, preference, order, flag, service, regex, replacement):
+        """String representation for zonefile export."""
+        if flag in ('a', 's'):
+            replacement = idna_encode(qualify(replacement, self.zone.name))
+        else:
+            replacement = replacement
+
+        data = {
+            'name': idna_encode(qualify(name, self.zone.name)),
+            'ttl': clear_none(ttl),
+            'record_type': 'NAPTR',
+            'order': order,
+            'preference': preference,
+            'flag': flag,
+            'service': service,
+            'regex': regex,
+            'replacement': replacement,
+        }
+        return '{name:24} {ttl:5} IN {record_type:6} {order} {preference} ' \
+               '\"{flag}\" \"{service}\" \"{regex}\" {replacement}\n'.format_map(data)
+
+    def cname_zf_string(self, alias, ttl, target):
+        """String representation for zonefile export."""
+        data = {
+            'alias': idna_encode(qualify(alias, self.zone.name)),
+            'ttl': clear_none(ttl),
+            'record_type': 'CNAME',
+            'record_data': idna_encode(qualify(target, self.zone.name)),
+        }
+        return '{alias:24} {ttl:5} IN {record_type:6} {record_data:39}\n'.format_map(data)
+
+
     def host_data(self, host):
         data = ""
-        for i in ('ipaddresses', 'naptrs', 'txts',):
-            for j in getattr(host, i).all():
-                data += j.zf_string(self.zone.name)
-        # For entries where the host is the resource record
-        for i in ('cnames', ):
-            # Avoid trashing the QuerySet cache with .filter(zone=self.zone)
-            for j in getattr(host, i).all():
-                if j.zone == self.zone:
-                    data += j.zf_string(self.zone.name)
+        if host.name in self.ipaddresses:
+            for ip in self.ipaddresses[host.name]:
+                data += self.ip_zf_string(host.name, host.ttl, ip)
+        if host.name in self.txts:
+            for txt in self.txts[host.name]:
+                data += self.txt_zf_string(host.name, host.ttl, txt)
+        if host.name in self.naptrs:
+            for naptr in self.naptrs[host.name]:
+                data += self.naptr_zf_string(host.name, host.ttl, *naptr)
+        # XXX: add caching for this one, if we populate it..
         if host.hinfo is not None:
             data += host.hinfo.zf_string
         if host.loc:
             data += host.loc_string(self.zone.name)
+        # For entries where the host is the resource record
+        if host.name in self.host_cnames:
+            for alias, ttl in self.host_cnames[host.name]:
+                data += self.cname_zf_string(alias, ttl, host.name)
         return data
+
+    def cache_hostdata(self):
+        self.host_cnames = defaultdict(list)
+        self.ipaddresses = defaultdict(list)
+        self.naptrs = defaultdict(list)
+        self.txts = defaultdict(list)
+
+        cnames = Cname.objects.filter(zone=self.zone).filter(host__zone=self.zone)
+        for hostname, alias, ttl, in cnames.values_list('host__name', 'name', 'ttl'):
+            self.host_cnames[hostname].append((alias, ttl))
+
+        ips = Ipaddress.objects.filter(host__zone=self.zone)
+        for hostname, ip in ips.values_list("host__name", "ipaddress"):
+            self.ipaddresses[hostname].append(ipaddress.ip_address(ip))
+
+        naptrs = Naptr.objects.filter(host__zone=self.zone)
+        for i in naptrs.values_list("host__name", "order", "preference", "flag",
+                                    "service", "regex", "replacement"):
+            self.naptrs[i[0]].append(i[1:])
+
+        txts = Txt.objects.filter(host__zone=self.zone)
+        for hostname, txt in txts.values_list("host__name", "txt"):
+            self.txts[hostname].append(txt)
+
 
     def get_subdomains(self):
         data = ""
         subzones = ForwardZone.objects.filter(name__endswith="." + self.zone.name)
-        data += self.get_ns_data(subzones.order_by("name"))
-        if data:
+        if subzones:
+            data += self.get_ns_data(subzones.order_by("name"))
             data = ';\n; Subdomains\n;\n' + data
         return data
 
+
     def generate(self):
         zone = self.zone
+        self.cache_hostdata()
         # Print info about Zone and its nameservers
         data = zone.zf_string
         data += ';\n; Name servers\n;\n'
@@ -113,23 +204,23 @@ class ForwardFile(Common):
         except Host.DoesNotExist:
             pass
         # Print info about hosts and their corresponding data
-        data += ';\n; Host addresses\n;\n'
         hosts = Host.objects.filter(zone=zone.id).order_by('name')
         hosts = hosts.exclude(name=zone.name)
-        hosts = hosts.select_related('hinfo', 'zone')
-        hosts = hosts.prefetch_related('cnames', 'ipaddresses', 'naptrs',
-                                       'txts')
-        for host in hosts:
-            data += self.host_data(host)
+        if hosts:
+            data += ';\n; Host addresses\n;\n'
+            for host in hosts:
+                data += self.host_data(host)
         # Print misc entries
-        data += ';\n; Services\n;\n'
         srvs = Srv.objects.filter(zone=zone.id)
-        for srv in srvs:
-            data += srv.zf_string(zone.name)
-        data += ';\n; Cnames pointing out of the zone\n;\n'
+        if srvs:
+            data += ';\n; Services\n;\n'
+            for srv in srvs:
+                data += srv.zf_string(zone.name)
         cnames = Cname.objects.filter(zone=zone.id).exclude(host__zone=zone.id)
-        for cname in cnames:
-            data += cname.zf_string(zone.name)
+        if cnames:
+            data += ';\n; Cnames pointing out of the zone\n;\n'
+            for cname in cnames:
+                data += cname.zf_string(zone.name)
         return data
 
 
