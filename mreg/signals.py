@@ -1,13 +1,39 @@
 import ipaddress
+import re
 
+from django.conf import settings
+from django.contrib.auth.models import Group
 from django.db.models.signals import pre_save, post_save, post_delete
 from django.dispatch import receiver
 from django.utils import timezone
+
+from django_auth_ldap.backend import populate_user
 
 from mreg.models import (Cname, Host, Ipaddress, ModelChangeLog, Naptr,
                          PtrOverride, Srv, Txt, ReverseZone, ForwardZoneMember)
 from mreg.api.v1.serializers import HostSerializer
 
+
+@receiver(populate_user)
+def populate_user_from_ldap(sender, signal, user=None, ldap_user=None, **kwargs):
+    """Find all groups from ldap with attr LDAP_GROUP_ATTR and matching
+    the regular expression LDAP_GROUP_RE. Will wipe previous group memberships
+    before adding new."""
+    LDAP_GROUP_ATTR = getattr(settings, 'LDAP_GROUP_ATTR', None)
+    LDAP_GROUP_RE = getattr(settings, 'LDAP_GROUP_RE', None)
+    if LDAP_GROUP_ATTR is None or LDAP_GROUP_RE is None:
+        return
+    user.groups.clear()
+    user.save()
+    ldap_groups = ldap_user.attrs.get(LDAP_GROUP_ATTR, [])
+    group_re = re.compile(LDAP_GROUP_RE)
+    for group_str in ldap_groups:
+        res = group_re.match(group_str)
+        if res:
+            group_name = res.group('group_name')
+            group, created = Group.objects.get_or_create(name=group_name)
+            group.user_set.add(user)
+            group.save()
 
 def _del_ptr(ipaddress):
     ptrs = PtrOverride.objects.filter(ipaddress=ipaddress)
