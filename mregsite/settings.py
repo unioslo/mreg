@@ -36,6 +36,12 @@ AUTH_LDAP_USER_DN_TEMPLATE = "uid=%(user)s,ou=users,dc=example,dc=com"
 AUTH_LDAP_START_TLS = True
 AUTH_LDAP_CACHE_TIMEOUT = 3600
 
+# Used by signals.py populate_user_from_ldap to match attributes
+# via a regexp to groups, which are added to the logged in user.
+LDAP_GROUP_ATTR = "memberof"
+# LDAP_GROUP_RE must include a named group with name "group_name".
+LDAP_GROUP_RE = r"""^cn=(?P<group_name>[\w\-]+),cn=netgroups,"""
+
 # Application definition
 
 INSTALLED_APPS = [
@@ -132,13 +138,14 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/2.0/howto/static-files/
 
 STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'static/')
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'mreg.authentication.ExpiringTokenAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.IsAuthenticated',
+        'mreg.api.permissions.IsInRequiredGroup',
     ),
 }
 
