@@ -1,4 +1,5 @@
-from django.contrib.auth.models import User
+from django.conf import settings
+from django.contrib.auth.models import Group, User
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.authtoken.models import Token
@@ -547,6 +548,11 @@ class ModelChangeLogTestCase(TestCase):
 def get_token_client():
     user, created = User.objects.get_or_create(username='nobody')
     token, created = Token.objects.get_or_create(user=user)
+    REQUIRED_USER_GROUP = getattr(settings, 'REQUIRED_USER_GROUP', None)
+    if REQUIRED_USER_GROUP is not None:
+        group, created = Group.objects.get_or_create(name=REQUIRED_USER_GROUP)
+        group.user_set.add(user)
+        group.save()
     client = APIClient()
     client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
     return client
