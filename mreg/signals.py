@@ -3,7 +3,7 @@ import re
 
 from django.conf import settings
 from django.contrib.auth.models import Group
-from django.db.models.signals import post_delete,pre_delete , post_save, pre_save
+from django.db.models.signals import post_delete, pre_delete , post_save, pre_save
 from django.dispatch import receiver
 from django.utils import timezone
 from django_auth_ldap.backend import populate_user
@@ -38,7 +38,7 @@ def populate_user_from_ldap(sender, signal, user=None, ldap_user=None, **kwargs)
 def _del_ptr(ipaddress):
     ptrs = PtrOverride.objects.filter(ipaddress=ipaddress)
     if ptrs:
-        assert (ptrs.count() == 1)
+        assert(ptrs.count() == 1)
         ptrs.delete()
 
 # Update PtrOverride whenever a Ipaddress is created or changed
