@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import path, re_path
 
 from . import views
 
@@ -35,11 +35,11 @@ urlpatterns = [
     path('txts/', views.TxtList.as_view()),
     path('txts/<pk>', views.TxtDetail.as_view()),
     path('zones/', views.ZoneList.as_view()),
-    path('zones/<name>', views.ZoneDetail.as_view()),
-    path('zones/<name>/delegations/', views.ZoneDelegationList.as_view()),
-    path('zones/<name>/delegations/<delegation>', views.ZoneDelegationDetail.as_view()),
-    path('zones/<name>/nameservers', views.ZoneNameServerDetail.as_view()),
-    path('zonefiles/<name>', views.ZoneFileDetail.as_view()),
+    re_path(r'^zones/(?P<name>(\d+/)?[^/]+)$', views.ZoneDetail.as_view()),
+    re_path(r'^zones/(?P<name>(\d+/)?[^/]+)/delegations/$', views.ZoneDelegationList.as_view()),
+    re_path(r'^zones/(?P<name>(\d+/)?[^/]+)/delegations/(?P<delegation>(.*))', views.ZoneDelegationDetail.as_view()),
+    re_path(r'^zones/(?P<name>(\d+/)?[^/]+)/nameservers$', views.ZoneNameServerDetail.as_view()),
+    re_path(r'^zonefiles/(?P<name>(\d+/)?[^/]+)', views.ZoneFileDetail.as_view()),
     path('history/', views.ModelChangeLogList.as_view()),
     path('history/<table>/<pk>', views.ModelChangeLogDetail.as_view()),
 ]
