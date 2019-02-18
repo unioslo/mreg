@@ -23,8 +23,8 @@ def populate_user_from_ldap(sender, signal, user=None, ldap_user=None, **kwargs)
     LDAP_GROUP_RE = getattr(settings, 'LDAP_GROUP_RE', None)
     if LDAP_GROUP_ATTR is None or LDAP_GROUP_RE is None:
         return
-    user.groups.clear()
     user.save()
+    user.groups.clear()
     ldap_groups = ldap_user.attrs.get(LDAP_GROUP_ATTR, [])
     group_re = re.compile(LDAP_GROUP_RE)
     for group_str in ldap_groups:
