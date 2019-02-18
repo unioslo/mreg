@@ -97,11 +97,16 @@ def get_network_from_zonename(name):
     if name.endswith(".in-addr.arpa"):
         name = name.replace('.in-addr.arpa','')
         splitted = list(reversed(name.split(".")))
-        netmask = 8 * len(splitted)
-        while len(splitted) < 4:
-            splitted.append("0")
-        net = ".".join(splitted)
-        return ipaddress.ip_network("{}/{}".format(net, netmask))
+        # RFC 2317. Classless in-addr. E.g: 128/25.0.0.0.in-addr.arpa
+        if len(splitted) == 4 and "/" in splitted[3]:
+            network = ".".join(splitted)
+        else:
+            netmask = 8 * len(splitted)
+            while len(splitted) < 4:
+                splitted.append("0")
+            net = ".".join(splitted)
+            network = f"{net}/{netmask}"
+        return ipaddress.ip_network(network)
     elif name.endswith(".ip6.arpa"):
         name = name.replace('.ip6.arpa','')
         splitted = name.split(".")

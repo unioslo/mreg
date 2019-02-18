@@ -1187,6 +1187,42 @@ class APIZonesNsTestCase(APITestCase):
         self.assertEqual(response.status_code, 204)
         self.assertFalse(NameServer.objects.exists())
 
+class APIZoneRFC2317(APITestCase):
+    """This class tests RFC 2317 delegations."""
+
+    def setUp(self):
+        self.client = get_token_client()
+        self.data = {'name': '128/25.0.0.10.in-addr.arpa',
+                     'primary_ns': ['ns1.example.org', 'ns2.example.org'],
+                     'email': "hostmaster@example.org"}
+
+
+    def test_create_and_get_rfc_2317_zone(self):
+        # Create and get zone for 10.0.0.128/25
+        response = self.client.post("/zones/", self.data)
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response["location"], "/zones/128/25.0.0.10.in-addr.arpa")
+        response = self.client.get(response["location"])
+        self.assertEqual(response.status_code, 200)
+
+
+    def test_add_rfc2317_delegation_for_existing_zone(self):
+        zone = {'name': '0.10.in-addr.arpa',
+                'primary_ns': ['ns1.example.org', 'ns2.example.org'],
+                'email': "hostmaster@example.org"}
+        response = self.client.post("/zones/", zone)
+        self.assertEqual(response.status_code, 201)
+        delegation = {'name': '128/25.0.0.10.in-addr.arpa',
+                      'nameservers': ['ns1.example.org', 'ns2.example.org']}
+        response = self.client.post("/zones/0.10.in-addr.arpa/delegations/", delegation)
+        self.assertEqual(response.status_code, 201)
+
+
+    def test_delete_rfc2317_zone(self):
+        self.client.post("/zones/", self.data)
+        response = self.client.delete("/zones/128/25.0.0.10.in-addr.arpa")
+        self.assertEqual(response.status_code, 204)
+
 
 class APIIPaddressesTestCase(APITestCase):
     """This class defines the test suite for api/ipaddresses"""

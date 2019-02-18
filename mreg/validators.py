@@ -71,17 +71,21 @@ def validate_hostname(name):
 def validate_reverse_zone_name(name):
     """ Validate a reverse zone name."""
 
-    validate_hostname(name)
     labels = name.split(".")
-    if name.endswith("in-addr.arpa"):
+    if name.endswith(".in-addr.arpa"):
         octets = labels[:-2]
         if len(octets) > 4:
             raise ValidationError("Reverse zone is not valid: too long")
-        try:
-            [ int(octet) for octet in octets ]
-        except ValueError:
-            raise ValidationError("Non-integers in the octets in reverse zone")
-    elif name.endswith("ip6.arpa"):
+        # RFC 2317 limits the class less to maximum /25 networks.
+        if len(octets) == 4 and "/" in octets[0]:
+            if int(octets[0].split("/")[1]) < 25:
+                raise ValidationError("Maximum CIDR for RFC 2317 is 25")
+        else:
+            try:
+                [ int(octet) for octet in octets ]
+            except ValueError:
+                raise ValidationError("Non-integers in the octets in reverse zone")
+    elif name.endswith(".ip6.arpa"):
         hexes = labels[:-2]
         if len(hexes) > 32:
             raise ValidationError("Reverse zone is not valid: too long")

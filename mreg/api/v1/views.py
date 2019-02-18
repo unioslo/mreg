@@ -729,16 +729,16 @@ class ZoneDelegationList(generics.ListCreateAPIView):
 
         zonename = self.kwargs[self.lookup_field]
         if zonename.endswith(".arpa"):
+            self.serializer_class = ReverseZoneDelegationSerializer
             self.parentzone = get_object_or_404(ReverseZone, name=zonename)
             self.queryset = self.parentzone.delegations.all()
             qs = super().get_queryset()
-            self.serializer_class = ReverseZoneDelegationSerializer
             return ReverseZoneFilterSet(data=self.request.query_params, queryset=qs).filter()
         else:
+            self.serializer_class = ForwardZoneDelegationSerializer
             self.parentzone = get_object_or_404(ForwardZone, name=zonename)
             self.queryset = self.parentzone.delegations.all()
             qs = super().get_queryset()
-            self.serializer_class = ForwardZoneDelegationSerializer
             return ForwardZoneFilterSet(data=self.request.query_params, queryset=qs).filter()
 
 
