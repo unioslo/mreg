@@ -9,8 +9,8 @@ from django.utils import timezone
 from django_auth_ldap.backend import populate_user
 
 from mreg.api.v1.serializers import HostSerializer
-from mreg.models import (Cname, ForwardZoneMember, Host, Ipaddress, ModelChangeLog, Naptr, NameServer, PtrOverride, ReverseZone,
-                         Srv, Txt)
+from mreg.models import (Cname, ForwardZoneMember, Host, Ipaddress, ModelChangeLog, Naptr, 
+                        NameServer, PtrOverride, ReverseZone, Srv, Txt)
 from rest_framework.exceptions import PermissionDenied
 
 
