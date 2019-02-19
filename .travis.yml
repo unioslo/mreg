@@ -1,0 +1,26 @@
+branches:
+  only:
+  - /.*/
+dist: xenial
+language: python
+python:
+  - 3.6
+services:
+  - postgresql
+addons:
+  postgresql: "11"
+before_install:
+  - wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+  - sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -sc)-pgdg main" > /etc/apt/sources.list.d/PostgreSQL.list'
+  - sudo apt-get update
+  - sudo apt-get install -y postgresql-11
+  - sudo grep postgres /etc/postgresql/11/main/pg_hba.conf
+  - sudo sed -i 's/local\s\+all\s\+postgres\s\+peer/local all postgres trust/' /etc/postgresql/11/main/pg_hba.conf 
+  - sudo grep postgres /etc/postgresql/11/main/pg_hba.conf
+  - sudo systemctl restart postgresql.service || sudo journalctl -xe -n 20 -u postgresql.service
+  - sleep 2
+before_script:
+  - psql -c 'create database travisci;' -U postgres
+  - python manage.py migrate
+script:
+  - python manage.py test
