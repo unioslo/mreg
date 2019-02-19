@@ -210,12 +210,12 @@ class BaseZoneSerializer(ValidationMixin, serializers.ModelSerializer):
 
 class ForwardZoneSerializer(BaseZoneSerializer):
 
-
     class Meta(BaseZoneSerializer.Meta):
         model = ForwardZone
 
 
 class ReverseZoneSerializer(BaseZoneSerializer):
+    range = serializers.CharField(read_only=True, required=False)
 
     class Meta(BaseZoneSerializer.Meta):
         model = ReverseZone
