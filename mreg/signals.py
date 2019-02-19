@@ -3,15 +3,15 @@ import re
 
 from django.conf import settings
 from django.contrib.auth.models import Group
-from django.db.models.signals import pre_save, post_save, post_delete
+from django.db.models.signals import post_delete, pre_delete , post_save, pre_save
 from django.dispatch import receiver
 from django.utils import timezone
-
 from django_auth_ldap.backend import populate_user
 
-from mreg.models import (Cname, Host, Ipaddress, ModelChangeLog, Naptr,
-                         PtrOverride, Srv, Txt, ReverseZone, ForwardZoneMember)
 from mreg.api.v1.serializers import HostSerializer
+from mreg.models import (Cname, ForwardZoneMember, Host, Ipaddress, ModelChangeLog, Naptr, 
+                        NameServer, PtrOverride, ReverseZone, Srv, Txt)
+from rest_framework.exceptions import PermissionDenied
 
 
 @receiver(populate_user)
@@ -189,3 +189,30 @@ def save_host_history_on_delete(sender, instance, **kwargs):
                                    action='deleted',
                                    timestamp=timezone.now())
     new_log_entry.save()
+
+
+@receiver(pre_delete, sender=Ipaddress)
+@receiver(pre_delete, sender=Host)
+def prevent_nameserver_deletion(sender, instance, using, **kwargs):
+    """
+    Receives pre_delete signal for Host and Ipaddress-models that are about to be deleted.
+    It then checks if the object about to be deleted belongs to a nameserver, and then prevents the deletion.
+    """
+    if isinstance(instance, Host):
+        name = instance.name
+    elif isinstance(instance, Ipaddress):
+        name = instance.host.name
+        if instance.host.ipaddresses.count() > 1:
+            return
+
+    nameserver = NameServer.objects.filter(name=name).first()
+
+    if nameserver:
+        usedcount = 0
+        for i in ('forwardzone', 'reversezone', 'forwardzonedelegation',
+                  'reversezonedelegation'):
+            usedcount += getattr(nameserver, f"{i}_set").count()
+
+        if usedcount >= 1:
+            raise PermissionDenied(detail='This host is a nameserver and cannot be deleted until' \
+                                    'it has been removed from all zones its setup as a nameserver')
