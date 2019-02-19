@@ -214,6 +214,5 @@ def prevent_nameserver_deletion(sender, instance, using, **kwargs):
             usedcount += getattr(nameserver, f"{i}_set").count()
 
         if usedcount >= 1:
-            raise PermissionDenied(
-                detail='This host is a nameserver and cannot be deleted untill it has been removed from all \
-zones its setup as a nameserver')
+            raise PermissionDenied(detail='This host is a nameserver and cannot be deleted until' \ 
+                                    'it has been removed from all zones its setup as a nameserver')
