@@ -664,30 +664,37 @@ class ZoneList(generics.ListCreateAPIView):
 
     """
 
+
+    def _get_forward(self):
+        self.queryset = ForwardZone.objects.all()
+        qs = super(ZoneList, self).get_queryset()
+        self.serializer_class = ForwardZoneSerializer
+        return ForwardZoneFilterSet(data=self.request.GET, queryset=qs).filter()
+
+    def _get_reverse(self):
+        self.queryset = ReverseZone.objects.all()
+        qs = super(ZoneList, self).get_queryset()
+        self.serializer_class = ReverseZoneSerializer
+        return ReverseZoneFilterSet(data=self.request.GET, queryset=qs).filter()
+
     def get_queryset(self, name=None):
         """
         #Applies filtering to the queryset
         #:return: filtered list of zones
         """
-        def get_forward():
-            self.queryset = ForwardZone.objects.all()
-            qs = super(ZoneList, self).get_queryset()
-            self.serializer_class = ForwardZoneSerializer
-            return ForwardZoneFilterSet(data=self.request.GET, queryset=qs).filter()
-
-        def get_reverse():
-            self.queryset = ReverseZone.objects.all()
-            qs = super(ZoneList, self).get_queryset()
-            self.serializer_class = ReverseZoneSerializer
-            return ReverseZoneFilterSet(data=self.request.GET, queryset=qs).filter()
 
         if name:
             if name.endswith(".arpa"):
-                return get_reverse()
+                return self._get_reverse()
             else:
-                return get_forward()
-        else:
-            return get_forward().union(get_reverse())
+                return self._get_forward()
+
+    def list(self, request):
+        ret = []
+        for qs in (self._get_forward(), self._get_reverse()):
+            serializer = self.serializer_class(qs, many=True)
+            ret.extend(serializer.data)
+        return Response(ret)
 
     def post(self, request, *args, **kwargs):
         qs = self.get_queryset(name=request.data["name"])
@@ -971,7 +978,7 @@ class PlainTextRenderer(renderers.BaseRenderer):
     format = 'txt'
 
     def render(self, data, media_type=None, renderer_context=None):
-        return data
+        return data.encode(self.charset)
 
 
 class ZoneFileDetail(generics.GenericAPIView):

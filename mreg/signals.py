@@ -1,3 +1,4 @@
+import functools
 import ipaddress
 import re
 
@@ -61,21 +62,12 @@ def deleted_ipaddress_fix_ptroverride(sender, instance, using, **kwargs):
     _del_ptr(instance.ipaddress)
 
 
-def _get_zone_for_ip(ip):
-    ip = ipaddress.ip_address(ip)
-    if ip.version == 4:
-        # endswith = 10.in-addr.arpa for 10.2.3.4
-        endswith = ip.reverse_pointer.split('.', 3)[-1]
-    elif ip.version == 6:
-        # endswith = 1.0.0.2.ip6.arpa for 2001:db8::1
-        endswith = ip.reverse_pointer.split('.', 28)[-1]
-    for zone in ReverseZone.objects.filter(name__endswith=endswith):
-        if ip in zone.network:
-            return zone
-    return None
-
-
 def _common_update_zone(signal, sender, instance):
+
+    @functools.lru_cache()
+    def _get_zone_for_ip(ip):
+        return ReverseZone.get_zone_by_ip(ip)
+
     zones = set()
 
     if isinstance(instance, ForwardZoneMember):
@@ -111,7 +103,6 @@ def _common_update_zone(signal, sender, instance):
         if zone:
             zone.updated = True
             zone.save()
-
 
 @receiver(pre_save, sender=Cname)
 @receiver(pre_save, sender=Ipaddress)
