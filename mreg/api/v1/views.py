@@ -654,6 +654,21 @@ def _validate_nameservers(names):
         done.add(name)
 
 
+def _update_parent_zone(qs, zonename):
+    """Try to figure if the zone name is a sub zone, and if so, set
+       the parent zone's updated attribute to True to make sure it
+       will be in the next zonefile export."""
+    splitted = zonename.split(".")[1:]
+    names = set(qs.values_list('name', flat=True))
+    for i in range(len(splitted)):
+        name = ".".join(splitted[i:])
+        if name in names:
+            zone = qs.get(name=name)
+            zone.updated = True
+            zone.save()
+            break
+
+
 class ZoneList(generics.ListCreateAPIView):
     """
     get:
@@ -706,13 +721,12 @@ class ZoneList(generics.ListCreateAPIView):
         _validate_nameservers(nameservers)
         data = request.data.copy()
         data['primary_ns'] = nameservers[0]
-
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         zone = serializer.create()
         zone.save()
-
         zone.update_nameservers(nameservers)
+        _update_parent_zone(qs, zone.name)
         location = f"/zones/{zone.name}"
         return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
 
@@ -764,6 +778,8 @@ class ZoneDelegationList(generics.ListCreateAPIView):
         delegation = serializer.create()
         delegation.save()
         delegation.update_nameservers(nameservers)
+        self.parentzone.updated = True
+        self.parentzone.save()
         location = f"/zones/{self.parentzone.name}/delegations/{delegation.name}"
         return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
 
@@ -813,15 +829,17 @@ class ZoneDetail(MregRetrieveUpdateDestroyAPIView):
                 return Response(content, status=status.HTTP_403_FORBIDDEN)
         serializer = self.get_serializer(zone, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        serializer.save(updated=True)
         location = f"/zones/{zone.name}"
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
     def delete(self, request, *args, **kwargs):
         query = self.kwargs[self.lookup_field]
-        zone = get_object_or_404(self.get_queryset(), name=query)
+        qs = self.get_queryset()
+        zone = get_object_or_404(qs, name=query)
         zone.remove_nameservers()
         zone.delete()
+        _update_parent_zone(qs, zone.name)
         location = f"/zones/{zone.name}"
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
@@ -832,11 +850,14 @@ class ZoneDelegationDetail(MregRetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         zonename = self.kwargs[self.lookup_field]
+        parentname = self.kwargs['name']
 
         if zonename.endswith(".arpa"):
+            self.parentzone = get_object_or_404(ReverseZone, name=parentname)
             self.serializer_class = ReverseZoneDelegationSerializer
             self.queryset = ReverseZoneDelegation.objects.all()
         else:
+            self.parentzone = get_object_or_404(ForwardZone, name=parentname)
             self.serializer_class = ForwardZoneDelegationSerializer
             self.queryset = ForwardZoneDelegation.objects.all()
         return super().get_queryset()
@@ -855,6 +876,9 @@ class ZoneDelegationDetail(MregRetrieveUpdateDestroyAPIView):
         zone = get_object_or_404(self.get_queryset(), name=query)
         zone.remove_nameservers()
         zone.delete()
+        # Also update the parent zone's updated attribute
+        self.parentzone.updated = True
+        self.parentzone.save()
         location = f"/zones/{zone.zone.name}/delegations/{zone.name}"
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
@@ -897,6 +921,7 @@ class ZoneNameServerDetail(ETAGMixin, generics.GenericAPIView):
         _validate_nameservers(nameservers)
         zone.update_nameservers(nameservers)
         zone.primary_ns = request.data.getlist('primary_ns')[0]
+        zone.updated = True
         zone.save()
         location = f"/zones/{query}/nameservers"
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
