@@ -567,6 +567,11 @@ class APIAutoupdateZonesTestCase(APITestCase):
         self.host1 = {"name": "host1.example.org",
                       "ipaddress": "10.10.0.1",
                       "contact": "mail@example.org"}
+        self.delegation = {"name": "delegated.example.org",
+                           "nameservers": "ns.example.org"}
+        self.subzone = {"name": "sub.example.org",
+                        "email": "hostmaster@example.org",
+                        "primary_ns": "ns.example.org"}
         self.zone_exampleorg = ForwardZone(name='example.org',
                                            primary_ns='ns.example.org',
                                            email='hostmaster@example.org')
@@ -610,6 +615,55 @@ class APIAutoupdateZonesTestCase(APITestCase):
         self.assertGreater(self.zone_examplecom.updated_at, old_com_updated_at)
         self.assertGreater(self.zone_exampleorg.updated_at, old_org_updated_at)
         self.assertGreater(self.zone_1010.updated_at, old_1010_updated_at)
+
+    def test_change_soa(self):
+        self.zone_exampleorg.updated = False
+        self.zone_exampleorg.save()
+        ret = self.client.patch('/zones/example.org', {'ttl': 1000})
+        self.assertEqual(ret.status_code, 204)
+        self.zone_exampleorg.refresh_from_db()
+        self.assertTrue(self.zone_exampleorg.updated)
+
+    def test_changed_nameservers(self):
+        self.zone_exampleorg.updated = False
+        self.zone_exampleorg.save()
+        ret = self.client.patch('/zones/example.org/nameservers',
+                                {'primary_ns': 'ns2.example.org'})
+        self.assertEqual(ret.status_code, 204)
+        self.zone_exampleorg.refresh_from_db()
+        self.assertTrue(self.zone_exampleorg.updated)
+
+    def test_added_subzone(self):
+        self.zone_exampleorg.updated = False
+        self.zone_exampleorg.save()
+        self.client.post("/zones/", self.subzone)
+        self.zone_exampleorg.refresh_from_db()
+        self.assertTrue(self.zone_exampleorg.updated)
+
+    def test_removed_subzone(self):
+        self.client.post("/zones/", self.subzone)
+        self.zone_exampleorg.updated = False
+        self.zone_exampleorg.save()
+        self.client.delete("/zones/sub.example.org")
+        self.zone_exampleorg.refresh_from_db()
+        self.assertTrue(self.zone_exampleorg.updated)
+
+    def test_add_delegation(self):
+        self.zone_exampleorg.updated = False
+        self.zone_exampleorg.save()
+        ret = self.client.post("/zones/example.org/delegations/", self.delegation)
+        self.assertEqual(ret.status_code, 201)
+        self.zone_exampleorg.refresh_from_db()
+        self.assertTrue(self.zone_exampleorg.updated)
+
+    def test_remove_delegation(self):
+        self.client.post("/zones/example.org/delegations/", self.delegation)
+        self.zone_exampleorg.updated = False
+        self.zone_exampleorg.save()
+        self.client.delete("/zones/example.org/delegations/delegated.example.org")
+        self.zone_exampleorg.refresh_from_db()
+        self.assertTrue(self.zone_exampleorg.updated)
+
 
 class APIAutoupdateHostZoneTestCase(APITestCase):
     """This class tests that a Host's zone attribute is correct and updated
