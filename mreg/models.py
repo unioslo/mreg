@@ -78,7 +78,7 @@ class ZoneHelpers:
 
 class BaseZone(models.Model, ZoneHelpers):
     updated_at = models.DateTimeField(auto_now=True)
-    updated = models.BooleanField(default=False)
+    updated = models.BooleanField(default=True)
     primary_ns = models.CharField(max_length=253, validators=[validate_hostname])
     nameservers = models.ManyToManyField(NameServer, db_column='ns')
     email = models.EmailField()
