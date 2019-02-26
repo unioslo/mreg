@@ -859,6 +859,54 @@ class APIHostsTestCase(TestCase):
         self.assertEqual(response.status_code, 409)
 
 
+class APIMxTestcase(APITestCase):
+    """Test MX records."""
+
+    def setUp(self):
+        self.client = get_token_client()
+        self.host = Host(name='ns1.example.org', contact="hostmaster@example.org")
+        clean_and_save(self.host)
+
+    def test_mx_post(self):
+        data = {'host': self.host.id,
+                'priority': 10,
+                'mx': 'smtp.example.org'}
+        ret = self.client.post("/mxs/", data)
+        self.assertEqual(ret.status_code, 201)
+
+    def test_mx_post_reject_invalid(self):
+        # priority is an 16 bit uint, e.g. 0..65535.
+        data = {'host': self.host.id,
+                'priority': -1,
+                'mx': 'smtp.example.org'}
+        ret = self.client.post("/mxs/", data)
+        self.assertEqual(ret.status_code, 400)
+        data = {'host': self.host.id,
+                'priority': 1000000,
+                'mx': 'smtp.example.org'}
+        ret = self.client.post("/mxs/", data)
+        self.assertEqual(ret.status_code, 400)
+        data = {'host': self.host.id,
+                'priority': 1000,
+                'mx': 'invalidhostname'}
+        ret = self.client.post("/mxs/", data)
+        self.assertEqual(ret.status_code, 400)
+
+    def test_txt_list(self):
+        self.test_mx_post()
+        ret = self.client.get("/mxs/")
+        self.assertEqual(ret.status_code, 200)
+        self.assertEqual(len(ret.json()), 1)
+
+    def test_txt_delete(self):
+        self.test_mx_post()
+        mxs = self.client.get("/mxs/").json()
+        ret = self.client.delete("/mxs/{}".format(mxs[0]['id']))
+        self.assertEqual(ret.status_code, 204)
+        mxs = self.client.get("/mxs/").json()
+        self.assertEqual(len(mxs), 0)
+
+
 class APIForwardZonesTestCase(APITestCase):
     """"This class defines the test suite for forward zones API """
 
