@@ -14,6 +14,8 @@ urlpatterns = [
     path('hosts/<pk>', views.HostDetail.as_view()),
     path('ipaddresses/', views.IpaddressList.as_view()),
     path('ipaddresses/<pk>', views.IpaddressDetail.as_view()),
+    path('mxs/', views.MxList.as_view()),
+    path('mxs/<pk>', views.MxDetail.as_view()),
     path('naptrs/', views.NaptrList.as_view()),
     path('naptrs/<pk>', views.NaptrDetail.as_view()),
     path('nameservers/', views.NameServerList.as_view()),

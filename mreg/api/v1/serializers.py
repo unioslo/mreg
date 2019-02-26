@@ -3,7 +3,7 @@ import ipaddress
 from django.utils import timezone
 from rest_framework import serializers
 
-from mreg.models import (Cname, HinfoPreset, Host, Ipaddress, NameServer,
+from mreg.models import (Cname, HinfoPreset, Host, Ipaddress, Mx, NameServer,
                          Naptr, PtrOverride, Srv, Network, Txt, ForwardZone,
                          ForwardZoneDelegation, ReverseZone,
                          ReverseZoneDelegation, ModelChangeLog)
@@ -105,6 +105,13 @@ class IpaddressSerializer(ValidationMixin, serializers.ModelSerializer):
                 _raise_if_mac_found(ips, mac)
         return data
 
+
+class MxSerializer(ValidationMixin, serializers.ModelSerializer):
+    class Meta:
+        model = Mx
+        fields = '__all__'
+
+
 class TxtSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
         model = Txt
@@ -123,6 +130,7 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
     """
     ipaddresses = serializers.SerializerMethodField()
     cnames = CnameSerializer(many=True, read_only=True)
+    mxs = MxSerializer(many=True, read_only=True)
     txts = TxtSerializer(many=True, read_only=True)
     ptr_overrides = PtrOverrideSerializer(many=True, read_only=True)
     hinfo = HinfoPresetSerializer(required=False)['id']
@@ -143,6 +151,7 @@ class HostSaveSerializer(ForwardZoneMixin, serializers.ModelSerializer):
     """
     ipaddresses = IpaddressSerializer(many=True, read_only=True)
     cnames = CnameSerializer(many=True, read_only=True)
+    mxs = MxSerializer(many=True, read_only=True)
     txts = TxtSerializer(many=True, read_only=True)
     ptr_overrides = PtrOverrideSerializer(many=True, read_only=True)
     hinfo = serializers.IntegerField(required=False)

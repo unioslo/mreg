@@ -18,13 +18,13 @@ from url_filter.filtersets import ModelFilterSet
 
 from mreg.api.v1.serializers import (CnameSerializer, HinfoPresetSerializer,
         HostNameSerializer, HostSerializer, HostSaveSerializer,
-        IpaddressSerializer, NameServerSerializer, NaptrSerializer,
-        PtrOverrideSerializer, SrvSerializer, NetworkSerializer, TxtSerializer,
-        ForwardZoneSerializer, ForwardZoneDelegationSerializer,
-        ReverseZoneSerializer, ReverseZoneDelegationSerializer,
-        ModelChangeLogSerializer)
+        IpaddressSerializer, MxSerializer, NameServerSerializer,
+        NaptrSerializer, PtrOverrideSerializer, SrvSerializer,
+        NetworkSerializer, TxtSerializer, ForwardZoneSerializer,
+        ForwardZoneDelegationSerializer, ReverseZoneSerializer,
+        ReverseZoneDelegationSerializer, ModelChangeLogSerializer)
 from mreg.models import (Cname, ForwardZone, ForwardZoneDelegation, HinfoPreset, Host, Ipaddress,
-                         NameServer, Naptr, Network, PtrOverride, ReverseZone,
+                         Mx, NameServer, Naptr, Network, PtrOverride, ReverseZone,
                          ReverseZoneDelegation, Srv, Txt, ModelChangeLog)
 from mreg.utils import create_serialno
 
@@ -70,6 +70,11 @@ class PtrOverrideFilterSet(ModelFilterSet):
 class SrvFilterSet(ModelFilterSet):
     class Meta:
         model = Srv
+
+
+class MxFilterSet(ModelFilterSet):
+    class Meta:
+        model = Mx
 
 
 class NetworkFilterSet(ModelFilterSet):
@@ -301,6 +306,37 @@ class IpaddressDetail(generics.RetrieveUpdateDestroyAPIView):
     """
     queryset = Ipaddress.objects.all()
     serializer_class = IpaddressSerializer
+
+class MxList(generics.ListCreateAPIView):
+    """
+    get:
+    Returns a list of all MX-records.
+
+    post:
+    Create a new MX-record.
+    """
+
+    queryset = Mx.objects.all()
+    serializer_class = MxSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        return MxFilterSet(data=self.request.GET, queryset=qs).filter()
+
+
+class MxDetail(MregRetrieveUpdateDestroyAPIView):
+    """
+     get:
+     List details for a MX-record.
+
+     patch:
+     Update parts of a MX-record.
+
+     delete:
+     Deletes a MX-record.
+     """
+    queryset = Mx.objects.all()
+    serializer_class = MxSerializer
 
 
 class NaptrList(generics.ListCreateAPIView):
