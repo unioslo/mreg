@@ -289,7 +289,7 @@ class HinfoPreset(models.Model):
         unique_together = ('cpu', 'os')
 
     def __str__(self):
-        return "{} {}".format(str(self.cpu), str(self.os))
+        return f"{self.cpu} {self.os}"
 
     @property
     def zf_string(self):
@@ -339,20 +339,6 @@ class Ipaddress(models.Model):
     def __str__(self):
         return "{} -> {}".format(str(self.ipaddress), str(self.macaddress) or "None")
 
-    def zf_string(self, zone):
-        """String representation for forward zonefile export."""
-        if isinstance(ipaddress.ip_address(self.ipaddress), ipaddress.IPv4Address):
-            iptype = 'A'
-        else:
-            iptype = 'AAAA'
-        data = {
-            'name': idna_encode(qualify(self.host.name, zone)),
-            'ttl': clear_none(self.host.ttl),
-            'record_type': iptype,
-            'record_data': self.ipaddress,
-        }
-        return '{name:24} {ttl:5} IN {record_type:6} {record_data:39}\n'.format_map(data)
-
 
 class Mx(models.Model):
     host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='mxs')
@@ -377,15 +363,6 @@ class PtrOverride(models.Model):
     def __str__(self):
         return "{} -> {}".format(str(self.ipaddress), str(self.host.name))
 
-    def zf_string(self, zone):
-        """String representation for zonefile export."""
-        data = {
-            'name': ipaddress.ip_address(self.ipaddress).reverse_pointer,
-            'record_data': idna_encode(qualify(self.host.name, zone)),
-            'record_type': 'PTR',
-        }
-        return '{name:30} IN {record_type:6} {record_data}\n'.format_map(data)
-
 
 class Txt(models.Model):
     host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='txts')
@@ -397,16 +374,6 @@ class Txt(models.Model):
 
     def __str__(self):
         return str(self.txt)
-
-    def zf_string(self, zone):
-        """String representation for zonefile export."""
-        data = {
-            'name': idna_encode(qualify(self.host.name, zone)),
-            'ttl': clear_none(self.host.ttl),
-            'record_type': 'TXT',
-            'record_data': '\"%s\"' % self.txt,
-        }
-        return '{name:24} {ttl:5} IN {record_type:6} {record_data:39}\n'.format_map(data)
 
 
 class Cname(ForwardZoneMember):
@@ -420,16 +387,6 @@ class Cname(ForwardZoneMember):
 
     def __str__(self):
         return "{} -> {}".format(str(self.name), str(self.host))
-
-    def zf_string(self, zone):
-        """String representation for zonefile export."""
-        data = {
-            'name': idna_encode(qualify(self.name, zone)),
-            'ttl': clear_none(self.ttl),
-            'record_type': 'CNAME',
-            'record_data': idna_encode(qualify(self.host.name, zone)),
-        }
-        return '{name:24} {ttl:5} IN {record_type:6} {record_data:39}\n'.format_map(data)
 
 
 class Network(models.Model):
@@ -553,26 +510,6 @@ class Naptr(models.Model):
                                                 self.order, self.flag,
                                                 self.service, self.regex,
                                                 self.replacement)
-
-    def zf_string(self, zone):
-        """String representation for zonefile export."""
-        if self.flag in ('a', 's'):
-            replacement = idna_encode(qualify(self.replacement, zone))
-        else:
-            replacement = self.replacement
-
-        data = {
-            'name': idna_encode(qualify(self.host.name, zone)),
-            'ttl': clear_none(self.host.ttl),
-            'record_type': 'NAPTR',
-            'order': self.order,
-            'preference': self.preference,
-            'flag': self.flag,
-            'service': self.service,
-            'regex': self.regex,
-            'replacement': replacement,
-        }
-        return '{name:24} {ttl:5} IN {record_type:6} {order} {preference} \"{flag}\" \"{service}\" \"{regex}\" {replacement}\n'.format_map(data)
 
 
 class Srv(ForwardZoneMember):

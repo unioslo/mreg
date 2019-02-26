@@ -70,6 +70,7 @@ class Common:
             data = ';\n; Delegations\n;\n' + data
         return data
 
+
 class ForwardFile(Common):
 
     def ip_zf_string(self, name, ttl, ip):
@@ -80,7 +81,7 @@ class ForwardFile(Common):
 
         data = {
             'name': name,
-            'ttl': clear_none(ttl),
+            'ttl': ttl,
             'record_type': iptype,
             'record_data': str(ip),
         }
@@ -90,7 +91,7 @@ class ForwardFile(Common):
 
         data = {
             'name': name,
-            'ttl': clear_none(ttl),
+            'ttl': ttl,
             'record_type': "MX",
             'priority': priority,
             'mx': idna_encode(qualify(mx, self.zone.name))
@@ -101,7 +102,7 @@ class ForwardFile(Common):
 
         data = {
             'name': name,
-            'ttl': clear_none(ttl),
+            'ttl': ttl,
             'record_type': "TXT",
             'record_data': f'"{txt}"'
         }
@@ -116,7 +117,7 @@ class ForwardFile(Common):
 
         data = {
             'name': name,
-            'ttl': clear_none(ttl),
+            'ttl': ttl,
             'record_type': 'NAPTR',
             'order': order,
             'preference': preference,
@@ -138,22 +139,26 @@ class ForwardFile(Common):
         }
         return '{alias:24} {ttl:5} IN {record_type:6} {record_data:39}\n'.format_map(data)
 
-
     def host_data(self, host):
         data = ""
+        first = True
         name_idna = idna_encode(qualify(host.name, self.zone.name))
-        if host.name in self.ipaddresses:
-            for ip in self.ipaddresses[host.name]:
-                data += self.ip_zf_string(name_idna, host.ttl, ip)
-        if host.name in self.mxs:
-            for priority, mx in self.mxs[host.name]:
-                data += self.mx_zf_string(name_idna, host.ttl, priority, mx)
-        if host.name in self.txts:
-            for txt in self.txts[host.name]:
-                data += self.txt_zf_string(name_idna, host.ttl, txt)
-        if host.name in self.naptrs:
-            for naptr in self.naptrs[host.name]:
-                data += self.naptr_zf_string(name_idna, host.ttl, *naptr)
+        ttl = clear_none(host.ttl)
+        for values, func in ((self.ipaddresses, self.ip_zf_string),
+                             (self.mxs, self.mx_zf_string),
+                             (self.txts, self.txt_zf_string),
+                             (self.naptrs, self.naptr_zf_string),
+                             ):
+            if host.name in values:
+                for i in values[host.name]:
+                    if first:
+                        first = False
+                        name = name_idna
+                    else:
+                        name = ""
+                    data += func(name, ttl, *i)
+
+
         # XXX: add caching for this one, if we populate it..
         if host.hinfo is not None:
             data += host.hinfo.zf_string
@@ -178,7 +183,7 @@ class ForwardFile(Common):
 
         ips = Ipaddress.objects.filter(host__zone=self.zone)
         for hostname, ip in ips.values_list("host__name", "ipaddress"):
-            self.ipaddresses[hostname].append(ipaddress.ip_address(ip))
+            self.ipaddresses[hostname].append((ipaddress.ip_address(ip),))
 
         mxs = Mx.objects.filter(host__zone=self.zone)
         for hostname, priority, mx in mxs.values_list("host__name", "priority", "mx"):
@@ -191,8 +196,7 @@ class ForwardFile(Common):
 
         txts = Txt.objects.filter(host__zone=self.zone)
         for hostname, txt in txts.values_list("host__name", "txt"):
-            self.txts[hostname].append(txt)
-
+            self.txts[hostname].append((txt,))
 
     def get_subdomains(self):
         data = ""
@@ -201,7 +205,6 @@ class ForwardFile(Common):
             data += self.get_ns_data(subzones.order_by("name"))
             data = ';\n; Subdomains\n;\n' + data
         return data
-
 
     def generate(self):
         zone = self.zone
