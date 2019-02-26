@@ -354,6 +354,19 @@ class Ipaddress(models.Model):
         return '{name:24} {ttl:5} IN {record_type:6} {record_data:39}\n'.format_map(data)
 
 
+class Mx(models.Model):
+    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='mxs')
+    priority = models.PositiveIntegerField(validators=[validate_16bit_uint])
+    mx = models.TextField(max_length=253, validators=[validate_hostname])
+
+    class Meta:
+        db_table = 'mx'
+        unique_together = ('host', 'priority', 'mx')
+
+    def __str__(self):
+        return f"{self.priority} {self.mx}"
+
+
 class PtrOverride(models.Model):
     host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='ptr_overrides')
     ipaddress = models.GenericIPAddressField(unique=True)
