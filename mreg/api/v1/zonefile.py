@@ -141,6 +141,7 @@ class ForwardFile(Common):
 
     def host_data(self, host):
         data = ""
+        first = True
         name_idna = idna_encode(qualify(host.name, self.zone.name))
         ttl = clear_none(host.ttl)
         for values, func in ((self.ipaddresses, self.ip_zf_string),
@@ -150,7 +151,14 @@ class ForwardFile(Common):
                              ):
             if host.name in values:
                 for i in values[host.name]:
-                    data += func(name_idna, ttl, *i)
+                    if first:
+                        first = False
+                        name = name_idna
+                    else:
+                        name = ""
+                    data += func(name, ttl, *i)
+
+
         # XXX: add caching for this one, if we populate it..
         if host.hinfo is not None:
             data += host.hinfo.zf_string
