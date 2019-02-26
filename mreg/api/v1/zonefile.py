@@ -2,7 +2,7 @@ import ipaddress
 
 from collections import defaultdict
 
-from mreg.models import Cname, ForwardZone, Host, Ipaddress, Naptr, Srv, Txt
+from mreg.models import Cname, ForwardZone, Host, Ipaddress, Mx, Naptr, Srv, Txt
 from mreg.utils import clear_none, idna_encode, qualify
 
 
@@ -79,17 +79,28 @@ class ForwardFile(Common):
             iptype = "AAAA"
 
         data = {
-            'name': idna_encode(qualify(name, self.zone.name)),
+            'name': name,
             'ttl': clear_none(ttl),
             'record_type': iptype,
             'record_data': str(ip),
         }
         return '{name:24} {ttl:5} IN {record_type:6} {record_data:39}\n'.format_map(data)
 
+    def mx_zf_string(self, name, ttl, priority, mx):
+
+        data = {
+            'name': name,
+            'ttl': clear_none(ttl),
+            'record_type': "MX",
+            'priority': priority,
+            'mx': idna_encode(qualify(mx, self.zone.name))
+        }
+        return '{name:24} {ttl:5} IN {record_type} {priority:6} {mx:39}\n'.format_map(data)
+
     def txt_zf_string(self, name, ttl, txt):
 
         data = {
-            'name': idna_encode(qualify(name, self.zone.name)),
+            'name': name,
             'ttl': clear_none(ttl),
             'record_type': "TXT",
             'record_data': f'"{txt}"'
@@ -104,7 +115,7 @@ class ForwardFile(Common):
             replacement = replacement
 
         data = {
-            'name': idna_encode(qualify(name, self.zone.name)),
+            'name': name,
             'ttl': clear_none(ttl),
             'record_type': 'NAPTR',
             'order': order,
@@ -123,22 +134,26 @@ class ForwardFile(Common):
             'alias': idna_encode(qualify(alias, self.zone.name)),
             'ttl': clear_none(ttl),
             'record_type': 'CNAME',
-            'record_data': idna_encode(qualify(target, self.zone.name)),
+            'record_data': target,
         }
         return '{alias:24} {ttl:5} IN {record_type:6} {record_data:39}\n'.format_map(data)
 
 
     def host_data(self, host):
         data = ""
+        name_idna = idna_encode(qualify(host.name, self.zone.name))
         if host.name in self.ipaddresses:
             for ip in self.ipaddresses[host.name]:
-                data += self.ip_zf_string(host.name, host.ttl, ip)
+                data += self.ip_zf_string(name_idna, host.ttl, ip)
+        if host.name in self.mxs:
+            for priority, mx in self.mxs[host.name]:
+                data += self.mx_zf_string(name_idna, host.ttl, priority, mx)
         if host.name in self.txts:
             for txt in self.txts[host.name]:
-                data += self.txt_zf_string(host.name, host.ttl, txt)
+                data += self.txt_zf_string(name_idna, host.ttl, txt)
         if host.name in self.naptrs:
             for naptr in self.naptrs[host.name]:
-                data += self.naptr_zf_string(host.name, host.ttl, *naptr)
+                data += self.naptr_zf_string(name_idna, host.ttl, *naptr)
         # XXX: add caching for this one, if we populate it..
         if host.hinfo is not None:
             data += host.hinfo.zf_string
@@ -147,12 +162,13 @@ class ForwardFile(Common):
         # For entries where the host is the resource record
         if host.name in self.host_cnames:
             for alias, ttl in self.host_cnames[host.name]:
-                data += self.cname_zf_string(alias, ttl, host.name)
+                data += self.cname_zf_string(alias, ttl, name_idna)
         return data
 
     def cache_hostdata(self):
         self.host_cnames = defaultdict(list)
         self.ipaddresses = defaultdict(list)
+        self.mxs = defaultdict(list)
         self.naptrs = defaultdict(list)
         self.txts = defaultdict(list)
 
@@ -163,6 +179,10 @@ class ForwardFile(Common):
         ips = Ipaddress.objects.filter(host__zone=self.zone)
         for hostname, ip in ips.values_list("host__name", "ipaddress"):
             self.ipaddresses[hostname].append(ipaddress.ip_address(ip))
+
+        mxs = Mx.objects.filter(host__zone=self.zone)
+        for hostname, priority, mx in mxs.values_list("host__name", "priority", "mx"):
+            self.mxs[hostname].append((priority, mx))
 
         naptrs = Naptr.objects.filter(host__zone=self.zone)
         for i in naptrs.values_list("host__name", "order", "preference", "flag",
