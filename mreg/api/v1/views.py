@@ -1,4 +1,8 @@
+import bisect
 import ipaddress
+
+
+from collections import defaultdict
 
 import django.core.exceptions
 
@@ -535,7 +539,7 @@ def _get_network(kwargs):
 class NetworkDetail(MregRetrieveUpdateDestroyAPIView):
     """
     get:
-    List details for a network. Query parameter ?used_list returns list of used IP addresses on the network
+    List details for a network.
 
     patch:
     Partially update a network. Updating a zone's range is not allowed
@@ -598,15 +602,28 @@ def network_first_unused(request, *args, **kwargs):
         content = {'ERROR': 'No available IPs'}
         return Response(content, status=status.HTTP_404_NOT_FOUND)
 
-
-@api_view()
-def network_ptroverride_list(request, *args, **kwargs):
+def _network_ptroverride_list(kwargs):
     network = _get_network(kwargs)
     from_ip = str(network.network.network_address)
     to_ip = str(network.network.broadcast_address)
-    ptrs = PtrOverride.objects.filter(ipaddress__range=(from_ip, to_ip))
+    return PtrOverride.objects.filter(ipaddress__range=(from_ip, to_ip))
+
+
+@api_view()
+def network_ptroverride_list(request, *args, **kwargs):
+    ptrs = _network_ptroverride_list(kwargs)
     ptr_list = [ i.ipaddress for i in ptrs ]
     return Response(ptr_list, status=status.HTTP_200_OK)
+
+
+@api_view()
+def network_ptroverride_host_list(request, *args, **kwargs):
+    ptrs = _network_ptroverride_list(kwargs)
+    ret = dict()
+    info =  ptrs.values_list('host__name', 'ipaddress')
+    for host, ip in sorted(info, key=lambda i: ipaddress.ip_address(i[1])):
+        ret[ip] = host
+    return Response(ret, status=status.HTTP_200_OK)
 
 
 @api_view()
@@ -627,6 +644,16 @@ def network_used_list(request, *args, **kwargs):
     network = _get_network(kwargs)
     used_ipaddresses = list(map(str, sorted(network.get_used_ipaddresses())))
     return Response(used_ipaddresses, status=status.HTTP_200_OK)
+
+
+@api_view()
+def network_used_host_list(request, *args, **kwargs):
+    network = _get_network(kwargs)
+    ret = defaultdict(list)
+    info =  network._get_used_ipaddresses().values_list('host__name', 'ipaddress')
+    for host, ip in sorted(info, key=lambda i: ipaddress.ip_address(i[1])):
+        bisect.insort(ret[ip], host)
+    return Response(ret, status=status.HTTP_200_OK)
 
 
 @api_view()
