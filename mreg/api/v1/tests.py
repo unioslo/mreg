@@ -912,10 +912,19 @@ class APIMxTestcase(APITestCase):
         mxs = self.client.get("/mxs/").json()
         self.assertEqual(len(mxs), 0)
 
-    def test_mx_zone_autoupdate(self):
+    def test_mx_zone_autoupdate_add(self):
         self.zone.updated = False
         self.zone.save()
         self.test_mx_post()
+        self.zone.refresh_from_db()
+        self.assertTrue(self.zone.updated)
+
+    def test_mx_zone_autoupdate_delete(self):
+        self.test_mx_post()
+        self.zone.updated = False
+        self.zone.save()
+        mxs = self.client.get("/mxs/").json()
+        self.client.delete("/mxs/{}".format(mxs[0]['id']))
         self.zone.refresh_from_db()
         self.assertTrue(self.zone.updated)
 
