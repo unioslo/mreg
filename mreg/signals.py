@@ -1,5 +1,4 @@
 import functools
-import ipaddress
 import re
 
 from django.conf import settings
@@ -10,8 +9,9 @@ from django.utils import timezone
 from django_auth_ldap.backend import populate_user
 
 from mreg.api.v1.serializers import HostSerializer
-from mreg.models import (Cname, ForwardZoneMember, Host, Ipaddress, ModelChangeLog, Naptr, 
-                        NameServer, PtrOverride, ReverseZone, Srv, Txt)
+from mreg.models import (Cname, ForwardZoneMember, Host, Ipaddress,
+        ModelChangeLog, Mx, Naptr, NameServer, PtrOverride, ReverseZone, Srv,
+        Txt)
 from rest_framework.exceptions import PermissionDenied
 
 
@@ -107,6 +107,7 @@ def _common_update_zone(signal, sender, instance):
 @receiver(pre_save, sender=Cname)
 @receiver(pre_save, sender=Ipaddress)
 @receiver(pre_save, sender=Host)
+@receiver(pre_save, sender=Mx)
 @receiver(pre_save, sender=Naptr)
 @receiver(pre_save, sender=PtrOverride)
 @receiver(pre_save, sender=Srv)
@@ -119,6 +120,7 @@ def updated_objects_update_zone_serial(sender, instance, raw, using, update_fiel
 @receiver(post_delete, sender=Cname)
 @receiver(post_delete, sender=Ipaddress)
 @receiver(post_delete, sender=Host)
+@receiver(post_delete, sender=Mx)
 @receiver(post_delete, sender=Naptr)
 @receiver(post_delete, sender=PtrOverride)
 @receiver(post_delete, sender=Srv)

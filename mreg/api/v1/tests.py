@@ -864,8 +864,14 @@ class APIMxTestcase(APITestCase):
 
     def setUp(self):
         self.client = get_token_client()
-        self.host = Host(name='ns1.example.org', contact="hostmaster@example.org")
-        clean_and_save(self.host)
+        self.zone = ForwardZone(name='example.org',
+                                primary_ns='ns1.example.org',
+                                email='hostmaster@example.org')
+        clean_and_save(self.zone)
+        self.host_data = {'name': 'ns1.example.org',
+                          'contact': 'mail@example.org'}
+        self.client.post('/hosts/', self.host_data)
+        self.host = Host.objects.get(name=self.host_data['name'])
 
     def test_mx_post(self):
         data = {'host': self.host.id,
@@ -892,19 +898,35 @@ class APIMxTestcase(APITestCase):
         ret = self.client.post("/mxs/", data)
         self.assertEqual(ret.status_code, 400)
 
-    def test_txt_list(self):
+    def test_mx_list(self):
         self.test_mx_post()
         ret = self.client.get("/mxs/")
         self.assertEqual(ret.status_code, 200)
         self.assertEqual(len(ret.json()), 1)
 
-    def test_txt_delete(self):
+    def test_mx_delete(self):
         self.test_mx_post()
         mxs = self.client.get("/mxs/").json()
         ret = self.client.delete("/mxs/{}".format(mxs[0]['id']))
         self.assertEqual(ret.status_code, 204)
         mxs = self.client.get("/mxs/").json()
         self.assertEqual(len(mxs), 0)
+
+    def test_mx_zone_autoupdate_add(self):
+        self.zone.updated = False
+        self.zone.save()
+        self.test_mx_post()
+        self.zone.refresh_from_db()
+        self.assertTrue(self.zone.updated)
+
+    def test_mx_zone_autoupdate_delete(self):
+        self.test_mx_post()
+        self.zone.updated = False
+        self.zone.save()
+        mxs = self.client.get("/mxs/").json()
+        self.client.delete("/mxs/{}".format(mxs[0]['id']))
+        self.zone.refresh_from_db()
+        self.assertTrue(self.zone.updated)
 
 
 class APIForwardZonesTestCase(APITestCase):
