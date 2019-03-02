@@ -568,7 +568,7 @@ class APITokenAutheticationTestCase(APITestCase):
     def test_logout(self):
         ret = self.client.get("/zones/")
         self.assertEqual(ret.status_code, 200)
-        ret = self.client.post("/api/logout/")
+        ret = self.client.post("/api/token-logout/")
         self.assertEqual(ret.status_code, 200)
         ret = self.client.get("/zones/")
         self.assertEqual(ret.status_code, 401)
