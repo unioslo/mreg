@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.conf import settings
 from django.contrib.auth.models import Group, User
 from django.test import TestCase
@@ -556,6 +558,33 @@ def get_token_client():
     client = APIClient()
     client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
     return client
+
+class APITokenAutheticationTestCase(APITestCase):
+    """Test various token authentication operations."""
+
+    def setUp(self):
+        self.client = get_token_client()
+
+    def test_logout(self):
+        ret = self.client.get("/zones/")
+        self.assertEqual(ret.status_code, 200)
+        ret = self.client.post("/api/token-logout/")
+        self.assertEqual(ret.status_code, 200)
+        ret = self.client.get("/zones/")
+        self.assertEqual(ret.status_code, 401)
+
+    def test_force_expire(self):
+        ret = self.client.get("/zones/")
+        self.assertEqual(ret.status_code, 200)
+        user = User.objects.get(username='nobody')
+        token = Token.objects.get(user=user)
+        EXPIRE_HOURS = getattr(settings, 'REST_FRAMEWORK_TOKEN_EXPIRE_HOURS', 8)
+        token.created = timezone.now() - timedelta(hours=EXPIRE_HOURS)
+        token.save()
+        ret = self.client.get("/zones/")
+        self.assertEqual(ret.status_code, 401)
+
+
 
 class APIAutoupdateZonesTestCase(APITestCase):
     """This class tests the autoupdate of zones' updated_at whenever
