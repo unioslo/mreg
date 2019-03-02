@@ -23,7 +23,7 @@ class ObtainExpiringAuthToken(ObtainAuthToken):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class Logout(APIView):
+class TokenLogout(APIView):
     def post(self, request):
         # simply delete the token to force a login
         request.user.auth_token.delete()
