@@ -303,6 +303,7 @@ class HinfoPreset(models.Model):
 
 
 class Host(ForwardZoneMember):
+    updated_at = models.DateTimeField(auto_now=True)
     name = models.CharField(unique=True, max_length=253, validators=[validate_hostname])
     contact = models.EmailField()
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
@@ -328,6 +329,7 @@ class Host(ForwardZoneMember):
 
 
 class Ipaddress(models.Model):
+    updated_at = models.DateTimeField(auto_now=True)
     host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='ipaddresses')
     ipaddress = models.GenericIPAddressField()
     macaddress = models.CharField(max_length=17, blank=True, validators=[validate_mac_address])
