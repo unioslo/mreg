@@ -968,6 +968,13 @@ class APIForwardZonesTestCase(APITestCase):
         response = self.client.get('/zones/%s' % self.zone_one.name)
         self.assertEqual(response.status_code, 200)
 
+    def test_zones_list_200_ok(self):
+        """Listing all zones should return 200"""
+        response = self.client.get('/zones/')
+        self.assertEqual(response.json()[0]['name'], self.zone_one.name)
+        self.assertEqual(len(response.json()), 1)
+        self.assertEqual(response.status_code, 200)
+
     def test_zones_post_409_name_conflict(self):
         """"Posting a entry that uses a name that is already taken should return 409"""
         response = self.client.get('/zones/%s' % self.zone_one.name)
