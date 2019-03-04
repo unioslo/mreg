@@ -742,11 +742,12 @@ class ZoneList(generics.ListCreateAPIView):
 
     """
 
+    lookup_field = 'name'
+    serializer_class = ForwardZoneSerializer
 
     def _get_forward(self):
         self.queryset = ForwardZone.objects.all()
         qs = super(ZoneList, self).get_queryset()
-        self.serializer_class = ForwardZoneSerializer
         return ForwardZoneFilterSet(data=self.request.GET, queryset=qs).filter()
 
     def _get_reverse(self):
@@ -775,7 +776,7 @@ class ZoneList(generics.ListCreateAPIView):
         return Response(ret)
 
     def post(self, request, *args, **kwargs):
-        qs = self.get_queryset(name=request.data["name"])
+        qs = self.get_queryset(name=request.data[self.lookup_field])
         if qs.filter(name=request.data["name"]).exists():
             content = {'ERROR': 'Zone name already in use'}
             return Response(content, status=status.HTTP_409_CONFLICT)
@@ -804,6 +805,7 @@ class ZoneDelegationList(generics.ListCreateAPIView):
     """
 
     lookup_field = 'name'
+    serializer_class = ForwardZoneDelegationSerializer
 
     def get_queryset(self):
         """
@@ -813,18 +815,16 @@ class ZoneDelegationList(generics.ListCreateAPIView):
 
         zonename = self.kwargs[self.lookup_field]
         if zonename.endswith(".arpa"):
-            self.serializer_class = ReverseZoneDelegationSerializer
             self.parentzone = get_object_or_404(ReverseZone, name=zonename)
             self.queryset = self.parentzone.delegations.all()
+            self.serializer_class = ReverseZoneDelegationSerializer
             qs = super().get_queryset()
             return ReverseZoneFilterSet(data=self.request.query_params, queryset=qs).filter()
         else:
-            self.serializer_class = ForwardZoneDelegationSerializer
             self.parentzone = get_object_or_404(ForwardZone, name=zonename)
             self.queryset = self.parentzone.delegations.all()
             qs = super().get_queryset()
             return ForwardZoneFilterSet(data=self.request.query_params, queryset=qs).filter()
-
 
     def post(self, request, *args, **kwargs):
         qs = self.get_queryset()
@@ -861,15 +861,15 @@ class ZoneDetail(MregRetrieveUpdateDestroyAPIView):
     """
 
     lookup_field = 'name'
+    serializer_class = ForwardZoneSerializer
 
     def get_queryset(self):
         zonename = self.kwargs[self.lookup_field]
 
         if zonename.endswith(".arpa"):
-            self.serializer_class = ReverseZoneSerializer
             self.queryset = ReverseZone.objects.all()
+            self.serializer_class = ReverseZoneSerializer
         else:
-            self.serializer_class = ForwardZoneSerializer
             self.queryset = ForwardZone.objects.all()
         return super().get_queryset()
 
@@ -910,6 +910,7 @@ class ZoneDetail(MregRetrieveUpdateDestroyAPIView):
 class ZoneDelegationDetail(MregRetrieveUpdateDestroyAPIView):
 
     lookup_field = 'delegation'
+    serializer_class = ForwardZoneDelegationSerializer
 
     def get_queryset(self):
         zonename = self.kwargs[self.lookup_field]
@@ -917,11 +918,10 @@ class ZoneDelegationDetail(MregRetrieveUpdateDestroyAPIView):
 
         if zonename.endswith(".arpa"):
             self.parentzone = get_object_or_404(ReverseZone, name=parentname)
-            self.serializer_class = ReverseZoneDelegationSerializer
             self.queryset = ReverseZoneDelegation.objects.all()
+            self.serializer_class = ReverseZoneDelegationSerializer
         else:
             self.parentzone = get_object_or_404(ForwardZone, name=parentname)
-            self.serializer_class = ForwardZoneDelegationSerializer
             self.queryset = ForwardZoneDelegation.objects.all()
         return super().get_queryset()
 
@@ -957,15 +957,15 @@ class ZoneNameServerDetail(ETAGMixin, generics.GenericAPIView):
     """
 
     lookup_field = 'name'
+    serializer_class = ForwardZoneSerializer
 
     def get_queryset(self):
         zonename = self.kwargs[self.lookup_field]
 
         if zonename.endswith(".arpa"):
-            self.serializer_class = ReverseZoneSerializer
             self.queryset = ReverseZone.objects.all()
+            self.serializer_class = ReverseZoneSerializer
         else:
-            self.serializer_class = ForwardZoneSerializer
             self.queryset = ForwardZone.objects.all()
         return super().get_queryset()
 
