@@ -15,6 +15,7 @@ from rest_framework.authentication import TokenAuthentication
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import api_view
 from rest_framework.exceptions import ParseError, MethodNotAllowed
+from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_extensions.etag.mixins import ETAGMixin
@@ -279,6 +280,12 @@ class HostDetail(MregRetrieveUpdateDestroyAPIView):
             return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
+@api_view(['GET'])
+def host_newest(request, *args, **kwargs):
+    newest = Host.objects.order_by('-updated_at').first()
+    return Response(HostSerializer(newest).data)
+
+
 class IpaddressList(generics.ListCreateAPIView):
     """
     get:
@@ -310,6 +317,13 @@ class IpaddressDetail(generics.RetrieveUpdateDestroyAPIView):
     """
     queryset = Ipaddress.objects.all()
     serializer_class = IpaddressSerializer
+
+
+@api_view(['GET'])
+def ipaddress_newest(request, *args, **kwargs):
+    newest = Ipaddress.objects.order_by('-updated_at').first()
+    return Response(IpaddressSerializer(newest).data)
+
 
 class MxList(generics.ListCreateAPIView):
     """
@@ -1030,15 +1044,18 @@ class ModelChangeLogDetail(generics.RetrieveAPIView):
             raise Http404
 
 
-def _dhcphosts_by_range(iprange):
+def _get_ips_by_range(iprange):
     network = ipaddress.ip_network(iprange)
     from_ip = str(network.network_address)
     to_ip = str(network.broadcast_address)
-    ips = Ipaddress.objects.filter(ipaddress__range=(from_ip, to_ip))
+    return Ipaddress.objects.filter(ipaddress__range=(from_ip, to_ip))
+
+
+def _dhcphosts_by_range(iprange):
+    ips = _get_ips_by_range(iprange)
     ips = ips.exclude(macaddress='').order_by('ipaddress')
     ips = ips.values('host__name', 'ipaddress', 'macaddress')
     return Response(ips)
-
 
 class DhcpHostsAllV4(generics.GenericAPIView):
 
@@ -1057,7 +1074,41 @@ class DhcpHostsByRange(generics.GenericAPIView):
     def get(self, request, *args, **kwargs):
         return _dhcphosts_by_range(_get_iprange(kwargs))
 
-            
+
+def _dhcpv6_hosts_by_ipv4(iprange):
+    """
+    Find all hosts which have both an ipv4 and ipv6 address,
+    and where the ipv4 address has a mac assosicated.
+    Future fun: limit to hosts which have only one ipv4 and ipv6 address?
+    """
+    ipv4 = _get_ips_by_range(iprange)
+    ipv4 = ipv4.exclude(macaddress='')
+    ipv4 = ipv4.select_related('host')
+    ipv4_host_ids = [ip.host.id for ip in ipv4]
+    ipv4_host2mac = dict([(hostname, mac) for hostname, mac in
+                          ipv4.values_list('host__name', 'macaddress')])
+    ipv6 = _get_ips_by_range('::/0')
+    ipv6 = ipv6.filter(macaddress='')
+    ipv6 = ipv6.filter(host__in=ipv4_host_ids).order_by('ipaddress')
+    ret = []
+    for hostname, ip in ipv6.values_list('host__name', 'ipaddress'):
+        ret.append({'host__name': hostname, 'ipaddress': ip,
+                    'macaddress': ipv4_host2mac[hostname]})
+    return Response(ret)
+
+
+class DhcpHostsV4ByV6(APIView):
+
+    renderer_classes = (JSONRenderer, )
+
+    def get(self, request, *args, **kwargs):
+        if 'ip' in kwargs:
+            iprange = _get_iprange(kwargs)
+        else:
+            iprange = '0.0.0.0/0'
+        return _dhcpv6_hosts_by_ipv4(iprange)
+
+
 class PlainTextRenderer(renderers.BaseRenderer):
     """
     Custom renderer used for outputting plaintext.
