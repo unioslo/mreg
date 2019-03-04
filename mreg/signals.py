@@ -3,7 +3,7 @@ import re
 
 from django.conf import settings
 from django.contrib.auth.models import Group
-from django.db.models.signals import post_delete, pre_delete , post_save, pre_save
+from django.db.models.signals import m2m_changed, post_delete, pre_delete , post_save, pre_save
 from django.dispatch import receiver
 from django.utils import timezone
 from django_auth_ldap.backend import populate_user
@@ -209,3 +209,28 @@ def prevent_nameserver_deletion(sender, instance, using, **kwargs):
         if usedcount >= 1:
             raise PermissionDenied(detail='This host is a nameserver and cannot be deleted until' \
                                     'it has been removed from all zones its setup as a nameserver')
+
+
+@receiver(m2m_changed, sender=HostGroup.parent.through)
+def prevent_hostgroup_parent_recursion(sender, instance, action, model, reverse, pk_set, **kwargs):
+    """
+    pk_set contains the group(s) being added to a group
+    instance is the group getting new group members
+    This whole pk_set-function should be rewritten to handle multiple groups
+    """
+    if action == 'pre_add':
+        child_id = pk_set.pop()
+
+        parent_parents = HostGroup.objects.get(id=instance.id).parent.all()
+
+        for parent in parent_parents:
+            if child_id == parent.id:
+                raise PermissionDenied(
+                    _('Recursive memberships are not allowed. The group is a member of %(group)s'),
+                    params={'group' : HostGroup.objects.get(id=parent.id).hostgroup_name})
+                return
+            elif HostGroup.objects.get(id=parent.id).parent.all():
+                pk_set = {child_id}
+                prevent_hostgroup_parent_recursion(sender, parent, action, model, reverse, pk_set, **kwargs)
+    else:
+        return
