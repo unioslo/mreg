@@ -20,6 +20,8 @@ from rest_framework.views import APIView
 from rest_framework_extensions.etag.mixins import ETAGMixin
 from url_filter.filtersets import ModelFilterSet
 
+import mreg.api.v1.pagination
+
 from mreg.api.v1.serializers import (CnameSerializer, HinfoPresetSerializer,
         HostNameSerializer, HostSerializer, HostSaveSerializer,
         IpaddressSerializer, MxSerializer, NameServerSerializer,
@@ -205,8 +207,11 @@ class HostList(generics.ListCreateAPIView):
     post:
     Create a new host object. Allows posting with IP address in data.
     """
-    queryset = Host.objects.all()
+    queryset = Host.objects.get_queryset().order_by('id')
     serializer_class = HostSerializer
+    filter_backends = (filters.OrderingFilter,)
+    ordering_fields = '__all__'
+    pagination_class = mreg.api.v1.pagination.StandardResultsSetPagination
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -287,10 +292,11 @@ class IpaddressList(generics.ListCreateAPIView):
     post:
     Creates a new ipaddress object. Requires an existing host.
     """
-    queryset = Ipaddress.objects.all()
+    queryset = Ipaddress.objects.get_queryset().order_by('id')
     serializer_class = IpaddressSerializer
     filter_backends = (filters.OrderingFilter,)
-    ordering_fields = ('host', 'ipaddress', 'macaddress')
+    ordering_fields = '__all__'
+    pagination_class = mreg.api.v1.pagination.StandardResultsSetPagination
 
     def get_queryset(self):
         qs = super().get_queryset()
