@@ -1424,6 +1424,14 @@ class APIIPaddressesTestCase(APITestCase):
         response = self.client.get('/ipaddresses/%s' % self.ipaddress_one.id)
         self.assertEqual(response.status_code, 200)
 
+    def test_ipaddress_list_200_ok(self):
+        """List all ipaddress should return 200"""
+        response = self.client.get('/ipaddresses/')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data['count'], 2)
+        self.assertEqual(len(data['results']), 2)
+
     def test_ipaddress_get_404_not_found(self):
         """"Getting a non-existing entry should return 404"""
         response = self.client.get('/ipaddresses/193.101.168.2')
