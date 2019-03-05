@@ -827,7 +827,9 @@ class APIHostsTestCase(TestCase):
         """List all hosts should return 200"""
         response = self.client.get('/hosts/')
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.json()), 2)
+        data = response.json()
+        self.assertEqual(data['count'], 2)
+        self.assertEqual(len(data['results']), 2)
 
     def test_hosts_get_404_not_found(self):
         """"Getting a non-existing entry should return 404"""
