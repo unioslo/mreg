@@ -7,6 +7,8 @@ urlpatterns = [
     path('cnames/<name>', views.CnameDetail.as_view()),
     path('dhcphosts/v4/all', views.DhcpHostsAllV4.as_view()),
     path('dhcphosts/v6/all', views.DhcpHostsAllV6.as_view()),
+    path('dhcphosts/v6byv4/<ip>/<range>', views.DhcpHostsV4ByV6.as_view()),
+    path('dhcphosts/v6byv4/', views.DhcpHostsV4ByV6.as_view()),
     path('dhcphosts/<ip>/<range>', views.DhcpHostsByRange.as_view()),
     path('hinfopresets/', views.HinfoPresetList.as_view()),
     path('hinfopresets/<pk>', views.HinfoPresetDetail.as_view()),
