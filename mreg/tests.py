@@ -1,7 +1,7 @@
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from mreg.models import (ForwardZone, Host, Ipaddress, NameServer, Network, ReverseZone)
+from mreg.models import (ForwardZone, Host, HostGroup, HostGroupMember, Ipaddress, NameServer, Network, ReverseZone)
 from rest_framework.exceptions import PermissionDenied
 
 
@@ -118,3 +118,77 @@ class NameServerDeletionTestCase(TestCase):
         self.ns_hostip2.delete()
         new_count = Ipaddress.objects.count()
         self.assertNotEqual(old_count, new_count)
+
+
+class ModelHostGroupTestCase(TestCase):
+    """This class defines the test suite for the HostGroup and HostGroupmember model."""
+
+    def setUp(self):
+        """Define the test client and other test variables."""
+        # Needs sample host to test
+        self.host_one = Host(name='host1.example.org',
+                             contact='mail@example.org')
+        self.group_one = HostGroup(hostgroup_name='testgruppe1')
+        self.group_two = HostGroup(hostgroup_name='testgruppe2')
+        self.group_three = HostGroup(hostgroup_name='testgruppe3')
+        self.group_four = HostGroup(hostgroup_name='testgruppe4')
+
+    def test_model_can_create_hostgroup(self):
+        old_count = HostGroup.objects.count()
+        clean_and_save(self.group_one)
+        new_count = HostGroup.objects.count()
+        self.assertNotEqual(old_count, new_count)
+
+    def test_model_can_delete_hostgroup(self):
+        clean_and_save(self.group_one)
+        old_count = HostGroup.objects.count()
+        self.group_one.delete()
+        new_count = HostGroup.objects.count()
+        self.assertNotEqual(old_count, new_count)
+
+    def test_model_can_add_host_to_hostgroup(self):
+        clean_and_save(self.group_one)
+        clean_and_save(self.host_one)
+        old_count = self.group_one.hostgroupmember_set.count()
+        self.group_one.hostgroupmember_set.create(host=self.host_one)
+        self.group_one.save()
+        new_count = self.group_one.hostgroupmember_set.count()
+        self.assertNotEqual(old_count, new_count)
+
+    def test_model_can_remove_host_from_hostgroup(self):
+        clean_and_save(self.group_one)
+        clean_and_save(self.host_one)
+        self.group_one.hostgroupmember_set.create(host=self.host_one)
+        old_count = self.group_one.hostgroupmember_set.count()
+        host_one_membership_object = HostGroupMember.objects.get(host=self.host_one, group=self.group_one)
+        host_one_membership_object.delete()
+        new_count = self.group_one.hostgroupmember_set.count()
+        self.assertNotEqual(old_count, new_count)
+
+    def test_model_can_add_group_to_group(self):
+        clean_and_save(self.group_one)
+        clean_and_save(self.group_two)
+        old_count = self.group_one.groups.count()
+        self.group_one.groups.add(self.group_two)
+        new_count = self.group_one.groups.count()
+        self.assertNotEqual(old_count, new_count)
+
+    def test_model_can_remove_group_from_group(self):
+        clean_and_save(self.group_one)
+        clean_and_save(self.group_two)
+        self.group_one.groups.add(self.group_two)
+        old_count = self.group_one.groups.count()
+        self.group_two.parent.remove(self.group_one)
+        new_count = self.group_one.groups.count()
+        self.assertNotEqual(old_count, new_count)
+
+    def test_model_group_parent_can_never_be_child_of_child_groupmember(self):
+        clean_and_save(self.group_one)
+        clean_and_save(self.group_two)
+        clean_and_save(self.group_three)
+        clean_and_save(self.group_four)
+        self.group_one.groups.add(self.group_two)
+        self.group_two.groups.add(self.group_three)
+        self.group_three.groups.add(self.group_four)
+        with self.assertRaises(PermissionDenied) as context:
+            self.group_four.groups.add(self.group_one)

@@ -542,7 +542,7 @@ class Srv(ForwardZoneMember):
         }
         return '{name:24} {ttl:5} IN {record_type:6} {priority} {weight} {port} {target}\n'.format_map(data)
 
-
+# en gruppe kan ha en parent, og en host kan ha en gruppe
 class HostGroup(models.Model):
     hostgroup_name = models.CharField(max_length=50, unique=True)
     parent = models.ManyToManyField('self', symmetrical=False, blank=True, related_name='groups')
