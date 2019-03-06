@@ -101,6 +101,8 @@ DATABASES = {
 }
 
 if 'TRAVIS' in os.environ:
+    DEBUG = True
+    ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
     DATABASES = {
         'default': {
             'ENGINE':   'django.db.backends.postgresql_psycopg2',
@@ -159,6 +161,10 @@ REST_FRAMEWORK = {
         'mreg.api.permissions.IsInRequiredGroup',
     ),
 }
+
+# This setting must be defined for mreg.api.permissions.IsInRequiredGroup
+# to work.
+REQUIRED_USER_GROUP = "default-required-group"
 
 REST_FRAMEWORK_EXTENSIONS = {
     'DEFAULT_OBJECT_ETAG_FUNC':
