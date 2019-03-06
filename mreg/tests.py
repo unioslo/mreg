@@ -1,7 +1,7 @@
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from mreg.models import (ForwardZone, Host, HostGroup, HostGroupMember, Ipaddress, NameServer, Network, ReverseZone)
+from mreg.models import (ForwardZone, Host, HostGroup, Ipaddress, NameServer, Network, ReverseZone)
 from rest_framework.exceptions import PermissionDenied
 
 

@@ -542,7 +542,7 @@ class Srv(ForwardZoneMember):
         }
         return '{name:24} {ttl:5} IN {record_type:6} {priority} {weight} {port} {target}\n'.format_map(data)
 
-# en gruppe kan ha en parent, og en host kan ha en gruppe
+
 class HostGroup(models.Model):
     hostgroup_name = models.CharField(max_length=50, unique=True)
     parent = models.ManyToManyField('self', symmetrical=False, blank=True, related_name='groups')
@@ -551,12 +551,12 @@ class HostGroup(models.Model):
         return("%s" % (self.id))
 
 
-class HostGroupMember(models.Model):
+class GroupHostMember(models.Model):
     host = models.ForeignKey(Host, on_delete=models.PROTECT, db_column='host', related_name='hostgroupmembers')
     group = models.ForeignKey(HostGroup, on_delete=models.PROTECT)
 
     def __str__(self):
-        return('%s' % (self.id))
+        return('%s' % self.id)
 
 
 # TODO: Add user_id functionality when auth is implemented
