@@ -548,15 +548,15 @@ class HostGroup(models.Model):
     parent = models.ManyToManyField('self', symmetrical=False, blank=True, related_name='groups')
 
     def __str__(self):
-        return("%s" % (self.id))
+        return("%s" % (self.hostgroup_name))
 
 
-class GroupHostMember(models.Model):
-    host = models.ForeignKey(Host, on_delete=models.PROTECT, db_column='host', related_name='hostgroupmembers')
+class HostGroupMember(models.Model):
+    host = models.ForeignKey(Host, on_delete=models.PROTECT, db_column='host', related_name='members')
     group = models.ForeignKey(HostGroup, on_delete=models.PROTECT)
 
     def __str__(self):
-        return('%s' % self.id)
+        return('%s' % self.group.hostgroup_name)
 
 
 # TODO: Add user_id functionality when auth is implemented

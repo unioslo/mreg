@@ -7,6 +7,7 @@ from django.db.models.signals import m2m_changed, post_delete, pre_delete , post
 from django.dispatch import receiver
 from django.utils import timezone
 from django_auth_ldap.backend import populate_user
+from django.utils.translation import ugettext as _
 
 from mreg.api.v1.serializers import HostSerializer
 from mreg.models import (Cname, ForwardZoneMember, Host, HostGroup, Ipaddress,
@@ -189,29 +190,21 @@ def prevent_hostgroup_parent_recursion(sender, instance, action, model, reverse,
     """
     pk_set contains the group(s) being added to a group
     instance is the group getting new group members
+    This prevents groups from being able to become their own grandparent
     """
-    if action == 'pre_add':
-        child_id = pk_set.pop()
-        print("dette er child_id/pk_set :" + str(child_id))
-        parent_parents = HostGroup.objects.get(id=instance.id).parent.all()
-        print(parent_parents)
-        print("my instance id is :" + str(instance.id) )
-        if parent_parents:
-            for parent in parent_parents:
-                print("dette er parent.id" + str(parent.id))
-                if child_id == parent.id:
-                    print("child_id er tydeligvis samme som parent.id")
-                    raise PermissionDenied(
-                        _('Recursive memberships are not allowed. The group is a member of %(group)s'),
-                        params={'group' : HostGroup.objects.get(id=parent.id).hostgroup_name})
-                    return
-                elif HostGroup.objects.get(id=parent.id).parent.all():
-                    print("we elsed the fuck out of there1")
-                    pk_set = {child_id}
-                    prevent_hostgroup_parent_recursion(sender, parent, action, model, reverse, pk_set, **kwargs)
-    else:
-        print("we elsed the fuck out of there2")
+    if action != 'pre_add':
         return
+    else:
+        child_id = list(pk_set)[0]
+        parent_parents = HostGroup.objects.get(id=instance.id).parent.all()
+
+        for parent in parent_parents:
+            if child_id == parent.id:
+                raise PermissionDenied(detail='Recursive memberships are not allowed.' \
+                                              ' This group is a member of %s' % HostGroup.objects.get(id=parent.id).hostgroup_name)
+            elif HostGroup.objects.get(id=parent.id).parent.all():
+                pk_set = {child_id}
+                prevent_hostgroup_parent_recursion(sender, parent, action, model, reverse, pk_set, **kwargs)
 
 
 

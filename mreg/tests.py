@@ -1,7 +1,7 @@
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from mreg.models import (ForwardZone, Host, HostGroup, Ipaddress, NameServer, Network, ReverseZone)
+from mreg.models import (ForwardZone, Host, HostGroup, HostGroupMember, Ipaddress, NameServer, Network, ReverseZone)
 from rest_framework.exceptions import PermissionDenied
 
 
@@ -159,6 +159,7 @@ class ModelHostGroupTestCase(TestCase):
         clean_and_save(self.group_one)
         clean_and_save(self.host_one)
         self.group_one.hostgroupmember_set.create(host=self.host_one)
+        clean_and_save(self.group_one)
         old_count = self.group_one.hostgroupmember_set.count()
         host_one_membership_object = HostGroupMember.objects.get(host=self.host_one, group=self.group_one)
         host_one_membership_object.delete()
