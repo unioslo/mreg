@@ -20,8 +20,6 @@ from rest_framework.views import APIView
 from rest_framework_extensions.etag.mixins import ETAGMixin
 from url_filter.filtersets import ModelFilterSet
 
-import mreg.api.v1.pagination
-
 from mreg.api.v1.serializers import (CnameSerializer, HinfoPresetSerializer,
         HostNameSerializer, HostSerializer, HostSaveSerializer,
         IpaddressSerializer, MxSerializer, NameServerSerializer,
@@ -211,7 +209,6 @@ class HostList(generics.ListCreateAPIView):
     serializer_class = HostSerializer
     filter_backends = (filters.OrderingFilter,)
     ordering_fields = '__all__'
-    pagination_class = mreg.api.v1.pagination.StandardResultsSetPagination
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -296,7 +293,6 @@ class IpaddressList(generics.ListCreateAPIView):
     serializer_class = IpaddressSerializer
     filter_backends = (filters.OrderingFilter,)
     ordering_fields = '__all__'
-    pagination_class = mreg.api.v1.pagination.StandardResultsSetPagination
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -326,7 +322,7 @@ class MxList(generics.ListCreateAPIView):
     Create a new MX-record.
     """
 
-    queryset = Mx.objects.all()
+    queryset = Mx.objects.get_queryset().order_by('id')
     serializer_class = MxSerializer
 
     def get_queryset(self):
@@ -357,7 +353,7 @@ class NaptrList(generics.ListCreateAPIView):
     post:
     Create a new Naptr-record.
     """
-    queryset = Naptr.objects.all()
+    queryset = Naptr.objects.get_queryset().order_by('id')
     serializer_class = NaptrSerializer
 
     def get_queryset(self):
@@ -388,7 +384,7 @@ class NameServerList(generics.ListCreateAPIView):
     post:
     Create a new nameserver-record.
     """
-    queryset = NameServer.objects.all()
+    queryset = NameServer.objects.get_queryset().order_by('id')
     serializer_class = NameServerSerializer
 
     def get_queryset(self):
@@ -419,7 +415,7 @@ class PtrOverrideList(generics.ListCreateAPIView):
     post:
     Create a new ptr-override.
     """
-    queryset = PtrOverride.objects.all()
+    queryset = PtrOverride.objects.get_queryset().order_by('id')
     serializer_class = PtrOverrideSerializer
 
     def get_queryset(self):
@@ -450,7 +446,7 @@ class SrvList(generics.ListCreateAPIView):
     post:
     Create a new service record.
     """
-    queryset = Srv.objects.all()
+    queryset = Srv.objects.get_queryset().order_by('id')
     serializer_class = SrvSerializer
 
     def get_queryset(self):
@@ -510,7 +506,7 @@ class NetworkList(generics.ListAPIView):
     post:
     Create a new network. The new network can't overlap with any existing networks.
     """
-    queryset = Network.objects.all()
+    queryset = Network.objects.get_queryset().order_by('id')
     serializer_class = NetworkSerializer
 
     def post(self, request, *args, **kwargs):
@@ -685,7 +681,7 @@ class TxtList(generics.ListCreateAPIView):
     Create a new txt-record.
     """
 
-    queryset = Txt.objects.all()
+    queryset = Txt.objects.get_queryset().order_by('id')
     serializer_class = TxtSerializer
 
     def get_queryset(self):
@@ -752,12 +748,12 @@ class ZoneList(generics.ListCreateAPIView):
     serializer_class = ForwardZoneSerializer
 
     def _get_forward(self):
-        self.queryset = ForwardZone.objects.all()
+        self.queryset = ForwardZone.objects.all().order_by('id')
         qs = super(ZoneList, self).get_queryset()
         return ForwardZoneFilterSet(data=self.request.GET, queryset=qs).filter()
 
     def _get_reverse(self):
-        self.queryset = ReverseZone.objects.all()
+        self.queryset = ReverseZone.objects.all().order_by('id')
         qs = super(ZoneList, self).get_queryset()
         self.serializer_class = ReverseZoneSerializer
         return ReverseZoneFilterSet(data=self.request.GET, queryset=qs).filter()
@@ -822,13 +818,13 @@ class ZoneDelegationList(generics.ListCreateAPIView):
         zonename = self.kwargs[self.lookup_field]
         if zonename.endswith(".arpa"):
             self.parentzone = get_object_or_404(ReverseZone, name=zonename)
-            self.queryset = self.parentzone.delegations.all()
+            self.queryset = self.parentzone.delegations.all().order_by('id')
             self.serializer_class = ReverseZoneDelegationSerializer
             qs = super().get_queryset()
             return ReverseZoneFilterSet(data=self.request.query_params, queryset=qs).filter()
         else:
             self.parentzone = get_object_or_404(ForwardZone, name=zonename)
-            self.queryset = self.parentzone.delegations.all()
+            self.queryset = self.parentzone.delegations.all().order_by('id')
             qs = super().get_queryset()
             return ForwardZoneFilterSet(data=self.request.query_params, queryset=qs).filter()
 
