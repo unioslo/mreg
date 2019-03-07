@@ -353,7 +353,7 @@ class NaptrList(generics.ListCreateAPIView):
     post:
     Create a new Naptr-record.
     """
-    queryset = Naptr.objects.get_queryset().order_by('id')
+    queryset = Naptr.objects.all()
     serializer_class = NaptrSerializer
 
     def get_queryset(self):
@@ -384,7 +384,8 @@ class NameServerList(generics.ListCreateAPIView):
     post:
     Create a new nameserver-record.
     """
-    queryset = NameServer.objects.get_queryset().order_by('id')
+
+    queryset = NameServer.objects.all()
     serializer_class = NameServerSerializer
 
     def get_queryset(self):
@@ -446,7 +447,7 @@ class SrvList(generics.ListCreateAPIView):
     post:
     Create a new service record.
     """
-    queryset = Srv.objects.get_queryset().order_by('id')
+    queryset = Srv.objects.all()
     serializer_class = SrvSerializer
 
     def get_queryset(self):
@@ -506,7 +507,7 @@ class NetworkList(generics.ListAPIView):
     post:
     Create a new network. The new network can't overlap with any existing networks.
     """
-    queryset = Network.objects.get_queryset().order_by('id')
+    queryset = Network.objects.all()
     serializer_class = NetworkSerializer
 
     def post(self, request, *args, **kwargs):
