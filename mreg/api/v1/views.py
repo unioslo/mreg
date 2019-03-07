@@ -772,6 +772,7 @@ class ZoneList(generics.ListCreateAPIView):
                 return self._get_forward()
 
     def list(self, request):
+        # TODO: non paginated response.
         ret = []
         for qs in (self._get_forward(), self._get_reverse()):
             serializer = self.serializer_class(qs, many=True)
