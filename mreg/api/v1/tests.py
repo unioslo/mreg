@@ -1628,6 +1628,21 @@ class APICnamesTestCase(APITestCase):
         response = self.client.get('/cnames/%s' % self.post_data['name'])
         self.assertEqual(response.status_code, 200)
 
+    def test_cname_list_200_ok(self):
+        """GET without name should return a list and 200 OK."""
+        self.client.post('/cnames/', self.post_data)
+        response = self.client.get('/cnames/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['count'], 1)
+        self.assertEqual(len(response.data['results']), 1)
+
+    def test_cname_empty_list_200_ok(self):
+        """GET without name should return a list and 200 OK."""
+        response = self.client.get('/cnames/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['count'], 0)
+        self.assertEqual(response.data['results'], [])
+
     def test_cname_post_hostname_in_use_400_bad_request(self):
         response = self.client.post('/cnames/', {'host': self.host_one['id'],
                                                  'name': self.host_two['name']})
@@ -1741,6 +1756,13 @@ class APINetworksTestCase(APITestCase):
         """GET on an existing ip-range should return 200 OK."""
         response = self.client.get('/networks/%s' % self.network_sample.range)
         self.assertEqual(response.status_code, 200)
+
+    def test_networks_list_200_ok(self):
+        """GET without name should return a list and 200 OK."""
+        response = self.client.get('/networks/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['count'], 2)
+        self.assertEqual(len(response.data['results']), 2)
 
     def test_networks_patch_204_no_content(self):
         """Patching an existing and valid entry should return 204 and Location"""
