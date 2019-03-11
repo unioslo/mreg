@@ -157,6 +157,8 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'mreg.authentication.ExpiringTokenAuthentication',
     ),
+    'DEFAULT_PAGINATION_CLASS':
+        'mreg.api.v1.pagination.StandardResultsSetPagination',
     'DEFAULT_PERMISSION_CLASSES': (
         'mreg.api.permissions.IsInRequiredGroup',
     ),

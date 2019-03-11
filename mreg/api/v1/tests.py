@@ -827,7 +827,9 @@ class APIHostsTestCase(TestCase):
         """List all hosts should return 200"""
         response = self.client.get('/hosts/')
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.json()), 2)
+        data = response.json()
+        self.assertEqual(data['count'], 2)
+        self.assertEqual(len(data['results']), 2)
 
     def test_hosts_get_404_not_found(self):
         """"Getting a non-existing entry should return 404"""
@@ -931,15 +933,15 @@ class APIMxTestcase(APITestCase):
         self.test_mx_post()
         ret = self.client.get("/mxs/")
         self.assertEqual(ret.status_code, 200)
-        self.assertEqual(len(ret.json()), 1)
+        self.assertEqual(ret.data['count'], 1)
 
     def test_mx_delete(self):
         self.test_mx_post()
-        mxs = self.client.get("/mxs/").json()
+        mxs = self.client.get("/mxs/").json()['results']
         ret = self.client.delete("/mxs/{}".format(mxs[0]['id']))
         self.assertEqual(ret.status_code, 204)
         mxs = self.client.get("/mxs/").json()
-        self.assertEqual(len(mxs), 0)
+        self.assertEqual(len(mxs['results']), 0)
 
     def test_mx_zone_autoupdate_add(self):
         self.zone.updated = False
@@ -952,7 +954,7 @@ class APIMxTestcase(APITestCase):
         self.test_mx_post()
         self.zone.updated = False
         self.zone.save()
-        mxs = self.client.get("/mxs/").json()
+        mxs = self.client.get("/mxs/").data['results']
         self.client.delete("/mxs/{}".format(mxs[0]['id']))
         self.zone.refresh_from_db()
         self.assertTrue(self.zone.updated)
@@ -1076,10 +1078,10 @@ class APIZonesForwardDelegationTestCase(APITestCase):
                                 'email': "hostmaster@example.org"}
         self.client.post("/zones/", self.data_exampleorg)
 
-    def test_get_delegation_200_ok(self):
+    def test_list_empty_delegation_200_ok(self):
         response = self.client.get(f"/zones/example.org/delegations/")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data, [])
+        self.assertEqual(response.data['results'], [])
 
     def test_delegate_forward_201_ok(self):
         path = "/zones/example.org/delegations/"
@@ -1144,9 +1146,10 @@ class APIZonesForwardDelegationTestCase(APITestCase):
         self.test_delegate_forward_201_ok()
         response = self.client.get(path)
         self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(len(data), 1)
-        self.assertTrue(data[0]['name'], 'delegated.example.org')
+        self.assertEqual(response.data['count'], 1)
+        results = response.data['results']
+        self.assertEqual(len(results), 1)
+        self.assertTrue(results[0]['name'], 'delegated.example.org')
 
     def test_forward_delete_delegattion_204_ok(self):
         self.test_forward_list_delegations_200_ok()
@@ -1159,7 +1162,7 @@ class APIZonesForwardDelegationTestCase(APITestCase):
         path = "/zones/example.org/delegations/"
         response = self.client.get(path)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data, [])
+        self.assertEqual(response.data['results'], [])
 
 
 class APIZonesReverseDelegationTestCase(APITestCase):
@@ -1191,7 +1194,8 @@ class APIZonesReverseDelegationTestCase(APITestCase):
         def assertempty(data):
             response = self.client.get(f"/zones/{data['name']}/delegations/")
             self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.data, [])
+            self.assertEqual(response.data['count'], 0)
+            self.assertEqual(response.data['results'], [])
         for data in ('rev1010', 'revdb8'):
             assertempty(getattr(self, f"data_{data}"))
 
@@ -1422,6 +1426,14 @@ class APIIPaddressesTestCase(APITestCase):
         response = self.client.get('/ipaddresses/%s' % self.ipaddress_one.id)
         self.assertEqual(response.status_code, 200)
 
+    def test_ipaddress_list_200_ok(self):
+        """List all ipaddress should return 200"""
+        response = self.client.get('/ipaddresses/')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data['count'], 2)
+        self.assertEqual(len(data['results']), 2)
+
     def test_ipaddress_get_404_not_found(self):
         """"Getting a non-existing entry should return 404"""
         response = self.client.get('/ipaddresses/193.101.168.2')
@@ -1616,6 +1628,21 @@ class APICnamesTestCase(APITestCase):
         response = self.client.get('/cnames/%s' % self.post_data['name'])
         self.assertEqual(response.status_code, 200)
 
+    def test_cname_list_200_ok(self):
+        """GET without name should return a list and 200 OK."""
+        self.client.post('/cnames/', self.post_data)
+        response = self.client.get('/cnames/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['count'], 1)
+        self.assertEqual(len(response.data['results']), 1)
+
+    def test_cname_empty_list_200_ok(self):
+        """GET without name should return a list and 200 OK."""
+        response = self.client.get('/cnames/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['count'], 0)
+        self.assertEqual(response.data['results'], [])
+
     def test_cname_post_hostname_in_use_400_bad_request(self):
         response = self.client.post('/cnames/', {'host': self.host_one['id'],
                                                  'name': self.host_two['name']})
@@ -1729,6 +1756,13 @@ class APINetworksTestCase(APITestCase):
         """GET on an existing ip-range should return 200 OK."""
         response = self.client.get('/networks/%s' % self.network_sample.range)
         self.assertEqual(response.status_code, 200)
+
+    def test_networks_list_200_ok(self):
+        """GET without name should return a list and 200 OK."""
+        response = self.client.get('/networks/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['count'], 2)
+        self.assertEqual(len(response.data['results']), 2)
 
     def test_networks_patch_204_no_content(self):
         """Patching an existing and valid entry should return 204 and Location"""
