@@ -547,6 +547,10 @@ class HostGroup(models.Model):
     hostgroup_name = models.CharField(max_length=50, unique=True)
     parent = models.ManyToManyField('self', symmetrical=False, blank=True, related_name='groups')
 
+    class Meta:
+        db_table = 'hostgroup'
+        ordering = ('hostgroup_name',)
+
     def __str__(self):
         return("%s" % (self.hostgroup_name))
 
@@ -554,6 +558,10 @@ class HostGroup(models.Model):
 class HostGroupMember(models.Model):
     host = models.ForeignKey(Host, on_delete=models.PROTECT, db_column='host', related_name='members')
     group = models.ForeignKey(HostGroup, on_delete=models.PROTECT)
+
+    class Meta:
+        db_table = 'hostgroupmember'
+        ordering = ('group',)
 
     def __str__(self):
         return('%s' % self.group.hostgroup_name)

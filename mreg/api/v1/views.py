@@ -23,14 +23,17 @@ from url_filter.filtersets import ModelFilterSet
 
 from mreg.api.v1.serializers import (CnameSerializer, HinfoPresetSerializer,
         HostNameSerializer, HostSerializer, HostSaveSerializer,
+        HostGroupSerializer, HostGroupMemberSerializer,
         IpaddressSerializer, MxSerializer, NameServerSerializer,
         NaptrSerializer, PtrOverrideSerializer, SrvSerializer,
         NetworkSerializer, TxtSerializer, ForwardZoneSerializer,
         ForwardZoneDelegationSerializer, ReverseZoneSerializer,
         ReverseZoneDelegationSerializer, ModelChangeLogSerializer)
-from mreg.models import (Cname, ForwardZone, ForwardZoneDelegation, HinfoPreset, Host, Ipaddress,
+from mreg.models import (Cname, ForwardZone, ForwardZoneDelegation, HinfoPreset, Host, HostGroup,
+                         HostGroupMember, Ipaddress,
                          Mx, NameServer, Naptr, Network, PtrOverride, ReverseZone,
                          ReverseZoneDelegation, Srv, Txt, ModelChangeLog)
+
 from mreg.utils import create_serialno
 
 from .zonefile import ZoneFile
@@ -111,6 +114,15 @@ class ReverseZoneDelegationFilterSet(ModelFilterSet):
     class Meta:
         model = ReverseZoneDelegation
 
+
+class HostGroupFilterSet(ModelFilterSet):
+    class Meta:
+        model = HostGroup
+
+
+class HostGroupMemberilterSet(ModelFilterSet):
+    class Meta:
+        model = HostGroupMember
 
 class MregRetrieveUpdateDestroyAPIView(ETAGMixin,
         generics.RetrieveUpdateDestroyAPIView):
@@ -1138,3 +1150,37 @@ class ZoneFileDetail(generics.GenericAPIView):
         zone.update_serialno()
         zonefile = ZoneFile(zone)
         return Response(zonefile.generate())
+
+
+class HostGroupList(generics.ListCreateAPIView):
+    """
+    get:
+    Lists all hostgroups in use.
+
+    post:
+    Creates a new hostgroup object.
+    """
+    queryset = HostGroup.objects.get_queryset()
+    serializer_class = HostGroupSerializer
+    filter_backends = (filters.OrderingFilter,)
+    ordering_fields = '__all__'
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        return HostGroupFilterSet(data=self.request.GET, queryset=qs).filter()
+
+
+    def post(self, request, *args, **kwargs):
+        if "hostgroup_name" in request.data:
+            if self.queryset.filter(hostgroup_name=request.data['hostgroup_name']).exists():
+                content = {'ERROR': 'hostgroup name already in use'}
+                return Response(content, status=status.HTTP_409_CONFLICT)
+
+        hostgroupdata = request.data.copy()
+
+        hostgroup = HostGroup()
+        hostgroupserializer = HostGroupSerializer(hostgroup, data=hostgroupdata)
+        if hostgroupserializer.is_valid(raise_exception=True):
+            hostgroupserializer.save()
+            location = '/hostgroups/%s' % hostgroup.hostgroup_name
+            return Response(status=status.HTTP_201_CREATED, headers={'Location': location})

@@ -14,6 +14,7 @@ urlpatterns = [
     path('hinfopresets/<pk>', views.HinfoPresetDetail.as_view()),
     path('hosts/', views.HostList.as_view()),
     path('hosts/<pk>', views.HostDetail.as_view()),
+    path('hostgroups/',views.HostGroupList.as_view()),
     path('ipaddresses/', views.IpaddressList.as_view()),
     path('ipaddresses/<pk>', views.IpaddressDetail.as_view()),
     path('mxs/', views.MxList.as_view()),

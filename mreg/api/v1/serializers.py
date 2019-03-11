@@ -3,7 +3,7 @@ import ipaddress
 from django.utils import timezone
 from rest_framework import serializers
 
-from mreg.models import (Cname, HinfoPreset, Host, Ipaddress, Mx, NameServer,
+from mreg.models import (Cname, HinfoPreset, Host, HostGroup, HostGroupMember, Ipaddress, Mx, NameServer,
                          Naptr, PtrOverride, Srv, Network, Txt, ForwardZone,
                          ForwardZoneDelegation, ReverseZone,
                          ReverseZoneDelegation, ModelChangeLog)
@@ -266,3 +266,15 @@ class ModelChangeLogSerializer(ValidationMixin, serializers.ModelSerializer):
 
     def create(self):
         return ModelChangeLog(**self.validated_data)
+
+
+class HostGroupSerializer(ValidationMixin, serializers.ModelSerializer):
+    class Meta:
+        model = HostGroup
+        fields = ('hostgroup_name',)
+
+
+class HostGroupMemberSerializer(ValidationMixin, serializers.ModelSerializer):
+    class Meta:
+        model = HostGroupMember
+        fields = '__all__'
