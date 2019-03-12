@@ -1184,3 +1184,37 @@ class HostGroupList(generics.ListCreateAPIView):
             hostgroupserializer.save()
             location = '/hostgroups/%s' % hostgroup.hostgroup_name
             return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
+
+
+class HostGroupDetail(MregRetrieveUpdateDestroyAPIView):
+    """
+    get:
+    Returns details for the specified hostgroup. Includes hostgroup and hosts that are members.
+
+    patch:
+    Updates part of hostgroup.
+
+    delete:
+    Delete the specified hostgroup.
+    """
+    queryset = HostGroup.objects.all()
+    serializer_class = HostGroupSerializer
+
+    def get_object(self, queryset=queryset):
+        return get_object_or_404(HostGroup, hostgroup_name=self.kwargs['pk'])
+
+    def patch(self, request, *args, **kwargs):
+        query = self.kwargs['pk']
+
+        if "name" in request.data:
+            if self.queryset.filter(hostgroup_name=request.data["hostgroup_name"]).exists():
+                content = {'ERROR': 'name already in use'}
+                return Response(content, status=status.HTTP_409_CONFLICT)
+
+        hostgroup = get_object_or_404(Hostgroup, hostgroup_name=query)
+        serializer = hostgroupserializer(hostgroup, data=request.data, partial=True)
+
+        if serializer.is_valid(raise_exception=True):
+            serializer.save()
+            location = '/hostgroups/%s' % hostgroup.hostgroup_name
+            return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
