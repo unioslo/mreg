@@ -271,7 +271,7 @@ class ModelChangeLogSerializer(ValidationMixin, serializers.ModelSerializer):
 class HostGroupSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
         model = HostGroup
-        fields = ('hostgroup_name',)
+        fields = '__all__'
 
 
 class HostGroupMemberSerializer(ValidationMixin, serializers.ModelSerializer):

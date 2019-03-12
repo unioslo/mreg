@@ -1176,14 +1176,11 @@ class HostGroupList(generics.ListCreateAPIView):
                 content = {'ERROR': 'hostgroup name already in use'}
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
-        hostgroupdata = request.data.copy()
-
-        hostgroup = HostGroup()
-        hostgroupserializer = HostGroupSerializer(hostgroup, data=hostgroupdata)
-        if hostgroupserializer.is_valid(raise_exception=True):
-            hostgroupserializer.save()
-            location = '/hostgroups/%s' % hostgroup.hostgroup_name
-            return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        location = '/hostgroups/%s' % serializer.validated_data['hostgroup_name']
+        return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
 
 
 class HostGroupDetail(MregRetrieveUpdateDestroyAPIView):
