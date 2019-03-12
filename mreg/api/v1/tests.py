@@ -1953,7 +1953,7 @@ class APIHostGroupsTestCase(TestCase):
 
     def test_hostgroups_get_404_not_found(self):
         """"Getting a non-existing entry should return 404"""
-        response = self.client.get('/hosts/nonexisting-group')
+        response = self.client.get('/hostgroups/nonexisting-group')
         self.assertEqual(response.status_code, 404)
 
     def test_hostgroups_post_201_created(self):
