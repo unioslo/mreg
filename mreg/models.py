@@ -327,6 +327,20 @@ class Host(ForwardZoneMember):
         return '{name:30} IN {record_type:6} {record_data}\n'.format_map(data)
 
 
+class SSHFP(models.Model):
+    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host')
+    ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
+    algorithm = models.IntegerField(choices=((1, 'RSA'), (2, 'DSS'), (3, 'ECDSA'), (4, 'Ed25519')))
+    hash_type = models.IntegerField(choices=((1, 'SHA-1'), (2, 'SHA-256')))
+    fingerprint = models.CharField(max_length=64, validators=[validate_hexadecimal])
+
+    class Meta:
+        db_table = 'sshfp'
+
+    def __str__(self):
+        return str(self.name)
+
+
 class Ipaddress(models.Model):
     host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='ipaddresses')
     ipaddress = models.GenericIPAddressField()
