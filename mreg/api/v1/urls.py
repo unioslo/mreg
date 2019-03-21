@@ -24,6 +24,8 @@ urlpatterns = [
     path('nameservers/<pk>', views.NameServerDetail.as_view()),
     path('ptroverrides/', views.PtrOverrideList.as_view()),
     path('ptroverrides/<pk>', views.PtrOverrideDetail.as_view()),
+    path('sshfps/', views.SshfpList.as_view()),
+    path('sshfps/<pk>', views.SshfpDetail.as_view()),
     path('srvs/', views.SrvList.as_view()),
     path('srvs/<pk>', views.SrvDetail.as_view()),
     path('networks/', views.NetworkList.as_view()),
