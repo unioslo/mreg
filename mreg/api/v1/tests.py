@@ -1003,6 +1003,80 @@ class APIMxTestcase(APITestCase):
         self.assertTrue(self.zone.updated)
 
 
+class APISshfpTestcase(APITestCase):
+    """Test SSHFP records."""
+
+    def setUp(self):
+        self.client = get_token_client()
+        self.zone = ForwardZone(name='example.org',
+                                primary_ns='ns1.example.org',
+                                email='hostmaster@example.org')
+        clean_and_save(self.zone)
+        self.host_data = {'name': 'ns1.example.org',
+                          'contact': 'mail@example.org'}
+        self.client.post('/hosts/', self.host_data)
+        self.host = Host.objects.get(name=self.host_data['name'])
+
+    def test_sshfp_post(self):
+        data = {'host': self.host.id,
+                'algorithm': 1,
+                'hash_type': 1,
+                'fingerpting': '0123456789abcdef'}
+        ret = self.client.post("/sshfps/", data)
+        self.assertEqual(ret.status_code, 201)
+
+    def test_sshfp_post_reject_invalid(self):
+        # Invalid fingerprint, algorithm, hash_type
+        data = {'host': self.host.id,
+                'algorithm': 1,
+                'hash_type': 1,
+                'fingerprint': 'beeftasty'}
+        ret = self.client.post("/sshfps/", data)
+        self.assertEqual(ret.status_code, 400)
+        data = {'host': self.host.id,
+                'algorithm': 0,
+                'hash_type': 1,
+                'fingerprint': '0123456789abcdef'}
+        ret = self.client.post("/sshfps/", data)
+        self.assertEqual(ret.status_code, 400)
+        data = {'host': self.host.id,
+                'algorithm': 1,
+                'hash_type': 3,
+                'fingerprint': '0123456789abcdef'}
+        ret = self.client.post("/sshfps/", data)
+        self.assertEqual(ret.status_code, 400)
+
+    def test_sshfp_list(self):
+        self.test_sshfp_post()
+        ret = self.client.get("/sshfps/")
+        self.assertEqual(ret.status_code, 200)
+        self.assertEqual(ret.data['count'], 1)
+
+    def test_sshfp_delete(self):
+        self.test_sshfp_post()
+        sshfps = self.client.get("/sshfps/").json()['results']
+        ret = self.client.delete("/sshfps/{}".format(sshfps[0]['id']))
+        self.assertEqual(ret.status_code, 204)
+        sshfps = self.client.get("/shfps/").json()
+        self.assertEqual(len(sshfps['results']), 0)
+
+    def test_sshfp_zone_autoupdate_add(self):
+        self.zone.updated = False
+        self.zone.save()
+        self.test_sshfp_post()
+        self.zone.refresh_from_db()
+        self.assertTrue(self.zone.updated)
+
+    def test_sshfp_zone_autoupdate_delete(self):
+        self.test_sshfp_post()
+        self.zone.updated = False
+        self.zone.save()
+        sshfps = self.client.get("/sshfps/").data['results']
+        self.client.delete("/sshfps/{}".format(sshfps[0]['id']))
+        self.zone.refresh_from_db()
+        self.assertTrue(self.zone.updated)
+
+
 class APIForwardZonesTestCase(APITestCase):
     """"This class defines the test suite for forward zones API """
 
