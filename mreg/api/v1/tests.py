@@ -1021,7 +1021,7 @@ class APISshfpTestcase(APITestCase):
         data = {'host': self.host.id,
                 'algorithm': 1,
                 'hash_type': 1,
-                'fingerpting': '0123456789abcdef'}
+                'fingerprint': '0123456789abcdef'}
         ret = self.client.post("/sshfps/", data)
         self.assertEqual(ret.status_code, 201)
 
