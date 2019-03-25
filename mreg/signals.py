@@ -11,7 +11,7 @@ from django_auth_ldap.backend import populate_user
 from mreg.api.v1.serializers import HostSerializer
 from mreg.models import (Cname, ForwardZoneMember, Host, Ipaddress,
         ModelChangeLog, Mx, Naptr, NameServer, PtrOverride, ReverseZone, Srv,
-        Txt)
+        Txt, Sshfp)
 from rest_framework.exceptions import PermissionDenied
 
 
@@ -124,6 +124,7 @@ def updated_objects_update_zone_serial(sender, instance, raw, using, update_fiel
 @receiver(post_delete, sender=Mx)
 @receiver(post_delete, sender=Naptr)
 @receiver(post_delete, sender=PtrOverride)
+@receiver(post_delete, sender=Sshfp)
 @receiver(post_delete, sender=Srv)
 @receiver(post_delete, sender=Txt)
 def deleted_objects_update_zone_serial(sender, instance, using, **kwargs):
