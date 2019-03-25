@@ -2,7 +2,7 @@ import ipaddress
 
 from collections import defaultdict
 
-from mreg.models import Cname, ForwardZone, Host, Ipaddress, Mx, Naptr, Srv, Txt
+from mreg.models import Cname, ForwardZone, Host, Ipaddress, Mx, Naptr, Sshfp, Srv, Txt
 from mreg.utils import clear_none, idna_encode, qualify
 
 
@@ -98,6 +98,18 @@ class ForwardFile(Common):
         }
         return '{name:24} {ttl:5} IN {record_type} {priority:6} {mx:39}\n'.format_map(data)
 
+    def sshfp_zf_string(self, name, ttl, algorithm, hash_type, fingerprint):
+
+        data = {
+            'name': name,
+            'ttl': ttl,
+            'record_type': "SSHFP",
+            'algorithm': algorithm,
+            'hash_type': hash_type,
+            'fingerprint': f'"{fingerprint}"'
+        }
+        return '{name:24} {ttl:5} IN {record_type:6} {algorithm:2} {hash_type:2} {fingerprint:39}\n'.format_map(data)
+
     def txt_zf_string(self, name, ttl, txt):
 
         data = {
@@ -147,6 +159,7 @@ class ForwardFile(Common):
         for values, func in ((self.ipaddresses, self.ip_zf_string),
                              (self.mxs, self.mx_zf_string),
                              (self.txts, self.txt_zf_string),
+                             (self.sshfps, self.sshfp_zf_string),
                              (self.naptrs, self.naptr_zf_string),
                              ):
             if host.name in values:
@@ -175,6 +188,7 @@ class ForwardFile(Common):
         self.ipaddresses = defaultdict(list)
         self.mxs = defaultdict(list)
         self.naptrs = defaultdict(list)
+        self.sshfps = defaultdict(list)
         self.txts = defaultdict(list)
 
         cnames = Cname.objects.filter(zone=self.zone).filter(host__zone=self.zone)
@@ -193,6 +207,10 @@ class ForwardFile(Common):
         for i in naptrs.values_list("host__name", "order", "preference", "flag",
                                     "service", "regex", "replacement"):
             self.naptrs[i[0]].append(i[1:])
+
+        sshfps = Sshfp.objects.filter(host__zone=self.zone)
+        for i in sshfps.values_list("host__name", "algorithm", "hash_type", "fingerprint")
+            self.sshfps[i[0]].append(i[1:])
 
         txts = Txt.objects.filter(host__zone=self.zone)
         for hostname, txt in txts.values_list("host__name", "txt"):
