@@ -106,7 +106,7 @@ class ForwardFile(Common):
             'record_type': "SSHFP",
             'algorithm': algorithm,
             'hash_type': hash_type,
-            'fingerprint': f'"{fingerprint}"'
+            'fingerprint': f'{fingerprint}'
         }
         return '{name:24} {ttl:5} IN {record_type:6} {algorithm:2} {hash_type:2} {fingerprint:39}\n'.format_map(data)
 
