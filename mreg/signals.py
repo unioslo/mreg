@@ -111,6 +111,7 @@ def _common_update_zone(signal, sender, instance):
 @receiver(pre_save, sender=Naptr)
 @receiver(pre_save, sender=PtrOverride)
 @receiver(pre_save, sender=Srv)
+@receiver(pre_save, sender=Sshfp)
 @receiver(pre_save, sender=Txt)
 def updated_objects_update_zone_serial(sender, instance, raw, using, update_fields, **kwargs):
     _common_update_zone("pre_save", sender, instance)
