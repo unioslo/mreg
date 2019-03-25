@@ -338,7 +338,10 @@ class Sshfp(models.Model):
         db_table = 'sshfp'
 
     def __str__(self):
-        return str(self.host)
+        return (
+            f"{self.host.name} -> {self.algorithm} ({self.get_algorithm_display()}) "
+            f"{self.hash_type} ({self.get_hash_type_display()}) {self.fingerprint}"
+        )
 
 
 class Ipaddress(models.Model):
