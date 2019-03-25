@@ -209,7 +209,7 @@ class ForwardFile(Common):
             self.naptrs[i[0]].append(i[1:])
 
         sshfps = Sshfp.objects.filter(host__zone=self.zone)
-        for i in sshfps.values_list("host__name", "algorithm", "hash_type", "fingerprint")
+        for i in sshfps.values_list("host__name", "algorithm", "hash_type", "fingerprint"):
             self.sshfps[i[0]].append(i[1:])
 
         txts = Txt.objects.filter(host__zone=self.zone)
