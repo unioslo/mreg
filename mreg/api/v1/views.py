@@ -27,10 +27,11 @@ from mreg.api.v1.serializers import (CnameSerializer, HinfoPresetSerializer,
         NaptrSerializer, PtrOverrideSerializer, SrvSerializer,
         NetworkSerializer, TxtSerializer, ForwardZoneSerializer,
         ForwardZoneDelegationSerializer, ReverseZoneSerializer,
-        ReverseZoneDelegationSerializer, ModelChangeLogSerializer)
+        ReverseZoneDelegationSerializer, ModelChangeLogSerializer,
+        SshfpSerializer)
 from mreg.models import (Cname, ForwardZone, ForwardZoneDelegation, HinfoPreset, Host, Ipaddress,
                          Mx, NameServer, Naptr, Network, PtrOverride, ReverseZone,
-                         ReverseZoneDelegation, Srv, Txt, ModelChangeLog)
+                         ReverseZoneDelegation, Srv, Txt, ModelChangeLog, Sshfp)
 from mreg.utils import create_serialno
 
 from .zonefile import ZoneFile
@@ -70,6 +71,11 @@ class NameServerFilterSet(ModelFilterSet):
 class PtrOverrideFilterSet(ModelFilterSet):
     class Meta:
         model = PtrOverride
+
+
+class SshfpFilterSet(ModelFilterSet):
+    class Meta:
+        model = Sshfp
 
 
 class SrvFilterSet(ModelFilterSet):
@@ -439,6 +445,37 @@ class PtrOverrideDetail(MregRetrieveUpdateDestroyAPIView):
     """
     queryset = PtrOverride.objects.all()
     serializer_class = PtrOverrideSerializer
+
+
+class SshfpList(generics.ListCreateAPIView):
+    """
+    get:
+    List all sshfp records.
+
+    post:
+    Create a new sshfp record.
+    """
+    queryset = Sshfp.objects.get_queryset().order_by('id')
+    serializer_class = SshfpSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        return SshfpFilterSet(data=self.request.GET, queryset=qs).filter()
+
+
+class SshfpDetail(MregRetrieveUpdateDestroyAPIView):
+    """
+    get:
+    Returns details for the specified sshfp.
+
+    patch:
+    Update parts of the specified sshfp.
+
+    delete:
+    Delete the specified sshfp.
+    """
+    queryset = Sshfp.objects.all()
+    serializer_class = SshfpSerializer
 
 
 class SrvList(generics.ListCreateAPIView):
