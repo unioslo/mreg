@@ -1057,7 +1057,7 @@ class APISshfpTestcase(APITestCase):
         sshfps = self.client.get("/sshfps/").json()['results']
         ret = self.client.delete("/sshfps/{}".format(sshfps[0]['id']))
         self.assertEqual(ret.status_code, 204)
-        sshfps = self.client.get("/shfps/").json()
+        sshfps = self.client.get("/sshfps/").json()
         self.assertEqual(len(sshfps['results']), 0)
 
     def test_sshfp_zone_autoupdate_add(self):
