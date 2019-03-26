@@ -1,0 +1,14 @@
+# .coveragerc to check coverage
+[run]
+omit =
+    # omit anything in a .local, venv/* directory anywhere
+    */.local/*
+    venv/*
+
+[report]
+exclude_lines = def __repr__
+
+ignore_errors = True
+
+[html]
+directory = coverage_html_report
