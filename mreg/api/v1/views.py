@@ -29,8 +29,7 @@ from mreg.api.v1.serializers import (CnameSerializer, HinfoPresetSerializer,
         NetworkSerializer, TxtSerializer, ForwardZoneSerializer,
         ForwardZoneDelegationSerializer, ReverseZoneSerializer,
         ReverseZoneDelegationSerializer, ModelChangeLogSerializer)
-from mreg.models import (Cname, ForwardZone, ForwardZoneDelegation, HinfoPreset, Host, HostGroup,
-                         HostGroupMember, Ipaddress,
+from mreg.models import (Cname, ForwardZone, ForwardZoneDelegation, HinfoPreset, Host, Ipaddress,
                          Mx, NameServer, Naptr, Network, PtrOverride, ReverseZone,
                          ReverseZoneDelegation, Srv, Txt, ModelChangeLog)
 
