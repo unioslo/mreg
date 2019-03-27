@@ -9,7 +9,7 @@ from rest_framework.test import APIClient, APITestCase
 
 from mreg.models import (Cname, HinfoPreset, Host, HostGroup, HostGroupMember, Ipaddress, NameServer,
                          Naptr, PtrOverride, Srv, Network, Txt, ForwardZone,
-                         ReverseZone, ModelChangeLog)
+                         ReverseZone, ModelChangeLog, Sshfp)
 
 from mreg.utils import create_serialno
 
@@ -378,6 +378,49 @@ class ModelTxtTestCase(TestCase):
         old_count = Txt.objects.count()
         self.txt_sample.delete()
         new_count = Txt.objects.count()
+        self.assertNotEqual(old_count, new_count)
+
+
+class ModelSshfpTestCase(TestCase):
+    """This class defines the test suite for the Sshfp model."""
+
+    def setUp(self):
+        """Define the test client and other test variables."""
+        # Needs sample host to test properly
+        self.host_one = Host(name='some-host.example.org',
+                             contact='mail@example.org',
+                             ttl=300,
+                             loc='23 58 23 N 10 43 50 E 80m',
+                             comment='some comment')
+
+        clean_and_save(self.host_one)
+
+        self.sshfp_sample = Sshfp(host=Host.objects.get(name='some-host.example.org'),
+                              algorithm=1, hash_type=1, fingerprint='01234567890abcdef')
+
+    def test_model_can_create_sshfp(self):
+        """Test that the model is able to create an sshfp entry."""
+        old_count = Sshfp.objects.count()
+        clean_and_save(self.sshfp_sample)
+        new_count = Sshfp.objects.count()
+        self.assertNotEqual(old_count, new_count)
+
+    def test_model_can_change_sshfp(self):
+        """Test that the model is able to change an sshfp entry."""
+        clean_and_save(self.sshfp_sample)
+        new_fingerprint = 'fedcba9876543210'
+        sshfp_sample_id = self.sshfp_sample.id
+        self.sshfp_sample.fingerprint = new_fingerprint
+        clean_and_save(self.sshfp_sample)
+        updated_fingerprint = Sshfp.objects.get(pk=sshfp_sample_id).fingerprint
+        self.assertEqual(new_fingerprint, updated_fingerprint)
+
+    def test_model_can_delete_sshfp(self):
+        """Test that the model is able to delete an sshfp entry."""
+        clean_and_save(self.sshfp_sample)
+        old_count = Sshfp.objects.count()
+        self.sshfp_sample.delete()
+        new_count = Sshfp.objects.count()
         self.assertNotEqual(old_count, new_count)
 
 
@@ -956,6 +999,80 @@ class APIMxTestcase(APITestCase):
         self.zone.save()
         mxs = self.client.get("/mxs/").data['results']
         self.client.delete("/mxs/{}".format(mxs[0]['id']))
+        self.zone.refresh_from_db()
+        self.assertTrue(self.zone.updated)
+
+
+class APISshfpTestcase(APITestCase):
+    """Test SSHFP records."""
+
+    def setUp(self):
+        self.client = get_token_client()
+        self.zone = ForwardZone(name='example.org',
+                                primary_ns='ns1.example.org',
+                                email='hostmaster@example.org')
+        clean_and_save(self.zone)
+        self.host_data = {'name': 'ns1.example.org',
+                          'contact': 'mail@example.org'}
+        self.client.post('/hosts/', self.host_data)
+        self.host = Host.objects.get(name=self.host_data['name'])
+
+    def test_sshfp_post(self):
+        data = {'host': self.host.id,
+                'algorithm': 1,
+                'hash_type': 1,
+                'fingerprint': '0123456789abcdef'}
+        ret = self.client.post("/sshfps/", data)
+        self.assertEqual(ret.status_code, 201)
+
+    def test_sshfp_post_reject_invalid(self):
+        # Invalid fingerprint, algorithm, hash_type
+        data = {'host': self.host.id,
+                'algorithm': 1,
+                'hash_type': 1,
+                'fingerprint': 'beeftasty'}
+        ret = self.client.post("/sshfps/", data)
+        self.assertEqual(ret.status_code, 400)
+        data = {'host': self.host.id,
+                'algorithm': 0,
+                'hash_type': 1,
+                'fingerprint': '0123456789abcdef'}
+        ret = self.client.post("/sshfps/", data)
+        self.assertEqual(ret.status_code, 400)
+        data = {'host': self.host.id,
+                'algorithm': 1,
+                'hash_type': 3,
+                'fingerprint': '0123456789abcdef'}
+        ret = self.client.post("/sshfps/", data)
+        self.assertEqual(ret.status_code, 400)
+
+    def test_sshfp_list(self):
+        self.test_sshfp_post()
+        ret = self.client.get("/sshfps/")
+        self.assertEqual(ret.status_code, 200)
+        self.assertEqual(ret.data['count'], 1)
+
+    def test_sshfp_delete(self):
+        self.test_sshfp_post()
+        sshfps = self.client.get("/sshfps/").json()['results']
+        ret = self.client.delete("/sshfps/{}".format(sshfps[0]['id']))
+        self.assertEqual(ret.status_code, 204)
+        sshfps = self.client.get("/sshfps/").json()
+        self.assertEqual(len(sshfps['results']), 0)
+
+    def test_sshfp_zone_autoupdate_add(self):
+        self.zone.updated = False
+        self.zone.save()
+        self.test_sshfp_post()
+        self.zone.refresh_from_db()
+        self.assertTrue(self.zone.updated)
+
+    def test_sshfp_zone_autoupdate_delete(self):
+        self.test_sshfp_post()
+        self.zone.updated = False
+        self.zone.save()
+        sshfps = self.client.get("/sshfps/").data['results']
+        self.client.delete("/sshfps/{}".format(sshfps[0]['id']))
         self.zone.refresh_from_db()
         self.assertTrue(self.zone.updated)
 

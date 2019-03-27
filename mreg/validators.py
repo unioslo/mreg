@@ -31,6 +31,13 @@ def validate_ttl(value):
     if value > 68400:
         raise ValidationError("Ensure this value is less than or equal to 68400.")
 
+def validate_hexadecimal(value):
+    """Ensures a string provided is a hexadecimal number"""
+    try:
+        int(value, 16)
+    except ValueError:
+        raise ValidationError("The provided value is not a hexadecimal number")
+
 def validate_hostname(name):
     """ Validate a hostname. """
 

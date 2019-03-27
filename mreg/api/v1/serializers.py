@@ -6,7 +6,7 @@ from rest_framework import serializers
 from mreg.models import (Cname, HinfoPreset, Host, HostGroup, HostGroupMember, Ipaddress, Mx, NameServer,
                          Naptr, PtrOverride, Srv, Network, Txt, ForwardZone,
                          ForwardZoneDelegation, ReverseZone,
-                         ReverseZoneDelegation, ModelChangeLog)
+                         ReverseZoneDelegation, ModelChangeLog, Sshfp)
 
 from mreg.utils import nonify
 from mreg.validators import validate_keys
@@ -48,6 +48,12 @@ class CnameSerializer(ForwardZoneMixin, serializers.ModelSerializer):
                     "Name in use by existing host.")
 
         return data
+
+
+class SshfpSerializer(ValidationMixin, serializers.ModelSerializer):
+    class Meta:
+        model = Sshfp
+        fields = '__all__'
 
 
 class HinfoPresetSerializer(ValidationMixin, serializers.ModelSerializer):

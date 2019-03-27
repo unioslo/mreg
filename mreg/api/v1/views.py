@@ -73,6 +73,11 @@ class PtrOverrideFilterSet(ModelFilterSet):
         model = PtrOverride
 
 
+class SshfpFilterSet(ModelFilterSet):
+    class Meta:
+        model = Sshfp
+
+
 class SrvFilterSet(ModelFilterSet):
     class Meta:
         model = Srv
@@ -440,6 +445,37 @@ class PtrOverrideDetail(MregRetrieveUpdateDestroyAPIView):
     """
     queryset = PtrOverride.objects.all()
     serializer_class = PtrOverrideSerializer
+
+
+class SshfpList(generics.ListCreateAPIView):
+    """
+    get:
+    List all sshfp records.
+
+    post:
+    Create a new sshfp record.
+    """
+    queryset = Sshfp.objects.get_queryset().order_by('id')
+    serializer_class = SshfpSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        return SshfpFilterSet(data=self.request.GET, queryset=qs).filter()
+
+
+class SshfpDetail(MregRetrieveUpdateDestroyAPIView):
+    """
+    get:
+    Returns details for the specified sshfp.
+
+    patch:
+    Update parts of the specified sshfp.
+
+    delete:
+    Delete the specified sshfp.
+    """
+    queryset = Sshfp.objects.all()
+    serializer_class = SshfpSerializer
 
 
 class SrvList(generics.ListCreateAPIView):
