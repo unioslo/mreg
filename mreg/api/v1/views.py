@@ -27,10 +27,11 @@ from mreg.api.v1.serializers import (CnameSerializer, HinfoPresetSerializer,
         NaptrSerializer, PtrOverrideSerializer, SrvSerializer,
         NetworkSerializer, TxtSerializer, ForwardZoneSerializer,
         ForwardZoneDelegationSerializer, ReverseZoneSerializer,
-        ReverseZoneDelegationSerializer, ModelChangeLogSerializer)
+        ReverseZoneDelegationSerializer, ModelChangeLogSerializer,
+        SshfpSerializer)
 from mreg.models import (Cname, ForwardZone, ForwardZoneDelegation, HinfoPreset, Host, Ipaddress,
                          Mx, NameServer, Naptr, Network, PtrOverride, ReverseZone,
-                         ReverseZoneDelegation, Srv, Txt, ModelChangeLog)
+                         ReverseZoneDelegation, Srv, Txt, ModelChangeLog, Sshfp)
 
 from mreg.utils import create_serialno
 
