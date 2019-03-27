@@ -22,15 +22,15 @@ from rest_framework_extensions.etag.mixins import ETAGMixin
 from url_filter.filtersets import ModelFilterSet
 
 from mreg.api.v1.serializers import (CnameSerializer, HinfoPresetSerializer,
-        HostNameSerializer, HostSerializer, HostSaveSerializer,
-        IpaddressSerializer, MxSerializer, NameServerSerializer,
-        NaptrSerializer, PtrOverrideSerializer, SrvSerializer,
-        NetworkSerializer, TxtSerializer, ForwardZoneSerializer,
-        ForwardZoneDelegationSerializer, ReverseZoneSerializer,
-        ReverseZoneDelegationSerializer, ModelChangeLogSerializer,
+        HostNameSerializer, HostSerializer, HostGroupSerializer,
+        HostGroupMemberSerializer, HostSaveSerializer, IpaddressSerializer,
+        MxSerializer, NameServerSerializer, NaptrSerializer,
+        PtrOverrideSerializer, SrvSerializer,NetworkSerializer,
+        TxtSerializer, ForwardZoneSerializer, ForwardZoneDelegationSerializer,
+        ReverseZoneSerializer, ReverseZoneDelegationSerializer, ModelChangeLogSerializer,
         SshfpSerializer)
-from mreg.models import (Cname, ForwardZone, ForwardZoneDelegation, HinfoPreset, Host, Ipaddress,
-                         Mx, NameServer, Naptr, Network, PtrOverride, ReverseZone,
+from mreg.models import (Cname, ForwardZone, ForwardZoneDelegation, HinfoPreset, Host, HostGroup, HostGroupMember
+                         Ipaddress, Mx, NameServer, Naptr, Network, PtrOverride, ReverseZone,
                          ReverseZoneDelegation, Srv, Txt, ModelChangeLog, Sshfp)
 from mreg.utils import create_serialno
 
@@ -51,6 +51,16 @@ class HinfoFilterSet(ModelFilterSet):
 class HostFilterSet(ModelFilterSet):
     class Meta:
         model = Host
+
+
+class HostGroupFilterSet(ModelFilterSet):
+    class Meta:
+        model = HostGroup
+
+
+class HostGroupMemberilterSet(ModelFilterSet):
+    class Meta:
+        model = HostGroupMember
 
 
 class IpaddressFilterSet(ModelFilterSet):
@@ -285,6 +295,71 @@ class HostDetail(MregRetrieveUpdateDestroyAPIView):
         if serializer.is_valid(raise_exception=True):
             serializer.save()
             location = '/hosts/%s' % host.name
+            return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
+
+
+lass HostGroupList(generics.ListCreateAPIView):
+    """
+    get:
+    Lists all hostgroups in use.
+
+    post:
+    Creates a new hostgroup object.
+    """
+    queryset = HostGroup.objects.get_queryset()
+    serializer_class = HostGroupSerializer
+    filter_backends = (filters.OrderingFilter,)
+    ordering_fields = '__all__'
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        return HostGroupFilterSet(data=self.request.GET, queryset=qs).filter()
+
+
+    def post(self, request, *args, **kwargs):
+        if "hostgroup_name" in request.data:
+            if self.queryset.filter(hostgroup_name=request.data['hostgroup_name']).exists():
+                content = {'ERROR': 'hostgroup name already in use'}
+                return Response(content, status=status.HTTP_409_CONFLICT)
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        location = '/hostgroups/%s' % serializer.validated_data['hostgroup_name']
+        return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
+
+
+class HostGroupDetail(MregRetrieveUpdateDestroyAPIView):
+    """
+    get:
+    Returns details for the specified hostgroup. Includes hostgroup and hosts that are members.
+
+    patch:
+    Updates part of hostgroup.
+
+    delete:
+    Delete the specified hostgroup.
+    """
+    queryset = HostGroup.objects.all()
+    serializer_class = HostGroupSerializer
+
+    def get_object(self, queryset=queryset):
+        return get_object_or_404(HostGroup, hostgroup_name=self.kwargs['pk'])
+
+    def patch(self, request, *args, **kwargs):
+        query = self.kwargs['pk']
+
+        if "name" in request.data:
+            if self.queryset.filter(hostgroup_name=request.data["hostgroup_name"]).exists():
+                content = {'ERROR': 'name already in use'}
+                return Response(content, status=status.HTTP_409_CONFLICT)
+
+        hostgroup = get_object_or_404(Hostgroup, hostgroup_name=query)
+        serializer = hostgroupserializer(hostgroup, data=request.data, partial=True)
+
+        if serializer.is_valid(raise_exception=True):
+            serializer.save()
+            location = '/hostgroups/%s' % hostgroup.hostgroup_name
             return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
