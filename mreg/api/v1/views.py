@@ -32,7 +32,6 @@ from mreg.api.v1.serializers import (CnameSerializer, HinfoPresetSerializer,
 from mreg.models import (Cname, ForwardZone, ForwardZoneDelegation, HinfoPreset, Host, Ipaddress,
                          Mx, NameServer, Naptr, Network, PtrOverride, ReverseZone,
                          ReverseZoneDelegation, Srv, Txt, ModelChangeLog, Sshfp)
-
 from mreg.utils import create_serialno
 
 from .zonefile import ZoneFile
