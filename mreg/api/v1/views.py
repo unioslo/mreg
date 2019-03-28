@@ -9,10 +9,7 @@ import django.core.exceptions
 from django.db import transaction
 from django.http import Http404
 from django.shortcuts import get_object_or_404
-from django.utils import timezone
 from rest_framework import (filters, generics, renderers, status)
-from rest_framework.authentication import TokenAuthentication
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import api_view
 from rest_framework.exceptions import ParseError, MethodNotAllowed
 from rest_framework.renderers import JSONRenderer
@@ -32,7 +29,6 @@ from mreg.api.v1.serializers import (CnameSerializer, HinfoPresetSerializer,
 from mreg.models import (Cname, ForwardZone, ForwardZoneDelegation, HinfoPreset, Host, Ipaddress,
                          Mx, NameServer, Naptr, Network, PtrOverride, ReverseZone,
                          ReverseZoneDelegation, Srv, Txt, ModelChangeLog, Sshfp)
-from mreg.utils import create_serialno
 
 from .zonefile import ZoneFile
 
