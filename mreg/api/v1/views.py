@@ -1,7 +1,6 @@
 import bisect
 import ipaddress
 
-
 from collections import defaultdict
 
 import django.core.exceptions
@@ -18,6 +17,8 @@ from rest_framework.views import APIView
 from rest_framework_extensions.etag.mixins import ETAGMixin
 from url_filter.filtersets import ModelFilterSet
 
+from mreg.api.permissions import (IsSuperGroupMember, IsAdminGroupMember,
+        IsGrantedNetGroupRegexPermission, ReadOnlyForRequiredGroup)
 from mreg.api.v1.serializers import (CnameSerializer, HinfoPresetSerializer,
         HostNameSerializer, HostSerializer, HostSaveSerializer,
         IpaddressSerializer, MxSerializer, NameServerSerializer,
@@ -122,10 +123,19 @@ class MregRetrieveUpdateDestroyAPIView(ETAGMixin,
     Makes sure patch returns sempty body, 204 - No Content, and location of object.
     """
 
+    #permission_classes = settings.MREG_PERMISSION_CLASSES
+    permission_classes = (
+                          IsSuperGroupMember |
+                          IsAdminGroupMember |
+                          IsGrantedNetGroupRegexPermission |
+                          ReadOnlyForRequiredGroup
+                          , )
+
     def patch(self, request, *args, **kwargs):
         queryset = self.get_queryset()
         serializer_class = self.get_serializer_class()
         obj = get_object_or_404(queryset)
+        self.check_object_permissions(request, obj)
         serializer = serializer_class(obj, data=request.data, partial=True)
         if serializer.is_valid(raise_exception=True):
             serializer.save()
@@ -136,7 +146,18 @@ class MregRetrieveUpdateDestroyAPIView(ETAGMixin,
             return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
-class CnameList(generics.ListCreateAPIView):
+class MregListCreateAPIView(generics.ListCreateAPIView):
+
+    #permission_classes = settings.MREG_PERMISSION_CLASSES
+    permission_classes = (
+                          IsSuperGroupMember |
+                          IsAdminGroupMember |
+                          IsGrantedNetGroupRegexPermission |
+                          ReadOnlyForRequiredGroup
+                          , )
+
+
+class CnameList(MregListCreateAPIView):
     """
     get:
     Lists all cnames / aliases.
@@ -169,7 +190,7 @@ class CnameDetail(MregRetrieveUpdateDestroyAPIView):
     lookup_field = 'name'
 
 
-class HinfoPresetList(generics.ListCreateAPIView):
+class HinfoPresetList(MregListCreateAPIView):
     """
     get:
     Lists all hinfo presets.
@@ -200,7 +221,7 @@ class HinfoPresetDetail(MregRetrieveUpdateDestroyAPIView):
     serializer_class = HinfoPresetSerializer
 
 
-class HostList(generics.ListCreateAPIView):
+class HostList(MregListCreateAPIView):
     """
     get:
     Lists all hostnames.
@@ -271,7 +292,7 @@ class HostDetail(MregRetrieveUpdateDestroyAPIView):
         query = self.kwargs['pk']
 
         if "name" in request.data:
-            if self.queryset.filter(name=request.data["name"]).exists():
+            if self.get_queryset().filter(name=request.data["name"]).exists():
                 content = {'ERROR': 'name already in use'}
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
@@ -284,7 +305,7 @@ class HostDetail(MregRetrieveUpdateDestroyAPIView):
             return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
-class IpaddressList(generics.ListCreateAPIView):
+class IpaddressList(MregListCreateAPIView):
     """
     get:
     Lists all ipaddresses in use.
@@ -317,7 +338,7 @@ class IpaddressDetail(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = IpaddressSerializer
 
 
-class MxList(generics.ListCreateAPIView):
+class MxList(MregListCreateAPIView):
     """
     get:
     Returns a list of all MX-records.
@@ -349,7 +370,7 @@ class MxDetail(MregRetrieveUpdateDestroyAPIView):
     serializer_class = MxSerializer
 
 
-class NaptrList(generics.ListCreateAPIView):
+class NaptrList(MregListCreateAPIView):
     """
     get:
     List all Naptr-records.
@@ -380,7 +401,7 @@ class NaptrDetail(MregRetrieveUpdateDestroyAPIView):
     serializer_class = NaptrSerializer
 
 
-class NameServerList(generics.ListCreateAPIView):
+class NameServerList(MregListCreateAPIView):
     """
     get:
     List all nameserver-records.
@@ -412,7 +433,7 @@ class NameServerDetail(MregRetrieveUpdateDestroyAPIView):
     serializer_class = NameServerSerializer
 
 
-class PtrOverrideList(generics.ListCreateAPIView):
+class PtrOverrideList(MregListCreateAPIView):
     """
     get:
     List all ptr-overrides.
@@ -443,7 +464,7 @@ class PtrOverrideDetail(MregRetrieveUpdateDestroyAPIView):
     serializer_class = PtrOverrideSerializer
 
 
-class SshfpList(generics.ListCreateAPIView):
+class SshfpList(MregListCreateAPIView):
     """
     get:
     List all sshfp records.
@@ -474,7 +495,7 @@ class SshfpDetail(MregRetrieveUpdateDestroyAPIView):
     serializer_class = SshfpSerializer
 
 
-class SrvList(generics.ListCreateAPIView):
+class SrvList(MregListCreateAPIView):
     """
     get:
     List all service records.
@@ -708,7 +729,7 @@ def network_unused_list(request, *args, **kwargs):
     return Response(unused_ipaddresses, status=status.HTTP_200_OK)
 
 
-class TxtList(generics.ListCreateAPIView):
+class TxtList(MregListCreateAPIView):
     """
     get:
     Returns a list of all txt-records.
@@ -770,7 +791,7 @@ def _update_parent_zone(qs, zonename):
             break
 
 
-class ZoneList(generics.ListCreateAPIView):
+class ZoneList(MregListCreateAPIView):
     """
     get:
     Returns a list of all zones.
@@ -827,6 +848,7 @@ class ZoneList(generics.ListCreateAPIView):
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         zone = serializer.create()
+        self.check_object_permissions(self.request, zone)
         zone.save()
         zone.update_nameservers(nameservers)
         _update_parent_zone(qs, zone.name)
@@ -834,7 +856,7 @@ class ZoneList(generics.ListCreateAPIView):
         return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
 
 
-class ZoneDelegationList(generics.ListCreateAPIView):
+class ZoneDelegationList(MregListCreateAPIView):
     """
     get:
     Returns a list of all the zone's delegations.
@@ -924,6 +946,7 @@ class ZoneDetail(MregRetrieveUpdateDestroyAPIView):
             return Response(content, status=status.HTTP_403_FORBIDDEN)
 
         zone = get_object_or_404(self.get_queryset(), name=query)
+        self.check_object_permissions(self.request, zone)
         # Check if primary_ns is in the zone's list of nameservers
         if "primary_ns" in request.data:
             if request.data['primary_ns'] not in [nameserver.name for nameserver in zone.nameservers.all()]:
@@ -939,6 +962,7 @@ class ZoneDetail(MregRetrieveUpdateDestroyAPIView):
         query = self.kwargs[self.lookup_field]
         qs = self.get_queryset()
         zone = get_object_or_404(qs, name=query)
+        self.check_object_permissions(self.request, zone)
         zone.remove_nameservers()
         zone.delete()
         _update_parent_zone(qs, zone.name)
@@ -985,7 +1009,7 @@ class ZoneDelegationDetail(MregRetrieveUpdateDestroyAPIView):
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
-class ZoneNameServerDetail(ETAGMixin, generics.GenericAPIView):
+class ZoneNameServerDetail(MregRetrieveUpdateDestroyAPIView):
     """
     get:
     Returns a list of nameservers for a given zone.
@@ -1153,6 +1177,7 @@ class ZoneFileDetail(generics.GenericAPIView):
     get:
     Generate zonefile for a given zone.
     """
+
     renderer_classes = (PlainTextRenderer, )
     lookup_field = 'name'
 
