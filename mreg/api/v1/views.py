@@ -844,7 +844,6 @@ class ZoneList(MregListCreateAPIView):
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         zone = serializer.create()
-        self.check_object_permissions(self.request, zone)
         zone.save()
         zone.update_nameservers(nameservers)
         _update_parent_zone(qs, zone.name)
@@ -941,8 +940,7 @@ class ZoneDetail(MregRetrieveUpdateDestroyAPIView):
             content = {'ERROR': 'Not allowed to patch nameservers, use /zones/{}/nameservers'.format(query)}
             return Response(content, status=status.HTTP_403_FORBIDDEN)
 
-        zone = get_object_or_404(self.get_queryset(), name=query)
-        self.check_object_permissions(self.request, zone)
+        zone = self.get_object()
         # Check if primary_ns is in the zone's list of nameservers
         if "primary_ns" in request.data:
             if request.data['primary_ns'] not in [nameserver.name for nameserver in zone.nameservers.all()]:
@@ -955,13 +953,10 @@ class ZoneDetail(MregRetrieveUpdateDestroyAPIView):
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
     def delete(self, request, *args, **kwargs):
-        query = self.kwargs[self.lookup_field]
-        qs = self.get_queryset()
-        zone = get_object_or_404(qs, name=query)
-        self.check_object_permissions(self.request, zone)
+        zone = self.get_object()
         zone.remove_nameservers()
         zone.delete()
-        _update_parent_zone(qs, zone.name)
+        _update_parent_zone(self.get_queryset(), zone.name)
         location = f"/zones/{zone.name}"
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
@@ -984,9 +979,14 @@ class ZoneDelegationDetail(MregRetrieveUpdateDestroyAPIView):
             self.queryset = ForwardZoneDelegation.objects.all()
         return super().get_queryset()
 
-    def get(self, request, *args, **kwargs):
+    def get_object(self):
         query = self.kwargs[self.lookup_field]
         zone = get_object_or_404(self.get_queryset(), name=query)
+        self.check_object_permissions(self.request, zone)
+        return zone
+
+    def get(self, request, *args, **kwargs):
+        zone = self.get_object()
         serializer = self.get_serializer(zone)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -994,8 +994,7 @@ class ZoneDelegationDetail(MregRetrieveUpdateDestroyAPIView):
         raise MethodNotAllowed()
 
     def delete(self, request, *args, **kwargs):
-        query = self.kwargs[self.lookup_field]
-        zone = get_object_or_404(self.get_queryset(), name=query)
+        zone = self.get_object()
         zone.remove_nameservers()
         zone.delete()
         # Also update the parent zone's updated attribute
