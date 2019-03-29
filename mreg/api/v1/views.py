@@ -132,10 +132,8 @@ class MregRetrieveUpdateDestroyAPIView(ETAGMixin,
                           , )
 
     def patch(self, request, *args, **kwargs):
-        queryset = self.get_queryset()
         serializer_class = self.get_serializer_class()
-        obj = get_object_or_404(queryset)
-        self.check_object_permissions(request, obj)
+        obj = self.get_object()
         serializer = serializer_class(obj, data=request.data, partial=True)
         if serializer.is_valid(raise_exception=True):
             serializer.save()
@@ -607,13 +605,19 @@ class NetworkDetail(MregRetrieveUpdateDestroyAPIView):
 
     lookup_field = 'range'
 
+
+    def get_object(self):
+        network = _get_network(self.kwargs)
+        self.check_object_permissions(self.request, network)
+        return network
+
     def get(self, request, queryset=queryset, *args, **kwargs):
-        network = _get_network(kwargs)
+        network = self.get_object()
         serializer = self.get_serializer(network)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def patch(self, request, *args, **kwargs):
-        network = _get_network(kwargs)
+        network = self.get_object()
         if 'range' in request.data:
             error = _overlap_check(request.data['range'], exclude=network)
             if error:
@@ -625,7 +629,7 @@ class NetworkDetail(MregRetrieveUpdateDestroyAPIView):
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
     def delete(self, request, *args, **kwargs):
-        network = _get_network(kwargs)
+        network = self.get_object()
         used_ipaddresses = network.get_used_ipaddresses()
         if used_ipaddresses:
             return Response({'ERROR': 'Network contains IP addresses that are in use'}, status=status.HTTP_409_CONFLICT)
@@ -1028,23 +1032,20 @@ class ZoneNameServerDetail(MregRetrieveUpdateDestroyAPIView):
         return super().get_queryset()
 
     def get(self, request, *args, **kwargs):
-        query = self.kwargs[self.lookup_field]
-        zone = get_object_or_404(self.get_queryset(), name=query)
+        zone = self.get_object()
         return Response([ns.name for ns in zone.nameservers.all()], status=status.HTTP_200_OK)
 
     def patch(self, request, *args, **kwargs):
-        query = self.kwargs[self.lookup_field]
-        zone = get_object_or_404(self.get_queryset(), name=query)
         if 'primary_ns' not in request.data:
             return Response({'ERROR': 'No nameserver found in body'}, status=status.HTTP_400_BAD_REQUEST)
-
+        zone = self.get_object()
         nameservers = request.data.getlist('primary_ns')
         _validate_nameservers(nameservers)
         zone.update_nameservers(nameservers)
         zone.primary_ns = request.data.getlist('primary_ns')[0]
         zone.updated = True
         zone.save()
-        location = f"/zones/{query}/nameservers"
+        location = f"/zones/{zone.name}/nameservers"
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
@@ -1186,7 +1187,7 @@ class ZoneFileDetail(generics.GenericAPIView):
         return super().get_queryset()
 
     def get(self, request, *args, **kwargs):
-        zone = get_object_or_404(self.get_queryset(), name=self.kwargs[self.lookup_field])
+        zone = self.get_object()
         # XXX: a force argument to force serialno update?
         zone.update_serialno()
         zonefile = ZoneFile(zone)
