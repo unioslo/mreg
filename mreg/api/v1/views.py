@@ -605,16 +605,10 @@ class NetworkDetail(MregRetrieveUpdateDestroyAPIView):
 
     lookup_field = 'range'
 
-
     def get_object(self):
         network = _get_network(self.kwargs)
         self.check_object_permissions(self.request, network)
         return network
-
-    def get(self, request, queryset=queryset, *args, **kwargs):
-        network = self.get_object()
-        serializer = self.get_serializer(network)
-        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def patch(self, request, *args, **kwargs):
         network = self.get_object()
