@@ -284,19 +284,15 @@ class HostDetail(MregRetrieveUpdateDestroyAPIView):
     """
     queryset = Host.objects.all()
     serializer_class = HostSerializer
-
-    def get_object(self, queryset=queryset):
-        return get_object_or_404(Host, name=self.kwargs['pk'])
+    lookup_field = 'name'
 
     def patch(self, request, *args, **kwargs):
-        query = self.kwargs['pk']
-
         if "name" in request.data:
             if self.get_queryset().filter(name=request.data["name"]).exists():
                 content = {'ERROR': 'name already in use'}
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
-        host = get_object_or_404(Host, name=query)
+        host = self.get_object()
         serializer = HostSaveSerializer(host, data=request.data, partial=True)
 
         if serializer.is_valid(raise_exception=True):
