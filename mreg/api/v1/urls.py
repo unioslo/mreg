@@ -13,7 +13,7 @@ urlpatterns = [
     path('hinfopresets/', views.HinfoPresetList.as_view()),
     path('hinfopresets/<pk>', views.HinfoPresetDetail.as_view()),
     path('hosts/', views.HostList.as_view()),
-    path('hosts/<pk>', views.HostDetail.as_view()),
+    path('hosts/<name>', views.HostDetail.as_view()),
     path('ipaddresses/', views.IpaddressList.as_view()),
     path('ipaddresses/<pk>', views.IpaddressDetail.as_view()),
     path('mxs/', views.MxList.as_view()),
