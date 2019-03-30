@@ -1227,7 +1227,7 @@ class APINetworksTestCase(APITestCase):
                                     category='so',
                                     location='Location 1',
                                     frozen=False)
-        self.network_ipv6_sample = Network(range='2019:3:28:11::/64',
+        self.network_ipv6_sample = Network(range='2001:db8::/32',
                                     description='some IPv6 description',
                                     vlan=123,
                                     dns_delegated=False,
@@ -1243,7 +1243,7 @@ class APINetworksTestCase(APITestCase):
                                         location='Location 2',
                                         frozen=False)
         
-        self.network_ipv6_sample_two = Network(range='2019:3:28:12:8000::/65',
+        self.network_ipv6_sample_two = Network(range='2001:db8:8000::/33',
                                         description='some IPv6 description',
                                         vlan=135,
                                         dns_delegated=False,
@@ -1276,9 +1276,9 @@ class APINetworksTestCase(APITestCase):
 
         self.patch_data_vlan = {'vlan': '435'}
         self.patch_data_range = {'range': '10.0.0.0/28'}
-        self.patch_ipv6_data_range = {'range': '2019:3:28:11::/96'}
+        self.patch_ipv6_data_range = {'range': '2001:db8::/64'}
         self.patch_data_range_overlap = {'range': '10.0.1.0/29'}
-        self.patch_ipv6_data_range_overlap = {'range': '2019:3:28:12:8000::/70'}
+        self.patch_ipv6_data_range_overlap = {'range': '2001:db8:8000::/34'}
 
         self.post_data = {
             'range': '192.0.2.0/29',
@@ -1323,7 +1323,7 @@ class APINetworksTestCase(APITestCase):
             'dns_delegated': 'False',
         }
         self.post_ipv6_data_overlap = {
-            'range': '2019:3:28:12:8000::/67',
+            'range': '2001:db8:8000::/34',
             'description': 'Test IPv6 network',
             'vlan': '435',
             'dns_delegated': 'False',
@@ -1452,7 +1452,7 @@ class APINetworksTestCase(APITestCase):
 
     def test_ipv6_networks_get_network_by_ip_200_ok(self):
         """GET on an IPv6 in a known network should return 200 OK."""
-        response = self.client.get('/networks/ip/2019:3:28:11::12')
+        response = self.client.get('/networks/ip/2001:db8::12')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['range'], self.network_ipv6_sample.range)
 
@@ -1477,7 +1477,7 @@ class APINetworksTestCase(APITestCase):
 
     def test_ipv6_networks_get_usedcount_200_ok(self):
         """GET on /networks/<ipv6/mask>/used_count return 200 ok and data."""
-        ipv6_sample = Ipaddress(host=self.host_one, ipaddress='2019:3:28:11::beef')
+        ipv6_sample = Ipaddress(host=self.host_one, ipaddress='2001:db8::beef')
         clean_and_save(ipv6_sample)
 
         response = self.client.get('/networks/%s/used_count' % self.network_ipv6_sample.range)
@@ -1495,12 +1495,12 @@ class APINetworksTestCase(APITestCase):
 
     def test_ipv6_networks_get_usedlist_200_ok(self):
         """GET on /networks/<ipv6/mask>/used_list should return 200 ok and data."""
-        ipv6_sample = Ipaddress(host=self.host_one, ipaddress='2019:3:28:11::beef')
+        ipv6_sample = Ipaddress(host=self.host_one, ipaddress='2001:db8::beef')
         clean_and_save(ipv6_sample)
 
         response = self.client.get('/networks/%s/used_list' % self.network_ipv6_sample.range)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data, ['2019:3:28:11::beef'])
+        self.assertEqual(response.data, ['2001:db8::beef'])
 
     def test_networks_get_unusedcount_200_ok(self):
         """GET on /networks/<ip/mask>/unused_count should return 200 ok and data."""
@@ -1513,7 +1513,7 @@ class APINetworksTestCase(APITestCase):
 
     def test_ipv6_networks_get_unusedcount_200_ok(self):
         """GET on /networks/<ipv6/mask>/unused_count should return 200 ok and data."""
-        ipv6_sample = Ipaddress(host=self.host_one, ipaddress='2019:3:28:11::beef')
+        ipv6_sample = Ipaddress(host=self.host_one, ipaddress='2001:db8::beef')
         clean_and_save(ipv6_sample)
 
         response = self.client.get('/networks/%s/unused_count' % self.network_ipv6_sample.range)
@@ -1532,7 +1532,7 @@ class APINetworksTestCase(APITestCase):
 
     def test_ipv6_networks_get_unusedlist_200_ok(self):
         """GET on /networks/<ipv6/mask>/unused_list should return 200 ok and data."""
-        ipv6_sample = Ipaddress(host=self.host_one, ipaddress='2019:3:28:11::beef')
+        ipv6_sample = Ipaddress(host=self.host_one, ipaddress='2001:db8::beef')
         clean_and_save(ipv6_sample)
 
         response = self.client.get('/networks/%s/unused_list' % self.network_ipv6_sample.range)
@@ -1550,12 +1550,12 @@ class APINetworksTestCase(APITestCase):
 
     def test_ipv6_networks_get_first_unused_200_ok(self):
         """GET on /networks/<ipv6/mask>/first_unused should return 200 ok and data."""
-        ipv6_sample = Ipaddress(host=self.host_one, ipaddress='2019:3:28:11::beef')
+        ipv6_sample = Ipaddress(host=self.host_one, ipaddress='2001:db8::beef')
         clean_and_save(ipv6_sample)
 
         response = self.client.get('/networks/%s/first_unused' % self.network_ipv6_sample.range)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data, '2019:3:28:11::4')
+        self.assertEqual(response.data, '2001:db8::4')
 
     def test_networks_get_ptroverride_list(self):
         """GET on /networks/<ip/mask>/ptroverride_list should return 200 ok and data."""
@@ -1573,11 +1573,11 @@ class APINetworksTestCase(APITestCase):
         response = self.client.get('/networks/%s/ptroverride_list' % self.network_ipv6_sample.range)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, [])
-        ptr = PtrOverride(host=self.host_one, ipaddress='2019:3:28:11::feed')
+        ptr = PtrOverride(host=self.host_one, ipaddress='2001:db8::feed')
         clean_and_save(ptr)
         response = self.client.get('/networks/%s/ptroverride_list' % self.network_ipv6_sample.range)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data, ['2019:3:28:11::feed'])
+        self.assertEqual(response.data, ['2001:db8::feed'])
 
     def test_networks_get_reserved_list(self):
         """GET on /networks/<ip/mask>/reserverd_list should return 200 ok and data."""
@@ -1590,8 +1590,8 @@ class APINetworksTestCase(APITestCase):
         """GET on /networks/<ipv6/mask>/reserverd_list should return 200 ok and data."""
         response = self.client.get('/networks/%s/reserved_list' % self.network_ipv6_sample.range)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data, ['2019:3:28:11::', '2019:3:28:11::1',
-            '2019:3:28:11::2', '2019:3:28:11::3'])
+        self.assertEqual(response.data, ['2001:db8::', '2001:db8::1',
+            '2001:db8::2', '2001:db8::3'])
 
     def test_networks_delete_204_no_content(self):
         """Deleting an existing entry with no adresses in use should return 204"""

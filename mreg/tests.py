@@ -283,7 +283,7 @@ class ModelNetworkTestCase(TestCase):
                                     category='so',
                                     location='Test location',
                                     frozen=False)
-        self.network_ipv6_sample = Network(range='2019:3:28:11::/64',
+        self.network_ipv6_sample = Network(range='2001:db8::/32',
                                     description='some IPv6 description',
                                     vlan=123,
                                     dns_delegated=False,
@@ -432,7 +432,6 @@ class ModelPtrOverrideTestCase(TestCase):
         self.ptr_sample.delete()
         new_count = PtrOverride.objects.count()
         self.assertNotEqual(old_count, new_count)
-
 
     def test_model_updated_by_added_ip(self):
         """Test to check that an PtrOverride is added when two hosts share the same ip.
