@@ -125,8 +125,8 @@ class MregRetrieveUpdateDestroyAPIView(ETAGMixin,
 
     #permission_classes = settings.MREG_PERMISSION_CLASSES
     permission_classes = (
-                          IsSuperGroupMember |
-                          IsAdminGroupMember |
+                          #IsSuperGroupMember |
+                          #IsAdminGroupMember |
                           IsGrantedNetGroupRegexPermission |
                           ReadOnlyForRequiredGroup
                           , )
@@ -136,12 +136,34 @@ class MregRetrieveUpdateDestroyAPIView(ETAGMixin,
         obj = self.get_object()
         serializer = serializer_class(obj, data=request.data, partial=True)
         if serializer.is_valid(raise_exception=True):
-            serializer.save()
+            self.perform_update(serializer)
             # Currently all APIs on root path. Must adjust if we move to /api/resource
             # or /api/v1/resource etc.
             resource = request.path.split("/")[1]
             location = '/%s/%s' % (resource, getattr(obj, self.lookup_field))
             return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
+
+    def perform_destroy(self, instance):
+        # Custom check destroy permissions
+        self.check_destroy_permissions(self.request, instance)
+        instance.delete()
+
+    def perform_update(self, serializer):
+        # Custom check update permissions
+        self.check_update_permissions(self.request, serializer)
+        serializer.save()
+
+    def check_destroy_permissions(self, request, validated_serializer):
+        if not IsGrantedNetGroupRegexPermission.has_destroy_permission(request,
+                                                                      self,
+                                                                      validated_serializer):
+            self.permission_denied(request)
+
+    def check_update_permissions(self, request, validated_serializer):
+        if not IsGrantedNetGroupRegexPermission.has_update_permission(request,
+                                                                      self,
+                                                                      validated_serializer):
+            self.permission_denied(request)
 
 
 class MregListCreateAPIView(generics.ListCreateAPIView):
@@ -153,6 +175,18 @@ class MregListCreateAPIView(generics.ListCreateAPIView):
                           IsGrantedNetGroupRegexPermission |
                           ReadOnlyForRequiredGroup
                           , )
+
+
+    def perform_create(self, serializer):
+        # Custom check create permissions
+        self.check_create_permissions(self.request, serializer)
+        serializer.save()
+
+    def check_create_permissions(self, request, validated_serializer):
+        if not IsGrantedNetGroupRegexPermission.has_create_permission(request,
+                                                                      self,
+                                                                      validated_serializer):
+            self.permission_denied(request)
 
 
 class CnameList(MregListCreateAPIView):
