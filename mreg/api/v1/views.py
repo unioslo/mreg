@@ -148,10 +148,10 @@ class MregRetrieveUpdateDestroyAPIView(ETAGMixin,
         self.check_destroy_permissions(self.request, instance)
         instance.delete()
 
-    def perform_update(self, serializer):
+    def perform_update(self, serializer, **kwargs):
         # Custom check update permissions
         self.check_update_permissions(self.request, serializer)
-        serializer.save()
+        serializer.save(**kwargs)
 
     def check_destroy_permissions(self, request, validated_serializer):
         if not IsGrantedNetGroupRegexPermission.has_destroy_permission(request,
@@ -291,14 +291,14 @@ class HostList(MregListCreateAPIView):
                     ip = Ipaddress()
                     ipserializer = IpaddressSerializer(ip, data=ipdata)
                     if ipserializer.is_valid(raise_exception=True):
-                        ipserializer.save()
+                        self.perform_create(ipserializer)
                         location = '/hosts/%s' % host.name
                         return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
         else:
             host = Host()
             hostserializer = HostSerializer(host, data=hostdata)
             if hostserializer.is_valid(raise_exception=True):
-                hostserializer.save()
+                self.perform_create(hostserializer)
                 location = '/hosts/%s' % host.name
                 return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
 
@@ -328,7 +328,7 @@ class HostDetail(MregRetrieveUpdateDestroyAPIView):
         serializer = HostSaveSerializer(host, data=request.data, partial=True)
 
         if serializer.is_valid(raise_exception=True):
-            serializer.save()
+            self.perform_update(serializer)
             location = '/hosts/%s' % host.name
             return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
@@ -583,7 +583,7 @@ def _overlap_check(range, exclude=None):
         return Response({'ERROR': 'Network overlaps with: {}'.format(info)},
                         status=status.HTTP_409_CONFLICT)
 
-class NetworkList(generics.ListAPIView):
+class NetworkList(generics.ListCreateAPIView):
     """
     list:
     Returns a list of networks
@@ -605,7 +605,7 @@ class NetworkList(generics.ListAPIView):
         # Changed the default value of reserved if the size of the network is too low
         if ip_network.num_addresses <= 4:
             network.reserved = min(2, ip_network.num_addresses)
-        network.save()
+        self.perform_create(network)
         location = '/networks/%s' % request.data
         return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
 
@@ -652,7 +652,7 @@ class NetworkDetail(MregRetrieveUpdateDestroyAPIView):
                 return error
         serializer = self.get_serializer(network, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        self.perform_update(serializer)
         location = '/networks/%s' % network.range
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
@@ -662,7 +662,7 @@ class NetworkDetail(MregRetrieveUpdateDestroyAPIView):
         if used_ipaddresses:
             return Response({'ERROR': 'Network contains IP addresses that are in use'}, status=status.HTTP_409_CONFLICT)
 
-        network.delete()
+        self.perform_destroy(network)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 @api_view()
@@ -876,7 +876,7 @@ class ZoneList(MregListCreateAPIView):
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         zone = serializer.create()
-        zone.save()
+        self.perform_create(zone)
         zone.update_nameservers(nameservers)
         _update_parent_zone(qs, zone.name)
         location = f"/zones/{zone.name}"
@@ -927,7 +927,7 @@ class ZoneDelegationList(MregListCreateAPIView):
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         delegation = serializer.create()
-        delegation.save()
+        self.perform_create(delegation)
         delegation.update_nameservers(nameservers)
         self.parentzone.updated = True
         self.parentzone.save()
@@ -980,7 +980,7 @@ class ZoneDetail(MregRetrieveUpdateDestroyAPIView):
                 return Response(content, status=status.HTTP_403_FORBIDDEN)
         serializer = self.get_serializer(zone, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        serializer.save(updated=True)
+        self.perform_update(serializer, updated=True)
         location = f"/zones/{zone.name}"
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
@@ -1072,7 +1072,7 @@ class ZoneNameServerDetail(MregRetrieveUpdateDestroyAPIView):
         zone.update_nameservers(nameservers)
         zone.primary_ns = request.data.getlist('primary_ns')[0]
         zone.updated = True
-        zone.save()
+        self.perform_update(zone)
         location = f"/zones/{zone.name}/nameservers"
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
