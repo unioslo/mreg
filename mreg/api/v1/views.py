@@ -132,16 +132,21 @@ class MregRetrieveUpdateDestroyAPIView(ETAGMixin,
                           , )
 
     def patch(self, request, *args, **kwargs):
-        serializer_class = self.get_serializer_class()
-        obj = self.get_object()
-        serializer = serializer_class(obj, data=request.data, partial=True)
-        if serializer.is_valid(raise_exception=True):
-            self.perform_update(serializer)
-            # Currently all APIs on root path. Must adjust if we move to /api/resource
-            # or /api/v1/resource etc.
-            resource = request.path.split("/")[1]
-            location = '/%s/%s' % (resource, getattr(obj, self.lookup_field))
-            return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        if getattr(instance, '_prefetched_objects_cache', None):
+            # If 'prefetch_related' has been applied to a queryset, we need to
+            # forcibly invalidate the prefetch cache on the instance.
+            instance._prefetched_objects_cache = {}
+
+        # Currently all APIs on root path. Must adjust if we move to /api/resource
+        # or /api/v1/resource etc.
+        resource = request.path.split("/")[1]
+        location = '/%s/%s' % (resource, getattr(instance, self.lookup_field))
+        return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
     def perform_destroy(self, instance):
         # Custom check destroy permissions
