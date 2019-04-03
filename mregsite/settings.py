@@ -195,5 +195,5 @@ except ImportError:
     pass
 
 if TESTING:
-     SUPERUSER_GROUP = "default-super-group"
-     SUPERADMIN_GROUP = "default-admin-group"
+    SUPERUSER_GROUP = "default-super-group"
+    ADMINUSER_GROUP = "default-admin-group"
