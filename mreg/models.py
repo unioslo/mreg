@@ -577,10 +577,14 @@ class NetGroupRegexPermission(models.Model):
     def find_perm(groups, hostname, ips):
         if not (groups or hostname or ips):
             return False
+        if isinstance(groups, str):
+            groups = [groups]
+        if not isinstance(groups, (list, tuple)):
+            return ValueError(f'groups on invalid type ({type(groups)})')
         if isinstance(ips, str):
             ips = [ips]
         if not isinstance(ips, (list, tuple)):
-            return ValueError(f'Ips on invalid type ({type(ips)})')
+            return ValueError(f'ips on invalid type ({type(ips)})')
         iplist = '{%s}' % ', '.join(ips)
         qs = NetGroupRegexPermission.objects.filter(
                 group__in=groups
