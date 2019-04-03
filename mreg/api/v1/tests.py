@@ -593,9 +593,11 @@ class ModelChangeLogTestCase(TestCase):
 def get_token_client():
     user, created = User.objects.get_or_create(username='nobody')
     token, created = Token.objects.get_or_create(user=user)
-    REQUIRED_USER_GROUP = getattr(settings, 'REQUIRED_USER_GROUP', None)
-    if REQUIRED_USER_GROUP is not None:
-        group, created = Group.objects.get_or_create(name=REQUIRED_USER_GROUP)
+    REQUIRED_USER_GROUPS = getattr(settings, 'REQUIRED_USER_GROUPS', None)
+    if REQUIRED_USER_GROUPS is not None:
+        if isinstance(REQUIRED_USER_GROUPS, (list, tuple)):
+            REQUIRED_USER_GROUPS = REQUIRED_USER_GROUPS[0]
+        group, created = Group.objects.get_or_create(name=REQUIRED_USER_GROUPS)
         group.user_set.add(user)
         group.save()
     client = APIClient()
@@ -1574,13 +1576,13 @@ class APIIPaddressesTestCase(APITestCase):
     def test_ipaddress_patch_200_ok(self):
         """Patching an existing and valid entry should return 200"""
         response = self.client.patch('/ipaddresses/%s' % self.ipaddress_one.id, self.patch_data_ip)
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 204)
 
     def test_ipaddress_patch_200_own_ip(self):
         """Patching an entry with its own ip should return 200"""
         response = self.client.patch('/ipaddresses/%s' % self.ipaddress_one.id,
                                      {'ipaddress': str(self.ipaddress_one.ipaddress)})
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 204)
 
     def test_ipaddress_patch_400_bad_request(self):
         """Patching with invalid data should return 400"""
@@ -1650,13 +1652,13 @@ class APIMACaddressTestCase(APITestCase):
         """Patch an IP with a new mac should return 200 ok."""
         response = self.client.patch('/ipaddresses/%s' % self.ipaddress_one.id,
                                     self.patch_mac)
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 204)
 
     def test_mac_remove_mac_200_ok(self):
         """Patch an IP to remove MAC should return 200 ok."""
         response = self.client.patch('/ipaddresses/%s' % self.ipaddress_one.id,
                                      {'macaddress': ''})
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 204)
 
     def test_mac_patch_mac_in_use_400_bad_request(self):
         """Patch an IP with a MAC in use should return 400 bad request."""
@@ -1675,7 +1677,7 @@ class APIMACaddressTestCase(APITestCase):
         """Patch an IP with a new IP and MAC should return 200 ok."""
         response = self.client.patch('/ipaddresses/%s' % self.ipaddress_one.id,
                                     self.patch_ip_and_mac)
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 204)
 
     def test_mac_with_network(self):
         self.network_one = Network(range='10.0.0.0/24')
@@ -1780,7 +1782,7 @@ class APICnamesTestCase(APITestCase):
     def test_cname_patch_204_ok(self):
         """ Patching a cname should return 204 OK"""
         self.client.post('/cnames/', self.post_data)
-        response = self.client.patch('/cnames/%s' % self.host_one['name'],
+        response = self.client.patch('/cnames/%s' % self.post_data['name'],
                                      {'ttl': '500',
                                       'name': 'new-alias.example.org'})
         self.assertEqual(response.status_code, 204)
