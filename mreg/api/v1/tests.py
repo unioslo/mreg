@@ -13,6 +13,11 @@ from mreg.models import (Cname, HinfoPreset, Host, Ipaddress, NameServer,
 
 from mreg.utils import create_serialno
 
+
+class MissingSettings(Exception):
+    pass
+
+
 def clean_and_save(entity):
     entity.full_clean()
     entity.save()
@@ -589,17 +594,24 @@ class ModelChangeLogTestCase(TestCase):
         new_count = ModelChangeLog.objects.count()
         self.assertNotEqual(old_count, new_count)
 
-
-def get_token_client():
-    user, created = User.objects.get_or_create(username='nobody')
-    token, created = Token.objects.get_or_create(user=user)
-    REQUIRED_USER_GROUPS = getattr(settings, 'REQUIRED_USER_GROUPS', None)
-    if REQUIRED_USER_GROUPS is not None:
-        if isinstance(REQUIRED_USER_GROUPS, (list, tuple)):
-            REQUIRED_USER_GROUPS = REQUIRED_USER_GROUPS[0]
-        group, created = Group.objects.get_or_create(name=REQUIRED_USER_GROUPS)
+def add_user_to_groups(user, group_setting_name):
+    groups = getattr(settings, group_setting_name, None)
+    if groups is None:
+        raise MissingSettings(f"{group_setting_name} not set")
+    if not isinstance(groups, (list, tuple)):
+        groups = (groups, )
+    for groupname in groups:
+        group, created = Group.objects.get_or_create(name=groupname)
         group.user_set.add(user)
         group.save()
+
+def get_token_client(add_groups=True):
+    user, created = User.objects.get_or_create(username='nobody')
+    token, created = Token.objects.get_or_create(user=user)
+    if add_groups:
+        add_user_to_groups(user, 'REQUIRED_USER_GROUPS')
+        add_user_to_groups(user, 'SUPERUSER_GROUP')
+        add_user_to_groups(user, 'ADMINUSER_GROUP')
     client = APIClient()
     client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
     return client
