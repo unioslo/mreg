@@ -131,6 +131,20 @@ class NetGroupRegexPermissionTestCase(TestCase):
         clean_and_save(perm)
         self.assertGreater(NetGroupRegexPermission.objects.count(), old_count)
 
+    def test_model_find_perm(self):
+        perm = NetGroupRegexPermission(group='testgroup',
+                                       range='10.0.0.0/25',
+                                       regex=r'.*\.example\.org$')
+        clean_and_save(perm)
+        qs = NetGroupRegexPermission.find_perm(('randomgroup', 'testgroup',),
+                                               'www.example.org',
+                                               '10.0.0.1')
+        self.assertEqual(qs.first(), perm)
+        qs = NetGroupRegexPermission.find_perm('testgroup',
+                                               'www.example.org',
+                                               ('2.2.2.2', '10.0.0.1',))
+        self.assertEqual(qs.first(), perm)
+
     def test_model_reject_invalid(self):
         # Reject invalid range. Hostbit set.
         perm = NetGroupRegexPermission(group='testgroup',
