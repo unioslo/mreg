@@ -14,25 +14,12 @@ from mreg.models import (Cname, HinfoPreset, Host, Ipaddress, NameServer,
 from mreg.utils import create_serialno
 
 
+class MissingSettings(Exception):
+    pass
+
 def clean_and_save(entity):
     entity.full_clean()
     entity.save()
-
-
-def get_token_client():
-    user, created = User.objects.get_or_create(username='nobody')
-    token, created = Token.objects.get_or_create(user=user)
-    REQUIRED_USER_GROUPS = getattr(settings, 'REQUIRED_USER_GROUPS', None)
-    if REQUIRED_USER_GROUPS is not None:
-        if isinstance(REQUIRED_USER_GROUPS, (list, tuple)):
-            REQUIRED_USER_GROUPS = REQUIRED_USER_GROUPS[0]
-        group, created = Group.objects.get_or_create(name=REQUIRED_USER_GROUPS)
-        group.user_set.add(user)
-        group.save()
-    client = APIClient()
-    client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
-    return client
-
 
 class APITokenAutheticationTestCase(APITestCase):
     """Test various token authentication operations."""
