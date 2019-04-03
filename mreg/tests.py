@@ -283,11 +283,26 @@ class ModelNetworkTestCase(TestCase):
                                     category='so',
                                     location='Test location',
                                     frozen=False)
+        self.network_ipv6_sample = Network(range='2001:db8::/32',
+                                    description='some IPv6 description',
+                                    vlan=123,
+                                    dns_delegated=False,
+                                    category='so',
+                                    location='Test location',
+                                    frozen=False)
+
 
     def test_model_can_create_ns(self):
         """Test that the model is able to create a Network."""
         old_count = Network.objects.count()
         clean_and_save(self.network_sample)
+        new_count = Network.objects.count()
+        self.assertNotEqual(old_count, new_count)
+
+    def test_model_can_create_ipv6_ns(self):
+        """Test that the model is able to create an IPv6 Network."""
+        old_count = Network.objects.count()
+        clean_and_save(self.network_ipv6_sample)
         new_count = Network.objects.count()
         self.assertNotEqual(old_count, new_count)
 
@@ -301,11 +316,29 @@ class ModelNetworkTestCase(TestCase):
         updated_vlan = Network.objects.get(pk=network_sample_id).vlan
         self.assertEqual(new_vlan, updated_vlan)
 
+    def test_model_can_change_ipv6_ns(self):
+        """Test that the model is able to change an IPv6 Network."""
+        clean_and_save(self.network_ipv6_sample)
+        new_vlan = 321
+        network_ipv6_sample_id = self.network_ipv6_sample.id
+        self.network_ipv6_sample.vlan = new_vlan
+        clean_and_save(self.network_ipv6_sample)
+        updated_vlan = Network.objects.get(pk=network_ipv6_sample_id).vlan
+        self.assertEqual(new_vlan, updated_vlan)
+
     def test_model_can_delete_ns(self):
         """Test that the model is able to delete a Network."""
         clean_and_save(self.network_sample)
         old_count = Network.objects.count()
         self.network_sample.delete()
+        new_count = Network.objects.count()
+        self.assertNotEqual(old_count, new_count)
+
+    def test_model_can_delete_ipv6_ns(self):
+        """Test that the model is able to delete a Network."""
+        clean_and_save(self.network_ipv6_sample)
+        old_count = Network.objects.count()
+        self.network_ipv6_sample.delete()
         new_count = Network.objects.count()
         self.assertNotEqual(old_count, new_count)
 
@@ -370,16 +403,34 @@ class ModelPtrOverrideTestCase(TestCase):
         self.host_two = Host(name='host2.example.org',
                         contact='mail@example.org')
 
+        self.host_ipv6_one = Host(name='host3.example.org',
+                             contact='mail@example.org')
+        self.host_ipv6_two = Host(name='host4.example.org',
+                        contact='mail@example.org')
+        
+
         clean_and_save(self.host_one)
         clean_and_save(self.host_two)
+        
+        clean_and_save(self.host_ipv6_one)
+        clean_and_save(self.host_ipv6_two)
 
         self.ptr_sample = PtrOverride(host=Host.objects.get(name='host1.example.org'),
                                       ipaddress='10.0.0.2')
+        self.ptr_ipv6_sample = PtrOverride(host=Host.objects.get(name='host3.example.org'),
+                                      ipaddress='2001:db8::beef')
 
     def test_model_can_create_ptr(self):
         """Test that the model is able to create a PTR Override."""
         old_count = PtrOverride.objects.count()
         clean_and_save(self.ptr_sample)
+        new_count = PtrOverride.objects.count()
+        self.assertNotEqual(old_count, new_count)
+
+    def test_model_can_create_ipv6_ptr(self):
+        """Test that the model is able to create an IPv6 PTR Override."""
+        old_count = PtrOverride.objects.count()
+        clean_and_save(self.ptr_ipv6_sample)
         new_count = PtrOverride.objects.count()
         self.assertNotEqual(old_count, new_count)
 
@@ -392,6 +443,15 @@ class ModelPtrOverrideTestCase(TestCase):
         updated_ptr = PtrOverride.objects.filter(host__name='host1.example.org').first().ipaddress
         self.assertEqual(new_ptr, updated_ptr)
 
+    def test_model_can_change_ipv6_ptr(self):
+        """Test that the model is able to change an IPv6 PTR Override."""
+        clean_and_save(self.ptr_ipv6_sample)
+        new_ipv6_ptr = '2011:db8::feed'
+        self.ptr_ipv6_sample.ipaddress = new_ipv6_ptr
+        clean_and_save(self.ptr_ipv6_sample)
+        updated_ipv6_ptr = PtrOverride.objects.filter(host__name='host3.example.org').first().ipaddress
+        self.assertEqual(new_ipv6_ptr, updated_ipv6_ptr)
+
     def test_model_can_delete_ptr(self):
         """Test that the model is able to delete a PTR Override."""
         clean_and_save(self.ptr_sample)
@@ -400,6 +460,13 @@ class ModelPtrOverrideTestCase(TestCase):
         new_count = PtrOverride.objects.count()
         self.assertNotEqual(old_count, new_count)
 
+    def test_model_can_delete_ipv6_ptr(self):
+        """Test that the model is able to delete an IPv6 PTR Override."""
+        clean_and_save(self.ptr_ipv6_sample)
+        old_count = PtrOverride.objects.count()
+        self.ptr_ipv6_sample.delete()
+        new_count = PtrOverride.objects.count()
+        self.assertNotEqual(old_count, new_count)
 
     def test_model_updated_by_added_ip(self):
         """Test to check that an PtrOverride is added when two hosts share the same ip.
@@ -417,9 +484,26 @@ class ModelPtrOverrideTestCase(TestCase):
         self.assertEqual(initial_count, one_count)
         self.assertEqual(PtrOverride.objects.count(), 1)
 
+    def test_model_updated_by_added_ipv6(self):
+        """Test to check that an PtrOverride is added when two hosts share the same ipv6.
+           Also makes sure that the PtrOverride points to the first host which held the ipv6."""
+        initial_count = PtrOverride.objects.count()
+        ipv6_one = Ipaddress(host=self.host_ipv6_one, ipaddress='2001:db8::4')
+        clean_and_save(ipv6_one)
+        one_count = PtrOverride.objects.count()
+        ipv6_two = Ipaddress(host=self.host_ipv6_two, ipaddress='2001:db8::4')
+        clean_and_save(ipv6_two)
+        ptr =  PtrOverride.objects.first()
+        self.assertEqual(ptr.host, self.host_ipv6_one)
+        self.assertEqual(ptr.ipaddress, '2001:db8::4')
+        self.assertEqual(initial_count, 0)
+        self.assertEqual(initial_count, one_count)
+        self.assertEqual(PtrOverride.objects.count(), 1)
+
     def test_model_add_and_remove_ip(self):
         """Test to check that an PtrOverride is added when two hosts share the same ip.
-           Also makes sure that the PtrOverride points to the first host which held the ip."""
+           Also makes sure that the PtrOverride points to the first host which held the ip.
+           Also makes sure that the PtrOverride is deleted when the host is deleted."""
         initial_count = PtrOverride.objects.count()
         ip_one = Ipaddress(host=self.host_one, ipaddress='10.0.0.1')
         clean_and_save(ip_one)
@@ -427,7 +511,7 @@ class ModelPtrOverrideTestCase(TestCase):
         ip_two = Ipaddress(host=self.host_two, ipaddress='10.0.0.1')
         clean_and_save(ip_two)
         two_count = PtrOverride.objects.count()
-        ptr =  PtrOverride.objects.first()
+        ptr = PtrOverride.objects.first()
         self.assertEqual(ptr.host, self.host_one)
         self.assertEqual(ptr.ipaddress, '10.0.0.1')
         self.assertEqual(initial_count, 0)
@@ -436,9 +520,29 @@ class ModelPtrOverrideTestCase(TestCase):
         self.host_one.delete()
         self.assertEqual(PtrOverride.objects.count(), 0)
 
+    def test_model_add_and_remove_ipv6(self):
+        """Test to check that an PtrOverride is added when two hosts share the same ipv6.
+           Also makes sure that the PtrOverride points to the first host which held the ipv6.
+           Also makes sure that the PtrOverride is deleted when the host is deleted."""
+        initial_count = PtrOverride.objects.count()
+        ipv6_one = Ipaddress(host=self.host_ipv6_one, ipaddress='2001:db8::4')
+        clean_and_save(ipv6_one)
+        one_count = PtrOverride.objects.count()
+        ipv6_two = Ipaddress(host=self.host_ipv6_two, ipaddress='2001:db8::4')
+        clean_and_save(ipv6_two)
+        two_count = PtrOverride.objects.count()
+        ptr = PtrOverride.objects.first()
+        self.assertEqual(ptr.host, self.host_ipv6_one)
+        self.assertEqual(ptr.ipaddress, '2001:db8::4')
+        self.assertEqual(initial_count, 0)
+        self.assertEqual(initial_count, one_count)
+        self.assertEqual(two_count, 1)
+        self.host_ipv6_one.delete()
+        self.assertEqual(PtrOverride.objects.count(), 0)
+
     def test_model_two_ips_no_ptroverrides(self):
-        """When three or more hosts all have the same ipaddress and the first host
-        host, e.g. the one with the PtrOverride, is deleted, a new PtrOverride is
+        """When three or more hosts all have the same ipaddress and the first host, 
+        e.g. the one with the PtrOverride, is deleted, a new PtrOverride is
         not created automatically.
         """
         def _add_ip(host, ipaddress):
@@ -446,7 +550,7 @@ class ModelPtrOverrideTestCase(TestCase):
             clean_and_save(ip)
         _add_ip(self.host_one, '10.0.0.1')
         _add_ip(self.host_two, '10.0.0.1')
-        host_three = Host(name='host3.example.org',
+        host_three = Host(name='host5.example.org',
                         contact='mail@example.org')
 
         clean_and_save(host_three)
@@ -454,6 +558,25 @@ class ModelPtrOverrideTestCase(TestCase):
         self.host_one.delete()
         self.assertEqual(PtrOverride.objects.count(), 0)
         self.assertEqual(Ipaddress.objects.filter(ipaddress='10.0.0.1').count(), 2)
+
+    def test_model_two_ipv6s_no_ptroverrides(self):
+        """When three or more hosts all have the same IPv6 address and the first host, 
+        e.g. the one with the PtrOverride, is deleted, a new PtrOverride is
+        not created automatically.
+        """
+        def _add_ip(host, ipaddress):
+            ip = Ipaddress(host=host, ipaddress=ipaddress)
+            clean_and_save(ip)
+        _add_ip(self.host_ipv6_one, '2001:db8::4')
+        _add_ip(self.host_ipv6_two, '2001:db8::4')
+        host_ipv6_three = Host(name='host6.example.org',
+                        contact='mail@example.org')
+
+        clean_and_save(host_ipv6_three)
+        _add_ip(host_ipv6_three, '2001:db8::4')
+        self.host_ipv6_one.delete()
+        self.assertEqual(PtrOverride.objects.count(), 0)
+        self.assertEqual(Ipaddress.objects.filter(ipaddress='2001:db8::4').count(), 2)
 
 
 class ModelTxtTestCase(TestCase):
