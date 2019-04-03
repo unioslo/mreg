@@ -23,7 +23,7 @@ from url_filter.filtersets import ModelFilterSet
 
 from mreg.api.v1.serializers import (CnameSerializer, HinfoPresetSerializer,
         HostNameSerializer, HostSerializer, HostSaveSerializer,
-        HostGroupSerializer, HostGroupMemberSerializer,
+        HostGroupSerializer, HostGroupDetailSerializer, HostGroupMemberSerializer,
         IpaddressSerializer, MxSerializer, NameServerSerializer,
         NaptrSerializer, PtrOverrideSerializer, SrvSerializer,
         NetworkSerializer, TxtSerializer, ForwardZoneSerializer,
@@ -123,6 +123,7 @@ class HostGroupFilterSet(ModelFilterSet):
 class HostGroupMemberilterSet(ModelFilterSet):
     class Meta:
         model = HostGroupMember
+
 
 class MregRetrieveUpdateDestroyAPIView(ETAGMixin,
         generics.RetrieveUpdateDestroyAPIView):
@@ -1186,7 +1187,7 @@ class HostGroupList(generics.ListCreateAPIView):
 class HostGroupDetail(MregRetrieveUpdateDestroyAPIView):
     """
     get:
-    Returns details for the specified hostgroup. Includes hostgroup and hosts that are members.
+    Returns details for the specified hostgroup. Includes hostgroups that are members.
 
     patch:
     Updates part of hostgroup.
@@ -1196,6 +1197,15 @@ class HostGroupDetail(MregRetrieveUpdateDestroyAPIView):
     """
     queryset = HostGroup.objects.all()
     serializer_class = HostGroupSerializer
+    #detail_serializer_class = HostGroupDetailSerializer
+
+
+    # def get_serializer_class(self):
+    #     if self.action == 'retrieve':
+    #         if hasattr(self, 'detail_serializer_class'):
+    #             return self.detail_serializer_class
+    #
+    #         return super(MyModelViewSet, self).get_serializer_class()
 
     def get_object(self, queryset=queryset):
         return get_object_or_404(HostGroup, hostgroup_name=self.kwargs['pk'])
@@ -1209,7 +1219,7 @@ class HostGroupDetail(MregRetrieveUpdateDestroyAPIView):
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
         hostgroup = get_object_or_404(Hostgroup, hostgroup_name=query)
-        serializer = hostgroupserializer(hostgroup, data=request.data, partial=True)
+        serializer = hostgroupdetailserializer(hostgroup, data=request.data, partial=True)
 
         if serializer.is_valid(raise_exception=True):
             serializer.save()

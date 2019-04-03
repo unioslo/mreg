@@ -268,13 +268,45 @@ class ModelChangeLogSerializer(ValidationMixin, serializers.ModelSerializer):
         return ModelChangeLog(**self.validated_data)
 
 
-class HostGroupSerializer(ValidationMixin, serializers.ModelSerializer):
-    class Meta:
-        model = HostGroup
-        fields = '__all__'
-
-
 class HostGroupMemberSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
         model = HostGroupMember
         fields = '__all__'
+
+    def get_hosts(self, instance):
+        return instance.hostgroupmember_set.all()
+
+
+class HostGroupSerializer(ValidationMixin, serializers.ModelSerializer):
+    groups_count = serializers.SerializerMethodField()
+    hosts = HostGroupMemberSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = HostGroup
+        #fields = '__all__'
+        fields = ['hosts', 'hostgroup_name', 'groups_count']
+
+    def get_groups_count(self, instance):
+        return instance.groups.count()
+
+    def get_hosts(self, instance):
+        return instance.hostgroupmember_set.all()
+
+class HostGroupDetailSerializer(ValidationMixin, serializers.ModelSerializer):
+    groups = serializers.SerializerMethodField()
+    hosts = serializers.SerializerMethodField()
+
+    class Meta:
+        model = HostGroup
+        fields = ['hosts', 'hostgroup_name', 'groups']
+
+
+    #def get_groups(self, instance):
+    #    return instance.groups.all()
+
+    def get_groups(self, instance):
+        groups = instance.groups.all()
+        return HostGroupMemberSerializer(groups, many=True, read_only=True).data
+
+    def get_hosts(self, instance):
+        return instance.hostgroupmember_set.all()

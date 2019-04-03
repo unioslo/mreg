@@ -564,7 +564,7 @@ class HostGroupMember(models.Model):
         ordering = ('group',)
 
     def __str__(self):
-        return('%s' % self.group.hostgroup_name)
+        return('%s' % self.host)
 
 
 # TODO: Add user_id functionality when auth is implemented
