@@ -1,7 +1,8 @@
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from mreg.models import (ForwardZone, Host, Ipaddress, NameServer, Network, ReverseZone)
+from mreg.models import (ForwardZone, Host, Ipaddress, NameServer, Network,
+                         ReverseZone, NetGroupRegexPermission, )
 from rest_framework.exceptions import PermissionDenied
 
 
@@ -101,12 +102,12 @@ class NameServerDeletionTestCase(TestCase):
 
     def test_model_cant_delete_ns_host(self):
         """Test that it won't delete nameserver host-object if in use in a zone"""
-        with self.assertRaises(PermissionDenied) as context:
+        with self.assertRaises(PermissionDenied):
             self.ns_hostsample.delete()
 
     def test_model_cant_delete_ns_hostip(self):
         """Test that it won't delete nameserver with only 1 IP if in use in a zone"""
-        with self.assertRaises(PermissionDenied) as context:
+        with self.assertRaises(PermissionDenied):
             self.ns_hostip.delete()
 
     def test_model_can_delete_ns_hostip(self):
@@ -118,3 +119,55 @@ class NameServerDeletionTestCase(TestCase):
         self.ns_hostip2.delete()
         new_count = Ipaddress.objects.count()
         self.assertNotEqual(old_count, new_count)
+
+
+class NetGroupRegexPermissionTestCase(TestCase):
+
+    def test_model_create(self):
+        old_count = NetGroupRegexPermission.objects.count()
+        perm = NetGroupRegexPermission(group='testgroup',
+                                       range='10.0.0.0/25',
+                                       regex=r'.*\.example\.org$')
+        clean_and_save(perm)
+        self.assertGreater(NetGroupRegexPermission.objects.count(), old_count)
+
+    def test_model_reject_invalid(self):
+        # Reject invalid range. Hostbit set.
+        perm = NetGroupRegexPermission(group='testgroup',
+                                       range='10.0.0.1/25',
+                                       regex=r'.*\.example\.org$')
+        with self.assertRaises(ValidationError) as cm:
+            clean_and_save(perm)
+        self.assertEqual(str(cm.exception),
+                         "{'range': ['10.0.0.1/25 has host bits set']}")
+        # Reject invalid regex.
+        perm = NetGroupRegexPermission(group='testgroup',
+                                       range='10.0.0.0/25',
+                                       regex=r'.*\.ex(ample\.org$')
+        with self.assertRaises(ValidationError) as cm:
+            clean_and_save(perm)
+        self.assertEqual(str(cm.exception),
+                         "{'regex': ['missing ), unterminated subpattern at position 6']}")
+
+
+    def test_model_clean_permissions(self):
+        # Make sure that permissions are removed if a Network with equal
+        # or larger range is removed. Removed by code in signals.py.
+        self.network_v4 = Network(range='10.0.0.0/24')
+        self.network_v6 = Network(range='2001:db8::/64')
+        clean_and_save(self.network_v4)
+        clean_and_save(self.network_v6)
+        v4perm = NetGroupRegexPermission(group='testgroup',
+                                         range='10.0.0.0/25',
+                                         regex=r'.*\.example\.org$')
+        clean_and_save(v4perm)
+        v6perm = NetGroupRegexPermission(group='testgroup',
+                                         range=self.network_v6.range,
+                                         regex=r'.*\.example\.org$')
+        clean_and_save(v6perm)
+        self.assertEqual(NetGroupRegexPermission.objects.count(), 2)
+        self.network_v4.delete()
+        self.assertEqual(NetGroupRegexPermission.objects.count(), 1)
+        self.assertEqual(NetGroupRegexPermission.objects.first(), v6perm)
+        self.network_v6.delete()
+        self.assertEqual(NetGroupRegexPermission.objects.count(), 0)
