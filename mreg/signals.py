@@ -11,7 +11,7 @@ from django_auth_ldap.backend import populate_user
 from mreg.api.v1.serializers import HostSerializer
 from mreg.models import (Cname, ForwardZoneMember, Host, Ipaddress,
         ModelChangeLog, Mx, Naptr, NameServer, PtrOverride, ReverseZone, Srv,
-        Txt, Sshfp)
+        Txt, Sshfp, Network, NetGroupRegexPermission)
 from rest_framework.exceptions import PermissionDenied
 
 
@@ -211,3 +211,12 @@ def prevent_nameserver_deletion(sender, instance, using, **kwargs):
         if usedcount >= 1:
             raise PermissionDenied(detail='This host is a nameserver and cannot be deleted until' \
                                     'it has been removed from all zones its setup as a nameserver')
+
+@receiver(post_delete, sender=Network)
+def cleanup_network_permissions(sender, instance, **kwargs):
+    """Remove any permissions equal to or smaller than the newly deleted
+       Network's range."""
+
+    NetGroupRegexPermission.objects.extra(
+            where=["range::inet <<= %s::inet"], params=[str(instance.range)]
+            ).delete()
