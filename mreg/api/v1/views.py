@@ -29,7 +29,7 @@ from mreg.api.v1.serializers import (CnameSerializer, HinfoPresetSerializer,
         TxtSerializer, ForwardZoneSerializer, ForwardZoneDelegationSerializer,
         ReverseZoneSerializer, ReverseZoneDelegationSerializer, ModelChangeLogSerializer,
         SshfpSerializer)
-from mreg.models import (Cname, ForwardZone, ForwardZoneDelegation, HinfoPreset, Host, HostGroup, HostGroupMember
+from mreg.models import (Cname, ForwardZone, ForwardZoneDelegation, HinfoPreset, Host, HostGroup, HostGroupMember,
                          Ipaddress, Mx, NameServer, Naptr, Network, PtrOverride, ReverseZone,
                          ReverseZoneDelegation, Srv, Txt, ModelChangeLog, Sshfp)
 
@@ -310,7 +310,7 @@ class HostDetail(MregRetrieveUpdateDestroyAPIView):
             return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
-lass HostGroupList(generics.ListCreateAPIView):
+class HostGroupList(generics.ListCreateAPIView):
     """
     get:
     Lists all hostgroups in use.
