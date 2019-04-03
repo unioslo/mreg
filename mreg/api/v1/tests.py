@@ -17,6 +17,7 @@ from mreg.utils import create_serialno
 class MissingSettings(Exception):
     pass
 
+
 class MregAPITestCase(APITestCase):
 
     def setUp(self):
