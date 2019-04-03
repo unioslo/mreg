@@ -48,6 +48,8 @@ urlpatterns = [
     re_path(r'^zones/(?P<name>(\d+/)?[^/]+)/delegations/(?P<delegation>(.*))', views.ZoneDelegationDetail.as_view()),
     re_path(r'^zones/(?P<name>(\d+/)?[^/]+)/nameservers$', views.ZoneNameServerDetail.as_view()),
     re_path(r'^zonefiles/(?P<name>(\d+/)?[^/]+)', views.ZoneFileDetail.as_view()),
+    path('permissions/netgroupregex/', views.NetGroupRegexPermissionList.as_view()),
+    path('permissions/netgroupregex/<pk>', views.NetGroupRegexPermissionDetail.as_view()),
     path('history/', views.ModelChangeLogList.as_view()),
     path('history/<table>/<pk>', views.ModelChangeLogDetail.as_view()),
 ]

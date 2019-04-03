@@ -6,7 +6,8 @@ from rest_framework import serializers
 from mreg.models import (Cname, HinfoPreset, Host, Ipaddress, Mx, NameServer,
                          Naptr, PtrOverride, Srv, Network, Txt, ForwardZone,
                          ForwardZoneDelegation, ReverseZone,
-                         ReverseZoneDelegation, ModelChangeLog, Sshfp)
+                         ReverseZoneDelegation, ModelChangeLog, Sshfp,
+                         NetGroupRegexPermission)
 
 from mreg.utils import nonify
 from mreg.validators import validate_keys
@@ -150,7 +151,6 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
         return IpaddressSerializer(ipaddresses, many=True, read_only=True).data
 
 
-
 class HostSaveSerializer(ForwardZoneMixin, serializers.ModelSerializer):
     """
     Used for saving hosts, due to complications with nulling out a field by patching it with '-1'.
@@ -205,6 +205,11 @@ class NetworkSerializer(ValidationMixin, serializers.ModelSerializer):
 
     def create(self):
         return Network(**self.validated_data)
+
+class NetGroupRegexPermissionSerializer(ValidationMixin, serializers.ModelSerializer):
+    class Meta:
+        model = NetGroupRegexPermission
+        fields = '__all__'
 
 
 class BaseZoneSerializer(ValidationMixin, serializers.ModelSerializer):
