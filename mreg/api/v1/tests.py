@@ -18,6 +18,34 @@ class MissingSettings(Exception):
     pass
 
 
+class MregAPITestCase(APITestCase):
+
+    def setUp(self):
+        self.client = self.get_token_client()
+
+    def get_token_client(self, add_groups=True):
+        self.user, created = User.objects.get_or_create(username='nobody')
+        token, created = Token.objects.get_or_create(user=self.user)
+        self.add_user_to_groups('REQUIRED_USER_GROUPS')
+        if add_groups:
+            self.add_user_to_groups('SUPERUSER_GROUP')
+            self.add_user_to_groups('ADMINUSER_GROUP')
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
+        return client
+
+    def add_user_to_groups(self, group_setting_name):
+        groups = getattr(settings, group_setting_name, None)
+        if groups is None:
+            raise MissingSettings(f"{group_setting_name} not set")
+        if not isinstance(groups, (list, tuple)):
+            groups = (groups, )
+        for groupname in groups:
+            group, created = Group.objects.get_or_create(name=groupname)
+            group.user_set.add(self.user)
+            group.save()
+
+
 def clean_and_save(entity):
     entity.full_clean()
     entity.save()
@@ -594,33 +622,9 @@ class ModelChangeLogTestCase(TestCase):
         new_count = ModelChangeLog.objects.count()
         self.assertNotEqual(old_count, new_count)
 
-def add_user_to_groups(user, group_setting_name):
-    groups = getattr(settings, group_setting_name, None)
-    if groups is None:
-        raise MissingSettings(f"{group_setting_name} not set")
-    if not isinstance(groups, (list, tuple)):
-        groups = (groups, )
-    for groupname in groups:
-        group, created = Group.objects.get_or_create(name=groupname)
-        group.user_set.add(user)
-        group.save()
 
-def get_token_client(add_groups=True):
-    user, created = User.objects.get_or_create(username='nobody')
-    token, created = Token.objects.get_or_create(user=user)
-    if add_groups:
-        add_user_to_groups(user, 'REQUIRED_USER_GROUPS')
-        add_user_to_groups(user, 'SUPERUSER_GROUP')
-        add_user_to_groups(user, 'ADMINUSER_GROUP')
-    client = APIClient()
-    client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
-    return client
-
-class APITokenAutheticationTestCase(APITestCase):
+class APITokenAutheticationTestCase(MregAPITestCase):
     """Test various token authentication operations."""
-
-    def setUp(self):
-        self.client = get_token_client()
 
     def test_logout(self):
         ret = self.client.get("/zones/")
@@ -642,14 +646,13 @@ class APITokenAutheticationTestCase(APITestCase):
         self.assertEqual(ret.status_code, 401)
 
 
-
-class APIAutoupdateZonesTestCase(APITestCase):
+class APIAutoupdateZonesTestCase(MregAPITestCase):
     """This class tests the autoupdate of zones' updated_at whenever
        various models are added/deleted/renamed/changed etc."""
 
     def setUp(self):
         """Add the a couple of zones and hosts for used in testing."""
-        self.client = get_token_client()
+        super().setUp()
         self.host1 = {"name": "host1.example.org",
                       "ipaddress": "10.10.0.1",
                       "contact": "mail@example.org"}
@@ -751,14 +754,14 @@ class APIAutoupdateZonesTestCase(APITestCase):
         self.assertTrue(self.zone_exampleorg.updated)
 
 
-class APIAutoupdateHostZoneTestCase(APITestCase):
+class APIAutoupdateHostZoneTestCase(MregAPITestCase):
     """This class tests that a Host's zone attribute is correct and updated
        when renaming etc.
        """
 
     def setUp(self):
         """Add the a couple of zones and hosts for used in testing."""
-        self.client = get_token_client()
+        super().setUp()
         self.zone_org = ForwardZone(name='example.org',
                                     primary_ns='ns.example.org',
                                     email='hostmaster@example.org')
@@ -854,11 +857,12 @@ class APIAutoupdateHostZoneTestCase(APITestCase):
         self.assertEqual(res.json()['zone'], None)
 
 
-class APIHostsTestCase(TestCase):
+class APIHostsTestCase(MregAPITestCase):
     """This class defines the test suite for api/hosts"""
 
     def setUp(self):
         """Define the test client and other test variables."""
+        super().setUp()
         self.host_one = Host(name='host1.example.org', contact='mail1@example.org')
         self.host_two = Host(name='host2.example.org', contact='mail2@example.org')
         self.patch_data = {'name': 'new-name1.example.com', 'contact': 'updated@mail.com'}
@@ -873,7 +877,6 @@ class APIHostsTestCase(TestCase):
         clean_and_save(self.host_one)
         clean_and_save(self.host_two)
         clean_and_save(self.zone_sample)
-        self.client = get_token_client()
 
     def test_hosts_get_200_ok(self):
         """"Getting an existing entry should return 200"""
@@ -947,11 +950,11 @@ class APIHostsTestCase(TestCase):
         self.assertEqual(response.status_code, 409)
 
 
-class APIMxTestcase(APITestCase):
+class APIMxTestcase(MregAPITestCase):
     """Test MX records."""
 
     def setUp(self):
-        self.client = get_token_client()
+        super().setUp()
         self.zone = ForwardZone(name='example.org',
                                 primary_ns='ns1.example.org',
                                 email='hostmaster@example.org')
@@ -1017,11 +1020,11 @@ class APIMxTestcase(APITestCase):
         self.assertTrue(self.zone.updated)
 
 
-class APISshfpTestcase(APITestCase):
+class APISshfpTestcase(MregAPITestCase):
     """Test SSHFP records."""
 
     def setUp(self):
-        self.client = get_token_client()
+        super().setUp()
         self.zone = ForwardZone(name='example.org',
                                 primary_ns='ns1.example.org',
                                 email='hostmaster@example.org')
@@ -1091,12 +1094,12 @@ class APISshfpTestcase(APITestCase):
         self.assertTrue(self.zone.updated)
 
 
-class APIForwardZonesTestCase(APITestCase):
+class APIForwardZonesTestCase(MregAPITestCase):
     """"This class defines the test suite for forward zones API """
 
     def setUp(self):
         """Define the test client and other variables."""
-        self.client = get_token_client()
+        super().setUp()
         self.zone_one = ForwardZone(
             name="example.org",
             primary_ns="ns1.example.org",
@@ -1196,14 +1199,14 @@ class APIForwardZonesTestCase(APITestCase):
         """"Deleting an entry with registered entries should require force"""
 
 
-class APIZonesForwardDelegationTestCase(APITestCase):
+class APIZonesForwardDelegationTestCase(MregAPITestCase):
     """ This class defines test testsuite for api/zones/<name>/delegations/
         But only for ForwardZones.
     """
 
     def setUp(self):
         """Define the test client and other variables."""
-        self.client = get_token_client()
+        super().setUp()
         self.data_exampleorg = {'name': 'example.org',
                                 'primary_ns': ['ns1.example.org', 'ns2.example.org'],
                                 'email': "hostmaster@example.org"}
@@ -1296,14 +1299,14 @@ class APIZonesForwardDelegationTestCase(APITestCase):
         self.assertEqual(response.data['results'], [])
 
 
-class APIZonesReverseDelegationTestCase(APITestCase):
+class APIZonesReverseDelegationTestCase(MregAPITestCase):
     """ This class defines test testsuite for api/zones/<name>/delegations/
         But only for ReverseZones.
     """
 
     def setUp(self):
         """Define the test client and other variables."""
-        self.client = get_token_client()
+        super().setUp()
         self.data_rev1010 = {'name': '10.10.in-addr.arpa',
                              'primary_ns': ['ns1.example.org', 'ns2.example.org'],
                              'email': "hostmaster@example.org"}
@@ -1406,12 +1409,12 @@ class APIZonesReverseDelegationTestCase(APITestCase):
         self.assertEqual(response.status_code, 400)
 
 
-class APIZonesNsTestCase(APITestCase):
+class APIZonesNsTestCase(MregAPITestCase):
     """"This class defines the test suite for api/zones/<name>/nameservers/ """
 
     def setUp(self):
         """Define the test client and other variables."""
-        self.client = get_token_client()
+        super().setUp()
         self.post_data = {'name': 'example.org', 'primary_ns': ['ns2.example.org'],
                           'email': "hostmaster@example.org"}
         self.ns_one = Host(name='ns1.example.org', contact='mail@example.org')
@@ -1482,11 +1485,11 @@ class APIZonesNsTestCase(APITestCase):
         self.assertEqual(response.status_code, 204)
         self.assertFalse(NameServer.objects.exists())
 
-class APIZoneRFC2317(APITestCase):
+class APIZoneRFC2317(MregAPITestCase):
     """This class tests RFC 2317 delegations."""
 
     def setUp(self):
-        self.client = get_token_client()
+        super().setUp()
         self.data = {'name': '128/25.0.0.10.in-addr.arpa',
                      'primary_ns': ['ns1.example.org', 'ns2.example.org'],
                      'email': "hostmaster@example.org"}
@@ -1519,12 +1522,12 @@ class APIZoneRFC2317(APITestCase):
         self.assertEqual(response.status_code, 204)
 
 
-class APIIPaddressesTestCase(APITestCase):
+class APIIPaddressesTestCase(MregAPITestCase):
     """This class defines the test suite for api/ipaddresses"""
 
     def setUp(self):
         """Define the test client and other test variables."""
-        self.client = get_token_client()
+        super().setUp()
         self.host_one = Host(name='some-host.example.org',
                              contact='mail@example.org')
 
@@ -1613,12 +1616,12 @@ class APIIPaddressesTestCase(APITestCase):
         self.assertEqual(response.status_code, 404)
 
 
-class APIMACaddressTestCase(APITestCase):
+class APIMACaddressTestCase(MregAPITestCase):
     """This class defines the test suite for api/ipaddresses with macadresses"""
 
     def setUp(self):
         """Define the test client and other test variables."""
-        self.client = get_token_client()
+        super().setUp()
         self.host_one = Host(name='host1.example.org',
                              contact='mail@example.org')
 
@@ -1722,10 +1725,10 @@ class APIMACaddressTestCase(APITestCase):
         self.assertEqual(response.status_code, 201)
 
 
-class APICnamesTestCase(APITestCase):
+class APICnamesTestCase(MregAPITestCase):
     """This class defines the test suite for api/cnames """
     def setUp(self):
-        self.client = get_token_client()
+        super().setUp()
         self.zone_one = ForwardZone(name='example.org',
                                     primary_ns='ns.example.org',
                                     email='hostmaster@example.org')
@@ -1800,11 +1803,11 @@ class APICnamesTestCase(APITestCase):
         self.assertEqual(response.status_code, 204)
 
 
-class APINetworksTestCase(APITestCase):
+class APINetworksTestCase(MregAPITestCase):
     """"This class defines the test suite for api/networks """
     def setUp(self):
         """Define the test client and other variables."""
-        self.client = get_token_client()
+        super().setUp()
         self.network_sample = Network(range='10.0.0.0/24',
                                     description='some description',
                                     vlan=123,
@@ -2017,12 +2020,12 @@ class APINetworksTestCase(APITestCase):
         self.assertEqual(response.status_code, 409)
 
 
-class APIModelChangeLogsTestCase(APITestCase):
+class APIModelChangeLogsTestCase(MregAPITestCase):
     """This class defines the test suite for api/history """
 
     def setUp(self):
         """Define the test client and other variables."""
-        self.client = get_token_client()
+        super().setUp()
         self.host_one = Host(name='some-host.example.org',
                              contact='mail@example.org',
                              ttl=300,
