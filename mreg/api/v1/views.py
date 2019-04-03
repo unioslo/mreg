@@ -27,10 +27,11 @@ from mreg.api.v1.serializers import (CnameSerializer, HinfoPresetSerializer,
         NetworkSerializer, TxtSerializer, ForwardZoneSerializer,
         ForwardZoneDelegationSerializer, ReverseZoneSerializer,
         ReverseZoneDelegationSerializer, ModelChangeLogSerializer,
-        SshfpSerializer)
+        SshfpSerializer, NetGroupRegexPermissionSerializer)
 from mreg.models import (Cname, ForwardZone, ForwardZoneDelegation, HinfoPreset, Host, Ipaddress,
                          Mx, NameServer, Naptr, Network, PtrOverride, ReverseZone,
                          ReverseZoneDelegation, Srv, Txt, ModelChangeLog, Sshfp)
+import mreg.models
 
 from .zonefile import ZoneFile
 
@@ -94,6 +95,11 @@ class NetworkFilterSet(ModelFilterSet):
 class TxtFilterSet(ModelFilterSet):
     class Meta:
         model = Txt
+
+
+class NetGroupRegexPermissionFilterSet(ModelFilterSet):
+    class Meta:
+        model = mreg.models.NetGroupRegexPermission
 
 
 class ForwardZoneFilterSet(ModelFilterSet):
@@ -1097,6 +1103,28 @@ class ZoneNameServerDetail(MregRetrieveUpdateDestroyAPIView):
         self.perform_update(zone)
         location = f"/zones/{zone.name}/nameservers"
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
+
+
+class NetGroupRegexPermissionList(generics.ListCreateAPIView):
+    """
+    """
+
+    queryset = mreg.models.NetGroupRegexPermission.objects.all().order_by('id')
+    serializer_class = NetGroupRegexPermissionSerializer
+    permission_classes = ( IsSuperGroupMember | ReadOnlyForRequiredGroup, )
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        return NetGroupRegexPermissionFilterSet(data=self.request.GET, queryset=qs).filter()
+
+
+class NetGroupRegexPermissionDetail(MregRetrieveUpdateDestroyAPIView):
+    """
+    """
+
+    queryset = mreg.models.NetGroupRegexPermission.objects.all().order_by('id')
+    serializer_class = NetGroupRegexPermissionSerializer
+    permission_classes = ( IsSuperGroupMember | ReadOnlyForRequiredGroup, )
 
 
 class ModelChangeLogList(generics.ListAPIView):
