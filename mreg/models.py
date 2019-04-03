@@ -10,7 +10,7 @@ from mreg.validators import (validate_hostname, validate_reverse_zone_name,
                              validate_mac_address, validate_loc,
                              validate_naptr_flag, validate_srv_service_text,
                              validate_zones_serialno, validate_16bit_uint,
-                             validate_network, validate_ttl)
+                             validate_network, validate_ttl, validate_hexadecimal)
 from mreg.utils import (create_serialno, encode_mail, clear_none, qualify,
         idna_encode, get_network_from_zonename)
 
@@ -325,6 +325,23 @@ class Host(ForwardZoneMember):
             'record_data': self.loc
         }
         return '{name:30} IN {record_type:6} {record_data}\n'.format_map(data)
+
+
+class Sshfp(models.Model):
+    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host')
+    ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
+    algorithm = models.IntegerField(choices=((1, 'RSA'), (2, 'DSS'), (3, 'ECDSA'), (4, 'Ed25519')))
+    hash_type = models.IntegerField(choices=((1, 'SHA-1'), (2, 'SHA-256')))
+    fingerprint = models.CharField(max_length=64, validators=[validate_hexadecimal])
+
+    class Meta:
+        db_table = 'sshfp'
+
+    def __str__(self):
+        return (
+            f"{self.host.name} -> {self.algorithm} ({self.get_algorithm_display()}) "
+            f"{self.hash_type} ({self.get_hash_type_display()}) {self.fingerprint}"
+        )
 
 
 class Ipaddress(models.Model):
