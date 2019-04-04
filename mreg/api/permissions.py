@@ -112,6 +112,7 @@ class IsGrantedNetGroupRegexPermission(BasePermission):
             return False
         if request.method in SAFE_METHODS:
             return True
+        self.user_groups = set(request.user.groups.values_list('name', flat=True))
         if self.is_super_or_admin(request):
             return True
         if not user_in_required_group(self.user_groups):
@@ -130,11 +131,11 @@ class IsGrantedNetGroupRegexPermission(BasePermission):
         return self.has_perm(self._get_hostname_and_ips(obj))
 
     def is_super_or_admin(self, request):
-        self.user_groups = set(request.user.groups.values_list('name', flat=True))
         return user_is_superuser(self.user_groups) or \
                user_is_adminuser(self.user_groups)
 
     def has_create_permission(self, request, view, validated_serializer):
+        self.user_groups = set(request.user.groups.values_list('name', flat=True))
         if self.is_super_or_admin(request):
             return True
         hostname = None
@@ -152,13 +153,14 @@ class IsGrantedNetGroupRegexPermission(BasePermission):
         elif 'host' in data:
             hostname, ips = self._get_hostname_and_ips(data['host'])
         else:
-            raise exceptions.PermissionDenied(f"Unhandeled view: {view}")
+            raise exceptions.PermissionDenied(f"Unhandled view: {view}")
 
         if ips and hostname:
             return self.has_perm(hostname, ips)
         return False
 
     def has_destroy_permission(self, request, view, validated_serializer):
+        self.user_groups = set(request.user.groups.values_list('name', flat=True))
         if self.is_super_or_admin(request):
             return True
         obj = view.get_object()
@@ -167,11 +169,12 @@ class IsGrantedNetGroupRegexPermission(BasePermission):
         elif hasattr(obj, 'host'):
             obj = obj.host
         else:
-            raise exceptions.permissiondenied(f"unhandeled view: {view}")
+            raise exceptions.PermissionDenied(f"Unhandled view: {view}")
 
         return self.has_obj_perm(obj)
 
     def has_update_permission(self, request, view, validated_serializer):
+        self.user_groups = set(request.user.groups.values_list('name', flat=True))
         if self.is_super_or_admin(request):
             return True
         data = validated_serializer.validated_data
@@ -187,7 +190,7 @@ class IsGrantedNetGroupRegexPermission(BasePermission):
         elif hasattr(obj, 'host'):
             return self.has_obj_perm(obj.host)
         else:
-            raise exceptions.permissiondenied(f"unhandeled view: {view}")
+            raise exceptions.PermissionDenied(f"Unhandled view: {view}")
 
     def _get_hostname_and_ips(self, hostobject):
         ips = []
