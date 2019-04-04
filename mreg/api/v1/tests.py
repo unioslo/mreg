@@ -519,6 +519,18 @@ class APIPtrOverrideTestcase(MregAPITestCase):
         ret = self.client.patch("/ptroverrides/%s" % self.ptr_ipv6_override.id, self.ptr_override_ipv6_patch_data)
         self.assertEqual(ret.status_code, 204)
 
+    def test_ptr_override_reject_invalid_400(self):
+        ptr_override_data = {'host': self.host.id,
+                             'ipaddress': '10.0.0.4.44'}
+        ret = self.client.post("/ptroverrides/", ptr_override_data)
+        self.assertEqual(ret.status_code, 400)
+
+    def test_ptr_override_reject_invalid_ipv6_400(self):
+        ptr_override_ipv6_data = {'host': self.host.id,
+                                  'ipaddress': '2001:db8::3zzz'}
+        ret = self.client.post("/ptroverrides/", ptr_override_ipv6_data)
+        self.assertEqual(ret.status_code, 400)
+
 
 class APISshfpTestcase(MregAPITestCase):
     """Test SSHFP records."""
