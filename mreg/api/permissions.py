@@ -24,7 +24,7 @@ def user_in_settings_group(request, group_setting_name):
 
 def _list_in_list(a, b):
     # Returns true if any of element in a is in b
-    return bool(any([i in b for i in a]))
+    return any(i in b for i in a)
 
 
 def user_in_required_group(user_groups):
