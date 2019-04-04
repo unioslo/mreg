@@ -13,7 +13,7 @@ urlpatterns = [
     path('hinfopresets/', views.HinfoPresetList.as_view()),
     path('hinfopresets/<pk>', views.HinfoPresetDetail.as_view()),
     path('hosts/', views.HostList.as_view()),
-    path('hosts/<pk>', views.HostDetail.as_view()),
+    path('hosts/<name>', views.HostDetail.as_view()),
     path('ipaddresses/', views.IpaddressList.as_view()),
     path('ipaddresses/<pk>', views.IpaddressDetail.as_view()),
     path('mxs/', views.MxList.as_view()),
@@ -48,6 +48,8 @@ urlpatterns = [
     re_path(r'^zones/(?P<name>(\d+/)?[^/]+)/delegations/(?P<delegation>(.*))', views.ZoneDelegationDetail.as_view()),
     re_path(r'^zones/(?P<name>(\d+/)?[^/]+)/nameservers$', views.ZoneNameServerDetail.as_view()),
     re_path(r'^zonefiles/(?P<name>(\d+/)?[^/]+)', views.ZoneFileDetail.as_view()),
+    path('permissions/netgroupregex/', views.NetGroupRegexPermissionList.as_view()),
+    path('permissions/netgroupregex/<pk>', views.NetGroupRegexPermissionDetail.as_view()),
     path('history/', views.ModelChangeLogList.as_view()),
     path('history/<table>/<pk>', views.ModelChangeLogDetail.as_view()),
 ]

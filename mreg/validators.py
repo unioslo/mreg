@@ -1,4 +1,5 @@
 import ipaddress
+import re
 
 import idna
 
@@ -137,6 +138,14 @@ def validate_naptr_flag(flag):
     validator(flag)
 
 
+def validate_regex(regex):
+    """Validate the regex string"""
+    try:
+        re.compile(regex)
+    except re.error as e:
+        raise ValidationError(str(e))
+
+
 def validate_srv_service_text(servicetext):
     """Validates that the srv service text input is valid."""
     servicetext_regex = '^_[a-z]+\._(tcp|udp)'
@@ -150,6 +159,7 @@ def validate_zones_serialno(serialno):
     validator_max = MaxValueValidator(9999999999)
     validator_min(serialno)
     validator_max(serialno)
+
 
 
 def validate_keys(obj):
