@@ -11,6 +11,9 @@ https://docs.djangoproject.com/en/2.0/ref/settings/
 """
 
 import os
+import sys
+
+TESTING = len(sys.argv) > 1 and sys.argv[1] == 'test'
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -166,7 +169,7 @@ REST_FRAMEWORK = {
 
 # This setting must be defined for mreg.api.permissions.IsInRequiredGroup
 # to work.
-REQUIRED_USER_GROUP = "default-required-group"
+REQUIRED_USER_GROUPS = "default-required-group"
 
 REST_FRAMEWORK_EXTENSIONS = {
     'DEFAULT_OBJECT_ETAG_FUNC':
@@ -191,4 +194,6 @@ try:
 except ImportError:
     pass
 
-
+if TESTING:
+    SUPERUSER_GROUP = "default-super-group"
+    ADMINUSER_GROUP = "default-admin-group"

@@ -10,7 +10,8 @@ from mreg.validators import (validate_hostname, validate_reverse_zone_name,
                              validate_mac_address, validate_loc,
                              validate_naptr_flag, validate_srv_service_text,
                              validate_zones_serialno, validate_16bit_uint,
-                             validate_network, validate_ttl, validate_hexadecimal)
+                             validate_network, validate_ttl, validate_hexadecimal,
+                             validate_regex)
 from mreg.utils import (create_serialno, encode_mail, clear_none, qualify,
         idna_encode, get_network_from_zonename)
 
@@ -558,6 +559,41 @@ class Srv(ForwardZoneMember):
             'target': idna_encode(qualify(self.target, zone))
         }
         return '{name:24} {ttl:5} IN {record_type:6} {priority} {weight} {port} {target}\n'.format_map(data)
+
+
+class NetGroupRegexPermission(models.Model):
+    group = models.CharField(max_length=80)
+    range = models.TextField(blank=True, validators=[validate_network])
+    regex = models.CharField(max_length=250, validators=[validate_regex])
+
+    class Meta:
+        db_table = 'perm_net_group_regex'
+        unique_together = ('group', 'range',)
+
+    def __str__(self):
+        return f"group {self.group}, range {self.range}, regex {self.regex}"
+
+    @staticmethod
+    def find_perm(groups, hostname, ips):
+        if not (groups or hostname or ips):
+            return False
+        if isinstance(groups, str):
+            groups = [groups]
+        if not isinstance(groups, (list, tuple)):
+            return ValueError(f'groups on invalid type ({type(groups)})')
+        if isinstance(ips, str):
+            ips = [ips]
+        if not isinstance(ips, (list, tuple)):
+            return ValueError(f'ips on invalid type ({type(ips)})')
+        iplist = '{%s}' % ', '.join(ips)
+        qs = NetGroupRegexPermission.objects.filter(
+                group__in=groups
+            ).extra(
+                where=["%s ~ regex"], params=[str(hostname)]
+            ).extra(
+                where=["range::inet >>= ANY (%s::inet[])"], params=[iplist]
+            )
+        return qs
 
 
 # TODO: Add user_id functionality when auth is implemented
