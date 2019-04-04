@@ -452,7 +452,7 @@ class APIPtrOverrideTestcase(MregAPITestCase):
     """Test PtrOverride records."""
 
     def setUp(self):
-        self.client = get_token_client()
+        super().setUp()
         self.host_data = {'name': 'ns1.example.org',
                           'contact': 'mail@example.org'}
         self.client.post('/hosts/', self.host_data)
