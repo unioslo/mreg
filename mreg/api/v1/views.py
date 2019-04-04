@@ -23,7 +23,7 @@ from url_filter.filtersets import ModelFilterSet
 
 from mreg.api.v1.serializers import (CnameSerializer, HinfoPresetSerializer,
         HostNameSerializer, HostSerializer, HostGroupSerializer,
-        HostGroupMemberSerializer, HostSaveSerializer, IpaddressSerializer,
+        HostGroupMemberSerializer,HostGroupDetailSerializer,HostCustomSerializer, HostSaveSerializer, IpaddressSerializer,
         MxSerializer, NameServerSerializer, NaptrSerializer,
         PtrOverrideSerializer, SrvSerializer,NetworkSerializer,
         TxtSerializer, ForwardZoneSerializer, ForwardZoneDelegationSerializer,
@@ -1307,7 +1307,7 @@ class HostGroupDetail(MregRetrieveUpdateDestroyAPIView):
     Delete the specified hostgroup.
     """
     queryset = HostGroup.objects.all()
-    serializer_class = HostGroupSerializer
+    serializer_class = HostGroupDetailSerializer
     #detail_serializer_class = HostGroupDetailSerializer
 
 
@@ -1321,6 +1321,8 @@ class HostGroupDetail(MregRetrieveUpdateDestroyAPIView):
     def get_object(self, queryset=queryset):
         return get_object_or_404(HostGroup, hostgroup_name=self.kwargs['pk'])
 
+    # patch bør kun rename gruppen
+    """
     def patch(self, request, *args, **kwargs):
         query = self.kwargs['pk']
 
@@ -1329,10 +1331,17 @@ class HostGroupDetail(MregRetrieveUpdateDestroyAPIView):
                 content = {'ERROR': 'name already in use'}
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
-        hostgroup = get_object_or_404(Hostgroup, hostgroup_name=query)
-        serializer = hostgroupdetailserializer(hostgroup, data=request.data, partial=True)
+        hostgroup = get_object_or_404(HostGroup, hostgroup_name=query)
+        serializer = HostGroupDetailSerializer(hostgroup, data=request.data, partial=True)
 
         if serializer.is_valid(raise_exception=True):
             serializer.save()
             location = '/hostgroups/%s' % hostgroup.hostgroup_name
             return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
+    """
+
+class HostGroupHosts(MregRetrieveUpdateDestroyAPIView):
+    """
+    Denne skal brukes for å lagre/redigere hoster under en gruppe
+    """
+    queryset =  # def get_queryset-funksjon som henter ut alle

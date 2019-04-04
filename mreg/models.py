@@ -561,6 +561,7 @@ class Srv(ForwardZoneMember):
 
 
 class HostGroup(models.Model):
+    # rename hostgroup_name = name
     hostgroup_name = models.CharField(max_length=50, unique=True)
     parent = models.ManyToManyField('self', symmetrical=False, blank=True, related_name='groups')
 
@@ -573,8 +574,8 @@ class HostGroup(models.Model):
 
 
 class HostGroupMember(models.Model):
-    host = models.ForeignKey(Host, on_delete=models.PROTECT, db_column='host', related_name='members')
-    group = models.ForeignKey(HostGroup, on_delete=models.PROTECT)
+    host = models.ForeignKey(Host, on_delete=models.PROTECT, db_column='host', related_name='hostgroups')
+    group = models.ForeignKey(HostGroup, on_delete=models.PROTECT, related_name="hostmembers")
 
     class Meta:
         db_table = 'hostgroupmember'
