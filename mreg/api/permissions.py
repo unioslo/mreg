@@ -112,10 +112,10 @@ class IsGrantedNetGroupRegexPermission(BasePermission):
             return False
         if request.method in SAFE_METHODS:
             return True
-        self.user_groups = request.user.group_list
-        if self.is_super_or_admin():
+        group_list = request.user.group_list
+        if self.is_super_or_admin(group_list):
             return True
-        if not user_in_required_group(self.user_groups):
+        if not user_in_required_group(group_list):
             return False
         # Will do do more object checks later, but initially refuse any
         # unwarranted requests.
@@ -123,20 +123,18 @@ class IsGrantedNetGroupRegexPermission(BasePermission):
             return True
         return False
 
-    def has_perm(self, hostname, ips):
-        return bool(NetGroupRegexPermission.find_perm(self.user_groups,
-                                                      hostname, ips))
+    def has_perm(self, groups, hostname, ips):
+        return bool(NetGroupRegexPermission.find_perm(groups, hostname, ips))
 
-    def has_obj_perm(self, obj):
-        return self.has_perm(self._get_hostname_and_ips(obj))
+    def has_obj_perm(self, groups, obj):
+        return self.has_perm(groups, self._get_hostname_and_ips(obj))
 
-    def is_super_or_admin(self):
-        return user_is_superuser(self.user_groups) or \
-               user_is_adminuser(self.user_groups)
+    def is_super_or_admin(self, group_list):
+        return user_is_superuser(group_list) or user_is_adminuser(group_list)
 
     def has_create_permission(self, request, view, validated_serializer):
-        self.user_groups = request.user.group_list
-        if self.is_super_or_admin():
+        group_list = request.user.group_list
+        if self.is_super_or_admin(group_list):
             return True
         hostname = None
         ips = []
@@ -156,12 +154,12 @@ class IsGrantedNetGroupRegexPermission(BasePermission):
             raise exceptions.PermissionDenied(f"Unhandled view: {view}")
 
         if ips and hostname:
-            return self.has_perm(hostname, ips)
+            return self.has_perm(group_list, hostname, ips)
         return False
 
     def has_destroy_permission(self, request, view, validated_serializer):
-        self.user_groups = request.user.group_list
-        if self.is_super_or_admin():
+        group_list = request.user.group_list
+        if self.is_super_or_admin(group_list):
             return True
         obj = view.get_object()
         if isinstance(view, mreg.api.v1.views.HostDetail):
@@ -171,11 +169,11 @@ class IsGrantedNetGroupRegexPermission(BasePermission):
         else:
             raise exceptions.PermissionDenied(f"Unhandled view: {view}")
 
-        return self.has_obj_perm(obj)
+        return self.has_obj_perm(group_list, obj)
 
     def has_update_permission(self, request, view, validated_serializer):
-        self.user_groups = request.user.group_list
-        if self.is_super_or_admin():
+        group_list = request.user.group_list
+        if self.is_super_or_admin(group_list):
             return True
         data = validated_serializer.validated_data
         obj = view.get_object()
@@ -184,11 +182,11 @@ class IsGrantedNetGroupRegexPermission(BasePermission):
             # If renaming a host, make sure the user has permission to both the
             # new and and old hostname.
             if 'name' in data:
-                if not self.has_perm(data['name'], ips):
+                if not self.has_perm(group_list, data['name'], ips):
                     return False
-            return self.has_perm(hostname, ips)
+            return self.has_perm(group_list, hostname, ips)
         elif hasattr(obj, 'host'):
-            return self.has_obj_perm(obj.host)
+            return self.has_obj_perm(group_list, obj.host)
         else:
             raise exceptions.PermissionDenied(f"Unhandled view: {view}")
 
