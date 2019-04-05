@@ -167,6 +167,14 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'mreg.api.permissions.IsInRequiredGroup',
     ),
+    'DEFAULT_THROTTLE_CLASSES': (
+    'rest_framework.throttling.AnonRateThrottle',
+    'rest_framework.throttling.UserRateThrottle'
+    ),
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '20/hour',
+        'user': '100/day'
+    }
 }
 
 # This setting must be defined for mreg.api.permissions.IsInRequiredGroup
@@ -188,6 +196,13 @@ DJANGO_LOGGING = {
 
 SWAGGER_SETTINGS = {
     'USE_SESSION_AUTH': False,
+}
+
+CACHES = {
+   'default': {
+        'BACKEND': 'django.core.cache.backends.memcached.MemcachedCache',
+        'LOCATION': '127.0.0.1:11211',
+   }
 }
 
 # Import local settings that may override those in this file.
