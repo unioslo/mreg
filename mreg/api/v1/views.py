@@ -1344,4 +1344,4 @@ class HostGroupHosts(MregRetrieveUpdateDestroyAPIView):
     """
     Denne skal brukes for å lagre/redigere hoster under en gruppe
     """
-    queryset =  # def get_queryset-funksjon som henter ut alle
+    #queryset =  # def get_queryset-funksjon som henter ut alle
