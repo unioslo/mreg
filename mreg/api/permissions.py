@@ -27,18 +27,23 @@ def _list_in_list(a, b):
     return any(i in b for i in a)
 
 
-def user_in_required_group(user_groups):
-    return _list_in_list(get_settings_groups('REQUIRED_USER_GROUPS'), user_groups)
+def user_in_required_group(user):
+    return _list_in_list(get_settings_groups('REQUIRED_USER_GROUPS'),
+                         user.group_list)
 
 
-def user_is_superuser(user_groups):
+def user_is_superuser(user):
     groups = get_settings_groups('SUPERUSER_GROUP')
-    return _list_in_list(groups, user_groups)
+    return _list_in_list(groups, user.group_list)
 
 
-def user_is_adminuser(user_groups):
+def user_is_adminuser(user):
     groups = get_settings_groups('ADMINUSER_GROUP')
-    return _list_in_list(groups, user_groups)
+    return _list_in_list(groups, user.group_list)
+
+
+def is_super_or_admin(user):
+    return user_is_superuser(user) or user_is_adminuser(user)
 
 
 class ReadOnly(BasePermission):
@@ -93,10 +98,9 @@ class IsSuperOrAdminOrReadOnly(BasePermission):
             return False
         if request.method in SAFE_METHODS:
             return True
-        group_list = request.user.group_list
-        if not user_in_required_group(group_list):
+        if not user_in_required_group(request.user):
             return False
-        return user_is_superuser(group_list) or user_is_adminuser(group_list)
+        return is_super_or_admin(request.user)
 
 
 class IsGrantedNetGroupRegexPermission(BasePermission):
@@ -112,14 +116,14 @@ class IsGrantedNetGroupRegexPermission(BasePermission):
             return False
         if request.method in SAFE_METHODS:
             return True
-        group_list = request.user.group_list
-        if self.is_super_or_admin(group_list):
+        if is_super_or_admin(request.user):
             return True
-        if not user_in_required_group(group_list):
+        if not user_in_required_group(request.user):
             return False
         # Will do do more object checks later, but initially refuse any
         # unwarranted requests.
-        if NetGroupRegexPermission.objects.filter(group__in=self.user_groups).exists():
+        if NetGroupRegexPermission.objects.filter(group__in=request.user.group_list
+                                                  ).exists():
             return True
         return False
 
@@ -129,12 +133,8 @@ class IsGrantedNetGroupRegexPermission(BasePermission):
     def has_obj_perm(self, groups, obj):
         return self.has_perm(groups, self._get_hostname_and_ips(obj))
 
-    def is_super_or_admin(self, group_list):
-        return user_is_superuser(group_list) or user_is_adminuser(group_list)
-
     def has_create_permission(self, request, view, validated_serializer):
-        group_list = request.user.group_list
-        if self.is_super_or_admin(group_list):
+        if is_super_or_admin(request.user):
             return True
         hostname = None
         ips = []
@@ -154,12 +154,11 @@ class IsGrantedNetGroupRegexPermission(BasePermission):
             raise exceptions.PermissionDenied(f"Unhandled view: {view}")
 
         if ips and hostname:
-            return self.has_perm(group_list, hostname, ips)
+            return self.has_perm(request.user.group_list, hostname, ips)
         return False
 
     def has_destroy_permission(self, request, view, validated_serializer):
-        group_list = request.user.group_list
-        if self.is_super_or_admin(group_list):
+        if is_super_or_admin(request.user):
             return True
         obj = view.get_object()
         if isinstance(view, mreg.api.v1.views.HostDetail):
@@ -169,12 +168,12 @@ class IsGrantedNetGroupRegexPermission(BasePermission):
         else:
             raise exceptions.PermissionDenied(f"Unhandled view: {view}")
 
-        return self.has_obj_perm(group_list, obj)
+        return self.has_obj_perm(request.user.group_list, obj)
 
     def has_update_permission(self, request, view, validated_serializer):
-        group_list = request.user.group_list
-        if self.is_super_or_admin(group_list):
+        if is_super_or_admin(request.user):
             return True
+        group_list = request.user.group_list
         data = validated_serializer.validated_data
         obj = view.get_object()
         if isinstance(view, mreg.api.v1.views.HostDetail):
