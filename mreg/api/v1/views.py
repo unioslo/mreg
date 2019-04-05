@@ -23,7 +23,7 @@ from url_filter.filtersets import ModelFilterSet
 
 from mreg.api.v1.serializers import (CnameSerializer, HinfoPresetSerializer,
         HostNameSerializer, HostSerializer, HostGroupSerializer,
-        HostGroupMemberSerializer,HostGroupDetailSerializer,HostCustomSerializer, HostSaveSerializer, IpaddressSerializer,
+        HostGroupMemberSerializer,HostGroupDetailSerializer, HostSaveSerializer, IpaddressSerializer,
         MxSerializer, NameServerSerializer, NaptrSerializer,
         PtrOverrideSerializer, SrvSerializer,NetworkSerializer,
         TxtSerializer, ForwardZoneSerializer, ForwardZoneDelegationSerializer,
@@ -1321,8 +1321,6 @@ class HostGroupDetail(MregRetrieveUpdateDestroyAPIView):
     def get_object(self, queryset=queryset):
         return get_object_or_404(HostGroup, name=self.kwargs['pk'])
 
-    # patch bør kun rename gruppen
-    """
     def patch(self, request, *args, **kwargs):
         query = self.kwargs['pk']
 
@@ -1338,10 +1336,11 @@ class HostGroupDetail(MregRetrieveUpdateDestroyAPIView):
             serializer.save()
             location = '/hostgroups/%s' % hostgroup.hostgroup_name
             return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
-    """
 
-class HostGroupHosts(MregRetrieveUpdateDestroyAPIView):
+
+#class HostGroupHosts(MregRetrieveUpdateDestroyAPIView):
     """
     Denne skal brukes for å lagre/redigere hoster under en gruppe
     """
     #queryset =  # def get_queryset-funksjon som henter ut alle
+
