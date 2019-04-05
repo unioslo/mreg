@@ -1,7 +1,8 @@
 from datetime import timedelta
 
+from django.contrib.auth import get_user_model
 from django.conf import settings
-from django.contrib.auth.models import Group, User
+from django.contrib.auth.models import Group
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.authtoken.models import Token
@@ -24,7 +25,7 @@ class MregAPITestCase(APITestCase):
         self.client = self.get_token_client()
 
     def get_token_client(self, add_groups=True):
-        self.user, created = User.objects.get_or_create(username='nobody')
+        self.user, created = get_user_model().objects.get_or_create(username='nobody')
         token, created = Token.objects.get_or_create(user=self.user)
         self.add_user_to_groups('REQUIRED_USER_GROUPS')
         if add_groups:
@@ -65,7 +66,7 @@ class APITokenAutheticationTestCase(MregAPITestCase):
     def test_force_expire(self):
         ret = self.client.get("/zones/")
         self.assertEqual(ret.status_code, 200)
-        user = User.objects.get(username='nobody')
+        user = get_user_model().objects.get(username='nobody')
         token = Token.objects.get(user=user)
         EXPIRE_HOURS = getattr(settings, 'REST_FRAMEWORK_TOKEN_EXPIRE_HOURS', 8)
         token.created = timezone.now() - timedelta(hours=EXPIRE_HOURS)
