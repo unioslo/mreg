@@ -305,3 +305,9 @@ class HostGroupDetailSerializer(ValidationMixin, serializers.ModelSerializer):
 
 
 
+class HostGroupGroupsSerializer(ValidationMixin, serializers.ModelSerializer):
+    groups = HostGroupMemberSerializer(many=True)
+
+    class Meta:
+        model = HostGroupMember
+        fields = ['name']

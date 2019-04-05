@@ -16,6 +16,7 @@ urlpatterns = [
     path('hosts/<pk>', views.HostDetail.as_view()),
     path('hostgroups/', views.HostGroupList.as_view()),
     path('hostgroups/<pk>', views.HostGroupDetail.as_view()),
+    path('hostgroups/<pk>/groups', views.HostGroupGroups.as_view()),
     path('ipaddresses/', views.IpaddressList.as_view()),
     path('ipaddresses/<pk>', views.IpaddressDetail.as_view()),
     path('mxs/', views.MxList.as_view()),

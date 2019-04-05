@@ -23,7 +23,7 @@ from url_filter.filtersets import ModelFilterSet
 
 from mreg.api.v1.serializers import (CnameSerializer, HinfoPresetSerializer,
         HostNameSerializer, HostSerializer, HostGroupSerializer,
-        HostGroupMemberSerializer,HostGroupDetailSerializer, HostSaveSerializer, IpaddressSerializer,
+        HostGroupMemberSerializer,HostGroupDetailSerializer,HostGroupGroupsSerializer, HostSaveSerializer, IpaddressSerializer,
         MxSerializer, NameServerSerializer, NaptrSerializer,
         PtrOverrideSerializer, SrvSerializer,NetworkSerializer,
         TxtSerializer, ForwardZoneSerializer, ForwardZoneDelegationSerializer,
@@ -1308,15 +1308,6 @@ class HostGroupDetail(MregRetrieveUpdateDestroyAPIView):
     """
     queryset = HostGroup.objects.all()
     serializer_class = HostGroupDetailSerializer
-    #detail_serializer_class = HostGroupDetailSerializer
-
-
-    # def get_serializer_class(self):
-    #     if self.action == 'retrieve':
-    #         if hasattr(self, 'detail_serializer_class'):
-    #             return self.detail_serializer_class
-    #
-    #         return super(MyModelViewSet, self).get_serializer_class()
 
     def get_object(self, queryset=queryset):
         return get_object_or_404(HostGroup, name=self.kwargs['pk'])
@@ -1337,10 +1328,12 @@ class HostGroupDetail(MregRetrieveUpdateDestroyAPIView):
             location = '/hostgroups/%s' % hostgroup.name
             return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
-
-#class HostGroupHosts(MregRetrieveUpdateDestroyAPIView):
-    """
-    Denne skal brukes for å lagre/redigere hoster under en gruppe
-    """
-    #queryset =  # def get_queryset-funksjon som henter ut alle
+class HostGroupGroups(MregRetrieveUpdateDestroyAPIView):
+    serializer_class = HostGroupGroupsSerializer
+    def get_queryset(self):
+        """
+        This view should return a list of a hostgroup's groups.
+        """
+        group = self.kwargs['name']
+        return HostGroup.objects.filter(name=group).groups.all()
 
