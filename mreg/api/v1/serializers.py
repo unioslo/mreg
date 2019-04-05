@@ -273,38 +273,26 @@ class ModelChangeLogSerializer(ValidationMixin, serializers.ModelSerializer):
     def create(self):
         return ModelChangeLog(**self.validated_data)
 
-class HostCustomSerializer(ForwardZoneMixin, serializers.ModelSerializer):
-    """
-    To be used with hostgroups
-    """
-
-    class Meta:
-        model = Host
-        fields = ['name']
-
 
 class HostGroupMemberSerializer(ValidationMixin, serializers.ModelSerializer):
     name = serializers.SlugRelatedField(read_only=True, slug_field="name", source="host")
-    id = serializers.PrimaryKeyRelatedField(read_only=True, source="host")
+    #id = serializers.PrimaryKeyRelatedField(read_only=True, source="host")
 
     class Meta:
         model = HostGroupMember
-        fields = ['name', "id"]
+        fields = ['name']
 
-    def get_hosts(self, instance):
-        return instance.hostgroupmember_set.all()
+    #def get_hosts(self, instance):
+    #    return instance.hostgroupmember_set.all()
 
 
 class HostGroupSerializer(ValidationMixin, serializers.ModelSerializer):
-    groups_count = serializers.SerializerMethodField()
+    # groups_count = serializers.SerializerMethodField()
     hosts = HostGroupMemberSerializer(many=True, read_only=True)
 
     class Meta:
         model = HostGroup
-        fields = ['hosts', 'hostgroup_name', 'groups_count']
-
-    def get_groups_count(self, instance):
-        return instance.groups.count()
+        fields = ['name','hosts']
 
 
 class HostGroupDetailSerializer(ValidationMixin, serializers.ModelSerializer):
@@ -313,7 +301,7 @@ class HostGroupDetailSerializer(ValidationMixin, serializers.ModelSerializer):
 
     class Meta:
         model = HostGroup
-        fields = ['hosts', 'hostgroup_name', 'groups']
+        fields = ['name', 'hosts', 'groups']
 
 
 
