@@ -127,11 +127,12 @@ class IsGrantedNetGroupRegexPermission(BasePermission):
             return True
         return False
 
-    def has_perm(self, groups, hostname, ips):
-        return bool(NetGroupRegexPermission.find_perm(groups, hostname, ips))
+    def has_perm(self, user, hostname, ips):
+        return bool(NetGroupRegexPermission.find_perm(user.group_list,
+                                                      hostname, ips))
 
-    def has_obj_perm(self, groups, obj):
-        return self.has_perm(groups, self._get_hostname_and_ips(obj))
+    def has_obj_perm(self, user, obj):
+        return self.has_perm(user, self._get_hostname_and_ips(obj))
 
     def has_create_permission(self, request, view, validated_serializer):
         if is_super_or_admin(request.user):
@@ -154,7 +155,7 @@ class IsGrantedNetGroupRegexPermission(BasePermission):
             raise exceptions.PermissionDenied(f"Unhandled view: {view}")
 
         if ips and hostname:
-            return self.has_perm(request.user.group_list, hostname, ips)
+            return self.has_perm(request.user, hostname, ips)
         return False
 
     def has_destroy_permission(self, request, view, validated_serializer):
@@ -168,12 +169,11 @@ class IsGrantedNetGroupRegexPermission(BasePermission):
         else:
             raise exceptions.PermissionDenied(f"Unhandled view: {view}")
 
-        return self.has_obj_perm(request.user.group_list, obj)
+        return self.has_obj_perm(request.user, obj)
 
     def has_update_permission(self, request, view, validated_serializer):
         if is_super_or_admin(request.user):
             return True
-        group_list = request.user.group_list
         data = validated_serializer.validated_data
         obj = view.get_object()
         if isinstance(view, mreg.api.v1.views.HostDetail):
@@ -181,11 +181,11 @@ class IsGrantedNetGroupRegexPermission(BasePermission):
             # If renaming a host, make sure the user has permission to both the
             # new and and old hostname.
             if 'name' in data:
-                if not self.has_perm(group_list, data['name'], ips):
+                if not self.has_perm(request.user, data['name'], ips):
                     return False
-            return self.has_perm(group_list, hostname, ips)
+            return self.has_perm(request.user, hostname, ips)
         elif hasattr(obj, 'host'):
-            return self.has_obj_perm(group_list, obj.host)
+            return self.has_obj_perm(request.user, obj.host)
         else:
             raise exceptions.PermissionDenied(f"Unhandled view: {view}")
 
