@@ -173,7 +173,7 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_THROTTLE_RATES': {
         'anon': '20/hour',
-        'user': '100/day'
+        'user': '1000/hour
     }
 }
 
@@ -196,13 +196,6 @@ DJANGO_LOGGING = {
 
 SWAGGER_SETTINGS = {
     'USE_SESSION_AUTH': False,
-}
-
-CACHES = {
-   'default': {
-        'BACKEND': 'django.core.cache.backends.memcached.MemcachedCache',
-        'LOCATION': '127.0.0.1:11211',
-   }
 }
 
 # Import local settings that may override those in this file.
