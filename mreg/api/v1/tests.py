@@ -521,7 +521,7 @@ class APIPtrOverrideTestcase(MregAPITestCase):
 
     def test_ptr_override_reject_invalid_400(self):
         ptr_override_data = {'host': self.host.id,
-                             'ipaddress': '10.0.0.4.44'}
+                             'ipaddress': '10.0.0.400'}
         ret = self.client.post("/ptroverrides/", ptr_override_data)
         self.assertEqual(ret.status_code, 400)
 
