@@ -1669,6 +1669,11 @@ class APIZonefileTestCase(MregAPITestCase):
         response = self.client.get("/zonefiles/ops")
         self.assertEqual(response.status_code, 404)
 
+    def test_get_not_authenticated(self):
+        client = APIClient()
+        response = client.get("/zonefiles/ops")
+        self.assertEqual(response.status_code, 401)
+
     def test_get_rev_v4(self):
         zone = ReverseZone(
             name="10.10.in-addr.arpa",
