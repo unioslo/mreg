@@ -259,7 +259,7 @@ class APIAutoupdateHostZoneTestCase(MregAPITestCase):
         res =  self.client.get("/hosts/{}".format(self.long_host2['name']))
         self.assertEqual(res.json()['zone'], self.zone_long.id)
 
-    def test_add_to_non_existant(self):
+    def test_add_to_nonexistent(self):
         data = {"name": "host1.example.net",
                 "ipaddress": "10.10.0.10",
                 "contact": "mail@example.org"}
@@ -1212,7 +1212,7 @@ class APICnamesTestCase(MregAPITestCase):
                                                  'name': self.host_two['name']})
         self.assertEqual(response.status_code, 400)
 
-    def test_cname_post_nonexistant_host_400_bad_request(self):
+    def test_cname_post_nonexistent_host_400_bad_request(self):
         """Adding a cname with a unknown host will return 400 bad request."""
         response = self.client.post('/cnames/', {'host': 1,
                                                  'name': 'alias.example.org'})
@@ -1665,7 +1665,7 @@ class APIZonefileTestCase(MregAPITestCase):
             email="hostmaster@example.org")
         self._save_and_get_zone(zone)
 
-    def test_get_non_existant(self):
+    def test_get_nonexistent(self):
         response = self.client.get("/zonefiles/ops")
         self.assertEqual(response.status_code, 404)
 
