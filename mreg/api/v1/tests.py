@@ -967,22 +967,22 @@ class APIIPaddressesTestCase(MregAPITestCase):
         clean_and_save(self.host_two)
 
         self.ipaddress_one = Ipaddress(host=self.host_one,
-                                       ipaddress='129.240.111.111')
+                                       ipaddress='192.168.111.111')
 
         self.ipaddress_two = Ipaddress(host=self.host_two,
-                                       ipaddress='129.240.111.112')
+                                       ipaddress='192.168.111.112')
 
         clean_and_save(self.ipaddress_one)
         clean_and_save(self.ipaddress_two)
 
         self.post_data_full = {'host': self.host_one.id,
-                               'ipaddress': '129.240.203.197'}
+                               'ipaddress': '192.168.203.197'}
         self.post_data_full_conflict = {'host': self.host_one.id,
                                         'ipaddress': self.ipaddress_one.ipaddress}
         self.post_data_full_duplicate_ip = {'host': self.host_two.id,
                                             'ipaddress': self.ipaddress_one.ipaddress}
-        self.patch_data_ip = {'ipaddress': '129.240.203.198'}
-        self.patch_bad_ip = {'ipaddress': '129.240.300.1'}
+        self.patch_data_ip = {'ipaddress': '192.168.203.198'}
+        self.patch_bad_ip = {'ipaddress': '192.168.300.1'}
 
     def test_ipaddress_get_200_ok(self):
         """"Getting an existing entry should return 200"""
