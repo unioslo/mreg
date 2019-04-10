@@ -570,7 +570,7 @@ class NetGroupRegexPermission(models.Model):
 
     class Meta:
         db_table = 'perm_net_group_regex'
-        unique_together = ('group', 'range',)
+        unique_together = ('group', 'range', 'regex', )
 
     def __str__(self):
         return f"group {self.group}, range {self.range}, regex {self.regex}"
