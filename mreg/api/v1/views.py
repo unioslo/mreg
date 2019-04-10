@@ -23,7 +23,7 @@ from url_filter.filtersets import ModelFilterSet
 
 from mreg.api.v1.serializers import (CnameSerializer, HinfoPresetSerializer,
         HostNameSerializer, HostSerializer, HostGroupSerializer,
-        HostGroupMemberSerializer,HostGroupDetailSerializer,HostGroupGroupsSerializer, HostSaveSerializer, IpaddressSerializer,
+        HostGroupMemberSerializer,HostGroupDetailSerializer, HostSaveSerializer, IpaddressSerializer,
         MxSerializer, NameServerSerializer, NaptrSerializer,
         PtrOverrideSerializer, SrvSerializer,NetworkSerializer,
         TxtSerializer, ForwardZoneSerializer, ForwardZoneDelegationSerializer,
@@ -1327,13 +1327,13 @@ class HostGroupDetail(MregRetrieveUpdateDestroyAPIView):
             serializer.save()
             location = '/hostgroups/%s' % hostgroup.name
             return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
-
+"""
 class HostGroupGroups(MregRetrieveUpdateDestroyAPIView):
     serializer_class = HostGroupGroupsSerializer
-    def get_queryset(self):
-        """
-        This view should return a list of a hostgroup's groups.
-        """
-        group = self.kwargs['name']
-        return HostGroup.objects.filter(name=group).groups.all()
 
+        #This view should return a list of a hostgroup's groups.
+
+        #group = self.kwargs['name']
+        group = self.kwargs
+        return HostGroupMember.objects.filter(group=group)
+"""

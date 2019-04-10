@@ -296,7 +296,8 @@ class HostGroupSerializer(ValidationMixin, serializers.ModelSerializer):
 
 
 class HostGroupDetailSerializer(ValidationMixin, serializers.ModelSerializer):
-    groups = HostGroupSerializer(many=True,read_only=True)
+    #groups = HostGroupSerializer(many=True,read_only=True)
+    groups = HostGroupSerializer(many=True)
     hosts = HostGroupMemberSerializer(many=True, source="hostmembers",read_only=True)
 
     class Meta:
@@ -304,10 +305,11 @@ class HostGroupDetailSerializer(ValidationMixin, serializers.ModelSerializer):
         fields = ['name', 'hosts', 'groups']
 
 
-
+"""
 class HostGroupGroupsSerializer(ValidationMixin, serializers.ModelSerializer):
     groups = HostGroupMemberSerializer(many=True)
 
     class Meta:
         model = HostGroupMember
         fields = ['name']
+"""
