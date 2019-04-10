@@ -1647,6 +1647,39 @@ class APINetworksTestCase(MregAPITestCase):
         self.assertEqual(response.status_code, 409)
 
 
+class APIZonefileTestCase(MregAPITestCase):
+
+    def _save_and_get_zone(self, zone):
+        clean_and_save(zone)
+        response = self.client.get(f"/zonefiles/{zone.name}")
+        self.assertEqual(response.status_code, 200)
+
+    def test_get_forward(self):
+        zone = ForwardZone(
+            name="example.org",
+            primary_ns="ns1.example.org",
+            email="hostmaster@example.org")
+        self._save_and_get_zone(zone)
+
+    def test_get_non_existant(self):
+        response = self.client.get("/zonefiles/ops")
+        self.assertEqual(response.status_code, 404)
+
+    def test_get_rev_v4(self):
+        zone = ReverseZone(
+            name="10.10.in-addr.arpa",
+            primary_ns="ns1.example.org",
+            email="hostmaster@example.org")
+        self._save_and_get_zone(zone)
+
+    def test_get_rev_v6(self):
+        zone = ReverseZone(
+            name="0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa",
+            primary_ns="ns1.example.org",
+            email="hostmaster@example.org")
+        self._save_and_get_zone(zone)
+
+
 class APIModelChangeLogsTestCase(MregAPITestCase):
     """This class defines the test suite for api/history """
 
