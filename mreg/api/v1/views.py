@@ -122,6 +122,12 @@ class ReverseZoneDelegationFilterSet(ModelFilterSet):
         model = ReverseZoneDelegation
 
 
+class MregMixin:
+
+    filter_backends = (filters.SearchFilter, filters.OrderingFilter,)
+    ordering_fields = '__all__'
+
+
 class MregRetrieveUpdateDestroyAPIView(ETAGMixin,
         generics.RetrieveUpdateDestroyAPIView):
     """
@@ -147,7 +153,6 @@ class MregRetrieveUpdateDestroyAPIView(ETAGMixin,
         resource = request.path.split("/")[1]
         location = '/%s/%s' % (resource, getattr(instance, self.lookup_field))
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
-
 
 class HostPermissionsUpdateDestroy:
 
@@ -179,7 +184,7 @@ class HostPermissionsUpdateDestroy:
                 self.permission_denied(request)
 
 
-class HostPermissionsListCreateAPIView(generics.ListCreateAPIView):
+class HostPermissionsListCreateAPIView(MregMixin, generics.ListCreateAPIView):
 
     # permission_classes = settings.MREG_PERMISSION_CLASSES
     permission_classes = (IsGrantedNetGroupRegexPermission, )
@@ -273,8 +278,6 @@ class HostList(HostPermissionsListCreateAPIView):
     """
     queryset = Host.objects.get_queryset().order_by('id')
     serializer_class = HostSerializer
-    filter_backends = (filters.OrderingFilter,)
-    ordering_fields = '__all__'
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -354,8 +357,6 @@ class IpaddressList(HostPermissionsListCreateAPIView):
     """
     queryset = Ipaddress.objects.get_queryset().order_by('id')
     serializer_class = IpaddressSerializer
-    filter_backends = (filters.OrderingFilter,)
-    ordering_fields = '__all__'
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -1105,7 +1106,7 @@ class ZoneNameServerDetail(MregRetrieveUpdateDestroyAPIView):
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
-class NetGroupRegexPermissionList(generics.ListCreateAPIView):
+class NetGroupRegexPermissionList(MregMixin, generics.ListCreateAPIView):
     """
     """
 
