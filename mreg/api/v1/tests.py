@@ -24,12 +24,13 @@ class MregAPITestCase(APITestCase):
     def setUp(self):
         self.client = self.get_token_client()
 
-    def get_token_client(self, add_groups=True):
+    def get_token_client(self, superuser=True, adminuser=True):
         self.user, created = get_user_model().objects.get_or_create(username='nobody')
         token, created = Token.objects.get_or_create(user=self.user)
         self.add_user_to_groups('REQUIRED_USER_GROUPS')
-        if add_groups:
+        if superuser:
             self.add_user_to_groups('SUPERUSER_GROUP')
+        if adminuser:
             self.add_user_to_groups('ADMINUSER_GROUP')
         client = APIClient()
         client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
@@ -1648,6 +1649,9 @@ class APINetworksTestCase(MregAPITestCase):
 
 
 class APIZonefileTestCase(MregAPITestCase):
+
+    def setUp(self):
+        self.client = self.get_token_client(superuser=False, adminuser=False)
 
     def _save_and_get_zone(self, zone):
         clean_and_save(zone)
