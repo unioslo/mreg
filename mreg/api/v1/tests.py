@@ -24,12 +24,13 @@ class MregAPITestCase(APITestCase):
     def setUp(self):
         self.client = self.get_token_client()
 
-    def get_token_client(self, add_groups=True):
+    def get_token_client(self, superuser=True, adminuser=True):
         self.user, created = get_user_model().objects.get_or_create(username='nobody')
         token, created = Token.objects.get_or_create(user=self.user)
         self.add_user_to_groups('REQUIRED_USER_GROUPS')
-        if add_groups:
+        if superuser:
             self.add_user_to_groups('SUPERUSER_GROUP')
+        if adminuser:
             self.add_user_to_groups('ADMINUSER_GROUP')
         client = APIClient()
         client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
@@ -258,7 +259,7 @@ class APIAutoupdateHostZoneTestCase(MregAPITestCase):
         res =  self.client.get("/hosts/{}".format(self.long_host2['name']))
         self.assertEqual(res.json()['zone'], self.zone_long.id)
 
-    def test_add_to_non_existant(self):
+    def test_add_to_nonexistent(self):
         data = {"name": "host1.example.net",
                 "ipaddress": "10.10.0.10",
                 "contact": "mail@example.org"}
@@ -1211,7 +1212,7 @@ class APICnamesTestCase(MregAPITestCase):
                                                  'name': self.host_two['name']})
         self.assertEqual(response.status_code, 400)
 
-    def test_cname_post_nonexistant_host_400_bad_request(self):
+    def test_cname_post_nonexistent_host_400_bad_request(self):
         """Adding a cname with a unknown host will return 400 bad request."""
         response = self.client.post('/cnames/', {'host': 1,
                                                  'name': 'alias.example.org'})
@@ -1645,6 +1646,47 @@ class APINetworksTestCase(MregAPITestCase):
 
         response = self.client.delete('/networks/%s' % self.post_ipv6_data['range'])
         self.assertEqual(response.status_code, 409)
+
+
+class APIZonefileTestCase(MregAPITestCase):
+
+    def setUp(self):
+        self.client = self.get_token_client(superuser=False, adminuser=False)
+
+    def _save_and_get_zone(self, zone):
+        clean_and_save(zone)
+        response = self.client.get(f"/zonefiles/{zone.name}")
+        self.assertEqual(response.status_code, 200)
+
+    def test_get_forward(self):
+        zone = ForwardZone(
+            name="example.org",
+            primary_ns="ns1.example.org",
+            email="hostmaster@example.org")
+        self._save_and_get_zone(zone)
+
+    def test_get_nonexistent(self):
+        response = self.client.get("/zonefiles/ops")
+        self.assertEqual(response.status_code, 404)
+
+    def test_get_not_authenticated(self):
+        client = APIClient()
+        response = client.get("/zonefiles/ops")
+        self.assertEqual(response.status_code, 401)
+
+    def test_get_rev_v4(self):
+        zone = ReverseZone(
+            name="10.10.in-addr.arpa",
+            primary_ns="ns1.example.org",
+            email="hostmaster@example.org")
+        self._save_and_get_zone(zone)
+
+    def test_get_rev_v6(self):
+        zone = ReverseZone(
+            name="0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa",
+            primary_ns="ns1.example.org",
+            email="hostmaster@example.org")
+        self._save_and_get_zone(zone)
 
 
 class APIModelChangeLogsTestCase(MregAPITestCase):

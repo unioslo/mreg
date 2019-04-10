@@ -1232,7 +1232,7 @@ class DhcpHostsV4ByV6(APIView):
         return _dhcpv6_hosts_by_ipv4(iprange)
 
 
-class PlainTextRenderer(renderers.BaseRenderer):
+class PlainTextRenderer(renderers.TemplateHTMLRenderer):
     """
     Custom renderer used for outputting plaintext.
     """
@@ -1240,13 +1240,16 @@ class PlainTextRenderer(renderers.BaseRenderer):
     format = 'txt'
 
     def render(self, data, media_type=None, renderer_context=None):
+        # Utilize TemplateHTMLRenderer's exception handling
+        if type(data) is dict:
+            return super().render(data, accepted_media_type=None,
+                                  renderer_context=renderer_context)
         return data.encode(self.charset)
 
 
 class ZoneFileDetail(generics.GenericAPIView):
     """
     Handles a DNS zone file in plaintext.
-    All models should have a zf_string method that outputs its relevant data.
 
     get:
     Generate zonefile for a given zone.
