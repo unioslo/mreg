@@ -329,15 +329,15 @@ class HostGroupList(generics.ListCreateAPIView):
 
 
     def post(self, request, *args, **kwargs):
-        if "hostgroup_name" in request.data:
-            if self.queryset.filter(hostgroup_name=request.data['hostgroup_name']).exists():
+        if "name" in request.data:
+            if self.queryset.filter(name=request.data['name']).exists():
                 content = {'ERROR': 'hostgroup name already in use'}
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        location = '/hostgroups/%s' % serializer.validated_data['hostgroup_name']
+        location = '/hostgroups/%s' % serializer.validated_data['name']
         return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
 
 
@@ -356,22 +356,22 @@ class HostGroupDetail(MregRetrieveUpdateDestroyAPIView):
     serializer_class = HostGroupSerializer
 
     def get_object(self, queryset=queryset):
-        return get_object_or_404(HostGroup, hostgroup_name=self.kwargs['pk'])
+        return get_object_or_404(HostGroup, name=self.kwargs['pk'])
 
     def patch(self, request, *args, **kwargs):
         query = self.kwargs['pk']
 
         if "name" in request.data:
-            if self.queryset.filter(hostgroup_name=request.data["hostgroup_name"]).exists():
+            if self.queryset.filter(name=request.data["name"]).exists():
                 content = {'ERROR': 'name already in use'}
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
-        hostgroup = get_object_or_404(Hostgroup, hostgroup_name=query)
+        hostgroup = get_object_or_404(Hostgroup, name=query)
         serializer = hostgroupserializer(hostgroup, data=request.data, partial=True)
 
         if serializer.is_valid(raise_exception=True):
             serializer.save()
-            location = '/hostgroups/%s' % hostgroup.hostgroup_name
+            location = '/hostgroups/%s' % hostgroup.name
             return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
@@ -1283,7 +1283,7 @@ class HostGroupList(generics.ListCreateAPIView):
 
 
     def post(self, request, *args, **kwargs):
-        if "hostgroup_name" in request.data:
+        if "name" in request.data:
             if self.queryset.filter(name=request.data['name']).exists():
                 content = {'ERROR': 'hostgroup name already in use'}
                 return Response(content, status=status.HTTP_409_CONFLICT)

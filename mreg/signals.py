@@ -203,7 +203,7 @@ def prevent_hostgroup_parent_recursion(sender, instance, action, model, reverse,
         for parent in parent_parents:
             if child_id == parent.id:
                 raise PermissionDenied(detail='Recursive memberships are not allowed.' \
-                                              ' This group is a member of %s' % HostGroup.objects.get(id=parent.id).hostgroup_name)
+                                              ' This group is a member of %s' % HostGroup.objects.get(id=parent.id).name)
             elif HostGroup.objects.get(id=parent.id).parent.all():
                 pk_set = {child_id}
                 prevent_hostgroup_parent_recursion(sender, parent, action, model, reverse, pk_set, **kwargs)

@@ -2048,16 +2048,16 @@ class APIHostGroupsTestCase(TestCase):
 
     def setUp(self):
         """Define the test client and other test variables."""
-        self.hostgroup_one = HostGroup(hostgroup_name='testgroup1')
+        self.hostgroup_one = HostGroup(name='testgroup1')
         clean_and_save(self.hostgroup_one)
-        self.hostgroup_two = HostGroup(hostgroup_name='testgroup2')
+        self.hostgroup_two = HostGroup(name='testgroup2')
         clean_and_save(self.hostgroup_two)
-        self.post_data = {'hostgroup_name': 'testgroup3'}
+        self.post_data = {'name': 'testgroup3'}
         self.client = get_token_client()
 
     def test_hostgroups_get_200_ok(self):
         """"Getting an existing entry should return 200"""
-        response = self.client.get('/hostgroups/%s' % self.hostgroup_one.hostgroup_name)
+        response = self.client.get('/hostgroups/%s' % self.hostgroup_one.name)
         self.assertEqual(response.status_code, 200)
 
     def test_hostgroups_list_200_ok(self):
@@ -2077,4 +2077,4 @@ class APIHostGroupsTestCase(TestCase):
         """"Posting a new host should return 201 and location"""
         response = self.client.post('/hostgroups/', self.post_data)
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(response['Location'], '/hostgroups/%s' % self.post_data['hostgroup_name'])
+        self.assertEqual(response['Location'], '/hostgroups/%s' % self.post_data['name'])

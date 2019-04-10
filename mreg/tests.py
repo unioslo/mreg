@@ -128,10 +128,10 @@ class ModelHostGroupTestCase(TestCase):
         # Needs sample host to test
         self.host_one = Host(name='host1.example.org',
                              contact='mail@example.org')
-        self.group_one = HostGroup(hostgroup_name='testgruppe1')
-        self.group_two = HostGroup(hostgroup_name='testgruppe2')
-        self.group_three = HostGroup(hostgroup_name='testgruppe3')
-        self.group_four = HostGroup(hostgroup_name='testgruppe4')
+        self.group_one = HostGroup(name='testgruppe1')
+        self.group_two = HostGroup(name='testgruppe2')
+        self.group_three = HostGroup(name='testgruppe3')
+        self.group_four = HostGroup(name='testgruppe4')
 
     def test_model_can_create_hostgroup(self):
         old_count = HostGroup.objects.count()
@@ -149,21 +149,21 @@ class ModelHostGroupTestCase(TestCase):
     def test_model_can_add_host_to_hostgroup(self):
         clean_and_save(self.group_one)
         clean_and_save(self.host_one)
-        old_count = self.group_one.hostgroupmember_set.count()
-        self.group_one.hostgroupmember_set.create(host=self.host_one)
+        old_count = self.group_one.hostmembers.count()
+        self.group_one.hostmembers.create(host=self.host_one)
         self.group_one.save()
-        new_count = self.group_one.hostgroupmember_set.count()
+        new_count = self.group_one.hostmembers.count()
         self.assertNotEqual(old_count, new_count)
 
     def test_model_can_remove_host_from_hostgroup(self):
         clean_and_save(self.group_one)
         clean_and_save(self.host_one)
-        self.group_one.hostgroupmember_set.create(host=self.host_one)
+        self.group_one.hostmembers.create(host=self.host_one)
         clean_and_save(self.group_one)
-        old_count = self.group_one.hostgroupmember_set.count()
+        old_count = self.group_one.hostmembers.count()
         host_one_membership_object = HostGroupMember.objects.get(host=self.host_one, group=self.group_one)
         host_one_membership_object.delete()
-        new_count = self.group_one.hostgroupmember_set.count()
+        new_count = self.group_one.hostmembers.count()
         self.assertNotEqual(old_count, new_count)
 
     def test_model_can_add_group_to_group(self):
