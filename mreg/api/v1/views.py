@@ -10,7 +10,7 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404
 from rest_framework import (filters, generics, renderers, status)
 from rest_framework.decorators import api_view
-from rest_framework.exceptions import ParseError, MethodNotAllowed
+from rest_framework.exceptions import ParseError, MethodNotAllowed, ErrorDetail
 from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -1241,7 +1241,7 @@ class PlainTextRenderer(renderers.TemplateHTMLRenderer):
 
     def render(self, data, media_type=None, renderer_context=None):
         # Utilize TemplateHTMLRenderer's exception handling
-        if renderer_context['response'].exception:
+        if 'detail' in data and isinstance(data['detail'], ErrorDetail):
             return super().render(data, accepted_media_type=None,
                                   renderer_context=renderer_context)
         return data.encode(self.charset)
