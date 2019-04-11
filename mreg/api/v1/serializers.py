@@ -94,7 +94,7 @@ class IpaddressSerializer(ValidationMixin, serializers.ModelSerializer):
                 if self.instance.macaddress == mac and \
                    self.instance.ipaddress == macip:
                     return data
-            network = Network.get_network_by_ip(macip)
+            network = Network.objects.filter(network__net_contains=macip).first()
             if not network:
                 # XXX: what to do? Currently just make sure it is a unique mac
                 _raise_if_mac_found(Ipaddress.objects, mac)

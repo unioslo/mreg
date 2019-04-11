@@ -596,7 +596,7 @@ def _overlap_check(range, exclude=None):
     except ValueError as error:
         raise ParseError(detail=str(error))
 
-    overlap = Network.overlap_check(network)
+    overlap = Network.objects.filter(network__net_overlaps=network)
     if exclude:
         overlap = overlap.exclude(id=exclude.id)
     if overlap:
@@ -685,12 +685,9 @@ def network_by_ip(request, *args, **kwargs):
         ip = ipaddress.ip_address(kwargs['ip'])
     except ValueError as error:
         raise ParseError(detail=str(error))
-    network = Network.get_network_by_ip(str(ip))
-    if network:
-        serializer = NetworkSerializer(network)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-    else:
-        raise Http404
+    network = get_object_or_404(Network, network__net_contains=ip)
+    serializer = NetworkSerializer(network)
+    return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 @api_view()

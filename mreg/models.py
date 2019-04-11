@@ -491,20 +491,6 @@ class Network(models.Model):
                 return str(ip)
         return None
 
-    @staticmethod
-    def overlap_check(network):
-        """
-        Check if a network overlaps existing network(s).
-        Return a list of overlapped networks.
-        """
-        where = [ "network && inet %s" ]
-        return Network.objects.extra(where=where, params=[str(network)])
-
-    @staticmethod
-    def get_network_by_ip(ip):
-        """Search and return a network which contains an IP address."""
-        where = [ "inet %s <<= network" ]
-        return Network.objects.extra(where=where, params=[str(ip)]).first()
 
 class Naptr(models.Model):
     host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='naptrs')
