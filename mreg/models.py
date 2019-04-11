@@ -182,30 +182,27 @@ class ForwardZone(BaseZone):
 
 class ReverseZone(BaseZone):
     name = models.CharField(unique=True, max_length=253, validators=[validate_reverse_zone_name])
-    # range can not be blank, but it will allow full_clean() to pass, even if
-    # the range is not set. Will anyway be overridden by update() and save().
-    range = models.TextField(unique=True, blank=True, validators=[validate_network])
+    # network can not be blank, but it will allow full_clean() to pass, even if
+    # the network is not set. Will anyway be overridden by update() and save().
+    network = CidrAddressField(unique=True, blank=True)
+
+    objects = NetManager()
 
     class Meta:
         db_table = 'reverse_zone'
 
     def update(self, *args, **kwargs):
-        self.range = get_network_from_zonename(self.name)
+        self.network = get_network_from_zonename(self.name)
         super().update(*args, **kwargs)
 
     def save(self, *args, **kwargs):
-        self.range = get_network_from_zonename(self.name)
+        self.network = get_network_from_zonename(self.name)
         super().save(*args, **kwargs)
-
-    @property
-    def network(self):
-        return ipaddress.ip_network(self.range)
 
     @staticmethod
     def get_zone_by_ip(ip):
         """Search and return a zone which contains an IP address."""
-        where = [ "inet %s <<= range::inet" ]
-        return ReverseZone.objects.extra(where=where, params=[str(ip)]).first()
+        return ReverseZone.objects.filter(network__net_contains=ip).first()
 
     def get_ipaddresses(self):
         network = self.network

@@ -235,7 +235,7 @@ class ForwardZoneSerializer(BaseZoneSerializer):
 
 
 class ReverseZoneSerializer(BaseZoneSerializer):
-    range = serializers.CharField(read_only=True, required=False)
+    network = serializers.CharField(read_only=True, required=False)
 
     class Meta(BaseZoneSerializer.Meta):
         model = ReverseZone
