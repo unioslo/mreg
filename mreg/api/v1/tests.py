@@ -1,7 +1,8 @@
 from datetime import timedelta
 
+from django.contrib.auth import get_user_model
 from django.conf import settings
-from django.contrib.auth.models import Group, User
+from django.contrib.auth.models import Group
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.authtoken.models import Token
@@ -23,12 +24,13 @@ class MregAPITestCase(APITestCase):
     def setUp(self):
         self.client = self.get_token_client()
 
-    def get_token_client(self, add_groups=True):
-        self.user, created = User.objects.get_or_create(username='nobody')
+    def get_token_client(self, superuser=True, adminuser=True):
+        self.user, created = get_user_model().objects.get_or_create(username='nobody')
         token, created = Token.objects.get_or_create(user=self.user)
         self.add_user_to_groups('REQUIRED_USER_GROUPS')
-        if add_groups:
+        if superuser:
             self.add_user_to_groups('SUPERUSER_GROUP')
+        if adminuser:
             self.add_user_to_groups('ADMINUSER_GROUP')
         client = APIClient()
         client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
@@ -65,7 +67,7 @@ class APITokenAutheticationTestCase(MregAPITestCase):
     def test_force_expire(self):
         ret = self.client.get("/zones/")
         self.assertEqual(ret.status_code, 200)
-        user = User.objects.get(username='nobody')
+        user = get_user_model().objects.get(username='nobody')
         token = Token.objects.get(user=user)
         EXPIRE_HOURS = getattr(settings, 'REST_FRAMEWORK_TOKEN_EXPIRE_HOURS', 8)
         token.created = timezone.now() - timedelta(hours=EXPIRE_HOURS)
@@ -257,7 +259,7 @@ class APIAutoupdateHostZoneTestCase(MregAPITestCase):
         res =  self.client.get("/hosts/{}".format(self.long_host2['name']))
         self.assertEqual(res.json()['zone'], self.zone_long.id)
 
-    def test_add_to_non_existant(self):
+    def test_add_to_nonexistent(self):
         data = {"name": "host1.example.net",
                 "ipaddress": "10.10.0.10",
                 "contact": "mail@example.org"}
@@ -1051,22 +1053,22 @@ class APIIPaddressesTestCase(MregAPITestCase):
         clean_and_save(self.host_two)
 
         self.ipaddress_one = Ipaddress(host=self.host_one,
-                                       ipaddress='129.240.111.111')
+                                       ipaddress='192.168.111.111')
 
         self.ipaddress_two = Ipaddress(host=self.host_two,
-                                       ipaddress='129.240.111.112')
+                                       ipaddress='192.168.111.112')
 
         clean_and_save(self.ipaddress_one)
         clean_and_save(self.ipaddress_two)
 
         self.post_data_full = {'host': self.host_one.id,
-                               'ipaddress': '129.240.203.197'}
+                               'ipaddress': '192.168.203.197'}
         self.post_data_full_conflict = {'host': self.host_one.id,
                                         'ipaddress': self.ipaddress_one.ipaddress}
         self.post_data_full_duplicate_ip = {'host': self.host_two.id,
                                             'ipaddress': self.ipaddress_one.ipaddress}
-        self.patch_data_ip = {'ipaddress': '129.240.203.198'}
-        self.patch_bad_ip = {'ipaddress': '129.240.300.1'}
+        self.patch_data_ip = {'ipaddress': '192.168.203.198'}
+        self.patch_bad_ip = {'ipaddress': '192.168.300.1'}
 
     def test_ipaddress_get_200_ok(self):
         """"Getting an existing entry should return 200"""
@@ -1295,7 +1297,7 @@ class APICnamesTestCase(MregAPITestCase):
                                                  'name': self.host_two['name']})
         self.assertEqual(response.status_code, 400)
 
-    def test_cname_post_nonexistant_host_400_bad_request(self):
+    def test_cname_post_nonexistent_host_400_bad_request(self):
         """Adding a cname with a unknown host will return 400 bad request."""
         response = self.client.post('/cnames/', {'host': 1,
                                                  'name': 'alias.example.org'})
@@ -1729,6 +1731,47 @@ class APINetworksTestCase(MregAPITestCase):
 
         response = self.client.delete('/networks/%s' % self.post_ipv6_data['range'])
         self.assertEqual(response.status_code, 409)
+
+
+class APIZonefileTestCase(MregAPITestCase):
+
+    def setUp(self):
+        self.client = self.get_token_client(superuser=False, adminuser=False)
+
+    def _save_and_get_zone(self, zone):
+        clean_and_save(zone)
+        response = self.client.get(f"/zonefiles/{zone.name}")
+        self.assertEqual(response.status_code, 200)
+
+    def test_get_forward(self):
+        zone = ForwardZone(
+            name="example.org",
+            primary_ns="ns1.example.org",
+            email="hostmaster@example.org")
+        self._save_and_get_zone(zone)
+
+    def test_get_nonexistent(self):
+        response = self.client.get("/zonefiles/ops")
+        self.assertEqual(response.status_code, 404)
+
+    def test_get_not_authenticated(self):
+        client = APIClient()
+        response = client.get("/zonefiles/ops")
+        self.assertEqual(response.status_code, 401)
+
+    def test_get_rev_v4(self):
+        zone = ReverseZone(
+            name="10.10.in-addr.arpa",
+            primary_ns="ns1.example.org",
+            email="hostmaster@example.org")
+        self._save_and_get_zone(zone)
+
+    def test_get_rev_v6(self):
+        zone = ReverseZone(
+            name="0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa",
+            primary_ns="ns1.example.org",
+            email="hostmaster@example.org")
+        self._save_and_get_zone(zone)
 
 
 class APIModelChangeLogsTestCase(MregAPITestCase):

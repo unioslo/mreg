@@ -122,6 +122,12 @@ class ReverseZoneDelegationFilterSet(ModelFilterSet):
         model = ReverseZoneDelegation
 
 
+class MregMixin:
+
+    filter_backends = (filters.SearchFilter, filters.OrderingFilter,)
+    ordering_fields = '__all__'
+
+
 class MregRetrieveUpdateDestroyAPIView(ETAGMixin,
         generics.RetrieveUpdateDestroyAPIView):
     """
@@ -147,7 +153,6 @@ class MregRetrieveUpdateDestroyAPIView(ETAGMixin,
         resource = request.path.split("/")[1]
         location = '/%s/%s' % (resource, getattr(instance, self.lookup_field))
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
-
 
 class HostPermissionsUpdateDestroy:
 
@@ -179,7 +184,7 @@ class HostPermissionsUpdateDestroy:
                 self.permission_denied(request)
 
 
-class HostPermissionsListCreateAPIView(generics.ListCreateAPIView):
+class HostPermissionsListCreateAPIView(MregMixin, generics.ListCreateAPIView):
 
     # permission_classes = settings.MREG_PERMISSION_CLASSES
     permission_classes = (IsGrantedNetGroupRegexPermission, )
@@ -273,8 +278,6 @@ class HostList(HostPermissionsListCreateAPIView):
     """
     queryset = Host.objects.get_queryset().order_by('id')
     serializer_class = HostSerializer
-    filter_backends = (filters.OrderingFilter,)
-    ordering_fields = '__all__'
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -354,8 +357,6 @@ class IpaddressList(HostPermissionsListCreateAPIView):
     """
     queryset = Ipaddress.objects.get_queryset().order_by('id')
     serializer_class = IpaddressSerializer
-    filter_backends = (filters.OrderingFilter,)
-    ordering_fields = '__all__'
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -1105,7 +1106,7 @@ class ZoneNameServerDetail(MregRetrieveUpdateDestroyAPIView):
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
-class NetGroupRegexPermissionList(generics.ListCreateAPIView):
+class NetGroupRegexPermissionList(MregMixin, generics.ListCreateAPIView):
     """
     """
 
@@ -1232,7 +1233,7 @@ class DhcpHostsV4ByV6(APIView):
         return _dhcpv6_hosts_by_ipv4(iprange)
 
 
-class PlainTextRenderer(renderers.BaseRenderer):
+class PlainTextRenderer(renderers.TemplateHTMLRenderer):
     """
     Custom renderer used for outputting plaintext.
     """
@@ -1240,13 +1241,16 @@ class PlainTextRenderer(renderers.BaseRenderer):
     format = 'txt'
 
     def render(self, data, media_type=None, renderer_context=None):
+        # Utilize TemplateHTMLRenderer's exception handling
+        if type(data) is dict:
+            return super().render(data, accepted_media_type=None,
+                                  renderer_context=renderer_context)
         return data.encode(self.charset)
 
 
 class ZoneFileDetail(generics.GenericAPIView):
     """
     Handles a DNS zone file in plaintext.
-    All models should have a zf_string method that outputs its relevant data.
 
     get:
     Generate zonefile for a given zone.

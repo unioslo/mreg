@@ -15,6 +15,8 @@ from mreg.validators import (validate_hostname, validate_reverse_zone_name,
 from mreg.utils import (create_serialno, encode_mail, clear_none, qualify,
         idna_encode, get_network_from_zonename)
 
+from .models_auth import User
+
 
 class NameServer(models.Model):
     name = models.CharField(unique=True, max_length=253, validators=[validate_hostname])
@@ -568,7 +570,7 @@ class NetGroupRegexPermission(models.Model):
 
     class Meta:
         db_table = 'perm_net_group_regex'
-        unique_together = ('group', 'range',)
+        unique_together = ('group', 'range', 'regex', )
 
     def __str__(self):
         return f"group {self.group}, range {self.range}, regex {self.regex}"

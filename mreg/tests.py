@@ -356,7 +356,7 @@ class ModelIpaddressTestCase(TestCase):
                              loc='23 58 23 N 10 43 50 E 80m',
                              comment='some comment')
 
-        self.network_sample = Network(range='129.240.202.0/20',
+        self.network_sample = Network(range='192.168.202.0/20',
                                     description='some description',
                                     vlan=123,
                                     dns_delegated=False)
@@ -365,7 +365,7 @@ class ModelIpaddressTestCase(TestCase):
         # clean_and_save(self.network_sample) # Needed when network ForeignKey is implemented.
 
         self.ipaddress_sample = Ipaddress(host=Host.objects.get(name='some-host.example.org'),
-                                          ipaddress='129.240.202.123',
+                                          ipaddress='192.168.202.123',
                                           macaddress='a4:34:d9:0e:88:b9')
 
     def test_model_can_create_ipaddress(self):
@@ -378,7 +378,7 @@ class ModelIpaddressTestCase(TestCase):
     def test_model_can_change_ipaddress(self):
         """Test that the model is able to change an IP Address."""
         clean_and_save(self.ipaddress_sample)
-        new_ipaddress = '129.240.202.124'
+        new_ipaddress = '192.168.202.124'
         self.ipaddress_sample.ipaddress = new_ipaddress
         clean_and_save(self.ipaddress_sample)
         updated_ipaddress = Ipaddress.objects.filter(host__name='some-host.example.org')[0].ipaddress
