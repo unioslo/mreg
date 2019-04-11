@@ -408,7 +408,7 @@ class Cname(ForwardZoneMember):
 
 
 class Network(models.Model):
-    range = models.TextField(unique=True, validators=[validate_network])
+    network = CidrAddressField(unique=True)
     description = models.TextField(blank=True)
     vlan = models.IntegerField(blank=True, null=True)
     dns_delegated = models.BooleanField(default=False)
@@ -419,14 +419,10 @@ class Network(models.Model):
 
     class Meta:
         db_table = 'network'
-        ordering = ('range',)
+        ordering = ('network',)
 
     def __str__(self):
-        return str(self.range)
-
-    @property
-    def network(self):
-        return ipaddress.ip_network(self.range)
+        return str(self.network)
 
     def get_reserved_ipaddresses(self):
         """ Returns a set with the reserved ip addresses for the network."""
@@ -499,13 +495,13 @@ class Network(models.Model):
         Check if a network overlaps existing network(s).
         Return a list of overlapped networks.
         """
-        where = [ "range::inet && inet %s" ]
+        where = [ "network && inet %s" ]
         return Network.objects.extra(where=where, params=[str(network)])
 
     @staticmethod
     def get_network_by_ip(ip):
         """Search and return a network which contains an IP address."""
-        where = [ "inet %s <<= range::inet" ]
+        where = [ "inet %s <<= network" ]
         return Network.objects.extra(where=where, params=[str(ip)]).first()
 
 class Naptr(models.Model):
