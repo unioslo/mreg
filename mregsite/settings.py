@@ -171,7 +171,7 @@ REST_FRAMEWORK = {
 
 # This setting must be defined for mreg.api.permissions.IsInRequiredGroup
 # to work.
-REQUIRED_USER_GROUPS = "default-required-group"
+#REQUIRED_USER_GROUPS = "default-required-group"
 
 REST_FRAMEWORK_EXTENSIONS = {
     'DEFAULT_OBJECT_ETAG_FUNC':
@@ -197,5 +197,6 @@ except ImportError:
     pass
 
 if TESTING:
+    REQUIRED_USER_GROUPS = "default-required-group"
     SUPERUSER_GROUP = "default-super-group"
     ADMINUSER_GROUP = "default-admin-group"
