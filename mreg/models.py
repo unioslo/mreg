@@ -417,6 +417,8 @@ class Network(models.Model):
     frozen = models.BooleanField(default=False)
     reserved = models.PositiveIntegerField(default=3)
 
+    objects = NetManager()
+
     class Meta:
         db_table = 'network'
         ordering = ('network',)
