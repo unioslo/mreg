@@ -5,6 +5,7 @@ from datetime import timedelta
 
 from django.db import DatabaseError, models, transaction
 from django.utils import timezone
+from netfields import CidrAddressField, NetManager
 
 from mreg.validators import (validate_hostname, validate_reverse_zone_name,
                              validate_mac_address, validate_loc,
@@ -565,8 +566,10 @@ class Srv(ForwardZoneMember):
 
 class NetGroupRegexPermission(models.Model):
     group = models.CharField(max_length=80)
-    range = models.TextField(blank=True, validators=[validate_network])
+    range = CidrAddressField()
     regex = models.CharField(max_length=250, validators=[validate_regex])
+
+    objects = NetManager()
 
     class Meta:
         db_table = 'perm_net_group_regex'
@@ -593,7 +596,7 @@ class NetGroupRegexPermission(models.Model):
             ).extra(
                 where=["%s ~ regex"], params=[str(hostname)]
             ).extra(
-                where=["range::inet >>= ANY (%s::inet[])"], params=[iplist]
+                where=["range >>= ANY (%s::inet[])"], params=[iplist]
             )
         return qs
 

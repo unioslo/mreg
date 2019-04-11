@@ -216,7 +216,5 @@ def prevent_nameserver_deletion(sender, instance, using, **kwargs):
 def cleanup_network_permissions(sender, instance, **kwargs):
     """Remove any permissions equal to or smaller than the newly deleted
        Network's range."""
-
-    NetGroupRegexPermission.objects.extra(
-            where=["range::inet <<= %s::inet"], params=[str(instance.range)]
-            ).delete()
+    NetGroupRegexPermission.objects.filter(
+            range__net_contained_or_equal=instance.range).delete()
