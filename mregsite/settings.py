@@ -168,8 +168,8 @@ REST_FRAMEWORK = {
         'mreg.api.permissions.IsInRequiredGroup',
     ),
     'DEFAULT_THROTTLE_CLASSES': (
-    'rest_framework.throttling.AnonRateThrottle',
-    'rest_framework.throttling.UserRateThrottle'
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle'
     ),
     'DEFAULT_THROTTLE_RATES': {
         'anon': '100/hour',
