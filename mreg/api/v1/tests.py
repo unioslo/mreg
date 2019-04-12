@@ -649,15 +649,13 @@ class APIPtrOverrideTestcase(MregAPITestCase):
         self.assertGreater(new_count, old_count)
 
     def test_ptr_override_delete_with_host(self):
-        # Deleting a host with assigned PtrOverride should
-        # delete the PtrOverride too
+        # Deleting a host with assigned PtrOverrides should
+        # delete the PtrOverrides too
         ret = self.client.get("/ptroverrides/")
-        old_count = ret.data['count']
+        self.assertEqual(ret.data['count'], 2)
         ret = self.client.delete("/hosts/{}".format(self.host.name))
-        self.assertEqual(ret.status_code, 204)
         ret = self.client.get("/ptroverrides/")
-        new_count = ret.data['count']
-        self.assertLess(new_count, old_count)
+        self.assertEqual(ret.data['count'], 0)
         
 
 class APISshfpTestcase(MregAPITestCase):
