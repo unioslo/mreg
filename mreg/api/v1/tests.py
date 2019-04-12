@@ -450,6 +450,165 @@ class APIMxTestcase(MregAPITestCase):
         self.assertTrue(self.zone.updated)
 
 
+class APIPtrOverrideTestcase(MregAPITestCase):
+    """Test PtrOverride records."""
+
+    def setUp(self):
+        super().setUp()
+        self.host_data = {'name': 'ns1.example.org',
+                          'contact': 'mail@example.org'}
+        self.client.post('/hosts/', self.host_data)
+        self.host = Host.objects.get(name=self.host_data['name'])
+
+        self.ptr_override_data = {'host': self.host.id,
+                                  'ipaddress': '10.0.0.2'}
+
+        self.ptr_override_ipv6_data = {'host': self.host.id,
+                                       'ipaddress': '2001:db8::beef'}
+
+        self.client.post('/ptroverrides/', self.ptr_override_data)
+        self.ptr_override = PtrOverride.objects.get(ipaddress=self.ptr_override_data['ipaddress'])
+        self.client.post('/ptroverrides/', self.ptr_override_ipv6_data)
+        self.ptr_ipv6_override = PtrOverride.objects.get(ipaddress=self.ptr_override_ipv6_data['ipaddress'])
+                                       
+        self.ptr_override_patch_data = {'host': self.host.id,
+                                        'ipaddress': '10.0.0.3'}
+        
+        self.ptr_override_ipv6_patch_data = {'host': self.host.id,
+                                             'ipaddress': '2001:db8::feed'}
+     
+        self.zone = ReverseZone(name="0.10.in-addr.arpa",
+                                primary_ns="ns1.example.org",
+                                email="hostmaster@example.org")
+        clean_and_save(self.zone)
+     
+        self.ipv6_zone = ReverseZone(name="8.b.d.0.1.0.0.2.ip6.arpa",
+                                     primary_ns="ns1.example.org",
+                                     email="hostmaster@example.org")
+        clean_and_save(self.ipv6_zone)
+                   
+    def test_ptr_override_post_201(self):
+        ptr_override_data = {'host': self.host.id,
+                             'ipaddress': '10.0.0.4'}
+        ret = self.client.post("/ptroverrides/", ptr_override_data)
+        self.assertEqual(ret.status_code, 201)
+
+    def test_ptr_override_ipv6_post_201(self):
+        ptr_override_ipv6_data = {'host': self.host.id,
+                                  'ipaddress': '2001:db8::3'}
+        ret = self.client.post("/ptroverrides/", ptr_override_ipv6_data)
+        self.assertEqual(ret.status_code, 201)
+
+    def test_ptr_override_delete_204(self):
+        ptr_override_data = {'host': self.host.id,
+                             'ipaddress': '10.0.0.4'}
+        self.client.post("/ptroverrides/", ptr_override_data)
+        ptroverrides = self.client.get("/ptroverrides/").json()['results']
+        old_count = len(ptroverrides)
+        ret = self.client.delete("/ptroverrides/{}".format(ptroverrides[-1]['id']))
+        self.assertEqual(ret.status_code, 204)
+        ptroverrides = self.client.get("/ptroverrides/").json()['results']
+        new_count = len(ptroverrides)
+        self.assertLess(new_count, old_count)
+
+    def test_ptr_override_ipv6_delete_204(self):
+        ptr_override_ipv6_data = {'host': self.host.id,
+                             'ipaddress': '2001:db8::3'}
+        self.client.post("/ptroverrides/", ptr_override_ipv6_data)
+        ptroverrides = self.client.get("/ptroverrides/").json()['results']
+        old_count = len(ptroverrides)
+        ret = self.client.delete("/ptroverrides/{}".format(ptroverrides[-1]['id']))
+        self.assertEqual(ret.status_code, 204)
+        ptroverrides = self.client.get("/ptroverrides/").json()['results']
+        new_count = len(ptroverrides)
+        self.assertLess(new_count, old_count)
+
+    def test_ptr_override_patch_204(self):
+        ret = self.client.patch("/ptroverrides/%s" % self.ptr_override.id, self.ptr_override_patch_data)
+        self.assertEqual(ret.status_code, 204)
+
+    def test_ptr_override_ipv6_patch_204(self):
+        ret = self.client.patch("/ptroverrides/%s" % self.ptr_ipv6_override.id, self.ptr_override_ipv6_patch_data)
+        self.assertEqual(ret.status_code, 204)
+
+    ''' This test crashes the database and is commented out
+        until the underlying problem has been fixed
+    def test_ptr_override_reject_invalid_ipv4_400(self):
+        ptr_override_data = {'host': self.host.id,
+                             'ipaddress': '10.0.0.400'}
+        ret = self.client.post("/ptroverrides/", ptr_override_data)
+        self.assertEqual(ret.status_code, 400)
+    '''
+
+    def test_ptr_override_reject_invalid_ipv6_400(self):
+        ptr_override_ipv6_data = {'host': self.host.id,
+                                  'ipaddress': '2001:db8::3zzz'}
+        ret = self.client.post("/ptroverrides/", ptr_override_ipv6_data)
+        self.assertEqual(ret.status_code, 400)
+
+    def test_ptr_override_reject_nonexisting_host_400(self):
+        ptr_override_bad_data = {'host': -1, 'ipaddress': '10.0.0.7'}
+        ret = self.client.post("/ptroverrides/", ptr_override_bad_data)
+        self.assertEqual(ret.status_code, 400)
+
+    def test_ptr_override_zone_autoupdate_add(self):
+        self.zone.updated = False
+        self.zone.save()
+        self.test_ptr_override_post_201()
+        self.zone.refresh_from_db()
+        self.assertTrue(self.zone.updated)
+
+    def test_ptr_override_zone_autoupdate_delete(self):
+        self.test_ptr_override_post_201()
+        self.zone.updated = False
+        self.zone.save()
+        ptroverrides = self.client.get("/ptroverrides/").data['results']
+        self.client.delete("/ptroverrides/{}".format(ptroverrides[0]['id']))
+        self.zone.refresh_from_db()
+        self.assertTrue(self.zone.updated)
+
+    def test_ptr_override_ipv6_zone_autoupdate_add(self):
+        self.ipv6_zone.updated = False
+        self.ipv6_zone.save()
+        self.test_ptr_override_ipv6_post_201()
+        self.ipv6_zone.refresh_from_db()
+        self.assertTrue(self.ipv6_zone.updated)
+
+    def test_ptr_override_ipv6_zone_autoupdate_delete(self):
+        self.test_ptr_override_ipv6_post_201()
+        self.ipv6_zone.updated = False
+        self.ipv6_zone.save()
+        ptroverrides = self.client.get("/ptroverrides/").data['results']
+        self.client.delete("/ptroverrides/{}".format(ptroverrides[-1]['id']))
+        self.ipv6_zone.refresh_from_db()
+        self.assertTrue(self.ipv6_zone.updated)
+
+    def test_ptr_override_reject_taken_ip_400(self):
+        new_host_data = {'name': 'ns2.example.org',
+                         'contact': 'mail@example.org'}
+        self.client.post('/hosts/', new_host_data)
+        new_host = Host.objects.get(name=new_host_data['name'])
+        ptr_override_data = {'host': new_host.id,
+                             'ipaddress': self.ptr_override_data['ipaddress']}
+        ret = self.client.post("/ptroverrides/", ptr_override_data)
+        self.assertEqual(ret.status_code, 400)
+
+    def test_ptr_override_reject_taken_ipv6_400(self):
+        new_host_data = {'name': 'ns2.example.org',
+                         'contact': 'mail@example.org'}
+        self.client.post('/hosts/', new_host_data)
+        new_host = Host.objects.get(name=new_host_data['name'])
+        ptr_override_ipv6_data = {'host': new_host.id,
+                                  'ipaddress': self.ptr_override_ipv6_data['ipaddress']}
+        ret = self.client.post("/ptroverrides/", ptr_override_ipv6_data)
+        self.assertEqual(ret.status_code, 400)
+
+    def test_ptr_override_list(self):
+        ret = self.client.get("/ptroverrides/")
+        self.assertEqual(ret.status_code, 200)
+        self.assertEqual(ret.data['count'], 2)
+
+
 class APISshfpTestcase(MregAPITestCase):
     """Test SSHFP records."""
 
@@ -477,7 +636,7 @@ class APISshfpTestcase(MregAPITestCase):
         data = {'host': self.host.id,
                 'algorithm': 1,
                 'hash_type': 1,
-                'fingerprint': 'beeftasty'}
+                'fingerprint': 'beefistasty'}
         ret = self.client.post("/sshfps/", data)
         self.assertEqual(ret.status_code, 400)
         data = {'host': self.host.id,
@@ -914,6 +1073,7 @@ class APIZonesNsTestCase(MregAPITestCase):
         response = self.client.delete('/zones/%s' % self.post_data['name'])
         self.assertEqual(response.status_code, 204)
         self.assertFalse(NameServer.objects.exists())
+
 
 class APIZoneRFC2317(MregAPITestCase):
     """This class tests RFC 2317 delegations."""

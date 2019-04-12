@@ -416,10 +416,9 @@ class ModelPtrOverrideTestCase(TestCase):
         clean_and_save(self.host_ipv6_one)
         clean_and_save(self.host_ipv6_two)
 
-        self.ptr_sample = PtrOverride(host=Host.objects.get(name='host1.example.org'),
-                                      ipaddress='10.0.0.2')
-        self.ptr_ipv6_sample = PtrOverride(host=Host.objects.get(name='host3.example.org'),
-                                      ipaddress='2001:db8::beef')
+        self.ptr_sample = PtrOverride(host=self.host_one, ipaddress='10.0.0.2')
+        self.ptr_ipv6_sample = PtrOverride(host=self.host_ipv6_one,
+                                           ipaddress='2001:db8::beef')
 
     def test_model_can_create_ptr(self):
         """Test that the model is able to create a PTR Override."""
@@ -434,6 +433,24 @@ class ModelPtrOverrideTestCase(TestCase):
         clean_and_save(self.ptr_ipv6_sample)
         new_count = PtrOverride.objects.count()
         self.assertNotEqual(old_count, new_count)
+
+    def test_model_reject_invalid_create_ptr(self):
+        """Test that the model rejects invalid ipaddress."""
+        ptr = PtrOverride(host=self.host_one, ipaddress='10.0.0.0.400')
+        with self.assertRaises(ValidationError):
+            ptr.full_clean()
+        ptr = PtrOverride(host=self.host_one, ipaddress='10.0.0.400')
+        with self.assertRaises(ValidationError):
+            ptr.full_clean()
+
+    def test_model_reject_invalid_ipv6_create_ptr(self):
+        """Test that the model rejects invalid ipaddress."""
+        ptr = PtrOverride(host=self.host_one, ipaddress='2001:db8::::1')
+        with self.assertRaises(ValidationError):
+            ptr.full_clean()
+        ptr = PtrOverride(host=self.host_one, ipaddress='2001:db8::abcx')
+        with self.assertRaises(ValidationError):
+            ptr.full_clean()
 
     def test_model_can_change_ptr(self):
         """Test that the model is able to change a PTR Override."""
