@@ -442,7 +442,7 @@ class ModelPtrOverrideTestCase(TestCase):
         self.ptr_sample.ipaddress = new_ptr
         clean_and_save(self.ptr_sample)
         updated_ptr = PtrOverride.objects.filter(host__name='host1.example.org').first().ipaddress
-        self.assertEqual(new_ptr, updated_ptr)
+        self.assertEqual(new_ptr, str(updated_ptr.ip))
 
     def test_model_can_change_ipv6_ptr(self):
         """Test that the model is able to change an IPv6 PTR Override."""
@@ -451,7 +451,7 @@ class ModelPtrOverrideTestCase(TestCase):
         self.ptr_ipv6_sample.ipaddress = new_ipv6_ptr
         clean_and_save(self.ptr_ipv6_sample)
         updated_ipv6_ptr = PtrOverride.objects.filter(host__name='host3.example.org').first().ipaddress
-        self.assertEqual(new_ipv6_ptr, updated_ipv6_ptr)
+        self.assertEqual(new_ipv6_ptr, str(updated_ipv6_ptr.ip))
 
     def test_model_can_delete_ptr(self):
         """Test that the model is able to delete a PTR Override."""
@@ -480,7 +480,7 @@ class ModelPtrOverrideTestCase(TestCase):
         clean_and_save(ip_two)
         ptr =  PtrOverride.objects.first()
         self.assertEqual(ptr.host, self.host_one)
-        self.assertEqual(ptr.ipaddress, '10.0.0.1')
+        self.assertEqual(str(ptr.ipaddress.ip), '10.0.0.1')
         self.assertEqual(initial_count, 0)
         self.assertEqual(initial_count, one_count)
         self.assertEqual(PtrOverride.objects.count(), 1)
@@ -496,7 +496,7 @@ class ModelPtrOverrideTestCase(TestCase):
         clean_and_save(ipv6_two)
         ptr =  PtrOverride.objects.first()
         self.assertEqual(ptr.host, self.host_ipv6_one)
-        self.assertEqual(ptr.ipaddress, '2001:db8::4')
+        self.assertEqual(str(ptr.ipaddress.ip), '2001:db8::4')
         self.assertEqual(initial_count, 0)
         self.assertEqual(initial_count, one_count)
         self.assertEqual(PtrOverride.objects.count(), 1)
@@ -514,7 +514,7 @@ class ModelPtrOverrideTestCase(TestCase):
         two_count = PtrOverride.objects.count()
         ptr = PtrOverride.objects.first()
         self.assertEqual(ptr.host, self.host_one)
-        self.assertEqual(ptr.ipaddress, '10.0.0.1')
+        self.assertEqual(str(ptr.ipaddress.ip), '10.0.0.1')
         self.assertEqual(initial_count, 0)
         self.assertEqual(initial_count, one_count)
         self.assertEqual(two_count, 1)
@@ -534,7 +534,7 @@ class ModelPtrOverrideTestCase(TestCase):
         two_count = PtrOverride.objects.count()
         ptr = PtrOverride.objects.first()
         self.assertEqual(ptr.host, self.host_ipv6_one)
-        self.assertEqual(ptr.ipaddress, '2001:db8::4')
+        self.assertEqual(str(ptr.ipaddress.ip), '2001:db8::4')
         self.assertEqual(initial_count, 0)
         self.assertEqual(initial_count, one_count)
         self.assertEqual(two_count, 1)
