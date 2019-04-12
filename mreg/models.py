@@ -5,7 +5,7 @@ from datetime import timedelta
 
 from django.db import DatabaseError, models, transaction
 from django.utils import timezone
-from netfields import CidrAddressField, NetManager
+from netfields import CidrAddressField, InetAddressField, NetManager
 
 from mreg.validators import (validate_hostname, validate_reverse_zone_name,
                              validate_mac_address, validate_loc,
@@ -373,7 +373,9 @@ class Mx(models.Model):
 
 class PtrOverride(models.Model):
     host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='ptr_overrides')
-    ipaddress = models.GenericIPAddressField(unique=True)
+    ipaddress = InetAddressField(unique=True)
+
+    objects = NetManager()
 
     class Meta:
         db_table = 'ptr_override'
