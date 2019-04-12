@@ -608,6 +608,46 @@ class APIPtrOverrideTestcase(MregAPITestCase):
         self.assertEqual(ret.status_code, 200)
         self.assertEqual(ret.data['count'], 2)
 
+    def test_ptr_override_create_new_host(self):
+        # Adding a new host with already existing IP should
+        # create a PtrOverride for it
+        ret = self.client.get("/ptroverrides/")
+        old_count = ret.data['count']
+        host_data = {'name': 'ns3.example.org',
+                     'contact': 'mail@example.org',
+                     'ipaddress': '10.0.0.5'}
+        host2_data = {'name': 'ns4.example.org',
+                      'contact': 'mail@example.org',
+                      'ipaddress': '10.0.0.5'}
+        self.client.post('/hosts/', host_data)
+        ret = self.client.get("/ptroverrides/")
+        new_count = ret.data['count']
+        self.assertEqual(new_count, old_count)
+        self.client.post('/hosts/', host2_data)
+        ret = self.client.get("/ptroverrides/")
+        new_count = ret.data['count']
+        self.assertGreater(new_count, old_count)
+
+    def test_ptr_override_ipv6_create_new_host(self):
+        # Adding a new host with already existing IPv6 should
+        # create a PtrOverride for it
+        ret = self.client.get("/ptroverrides/")
+        old_count = ret.data['count']
+        host_ipv6_data = {'name': 'ns3.example.org',
+                     'contact': 'mail@example.org',
+                     'ipaddress': '2001:db8::7'}
+        host2_ipv6_data = {'name': 'ns4.example.org',
+                      'contact': 'mail@example.org',
+                      'ipaddress': '2001:db8::7'}
+        self.client.post('/hosts/', host_ipv6_data)
+        ret = self.client.get("/ptroverrides/")
+        new_count = ret.data['count']
+        self.assertEqual(new_count, old_count)
+        self.client.post('/hosts/', host2_ipv6_data)
+        ret = self.client.get("/ptroverrides/")
+        new_count = ret.data['count']
+        self.assertGreater(new_count, old_count)
+
 
 class APISshfpTestcase(MregAPITestCase):
     """Test SSHFP records."""
