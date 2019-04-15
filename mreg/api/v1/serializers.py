@@ -291,7 +291,7 @@ class HostGroupSerializer(ValidationMixin, serializers.ModelSerializer):
     hosts = HostGroupMemberSerializer(many=True, read_only=True)
 
     class Meta:
-        model = HostGroup
+        model =  HostGroup
         fields = ['name','hosts']
 
 
@@ -304,6 +304,9 @@ class HostGroupDetailSerializer(ValidationMixin, serializers.ModelSerializer):
         model = HostGroup
         fields = ['name', 'hosts', 'groups']
 
+    def create(self, validated_data):
+        groups_data = validated_data.pop("groups")
+        HostGroup = HostGroup
 
 """
 class HostGroupGroupsSerializer(ValidationMixin, serializers.ModelSerializer):

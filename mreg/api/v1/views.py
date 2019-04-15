@@ -1314,26 +1314,10 @@ class HostGroupDetail(MregRetrieveUpdateDestroyAPIView):
 
     def patch(self, request, *args, **kwargs):
         query = self.kwargs['pk']
-
-        if "name" in request.data:
-            if self.queryset.filter(name=request.data["name"]).exists():
-                content = {'ERROR': 'name already in use'}
-                return Response(content, status=status.HTTP_409_CONFLICT)
-
         hostgroup = get_object_or_404(HostGroup, name=query)
         serializer = HostGroupDetailSerializer(hostgroup, data=request.data, partial=True)
-
-        if serializer.is_valid(raise_exception=True):
+        if serializer.is_valid():
             serializer.save()
-            location = '/hostgroups/%s' % hostgroup.name
-            return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
-"""
-class HostGroupGroups(MregRetrieveUpdateDestroyAPIView):
-    serializer_class = HostGroupGroupsSerializer
-
-        #This view should return a list of a hostgroup's groups.
-
-        #group = self.kwargs['name']
-        group = self.kwargs
-        return HostGroupMember.objects.filter(group=group)
-"""
+            location = '/hostgroups/%s' % HostGroup.name
+            return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
+        return Response(status=status.HTTP_400_BAD_REQUEST, content)
