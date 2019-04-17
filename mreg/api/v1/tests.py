@@ -627,6 +627,13 @@ class APIPtrOverrideTestcase(MregAPITestCase):
         ret = self.client.get("/ptroverrides/")
         new_count = ret.data['count']
         self.assertGreater(new_count, old_count)
+        # Now check that the last PtrOverride
+        # points to the first host holding the IP
+        ptr_override = ret.data['results'][-1]
+        self.assertEqual(ptr_override['ipaddress'], '10.0.0.5')
+        ret = self.client.get('/hosts/?name=ns3.example.org')
+        host_id = ret.data['results'][0]['id']
+        self.assertEqual(ptr_override['host'], host_id)
 
     def test_ptr_override_ipv6_create_new_host(self):
         # Adding a new host with already existing IPv6 should
@@ -647,6 +654,13 @@ class APIPtrOverrideTestcase(MregAPITestCase):
         ret = self.client.get("/ptroverrides/")
         new_count = ret.data['count']
         self.assertGreater(new_count, old_count)
+        # Now check that the last PtrOverride
+        # points to the first host holding the IP
+        ptr_override = ret.data['results'][-1]
+        self.assertEqual(ptr_override['ipaddress'], '2001:db8::7')
+        ret = self.client.get('/hosts/?name=ns3.example.org')
+        host_id = ret.data['results'][0]['id']
+        self.assertEqual(ptr_override['host'], host_id)
 
     def test_ptr_override_delete_with_host(self):
         # Deleting a host with assigned PtrOverrides should
