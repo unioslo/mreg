@@ -1276,8 +1276,8 @@ class APIIPaddressesTestCase(MregAPITestCase):
 
     def test_ipv6address_post_201_two_hosts_share_ip(self):
         """"Posting a new ipaddress with an IPv6 already in use should return 201"""
-        self.post_ipv6_data_full_duplicate_ip = {'host': self.host_two.id,
-                                                 'ipaddress': self.ipv6address_one.ipaddress}
+        post_ipv6_data_full_duplicate_ip = {'host': self.host_two.id,
+                                            'ipaddress': self.ipv6address_one.ipaddress}
         response = self.client.post('/ipaddresses/', post_ipv6_data_full_duplicate_ip)
         self.assertEqual(response.status_code, 201)
 
