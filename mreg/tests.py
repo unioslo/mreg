@@ -357,9 +357,14 @@ class ModelIpaddressTestCase(TestCase):
                              comment='some comment')
 
         self.network_sample = Network(range='192.168.202.0/20',
-                                    description='some description',
-                                    vlan=123,
-                                    dns_delegated=False)
+                                      description='some description',
+                                      vlan=123,
+                                      dns_delegated=False)
+
+        self.network_ipv6_sample = Network(range='2001:db8::/32',
+                                           description='some IPv6 description',
+                                           vlan=123,
+                                           dns_delegated=False)
 
         clean_and_save(self.host_one)
         # clean_and_save(self.network_sample) # Needed when network ForeignKey is implemented.
@@ -368,12 +373,24 @@ class ModelIpaddressTestCase(TestCase):
                                           ipaddress='192.168.202.123',
                                           macaddress='a4:34:d9:0e:88:b9')
 
+        self.ipv6address_sample = Ipaddress(host=Host.objects.get(name='some-host.example.org'),
+                                            ipaddress='2001:db8::beef',
+                                            macaddress='a4:34:d9:0e:88:b9')
+
+
     def test_model_can_create_ipaddress(self):
         """Test that the model is able to create an IP Address."""
         old_count = Ipaddress.objects.count()
         clean_and_save(self.ipaddress_sample)
         new_count = Ipaddress.objects.count()
-        self.assertNotEqual(old_count, new_count)
+        self.assertLess(old_count, new_count)
+
+    def test_model_can_create_ipv6address(self):
+        """Test that the model is able to create an IPv6 Address."""
+        old_count = Ipaddress.objects.count()
+        clean_and_save(self.ipv6address_sample)
+        new_count = Ipaddress.objects.count()
+        self.assertLess(old_count, new_count)
 
     def test_model_can_change_ipaddress(self):
         """Test that the model is able to change an IP Address."""
@@ -384,13 +401,30 @@ class ModelIpaddressTestCase(TestCase):
         updated_ipaddress = Ipaddress.objects.filter(host__name='some-host.example.org')[0].ipaddress
         self.assertEqual(new_ipaddress, updated_ipaddress)
 
+    def test_model_can_change_ipv6address(self):
+        """Test that the model is able to change an IPv6 Address."""
+        clean_and_save(self.ipv6address_sample)
+        new_ipv6address = '2001:db8::feed'
+        self.ipv6address_sample.ipaddress = new_ipv6address
+        clean_and_save(self.ipv6address_sample)
+        updated_ipv6address = Ipaddress.objects.filter(host__name='some-host.example.org')[0].ipaddress
+        self.assertEqual(new_ipv6address, updated_ipv6address)
+
     def test_model_can_delete_ipaddress(self):
         """Test that the model is able to delete an IP Address."""
         clean_and_save(self.ipaddress_sample)
         old_count = Ipaddress.objects.count()
         self.ipaddress_sample.delete()
         new_count = Ipaddress.objects.count()
-        self.assertNotEqual(old_count, new_count)
+        self.assertGreater(old_count, new_count)
+
+    def test_model_can_delete_ipv6address(self):
+        """Test that the model is able to delete an IPv6 Address."""
+        clean_and_save(self.ipv6address_sample)
+        old_count = Ipaddress.objects.count()
+        self.ipv6address_sample.delete()
+        new_count = Ipaddress.objects.count()
+        self.assertGreater(old_count, new_count)
 
 
 class ModelPtrOverrideTestCase(TestCase):
