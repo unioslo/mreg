@@ -1196,8 +1196,17 @@ class APIIPaddressesTestCase(MregAPITestCase):
         self.ipaddress_two = Ipaddress(host=self.host_two,
                                        ipaddress='192.168.111.112')
 
+        self.ipv6address_one = Ipaddress(host=self.host_one,
+                                         ipaddress='2001:db8::beef')
+
+        self.ipv6address_two = Ipaddress(host=self.host_two,
+                                         ipaddress='2001:db8::feed')
+
         clean_and_save(self.ipaddress_one)
         clean_and_save(self.ipaddress_two)
+
+        clean_and_save(self.ipv6address_one)
+        clean_and_save(self.ipv6address_two)
 
         self.post_data_full = {'host': self.host_one.id,
                                'ipaddress': '192.168.203.197'}
@@ -1212,28 +1221,52 @@ class APIIPaddressesTestCase(MregAPITestCase):
         """"Getting an existing entry should return 200"""
         response = self.client.get('/ipaddresses/%s' % self.ipaddress_one.id)
         self.assertEqual(response.status_code, 200)
+    
+    def test_ipv6address_get_200_ok(self):
+        """"Getting an existing entry should return 200"""
+        response = self.client.get('/ipaddresses/%s' % self.ipv6address_one.id)
+        self.assertEqual(response.status_code, 200)
 
     def test_ipaddress_list_200_ok(self):
         """List all ipaddress should return 200"""
         response = self.client.get('/ipaddresses/')
         self.assertEqual(response.status_code, 200)
         data = response.json()
-        self.assertEqual(data['count'], 2)
-        self.assertEqual(len(data['results']), 2)
+        self.assertEqual(data['count'], 4)
+        self.assertEqual(len(data['results']), 4)
 
     def test_ipaddress_get_404_not_found(self):
         """"Getting a non-existing entry should return 404"""
         response = self.client.get('/ipaddresses/193.101.168.2')
         self.assertEqual(response.status_code, 404)
 
+    def test_ipv6address_get_404_not_found(self):
+        """"Getting a non-existing entry should return 404"""
+        response = self.client.get('/ipaddresses/2001:db8::8')
+        self.assertEqual(response.status_code, 404)
+
     def test_ipaddress_post_201_created(self):
         """"Posting a new ip should return 201"""
         response = self.client.post('/ipaddresses/', self.post_data_full)
         self.assertEqual(response.status_code, 201)
-
+    
+    def test_ipv6address_post_201_created(self):
+        """"Posting a new IPv6 should return 201"""
+        post_ipv6_data_full = {'host': self.host_one.id,
+                               'ipaddress': '2001:db8::8'}
+        response = self.client.post('/ipaddresses/', post_ipv6_data_full)
+        self.assertEqual(response.status_code, 201)
+    
     def test_ipaddress_post_400_conflict_ip(self):
         """"Posting an existing ip for a host should return 400"""
         response = self.client.post('/ipaddresses/', self.post_data_full_conflict)
+        self.assertEqual(response.status_code, 400)
+
+    def test_ipv6address_post_400_conflict_ip(self):
+        """"Posting an existing IPv6 for a host should return 400"""
+        post_ipv6_data_full_conflict = {'host': self.host_one.id,
+                                        'ipaddress': self.ipv6address_one.ipaddress}
+        response = self.client.post('/ipaddresses/', post_ipv6_data_full_conflict)
         self.assertEqual(response.status_code, 400)
 
     def test_ipaddress_post_201_two_hosts_share_ip(self):
@@ -1241,15 +1274,34 @@ class APIIPaddressesTestCase(MregAPITestCase):
         response = self.client.post('/ipaddresses/', self.post_data_full_duplicate_ip)
         self.assertEqual(response.status_code, 201)
 
+    def test_ipv6address_post_201_two_hosts_share_ip(self):
+        """"Posting a new ipaddress with an IPv6 already in use should return 201"""
+        post_ipv6_data_full_duplicate_ip = {'host': self.host_two.id,
+                                            'ipaddress': self.ipv6address_one.ipaddress}
+        response = self.client.post('/ipaddresses/', post_ipv6_data_full_duplicate_ip)
+        self.assertEqual(response.status_code, 201)
+
     def test_ipaddress_patch_200_ok(self):
         """Patching an existing and valid entry should return 200"""
         response = self.client.patch('/ipaddresses/%s' % self.ipaddress_one.id, self.patch_data_ip)
         self.assertEqual(response.status_code, 204)
 
-    def test_ipaddress_patch_200_own_ip(self):
-        """Patching an entry with its own ip should return 200"""
+    def test_ipv6address_patch_200_ok(self):
+        """Patching an existing and valid entry should return 200"""
+        patch_data_ipv6 = {'ipaddress': '2001:db8::9'}
+        response = self.client.patch('/ipaddresses/%s' % self.ipv6address_one.id, patch_data_ipv6)
+        self.assertEqual(response.status_code, 204)
+
+    def test_ipaddress_patch_204_own_ip(self):
+        """Patching an entry with its own ip should return 204"""
         response = self.client.patch('/ipaddresses/%s' % self.ipaddress_one.id,
                                      {'ipaddress': str(self.ipaddress_one.ipaddress)})
+        self.assertEqual(response.status_code, 204)
+
+    def test_ipv6address_patch_204_own_ip(self):
+        """Patching an entry with its own IPv6 should return 204"""
+        response = self.client.patch('/ipaddresses/%s' % self.ipv6address_one.id,
+                                     {'ipaddress': str(self.ipv6address_one.ipaddress)})
         self.assertEqual(response.status_code, 204)
 
     def test_ipaddress_patch_400_bad_request(self):
@@ -1258,9 +1310,21 @@ class APIIPaddressesTestCase(MregAPITestCase):
                                      data={'this': 'is', 'so': 'wrong'})
         self.assertEqual(response.status_code, 400)
 
+    def test_ipv6address_patch_400_bad_request(self):
+        """Patching with invalid data should return 400"""
+        response = self.client.patch('/ipaddresses/%s' % self.ipv6address_one.id,
+                                     data={'this': 'is', 'so': 'wrong'})
+        self.assertEqual(response.status_code, 400)
+
     def test_ipaddress_patch_400_bad_ip(self):
         """Patching with invalid data should return 400"""
         response = self.client.patch('/ipaddresses/%s' % self.ipaddress_one.id, self.patch_bad_ip)
+        self.assertEqual(response.status_code, 400)
+
+    def test_ipv6address_patch_400_bad_ip(self):
+        """Patching with invalid data should return 400"""
+        patch_bad_ipv6 = {'ipaddress': '2001:db8::zzzz'}
+        response = self.client.patch('/ipaddresses/%s' % self.ipv6address_one.id, patch_bad_ipv6)
         self.assertEqual(response.status_code, 400)
 
     def test_ipaddress_patch_404_not_found(self):
