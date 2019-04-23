@@ -277,14 +277,14 @@ class ModelNetworkTestCase(TestCase):
 
     def setUp(self):
         """Define the test client and other test variables."""
-        self.network_sample = Network(range='10.0.0.0/20',
+        self.network_sample = Network(network='10.0.0.0/20',
                                     description='some description',
                                     vlan=123,
                                     dns_delegated=False,
                                     category='so',
                                     location='Test location',
                                     frozen=False)
-        self.network_ipv6_sample = Network(range='2001:db8::/32',
+        self.network_ipv6_sample = Network(network='2001:db8::/32',
                                     description='some IPv6 description',
                                     vlan=123,
                                     dns_delegated=False,
@@ -365,6 +365,7 @@ class ModelIpaddressTestCase(TestCase):
                                            description='some IPv6 description',
                                            vlan=123,
                                            dns_delegated=False)
+
 
         clean_and_save(self.host_one)
         # clean_and_save(self.network_sample) # Needed when network ForeignKey is implemented.
@@ -830,7 +831,7 @@ class NameServerDeletionTestCase(TestCase):
                                      email='hostmaster@example.org')
         clean_and_save(self.zone_1010)
 
-        self.network_sample = Network(range='10.0.0.0/24',
+        self.network_sample = Network(network='10.0.0.0/24',
                                       description='some description')
         clean_and_save(self.network_sample)
 
@@ -914,9 +915,9 @@ class NetGroupRegexPermissionTestCase(TestCase):
 
     def test_model_clean_permissions(self):
         # Make sure that permissions are removed if a Network with equal
-        # or larger range is removed. Removed by code in signals.py.
-        self.network_v4 = Network(range='10.0.0.0/24')
-        self.network_v6 = Network(range='2001:db8::/64')
+        # or larger network is removed. Removed by code in signals.py.
+        self.network_v4 = Network(network='10.0.0.0/24')
+        self.network_v6 = Network(network='2001:db8::/64')
         clean_and_save(self.network_v4)
         clean_and_save(self.network_v6)
         v4perm = NetGroupRegexPermission(group='testgroup',
@@ -924,7 +925,7 @@ class NetGroupRegexPermissionTestCase(TestCase):
                                          regex=r'.*\.example\.org$')
         clean_and_save(v4perm)
         v6perm = NetGroupRegexPermission(group='testgroup',
-                                         range=self.network_v6.range,
+                                         range=self.network_v6.network,
                                          regex=r'.*\.example\.org$')
         clean_and_save(v6perm)
         self.assertEqual(NetGroupRegexPermission.objects.count(), 2)

@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     'rest_framework_swagger',
     'rest_framework.authtoken',
     'django_logging',
+    'netfields',
     'mreg'
 ]
 
