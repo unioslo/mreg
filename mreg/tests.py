@@ -356,12 +356,12 @@ class ModelIpaddressTestCase(TestCase):
                              loc='23 58 23 N 10 43 50 E 80m',
                              comment='some comment')
 
-        self.network_sample = Network(range='192.168.202.0/20',
+        self.network_sample = Network(network='192.168.202.0/20',
                                       description='some description',
                                       vlan=123,
                                       dns_delegated=False)
 
-        self.network_ipv6_sample = Network(range='2001:db8::/32',
+        self.network_ipv6_sample = Network(network='2001:db8::/32',
                                            description='some IPv6 description',
                                            vlan=123,
                                            dns_delegated=False)
