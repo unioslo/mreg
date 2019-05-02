@@ -277,14 +277,14 @@ class ModelNetworkTestCase(TestCase):
 
     def setUp(self):
         """Define the test client and other test variables."""
-        self.network_sample = Network(range='10.0.0.0/20',
+        self.network_sample = Network(network='10.0.0.0/20',
                                     description='some description',
                                     vlan=123,
                                     dns_delegated=False,
                                     category='so',
                                     location='Test location',
                                     frozen=False)
-        self.network_ipv6_sample = Network(range='2001:db8::/32',
+        self.network_ipv6_sample = Network(network='2001:db8::/32',
                                     description='some IPv6 description',
                                     vlan=123,
                                     dns_delegated=False,
@@ -356,33 +356,60 @@ class ModelIpaddressTestCase(TestCase):
                              loc='23 58 23 N 10 43 50 E 80m',
                              comment='some comment')
 
-        self.network_sample = Network(range='129.240.202.0/20',
-                                    description='some description',
-                                    vlan=123,
-                                    dns_delegated=False)
+        self.network_sample = Network(network='192.168.202.0/20',
+                                      description='some description',
+                                      vlan=123,
+                                      dns_delegated=False)
+
+        self.network_ipv6_sample = Network(network='2001:db8::/32',
+                                           description='some IPv6 description',
+                                           vlan=123,
+                                           dns_delegated=False)
+
 
         clean_and_save(self.host_one)
         # clean_and_save(self.network_sample) # Needed when network ForeignKey is implemented.
 
         self.ipaddress_sample = Ipaddress(host=Host.objects.get(name='some-host.example.org'),
-                                          ipaddress='129.240.202.123',
+                                          ipaddress='192.168.202.123',
                                           macaddress='a4:34:d9:0e:88:b9')
+
+        self.ipv6address_sample = Ipaddress(host=Host.objects.get(name='some-host.example.org'),
+                                            ipaddress='2001:db8::beef',
+                                            macaddress='a4:34:d9:0e:88:b9')
+
 
     def test_model_can_create_ipaddress(self):
         """Test that the model is able to create an IP Address."""
         old_count = Ipaddress.objects.count()
         clean_and_save(self.ipaddress_sample)
         new_count = Ipaddress.objects.count()
-        self.assertNotEqual(old_count, new_count)
+        self.assertLess(old_count, new_count)
+
+    def test_model_can_create_ipv6address(self):
+        """Test that the model is able to create an IPv6 Address."""
+        old_count = Ipaddress.objects.count()
+        clean_and_save(self.ipv6address_sample)
+        new_count = Ipaddress.objects.count()
+        self.assertLess(old_count, new_count)
 
     def test_model_can_change_ipaddress(self):
         """Test that the model is able to change an IP Address."""
         clean_and_save(self.ipaddress_sample)
-        new_ipaddress = '129.240.202.124'
+        new_ipaddress = '192.168.202.124'
         self.ipaddress_sample.ipaddress = new_ipaddress
         clean_and_save(self.ipaddress_sample)
         updated_ipaddress = Ipaddress.objects.filter(host__name='some-host.example.org')[0].ipaddress
         self.assertEqual(new_ipaddress, updated_ipaddress)
+
+    def test_model_can_change_ipv6address(self):
+        """Test that the model is able to change an IPv6 Address."""
+        clean_and_save(self.ipv6address_sample)
+        new_ipv6address = '2001:db8::feed'
+        self.ipv6address_sample.ipaddress = new_ipv6address
+        clean_and_save(self.ipv6address_sample)
+        updated_ipv6address = Ipaddress.objects.filter(host__name='some-host.example.org')[0].ipaddress
+        self.assertEqual(new_ipv6address, updated_ipv6address)
 
     def test_model_can_delete_ipaddress(self):
         """Test that the model is able to delete an IP Address."""
@@ -390,7 +417,15 @@ class ModelIpaddressTestCase(TestCase):
         old_count = Ipaddress.objects.count()
         self.ipaddress_sample.delete()
         new_count = Ipaddress.objects.count()
-        self.assertNotEqual(old_count, new_count)
+        self.assertGreater(old_count, new_count)
+
+    def test_model_can_delete_ipv6address(self):
+        """Test that the model is able to delete an IPv6 Address."""
+        clean_and_save(self.ipv6address_sample)
+        old_count = Ipaddress.objects.count()
+        self.ipv6address_sample.delete()
+        new_count = Ipaddress.objects.count()
+        self.assertGreater(old_count, new_count)
 
 
 class ModelPtrOverrideTestCase(TestCase):
@@ -416,10 +451,9 @@ class ModelPtrOverrideTestCase(TestCase):
         clean_and_save(self.host_ipv6_one)
         clean_and_save(self.host_ipv6_two)
 
-        self.ptr_sample = PtrOverride(host=Host.objects.get(name='host1.example.org'),
-                                      ipaddress='10.0.0.2')
-        self.ptr_ipv6_sample = PtrOverride(host=Host.objects.get(name='host3.example.org'),
-                                      ipaddress='2001:db8::beef')
+        self.ptr_sample = PtrOverride(host=self.host_one, ipaddress='10.0.0.2')
+        self.ptr_ipv6_sample = PtrOverride(host=self.host_ipv6_one,
+                                           ipaddress='2001:db8::beef')
 
     def test_model_can_create_ptr(self):
         """Test that the model is able to create a PTR Override."""
@@ -434,6 +468,24 @@ class ModelPtrOverrideTestCase(TestCase):
         clean_and_save(self.ptr_ipv6_sample)
         new_count = PtrOverride.objects.count()
         self.assertNotEqual(old_count, new_count)
+
+    def test_model_reject_invalid_create_ptr(self):
+        """Test that the model rejects invalid ipaddress."""
+        ptr = PtrOverride(host=self.host_one, ipaddress='10.0.0.0.400')
+        with self.assertRaises(ValidationError):
+            ptr.full_clean()
+        ptr = PtrOverride(host=self.host_one, ipaddress='10.0.0.400')
+        with self.assertRaises(ValidationError):
+            ptr.full_clean()
+
+    def test_model_reject_invalid_ipv6_create_ptr(self):
+        """Test that the model rejects invalid ipaddress."""
+        ptr = PtrOverride(host=self.host_one, ipaddress='2001:db8::::1')
+        with self.assertRaises(ValidationError):
+            ptr.full_clean()
+        ptr = PtrOverride(host=self.host_one, ipaddress='2001:db8::abcx')
+        with self.assertRaises(ValidationError):
+            ptr.full_clean()
 
     def test_model_can_change_ptr(self):
         """Test that the model is able to change a PTR Override."""
@@ -779,7 +831,7 @@ class NameServerDeletionTestCase(TestCase):
                                      email='hostmaster@example.org')
         clean_and_save(self.zone_1010)
 
-        self.network_sample = Network(range='10.0.0.0/24',
+        self.network_sample = Network(network='10.0.0.0/24',
                                       description='some description')
         clean_and_save(self.network_sample)
 
@@ -863,9 +915,9 @@ class NetGroupRegexPermissionTestCase(TestCase):
 
     def test_model_clean_permissions(self):
         # Make sure that permissions are removed if a Network with equal
-        # or larger range is removed. Removed by code in signals.py.
-        self.network_v4 = Network(range='10.0.0.0/24')
-        self.network_v6 = Network(range='2001:db8::/64')
+        # or larger network is removed. Removed by code in signals.py.
+        self.network_v4 = Network(network='10.0.0.0/24')
+        self.network_v6 = Network(network='2001:db8::/64')
         clean_and_save(self.network_v4)
         clean_and_save(self.network_v6)
         v4perm = NetGroupRegexPermission(group='testgroup',
@@ -873,7 +925,7 @@ class NetGroupRegexPermissionTestCase(TestCase):
                                          regex=r'.*\.example\.org$')
         clean_and_save(v4perm)
         v6perm = NetGroupRegexPermission(group='testgroup',
-                                         range=self.network_v6.range,
+                                         range=self.network_v6.network,
                                          regex=r'.*\.example\.org$')
         clean_and_save(v6perm)
         self.assertEqual(NetGroupRegexPermission.objects.count(), 2)

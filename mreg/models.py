@@ -5,6 +5,7 @@ from datetime import timedelta
 
 from django.db import DatabaseError, models, transaction
 from django.utils import timezone
+from netfields import CidrAddressField, NetManager
 
 from mreg.validators import (validate_hostname, validate_reverse_zone_name,
                              validate_mac_address, validate_loc,
@@ -14,6 +15,8 @@ from mreg.validators import (validate_hostname, validate_reverse_zone_name,
                              validate_regex)
 from mreg.utils import (create_serialno, encode_mail, clear_none, qualify,
         idna_encode, get_network_from_zonename)
+
+from .models_auth import User
 
 
 class NameServer(models.Model):
@@ -179,30 +182,27 @@ class ForwardZone(BaseZone):
 
 class ReverseZone(BaseZone):
     name = models.CharField(unique=True, max_length=253, validators=[validate_reverse_zone_name])
-    # range can not be blank, but it will allow full_clean() to pass, even if
-    # the range is not set. Will anyway be overridden by update() and save().
-    range = models.TextField(unique=True, blank=True, validators=[validate_network])
+    # network can not be blank, but it will allow full_clean() to pass, even if
+    # the network is not set. Will anyway be overridden by update() and save().
+    network = CidrAddressField(unique=True, blank=True)
+
+    objects = NetManager()
 
     class Meta:
         db_table = 'reverse_zone'
 
     def update(self, *args, **kwargs):
-        self.range = get_network_from_zonename(self.name)
+        self.network = get_network_from_zonename(self.name)
         super().update(*args, **kwargs)
 
     def save(self, *args, **kwargs):
-        self.range = get_network_from_zonename(self.name)
+        self.network = get_network_from_zonename(self.name)
         super().save(*args, **kwargs)
-
-    @property
-    def network(self):
-        return ipaddress.ip_network(self.range)
 
     @staticmethod
     def get_zone_by_ip(ip):
         """Search and return a zone which contains an IP address."""
-        where = [ "inet %s <<= range::inet" ]
-        return ReverseZone.objects.extra(where=where, params=[str(ip)]).first()
+        return ReverseZone.objects.filter(network__net_contains=ip).first()
 
     def get_ipaddresses(self):
         network = self.network
@@ -408,7 +408,7 @@ class Cname(ForwardZoneMember):
 
 
 class Network(models.Model):
-    range = models.TextField(unique=True, validators=[validate_network])
+    network = CidrAddressField(unique=True)
     description = models.TextField(blank=True)
     vlan = models.IntegerField(blank=True, null=True)
     dns_delegated = models.BooleanField(default=False)
@@ -417,16 +417,14 @@ class Network(models.Model):
     frozen = models.BooleanField(default=False)
     reserved = models.PositiveIntegerField(default=3)
 
+    objects = NetManager()
+
     class Meta:
         db_table = 'network'
-        ordering = ('range',)
+        ordering = ('network',)
 
     def __str__(self):
-        return str(self.range)
-
-    @property
-    def network(self):
-        return ipaddress.ip_network(self.range)
+        return str(self.network)
 
     def get_reserved_ipaddresses(self):
         """ Returns a set with the reserved ip addresses for the network."""
@@ -493,20 +491,6 @@ class Network(models.Model):
                 return str(ip)
         return None
 
-    @staticmethod
-    def overlap_check(network):
-        """
-        Check if a network overlaps existing network(s).
-        Return a list of overlapped networks.
-        """
-        where = [ "range::inet && inet %s" ]
-        return Network.objects.extra(where=where, params=[str(network)])
-
-    @staticmethod
-    def get_network_by_ip(ip):
-        """Search and return a network which contains an IP address."""
-        where = [ "inet %s <<= range::inet" ]
-        return Network.objects.extra(where=where, params=[str(ip)]).first()
 
 class Naptr(models.Model):
     host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='naptrs')
@@ -563,12 +547,14 @@ class Srv(ForwardZoneMember):
 
 class NetGroupRegexPermission(models.Model):
     group = models.CharField(max_length=80)
-    range = models.TextField(blank=True, validators=[validate_network])
+    range = CidrAddressField()
     regex = models.CharField(max_length=250, validators=[validate_regex])
+
+    objects = NetManager()
 
     class Meta:
         db_table = 'perm_net_group_regex'
-        unique_together = ('group', 'range',)
+        unique_together = ('group', 'range', 'regex', )
 
     def __str__(self):
         return f"group {self.group}, range {self.range}, regex {self.regex}"
@@ -591,7 +577,7 @@ class NetGroupRegexPermission(models.Model):
             ).extra(
                 where=["%s ~ regex"], params=[str(hostname)]
             ).extra(
-                where=["range::inet >>= ANY (%s::inet[])"], params=[iplist]
+                where=["range >>= ANY (%s::inet[])"], params=[iplist]
             )
         return qs
 

@@ -1,7 +1,8 @@
 from datetime import timedelta
 
+from django.contrib.auth import get_user_model
 from django.conf import settings
-from django.contrib.auth.models import Group, User
+from django.contrib.auth.models import Group
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.authtoken.models import Token
@@ -23,12 +24,13 @@ class MregAPITestCase(APITestCase):
     def setUp(self):
         self.client = self.get_token_client()
 
-    def get_token_client(self, add_groups=True):
-        self.user, created = User.objects.get_or_create(username='nobody')
+    def get_token_client(self, superuser=True, adminuser=True):
+        self.user, created = get_user_model().objects.get_or_create(username='nobody')
         token, created = Token.objects.get_or_create(user=self.user)
         self.add_user_to_groups('REQUIRED_USER_GROUPS')
-        if add_groups:
+        if superuser:
             self.add_user_to_groups('SUPERUSER_GROUP')
+        if adminuser:
             self.add_user_to_groups('ADMINUSER_GROUP')
         client = APIClient()
         client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
@@ -65,7 +67,7 @@ class APITokenAutheticationTestCase(MregAPITestCase):
     def test_force_expire(self):
         ret = self.client.get("/zones/")
         self.assertEqual(ret.status_code, 200)
-        user = User.objects.get(username='nobody')
+        user = get_user_model().objects.get(username='nobody')
         token = Token.objects.get(user=user)
         EXPIRE_HOURS = getattr(settings, 'REST_FRAMEWORK_TOKEN_EXPIRE_HOURS', 8)
         token.created = timezone.now() - timedelta(hours=EXPIRE_HOURS)
@@ -257,7 +259,7 @@ class APIAutoupdateHostZoneTestCase(MregAPITestCase):
         res =  self.client.get("/hosts/{}".format(self.long_host2['name']))
         self.assertEqual(res.json()['zone'], self.zone_long.id)
 
-    def test_add_to_non_existant(self):
+    def test_add_to_nonexistent(self):
         data = {"name": "host1.example.net",
                 "ipaddress": "10.10.0.10",
                 "contact": "mail@example.org"}
@@ -448,6 +450,228 @@ class APIMxTestcase(MregAPITestCase):
         self.assertTrue(self.zone.updated)
 
 
+class APIPtrOverrideTestcase(MregAPITestCase):
+    """Test PtrOverride records."""
+
+    def setUp(self):
+        super().setUp()
+        self.host_data = {'name': 'ns1.example.org',
+                          'contact': 'mail@example.org'}
+        self.client.post('/hosts/', self.host_data)
+        self.host = Host.objects.get(name=self.host_data['name'])
+
+        self.ptr_override_data = {'host': self.host.id,
+                                  'ipaddress': '10.0.0.2'}
+
+        self.ptr_override_ipv6_data = {'host': self.host.id,
+                                       'ipaddress': '2001:db8::beef'}
+
+        self.client.post('/ptroverrides/', self.ptr_override_data)
+        self.ptr_override = PtrOverride.objects.get(ipaddress=self.ptr_override_data['ipaddress'])
+        self.client.post('/ptroverrides/', self.ptr_override_ipv6_data)
+        self.ptr_ipv6_override = PtrOverride.objects.get(ipaddress=self.ptr_override_ipv6_data['ipaddress'])
+                                       
+        self.ptr_override_patch_data = {'host': self.host.id,
+                                        'ipaddress': '10.0.0.3'}
+        
+        self.ptr_override_ipv6_patch_data = {'host': self.host.id,
+                                             'ipaddress': '2001:db8::feed'}
+     
+        self.zone = ReverseZone(name="0.10.in-addr.arpa",
+                                primary_ns="ns1.example.org",
+                                email="hostmaster@example.org")
+        clean_and_save(self.zone)
+     
+        self.ipv6_zone = ReverseZone(name="8.b.d.0.1.0.0.2.ip6.arpa",
+                                     primary_ns="ns1.example.org",
+                                     email="hostmaster@example.org")
+        clean_and_save(self.ipv6_zone)
+                   
+    def test_ptr_override_post_201(self):
+        ptr_override_data = {'host': self.host.id,
+                             'ipaddress': '10.0.0.4'}
+        ret = self.client.post("/ptroverrides/", ptr_override_data)
+        self.assertEqual(ret.status_code, 201)
+
+    def test_ptr_override_ipv6_post_201(self):
+        ptr_override_ipv6_data = {'host': self.host.id,
+                                  'ipaddress': '2001:db8::3'}
+        ret = self.client.post("/ptroverrides/", ptr_override_ipv6_data)
+        self.assertEqual(ret.status_code, 201)
+
+    def test_ptr_override_delete_204(self):
+        ptr_override_data = {'host': self.host.id,
+                             'ipaddress': '10.0.0.4'}
+        self.client.post("/ptroverrides/", ptr_override_data)
+        ptroverrides = self.client.get("/ptroverrides/").json()['results']
+        old_count = len(ptroverrides)
+        ret = self.client.delete("/ptroverrides/{}".format(ptroverrides[-1]['id']))
+        self.assertEqual(ret.status_code, 204)
+        ptroverrides = self.client.get("/ptroverrides/").json()['results']
+        new_count = len(ptroverrides)
+        self.assertLess(new_count, old_count)
+
+    def test_ptr_override_ipv6_delete_204(self):
+        ptr_override_ipv6_data = {'host': self.host.id,
+                             'ipaddress': '2001:db8::3'}
+        self.client.post("/ptroverrides/", ptr_override_ipv6_data)
+        ptroverrides = self.client.get("/ptroverrides/").json()['results']
+        old_count = len(ptroverrides)
+        ret = self.client.delete("/ptroverrides/{}".format(ptroverrides[-1]['id']))
+        self.assertEqual(ret.status_code, 204)
+        ptroverrides = self.client.get("/ptroverrides/").json()['results']
+        new_count = len(ptroverrides)
+        self.assertLess(new_count, old_count)
+
+    def test_ptr_override_patch_204(self):
+        ret = self.client.patch("/ptroverrides/%s" % self.ptr_override.id, self.ptr_override_patch_data)
+        self.assertEqual(ret.status_code, 204)
+
+    def test_ptr_override_ipv6_patch_204(self):
+        ret = self.client.patch("/ptroverrides/%s" % self.ptr_ipv6_override.id, self.ptr_override_ipv6_patch_data)
+        self.assertEqual(ret.status_code, 204)
+
+    ''' This test crashes the database and is commented out
+        until the underlying problem has been fixed
+    def test_ptr_override_reject_invalid_ipv4_400(self):
+        ptr_override_data = {'host': self.host.id,
+                             'ipaddress': '10.0.0.400'}
+        ret = self.client.post("/ptroverrides/", ptr_override_data)
+        self.assertEqual(ret.status_code, 400)
+    '''
+
+    def test_ptr_override_reject_invalid_ipv6_400(self):
+        ptr_override_ipv6_data = {'host': self.host.id,
+                                  'ipaddress': '2001:db8::3zzz'}
+        ret = self.client.post("/ptroverrides/", ptr_override_ipv6_data)
+        self.assertEqual(ret.status_code, 400)
+
+    def test_ptr_override_reject_nonexisting_host_400(self):
+        ptr_override_bad_data = {'host': -1, 'ipaddress': '10.0.0.7'}
+        ret = self.client.post("/ptroverrides/", ptr_override_bad_data)
+        self.assertEqual(ret.status_code, 400)
+
+    def test_ptr_override_zone_autoupdate_add(self):
+        self.zone.updated = False
+        self.zone.save()
+        self.test_ptr_override_post_201()
+        self.zone.refresh_from_db()
+        self.assertTrue(self.zone.updated)
+
+    def test_ptr_override_zone_autoupdate_delete(self):
+        self.test_ptr_override_post_201()
+        self.zone.updated = False
+        self.zone.save()
+        ptroverrides = self.client.get("/ptroverrides/").data['results']
+        self.client.delete("/ptroverrides/{}".format(ptroverrides[0]['id']))
+        self.zone.refresh_from_db()
+        self.assertTrue(self.zone.updated)
+
+    def test_ptr_override_ipv6_zone_autoupdate_add(self):
+        self.ipv6_zone.updated = False
+        self.ipv6_zone.save()
+        self.test_ptr_override_ipv6_post_201()
+        self.ipv6_zone.refresh_from_db()
+        self.assertTrue(self.ipv6_zone.updated)
+
+    def test_ptr_override_ipv6_zone_autoupdate_delete(self):
+        self.test_ptr_override_ipv6_post_201()
+        self.ipv6_zone.updated = False
+        self.ipv6_zone.save()
+        ptroverrides = self.client.get("/ptroverrides/").data['results']
+        self.client.delete("/ptroverrides/{}".format(ptroverrides[-1]['id']))
+        self.ipv6_zone.refresh_from_db()
+        self.assertTrue(self.ipv6_zone.updated)
+
+    def test_ptr_override_reject_taken_ip_400(self):
+        new_host_data = {'name': 'ns2.example.org',
+                         'contact': 'mail@example.org'}
+        self.client.post('/hosts/', new_host_data)
+        new_host = Host.objects.get(name=new_host_data['name'])
+        ptr_override_data = {'host': new_host.id,
+                             'ipaddress': self.ptr_override_data['ipaddress']}
+        ret = self.client.post("/ptroverrides/", ptr_override_data)
+        self.assertEqual(ret.status_code, 400)
+
+    def test_ptr_override_reject_taken_ipv6_400(self):
+        new_host_data = {'name': 'ns2.example.org',
+                         'contact': 'mail@example.org'}
+        self.client.post('/hosts/', new_host_data)
+        new_host = Host.objects.get(name=new_host_data['name'])
+        ptr_override_ipv6_data = {'host': new_host.id,
+                                  'ipaddress': self.ptr_override_ipv6_data['ipaddress']}
+        ret = self.client.post("/ptroverrides/", ptr_override_ipv6_data)
+        self.assertEqual(ret.status_code, 400)
+
+    def test_ptr_override_list(self):
+        ret = self.client.get("/ptroverrides/")
+        self.assertEqual(ret.status_code, 200)
+        self.assertEqual(ret.data['count'], 2)
+
+    def test_ptr_override_create_new_host(self):
+        # Adding a new host with already existing IP should
+        # create a PtrOverride for it
+        ret = self.client.get("/ptroverrides/")
+        old_count = ret.data['count']
+        host_data = {'name': 'ns3.example.org',
+                     'contact': 'mail@example.org',
+                     'ipaddress': '10.0.0.5'}
+        host2_data = {'name': 'ns4.example.org',
+                      'contact': 'mail@example.org',
+                      'ipaddress': '10.0.0.5'}
+        self.client.post('/hosts/', host_data)
+        ret = self.client.get("/ptroverrides/")
+        new_count = ret.data['count']
+        self.assertEqual(new_count, old_count)
+        self.client.post('/hosts/', host2_data)
+        ret = self.client.get("/ptroverrides/")
+        new_count = ret.data['count']
+        self.assertGreater(new_count, old_count)
+        # Now check that the last PtrOverride
+        # points to the first host holding the IP
+        ptr_override = ret.data['results'][-1]
+        self.assertEqual(ptr_override['ipaddress'], '10.0.0.5')
+        ret = self.client.get('/hosts/?name=ns3.example.org')
+        host_id = ret.data['results'][0]['id']
+        self.assertEqual(ptr_override['host'], host_id)
+
+    def test_ptr_override_ipv6_create_new_host(self):
+        # Adding a new host with already existing IPv6 should
+        # create a PtrOverride for it
+        ret = self.client.get("/ptroverrides/")
+        old_count = ret.data['count']
+        host_ipv6_data = {'name': 'ns3.example.org',
+                     'contact': 'mail@example.org',
+                     'ipaddress': '2001:db8::7'}
+        host2_ipv6_data = {'name': 'ns4.example.org',
+                      'contact': 'mail@example.org',
+                      'ipaddress': '2001:db8::7'}
+        self.client.post('/hosts/', host_ipv6_data)
+        ret = self.client.get("/ptroverrides/")
+        new_count = ret.data['count']
+        self.assertEqual(new_count, old_count)
+        self.client.post('/hosts/', host2_ipv6_data)
+        ret = self.client.get("/ptroverrides/")
+        new_count = ret.data['count']
+        self.assertGreater(new_count, old_count)
+        # Now check that the last PtrOverride
+        # points to the first host holding the IP
+        ptr_override = ret.data['results'][-1]
+        self.assertEqual(ptr_override['ipaddress'], '2001:db8::7')
+        ret = self.client.get('/hosts/?name=ns3.example.org')
+        host_id = ret.data['results'][0]['id']
+        self.assertEqual(ptr_override['host'], host_id)
+
+    def test_ptr_override_delete_with_host(self):
+        # Deleting a host with assigned PtrOverrides should
+        # delete the PtrOverrides too
+        ret = self.client.get("/ptroverrides/")
+        self.assertEqual(ret.data['count'], 2)
+        ret = self.client.delete("/hosts/{}".format(self.host.name))
+        ret = self.client.get("/ptroverrides/")
+        self.assertEqual(ret.data['count'], 0)
+        
+
 class APISshfpTestcase(MregAPITestCase):
     """Test SSHFP records."""
 
@@ -475,7 +699,7 @@ class APISshfpTestcase(MregAPITestCase):
         data = {'host': self.host.id,
                 'algorithm': 1,
                 'hash_type': 1,
-                'fingerprint': 'beeftasty'}
+                'fingerprint': 'beefistasty'}
         ret = self.client.post("/sshfps/", data)
         self.assertEqual(ret.status_code, 400)
         data = {'host': self.host.id,
@@ -913,6 +1137,7 @@ class APIZonesNsTestCase(MregAPITestCase):
         self.assertEqual(response.status_code, 204)
         self.assertFalse(NameServer.objects.exists())
 
+
 class APIZoneRFC2317(MregAPITestCase):
     """This class tests RFC 2317 delegations."""
 
@@ -966,26 +1191,40 @@ class APIIPaddressesTestCase(MregAPITestCase):
         clean_and_save(self.host_two)
 
         self.ipaddress_one = Ipaddress(host=self.host_one,
-                                       ipaddress='129.240.111.111')
+                                       ipaddress='192.168.111.111')
 
         self.ipaddress_two = Ipaddress(host=self.host_two,
-                                       ipaddress='129.240.111.112')
+                                       ipaddress='192.168.111.112')
+
+        self.ipv6address_one = Ipaddress(host=self.host_one,
+                                         ipaddress='2001:db8::beef')
+
+        self.ipv6address_two = Ipaddress(host=self.host_two,
+                                         ipaddress='2001:db8::feed')
 
         clean_and_save(self.ipaddress_one)
         clean_and_save(self.ipaddress_two)
 
+        clean_and_save(self.ipv6address_one)
+        clean_and_save(self.ipv6address_two)
+
         self.post_data_full = {'host': self.host_one.id,
-                               'ipaddress': '129.240.203.197'}
+                               'ipaddress': '192.168.203.197'}
         self.post_data_full_conflict = {'host': self.host_one.id,
                                         'ipaddress': self.ipaddress_one.ipaddress}
         self.post_data_full_duplicate_ip = {'host': self.host_two.id,
                                             'ipaddress': self.ipaddress_one.ipaddress}
-        self.patch_data_ip = {'ipaddress': '129.240.203.198'}
-        self.patch_bad_ip = {'ipaddress': '129.240.300.1'}
+        self.patch_data_ip = {'ipaddress': '192.168.203.198'}
+        self.patch_bad_ip = {'ipaddress': '192.168.300.1'}
 
     def test_ipaddress_get_200_ok(self):
         """"Getting an existing entry should return 200"""
         response = self.client.get('/ipaddresses/%s' % self.ipaddress_one.id)
+        self.assertEqual(response.status_code, 200)
+    
+    def test_ipv6address_get_200_ok(self):
+        """"Getting an existing entry should return 200"""
+        response = self.client.get('/ipaddresses/%s' % self.ipv6address_one.id)
         self.assertEqual(response.status_code, 200)
 
     def test_ipaddress_list_200_ok(self):
@@ -993,22 +1232,41 @@ class APIIPaddressesTestCase(MregAPITestCase):
         response = self.client.get('/ipaddresses/')
         self.assertEqual(response.status_code, 200)
         data = response.json()
-        self.assertEqual(data['count'], 2)
-        self.assertEqual(len(data['results']), 2)
+        self.assertEqual(data['count'], 4)
+        self.assertEqual(len(data['results']), 4)
 
     def test_ipaddress_get_404_not_found(self):
         """"Getting a non-existing entry should return 404"""
         response = self.client.get('/ipaddresses/193.101.168.2')
         self.assertEqual(response.status_code, 404)
 
+    def test_ipv6address_get_404_not_found(self):
+        """"Getting a non-existing entry should return 404"""
+        response = self.client.get('/ipaddresses/2001:db8::8')
+        self.assertEqual(response.status_code, 404)
+
     def test_ipaddress_post_201_created(self):
         """"Posting a new ip should return 201"""
         response = self.client.post('/ipaddresses/', self.post_data_full)
         self.assertEqual(response.status_code, 201)
-
+    
+    def test_ipv6address_post_201_created(self):
+        """"Posting a new IPv6 should return 201"""
+        post_ipv6_data_full = {'host': self.host_one.id,
+                               'ipaddress': '2001:db8::8'}
+        response = self.client.post('/ipaddresses/', post_ipv6_data_full)
+        self.assertEqual(response.status_code, 201)
+    
     def test_ipaddress_post_400_conflict_ip(self):
         """"Posting an existing ip for a host should return 400"""
         response = self.client.post('/ipaddresses/', self.post_data_full_conflict)
+        self.assertEqual(response.status_code, 400)
+
+    def test_ipv6address_post_400_conflict_ip(self):
+        """"Posting an existing IPv6 for a host should return 400"""
+        post_ipv6_data_full_conflict = {'host': self.host_one.id,
+                                        'ipaddress': self.ipv6address_one.ipaddress}
+        response = self.client.post('/ipaddresses/', post_ipv6_data_full_conflict)
         self.assertEqual(response.status_code, 400)
 
     def test_ipaddress_post_201_two_hosts_share_ip(self):
@@ -1016,15 +1274,34 @@ class APIIPaddressesTestCase(MregAPITestCase):
         response = self.client.post('/ipaddresses/', self.post_data_full_duplicate_ip)
         self.assertEqual(response.status_code, 201)
 
+    def test_ipv6address_post_201_two_hosts_share_ip(self):
+        """"Posting a new ipaddress with an IPv6 already in use should return 201"""
+        post_ipv6_data_full_duplicate_ip = {'host': self.host_two.id,
+                                            'ipaddress': self.ipv6address_one.ipaddress}
+        response = self.client.post('/ipaddresses/', post_ipv6_data_full_duplicate_ip)
+        self.assertEqual(response.status_code, 201)
+
     def test_ipaddress_patch_200_ok(self):
         """Patching an existing and valid entry should return 200"""
         response = self.client.patch('/ipaddresses/%s' % self.ipaddress_one.id, self.patch_data_ip)
         self.assertEqual(response.status_code, 204)
 
-    def test_ipaddress_patch_200_own_ip(self):
-        """Patching an entry with its own ip should return 200"""
+    def test_ipv6address_patch_200_ok(self):
+        """Patching an existing and valid entry should return 200"""
+        patch_data_ipv6 = {'ipaddress': '2001:db8::9'}
+        response = self.client.patch('/ipaddresses/%s' % self.ipv6address_one.id, patch_data_ipv6)
+        self.assertEqual(response.status_code, 204)
+
+    def test_ipaddress_patch_204_own_ip(self):
+        """Patching an entry with its own ip should return 204"""
         response = self.client.patch('/ipaddresses/%s' % self.ipaddress_one.id,
                                      {'ipaddress': str(self.ipaddress_one.ipaddress)})
+        self.assertEqual(response.status_code, 204)
+
+    def test_ipv6address_patch_204_own_ip(self):
+        """Patching an entry with its own IPv6 should return 204"""
+        response = self.client.patch('/ipaddresses/%s' % self.ipv6address_one.id,
+                                     {'ipaddress': str(self.ipv6address_one.ipaddress)})
         self.assertEqual(response.status_code, 204)
 
     def test_ipaddress_patch_400_bad_request(self):
@@ -1033,9 +1310,21 @@ class APIIPaddressesTestCase(MregAPITestCase):
                                      data={'this': 'is', 'so': 'wrong'})
         self.assertEqual(response.status_code, 400)
 
+    def test_ipv6address_patch_400_bad_request(self):
+        """Patching with invalid data should return 400"""
+        response = self.client.patch('/ipaddresses/%s' % self.ipv6address_one.id,
+                                     data={'this': 'is', 'so': 'wrong'})
+        self.assertEqual(response.status_code, 400)
+
     def test_ipaddress_patch_400_bad_ip(self):
         """Patching with invalid data should return 400"""
         response = self.client.patch('/ipaddresses/%s' % self.ipaddress_one.id, self.patch_bad_ip)
+        self.assertEqual(response.status_code, 400)
+
+    def test_ipv6address_patch_400_bad_ip(self):
+        """Patching with invalid data should return 400"""
+        patch_bad_ipv6 = {'ipaddress': '2001:db8::zzzz'}
+        response = self.client.patch('/ipaddresses/%s' % self.ipv6address_one.id, patch_bad_ipv6)
         self.assertEqual(response.status_code, 400)
 
     def test_ipaddress_patch_404_not_found(self):
@@ -1123,16 +1412,16 @@ class APIMACaddressTestCase(MregAPITestCase):
         self.assertEqual(response.status_code, 204)
 
     def test_mac_with_network(self):
-        self.network_one = Network(range='10.0.0.0/24')
+        self.network_one = Network(network='10.0.0.0/24')
         clean_and_save(self.network_one)
         self.test_mac_post_ip_with_mac_201_ok()
         self.test_mac_patch_ip_and_mac_200_ok()
         self.test_mac_patch_mac_200_ok()
 
     def test_mac_with_network_vlan(self):
-        self.network_one = Network(range='10.0.0.0/24', vlan=10)
-        self.network_two = Network(range='10.0.1.0/24', vlan=10)
-        self.network_ipv6 = Network(range='2001:db8:1::/64', vlan=10)
+        self.network_one = Network(network='10.0.0.0/24', vlan=10)
+        self.network_two = Network(network='10.0.1.0/24', vlan=10)
+        self.network_ipv6 = Network(network='2001:db8:1::/64', vlan=10)
         clean_and_save(self.network_one)
         clean_and_save(self.network_two)
         clean_and_save(self.network_ipv6)
@@ -1210,7 +1499,7 @@ class APICnamesTestCase(MregAPITestCase):
                                                  'name': self.host_two['name']})
         self.assertEqual(response.status_code, 400)
 
-    def test_cname_post_nonexistant_host_400_bad_request(self):
+    def test_cname_post_nonexistent_host_400_bad_request(self):
         """Adding a cname with a unknown host will return 400 bad request."""
         response = self.client.post('/cnames/', {'host': 1,
                                                  'name': 'alias.example.org'})
@@ -1236,14 +1525,14 @@ class APINetworksTestCase(MregAPITestCase):
     def setUp(self):
         """Define the test client and other variables."""
         super().setUp()
-        self.network_sample = Network(range='10.0.0.0/24',
+        self.network_sample = Network(network='10.0.0.0/24',
                                     description='some description',
                                     vlan=123,
                                     dns_delegated=False,
                                     category='so',
                                     location='Location 1',
                                     frozen=False)
-        self.network_ipv6_sample = Network(range='2001:db8::/32',
+        self.network_ipv6_sample = Network(network='2001:db8::/32',
                                     description='some IPv6 description',
                                     vlan=123,
                                     dns_delegated=False,
@@ -1251,7 +1540,7 @@ class APINetworksTestCase(MregAPITestCase):
                                     location='Location 1',
                                     frozen=False)
         # Second samples are needed for the overlap tests
-        self.network_sample_two = Network(range='10.0.1.0/28',
+        self.network_sample_two = Network(network='10.0.1.0/28',
                                         description='some description',
                                         vlan=135,
                                         dns_delegated=False,
@@ -1259,7 +1548,7 @@ class APINetworksTestCase(MregAPITestCase):
                                         location='Location 2',
                                         frozen=False)
         
-        self.network_ipv6_sample_two = Network(range='2001:db8:8000::/33',
+        self.network_ipv6_sample_two = Network(network='2001:db8:8000::/33',
                                         description='some IPv6 description',
                                         vlan=135,
                                         dns_delegated=False,
@@ -1291,55 +1580,55 @@ class APINetworksTestCase(MregAPITestCase):
         }
 
         self.patch_data_vlan = {'vlan': '435'}
-        self.patch_data_range = {'range': '10.0.0.0/28'}
-        self.patch_ipv6_data_range = {'range': '2001:db8::/64'}
-        self.patch_data_range_overlap = {'range': '10.0.1.0/29'}
-        self.patch_ipv6_data_range_overlap = {'range': '2001:db8:8000::/34'}
+        self.patch_data_network = {'network': '10.0.0.0/28'}
+        self.patch_ipv6_data_network = {'network': '2001:db8::/64'}
+        self.patch_data_network_overlap = {'network': '10.0.1.0/29'}
+        self.patch_ipv6_data_network_overlap = {'network': '2001:db8:8000::/34'}
 
         self.post_data = {
-            'range': '192.0.2.0/29',
+            'network': '192.0.2.0/29',
             'description': 'Test network',
             'vlan': '435',
             'dns_delegated': 'False',
         }
         self.post_ipv6_data = {
-            'range': 'beef:feed::/32',
+            'network': 'beef:feed::/32',
             'description': 'Test IPv6 network',
             'vlan': '435',
             'dns_delegated': 'False',
         }
         self.post_data_bad_ip = {
-            'range': '192.0.2.0.95/29',
+            'network': '192.0.2.0.95/29',
             'description': 'Test network',
             'vlan': '435',
             'dns_delegated': 'False',
         }
         self.post_ipv6_data_bad_ip = {
-            'range': 'beef:good::/32',
+            'network': 'beef:good::/32',
             'description': 'Test IPv6 network',
             'vlan': '435',
             'dns_delegated': 'False',
         }
         self.post_data_bad_mask = {
-            'range': '192.0.2.0/2549',
+            'network': '192.0.2.0/2549',
             'description': 'Test network',
             'vlan': '435',
             'dns_delegated': 'False',
         }
         self.post_ipv6_data_bad_mask = {
-            'range': 'beef:feed::/129',
+            'network': 'beef:feed::/129',
             'description': 'Test IPv6 network',
             'vlan': '435',
             'dns_delegated': 'False',
         }
         self.post_data_overlap = {
-            'range': '10.0.1.0/29',
+            'network': '10.0.1.0/29',
             'description': 'Test network',
             'vlan': '435',
             'dns_delegated': 'False',
         }
         self.post_ipv6_data_overlap = {
-            'range': '2001:db8:8000::/34',
+            'network': '2001:db8:8000::/34',
             'description': 'Test IPv6 network',
             'vlan': '435',
             'dns_delegated': 'False',
@@ -1356,43 +1645,43 @@ class APINetworksTestCase(MregAPITestCase):
         self.assertEqual(response.status_code, 201)
     
     def test_networks_post_400_bad_request_ip(self):
-        """Posting a network with a range that has a malformed IP should return 400"""
+        """Posting a network with a network that has a malformed IP should return 400"""
         response = self.client.post('/networks/', self.post_data_bad_ip)
         self.assertEqual(response.status_code, 400)
     
     def test_ipv6_networks_post_400_bad_request_ip(self):
-        """Posting an IPv6 network with a range that has a malformed IP should return 400"""
+        """Posting an IPv6 network with a network that has a malformed IP should return 400"""
         response = self.client.post('/networks/', self.post_ipv6_data_bad_ip)
         self.assertEqual(response.status_code, 400)
 
     def test_networks_post_400_bad_request_mask(self):
-        """Posting a network with a range that has a malformed mask should return 400"""
+        """Posting a network with a network that has a malformed mask should return 400"""
         response = self.client.post('/networks/', self.post_data_bad_mask)
         self.assertEqual(response.status_code, 400)
 
     def test_ipv6_networks_post_400_bad_request_mask(self):
-        """Posting an IPv6 network with a range that has a malformed mask should return 400"""
+        """Posting an IPv6 network with a network that has a malformed mask should return 400"""
         response = self.client.post('/networks/', self.post_ipv6_data_bad_mask)
         self.assertEqual(response.status_code, 400)
 
     def test_networks_post_409_overlap_conflict(self):
-        """Posting a network with a range which overlaps existing should return 409"""
+        """Posting a network with a network which overlaps existing should return 409"""
         response = self.client.post('/networks/', self.post_data_overlap)
         self.assertEqual(response.status_code, 409)
 
     def test_ipv6_networks_post_409_overlap_conflict(self):
-        """Posting an IPv6 network with a range which overlaps existing should return 409"""
+        """Posting an IPv6 network with a network which overlaps existing should return 409"""
         response = self.client.post('/networks/', self.post_ipv6_data_overlap)
         self.assertEqual(response.status_code, 409)
 
     def test_networks_get_200_ok(self):
-        """GET on an existing ip-range should return 200 OK."""
-        response = self.client.get('/networks/%s' % self.network_sample.range)
+        """GET on an existing ip-network should return 200 OK."""
+        response = self.client.get('/networks/%s' % self.network_sample.network)
         self.assertEqual(response.status_code, 200)
 
     def test_ipv6_networks_get_200_ok(self):
-        """GET on an existing ipv6-range should return 200 OK."""
-        response = self.client.get('/networks/%s' % self.network_ipv6_sample.range)
+        """GET on an existing ipv6-network should return 200 OK."""
+        response = self.client.get('/networks/%s' % self.network_ipv6_sample.network)
         self.assertEqual(response.status_code, 200)
 
     def test_networks_list_200_ok(self):
@@ -1404,37 +1693,37 @@ class APINetworksTestCase(MregAPITestCase):
 
     def test_networks_patch_204_no_content(self):
         """Patching an existing and valid entry should return 204 and Location"""
-        response = self.client.patch('/networks/%s' % self.network_sample.range, self.patch_data)
+        response = self.client.patch('/networks/%s' % self.network_sample.network, self.patch_data)
         self.assertEqual(response.status_code, 204)
-        self.assertEqual(response['Location'], '/networks/%s' % self.network_sample.range)
+        self.assertEqual(response['Location'], '/networks/%s' % self.network_sample.network)
 
     def test_ipv6_networks_patch_204_no_content(self):
         """Patching an existing and valid IPv6 entry should return 204 and Location"""
-        response = self.client.patch('/networks/%s' % self.network_ipv6_sample.range, self.patch_ipv6_data)
+        response = self.client.patch('/networks/%s' % self.network_ipv6_sample.network, self.patch_ipv6_data)
         self.assertEqual(response.status_code, 204)
-        self.assertEqual(response['Location'], '/networks/%s' % self.network_ipv6_sample.range)
+        self.assertEqual(response['Location'], '/networks/%s' % self.network_ipv6_sample.network)
 
-    def test_networks_patch_204_non_overlapping_range(self):
-        """Patching an entry with a non-overlapping range should return 204"""
-        response = self.client.patch('/networks/%s' % self.network_sample.range, data=self.patch_data_range)
+    def test_networks_patch_204_non_overlapping_network(self):
+        """Patching an entry with a non-overlapping network should return 204"""
+        response = self.client.patch('/networks/%s' % self.network_sample.network, data=self.patch_data_network)
         self.assertEqual(response.status_code, 204)
-        self.assertEqual(response['Location'], '/networks/%s' % self.patch_data_range['range'])
+        self.assertEqual(response['Location'], '/networks/%s' % self.patch_data_network['network'])
 
-    def test_ipv6_networks_patch_204_non_overlapping_range(self):
-        """Patching an entry with a non-overlapping IPv6 range should return 204"""
-        response = self.client.patch('/networks/%s' % self.network_ipv6_sample.range, data=self.patch_ipv6_data_range)
+    def test_ipv6_networks_patch_204_non_overlapping_network(self):
+        """Patching an entry with a non-overlapping IPv6 network should return 204"""
+        response = self.client.patch('/networks/%s' % self.network_ipv6_sample.network, data=self.patch_ipv6_data_network)
         self.assertEqual(response.status_code, 204)
-        self.assertEqual(response['Location'], '/networks/%s' % self.patch_ipv6_data_range['range'])
+        self.assertEqual(response['Location'], '/networks/%s' % self.patch_ipv6_data_network['network'])
 
     def test_networks_patch_400_bad_request(self):
         """Patching with invalid data should return 400"""
-        response = self.client.patch('/networks/%s' % self.network_sample.range,
+        response = self.client.patch('/networks/%s' % self.network_sample.network,
                                      data={'this': 'is', 'so': 'wrong'})
         self.assertEqual(response.status_code, 400)
 
     def test_ipv6_networks_patch_400_bad_request(self):
         """Patching with invalid IPv6 data should return 400"""
-        response = self.client.patch('/networks/%s' % self.network_ipv6_sample.range,
+        response = self.client.patch('/networks/%s' % self.network_ipv6_sample.network,
                                      data={'this': 'is', 'so': 'wrong'})
         self.assertEqual(response.status_code, 400)
 
@@ -1448,29 +1737,29 @@ class APINetworksTestCase(MregAPITestCase):
         response = self.client.patch('/networks/3000:4000:5000:6000::/64', self.patch_ipv6_data)
         self.assertEqual(response.status_code, 404)
 
-    def test_networks_patch_409_forbidden_range(self):
-        """Patching an entry with an overlapping range should return 409"""
-        response = self.client.patch('/networks/%s' % self.network_sample.range,
-                data=self.patch_data_range_overlap)
+    def test_networks_patch_409_forbidden_network(self):
+        """Patching an entry with an overlapping network should return 409"""
+        response = self.client.patch('/networks/%s' % self.network_sample.network,
+                data=self.patch_data_network_overlap)
         self.assertEqual(response.status_code, 409)
 
-    def test_ipv6_networks_patch_409_forbidden_range(self):
-        """Patching an IPv6 entry with an overlapping range should return 409"""
-        response = self.client.patch('/networks/%s' % self.network_ipv6_sample.range,
-                data=self.patch_ipv6_data_range_overlap)
+    def test_ipv6_networks_patch_409_forbidden_network(self):
+        """Patching an IPv6 entry with an overlapping network should return 409"""
+        response = self.client.patch('/networks/%s' % self.network_ipv6_sample.network,
+                data=self.patch_ipv6_data_network_overlap)
         self.assertEqual(response.status_code, 409)
 
     def test_networks_get_network_by_ip_200_ok(self):
         """GET on an ip in a known network should return 200 OK."""
         response = self.client.get('/networks/ip/10.0.0.5')
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data['range'], self.network_sample.range)
+        self.assertEqual(response.data['network'], str(self.network_sample.network))
 
     def test_ipv6_networks_get_network_by_ip_200_ok(self):
         """GET on an IPv6 in a known network should return 200 OK."""
         response = self.client.get('/networks/ip/2001:db8::12')
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data['range'], self.network_ipv6_sample.range)
+        self.assertEqual(response.data['network'], str(self.network_ipv6_sample.network))
 
     def test_networks_get_network_unknown_by_ip_404_not_found(self):
         """GET on an IP in a unknown network should return 404 not found."""
@@ -1487,7 +1776,7 @@ class APINetworksTestCase(MregAPITestCase):
         ip_sample = Ipaddress(host=self.host_one, ipaddress='10.0.0.17')
         clean_and_save(ip_sample)
 
-        response = self.client.get('/networks/%s/used_count' % self.network_sample.range)
+        response = self.client.get('/networks/%s/used_count' % self.network_sample.network)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, 1)
 
@@ -1496,7 +1785,7 @@ class APINetworksTestCase(MregAPITestCase):
         ipv6_sample = Ipaddress(host=self.host_one, ipaddress='2001:db8::beef')
         clean_and_save(ipv6_sample)
 
-        response = self.client.get('/networks/%s/used_count' % self.network_ipv6_sample.range)
+        response = self.client.get('/networks/%s/used_count' % self.network_ipv6_sample.network)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, 1)
 
@@ -1505,7 +1794,7 @@ class APINetworksTestCase(MregAPITestCase):
         ip_sample = Ipaddress(host=self.host_one, ipaddress='10.0.0.17')
         clean_and_save(ip_sample)
 
-        response = self.client.get('/networks/%s/used_list' % self.network_sample.range)
+        response = self.client.get('/networks/%s/used_list' % self.network_sample.network)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, ['10.0.0.17'])
 
@@ -1514,7 +1803,7 @@ class APINetworksTestCase(MregAPITestCase):
         ipv6_sample = Ipaddress(host=self.host_one, ipaddress='2001:db8::beef')
         clean_and_save(ipv6_sample)
 
-        response = self.client.get('/networks/%s/used_list' % self.network_ipv6_sample.range)
+        response = self.client.get('/networks/%s/used_list' % self.network_ipv6_sample.network)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, ['2001:db8::beef'])
 
@@ -1523,7 +1812,7 @@ class APINetworksTestCase(MregAPITestCase):
         ip_sample = Ipaddress(host=self.host_one, ipaddress='10.0.0.17')
         clean_and_save(ip_sample)
 
-        response = self.client.get('/networks/%s/unused_count' % self.network_sample.range)
+        response = self.client.get('/networks/%s/unused_count' % self.network_sample.network)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, 250)
 
@@ -1532,7 +1821,7 @@ class APINetworksTestCase(MregAPITestCase):
         ipv6_sample = Ipaddress(host=self.host_one, ipaddress='2001:db8::beef')
         clean_and_save(ipv6_sample)
 
-        response = self.client.get('/networks/%s/unused_count' % self.network_ipv6_sample.range)
+        response = self.client.get('/networks/%s/unused_count' % self.network_ipv6_sample.network)
         self.assertEqual(response.status_code, 200)
         # Only the first 4000 addresses for IPv6 are returned, :1 and :2 and :3 are reserved
         self.assertEqual(response.data, 3997)
@@ -1542,7 +1831,7 @@ class APINetworksTestCase(MregAPITestCase):
         ip_sample = Ipaddress(host=self.host_one, ipaddress='10.0.0.17')
         clean_and_save(ip_sample)
 
-        response = self.client.get('/networks/%s/unused_list' % self.network_sample.range)
+        response = self.client.get('/networks/%s/unused_list' % self.network_sample.network)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 250)
 
@@ -1551,7 +1840,7 @@ class APINetworksTestCase(MregAPITestCase):
         ipv6_sample = Ipaddress(host=self.host_one, ipaddress='2001:db8::beef')
         clean_and_save(ipv6_sample)
 
-        response = self.client.get('/networks/%s/unused_list' % self.network_ipv6_sample.range)
+        response = self.client.get('/networks/%s/unused_list' % self.network_ipv6_sample.network)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 3997)
 
@@ -1560,7 +1849,7 @@ class APINetworksTestCase(MregAPITestCase):
         ip_sample = Ipaddress(host=self.host_one, ipaddress='10.0.0.17')
         clean_and_save(ip_sample)
 
-        response = self.client.get('/networks/%s/first_unused' % self.network_sample.range)
+        response = self.client.get('/networks/%s/first_unused' % self.network_sample.network)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, '10.0.0.4')
 
@@ -1569,42 +1858,42 @@ class APINetworksTestCase(MregAPITestCase):
         ipv6_sample = Ipaddress(host=self.host_one, ipaddress='2001:db8::beef')
         clean_and_save(ipv6_sample)
 
-        response = self.client.get('/networks/%s/first_unused' % self.network_ipv6_sample.range)
+        response = self.client.get('/networks/%s/first_unused' % self.network_ipv6_sample.network)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, '2001:db8::4')
 
     def test_networks_get_ptroverride_list(self):
         """GET on /networks/<ip/mask>/ptroverride_list should return 200 ok and data."""
-        response = self.client.get('/networks/%s/ptroverride_list' % self.network_sample.range)
+        response = self.client.get('/networks/%s/ptroverride_list' % self.network_sample.network)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, [])
         ptr = PtrOverride(host=self.host_one, ipaddress='10.0.0.10')
         clean_and_save(ptr)
-        response = self.client.get('/networks/%s/ptroverride_list' % self.network_sample.range)
+        response = self.client.get('/networks/%s/ptroverride_list' % self.network_sample.network)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, ['10.0.0.10'])
 
     def test_ipv6_networks_get_ptroverride_list(self):
         """GET on /networks/<ipv6/mask>/ptroverride_list should return 200 ok and data."""
-        response = self.client.get('/networks/%s/ptroverride_list' % self.network_ipv6_sample.range)
+        response = self.client.get('/networks/%s/ptroverride_list' % self.network_ipv6_sample.network)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, [])
         ptr = PtrOverride(host=self.host_one, ipaddress='2001:db8::feed')
         clean_and_save(ptr)
-        response = self.client.get('/networks/%s/ptroverride_list' % self.network_ipv6_sample.range)
+        response = self.client.get('/networks/%s/ptroverride_list' % self.network_ipv6_sample.network)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, ['2001:db8::feed'])
 
     def test_networks_get_reserved_list(self):
         """GET on /networks/<ip/mask>/reserverd_list should return 200 ok and data."""
-        response = self.client.get('/networks/%s/reserved_list' % self.network_sample.range)
+        response = self.client.get('/networks/%s/reserved_list' % self.network_sample.network)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, ['10.0.0.0', '10.0.0.1',
             '10.0.0.2', '10.0.0.3','10.0.0.255'])
 
     def test_ipv6_networks_get_reserved_list(self):
         """GET on /networks/<ipv6/mask>/reserverd_list should return 200 ok and data."""
-        response = self.client.get('/networks/%s/reserved_list' % self.network_ipv6_sample.range)
+        response = self.client.get('/networks/%s/reserved_list' % self.network_ipv6_sample.network)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, ['2001:db8::', '2001:db8::1',
             '2001:db8::2', '2001:db8::3'])
@@ -1613,14 +1902,14 @@ class APINetworksTestCase(MregAPITestCase):
         """Deleting an existing entry with no adresses in use should return 204"""
         response = self.client.post('/networks/', self.post_data)
         self.assertEqual(response.status_code, 201)
-        response = self.client.delete('/networks/%s' % self.post_data['range'])
+        response = self.client.delete('/networks/%s' % self.post_data['network'])
         self.assertEqual(response.status_code, 204)
 
     def test_ipv6_networks_delete_204_no_content(self):
         """Deleting an existing IPv6 entry with no adresses in use should return 204"""
         response = self.client.post('/networks/', self.post_ipv6_data)
         self.assertEqual(response.status_code, 201)
-        response = self.client.delete('/networks/%s' % self.post_ipv6_data['range'])
+        response = self.client.delete('/networks/%s' % self.post_ipv6_data['network'])
         self.assertEqual(response.status_code, 204)
 
     def test_networks_delete_409_conflict(self):
@@ -1631,7 +1920,7 @@ class APINetworksTestCase(MregAPITestCase):
         ip_sample = Ipaddress(host=self.host_one, ipaddress='192.0.2.1')
         clean_and_save(ip_sample)
 
-        response = self.client.delete('/networks/%s' % self.post_data['range'])
+        response = self.client.delete('/networks/%s' % self.post_data['network'])
         self.assertEqual(response.status_code, 409)
 
     def test_ipv6_networks_delete_409_conflict(self):
@@ -1642,8 +1931,49 @@ class APINetworksTestCase(MregAPITestCase):
         ipv6_sample = Ipaddress(host=self.host_one, ipaddress='beef:feed::beef')
         clean_and_save(ipv6_sample)
 
-        response = self.client.delete('/networks/%s' % self.post_ipv6_data['range'])
+        response = self.client.delete('/networks/%s' % self.post_ipv6_data['network'])
         self.assertEqual(response.status_code, 409)
+
+
+class APIZonefileTestCase(MregAPITestCase):
+
+    def setUp(self):
+        self.client = self.get_token_client(superuser=False, adminuser=False)
+
+    def _save_and_get_zone(self, zone):
+        clean_and_save(zone)
+        response = self.client.get(f"/zonefiles/{zone.name}")
+        self.assertEqual(response.status_code, 200)
+
+    def test_get_forward(self):
+        zone = ForwardZone(
+            name="example.org",
+            primary_ns="ns1.example.org",
+            email="hostmaster@example.org")
+        self._save_and_get_zone(zone)
+
+    def test_get_nonexistent(self):
+        response = self.client.get("/zonefiles/ops")
+        self.assertEqual(response.status_code, 404)
+
+    def test_get_not_authenticated(self):
+        client = APIClient()
+        response = client.get("/zonefiles/ops")
+        self.assertEqual(response.status_code, 401)
+
+    def test_get_rev_v4(self):
+        zone = ReverseZone(
+            name="10.10.in-addr.arpa",
+            primary_ns="ns1.example.org",
+            email="hostmaster@example.org")
+        self._save_and_get_zone(zone)
+
+    def test_get_rev_v6(self):
+        zone = ReverseZone(
+            name="0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa",
+            primary_ns="ns1.example.org",
+            email="hostmaster@example.org")
+        self._save_and_get_zone(zone)
 
 
 class APIModelChangeLogsTestCase(MregAPITestCase):
