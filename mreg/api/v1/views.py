@@ -1316,8 +1316,7 @@ class HostGroupDetail(MregRetrieveUpdateDestroyAPIView):
         query = self.kwargs['pk']
         hostgroup = get_object_or_404(HostGroup, name=query)
         serializer = HostGroupDetailSerializer(hostgroup, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            location = '/hostgroups/%s' % HostGroup.name
-            return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
-        return Response(status=status.HTTP_400_BAD_REQUEST, content)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        location = '/hostgroups/%s' % serializer.validated_data['name']
+        return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
