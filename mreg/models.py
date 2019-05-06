@@ -2,8 +2,10 @@ import ipaddress
 
 from collections import defaultdict
 from datetime import timedelta
+from functools import reduce
 
 from django.db import DatabaseError, models, transaction
+from django.db.models import Q
 from django.utils import timezone
 from netfields import CidrAddressField, NetManager
 
@@ -571,13 +573,12 @@ class NetGroupRegexPermission(models.Model):
             ips = [ips]
         if not isinstance(ips, (list, tuple)):
             return ValueError(f'ips on invalid type ({type(ips)})')
-        iplist = '{%s}' % ', '.join(ips)
         qs = NetGroupRegexPermission.objects.filter(
                 group__in=groups
             ).extra(
                 where=["%s ~ regex"], params=[str(hostname)]
-            ).extra(
-                where=["range >>= ANY (%s::inet[])"], params=[iplist]
+            ).filter(
+                reduce(lambda x, y: x | y, [Q(range__net_contains=ip) for ip in ips])
             )
         return qs
 
