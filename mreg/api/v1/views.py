@@ -30,7 +30,7 @@ from mreg.api.v1.serializers import (CnameSerializer, HinfoPresetSerializer,
         ReverseZoneDelegationSerializer, ModelChangeLogSerializer,
         SshfpSerializer, NetGroupRegexPermissionSerializer)
 from mreg.models import (Cname, ForwardZone, ForwardZoneDelegation, HinfoPreset, Host, Ipaddress,
-                         HostGroup, HostGroupMember,
+                         HostGroup,
                          Mx, NameServer, Naptr, Network, PtrOverride, ReverseZone,
                          ReverseZoneDelegation, Srv, Txt, ModelChangeLog, Sshfp)
 import mreg.models
@@ -57,11 +57,6 @@ class HostFilterSet(ModelFilterSet):
 class HostGroupFilterSet(ModelFilterSet):
     class Meta:
         model = HostGroup
-
-
-class HostGroupMemberilterSet(ModelFilterSet):
-    class Meta:
-        model = HostGroupMember
 
 
 class IpaddressFilterSet(ModelFilterSet):
@@ -138,10 +133,6 @@ class HostGroupFilterSet(ModelFilterSet):
     class Meta:
         model = HostGroup
 
-
-class HostGroupMemberFilterSet(ModelFilterSet):
-    class Meta:
-        model = HostGroupMember
 
 class MregMixin:
 
@@ -397,40 +388,6 @@ class HostGroupList(generics.ListCreateAPIView):
         serializer.save()
         location = '/hostgroups/%s' % serializer.validated_data['name']
         return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
-
-
-class HostGroupDetail(MregRetrieveUpdateDestroyAPIView):
-    """
-    get:
-    Returns details for the specified hostgroup. Includes hostgroup and hosts that are members.
-
-    patch:
-    Updates part of hostgroup.
-
-    delete:
-    Delete the specified hostgroup.
-    """
-    queryset = HostGroup.objects.all()
-    serializer_class = HostGroupSerializer
-
-    def get_object(self, queryset=queryset):
-        return get_object_or_404(HostGroup, name=self.kwargs['pk'])
-
-    def patch(self, request, *args, **kwargs):
-        query = self.kwargs['pk']
-
-        if "name" in request.data:
-            if self.queryset.filter(name=request.data["name"]).exists():
-                content = {'ERROR': 'name already in use'}
-                return Response(content, status=status.HTTP_409_CONFLICT)
-
-        hostgroup = get_object_or_404(Hostgroup, name=query)
-        serializer = hostgroupserializer(hostgroup, data=request.data, partial=True)
-
-        if serializer.is_valid(raise_exception=True):
-            serializer.save()
-            location = '/hostgroups/%s' % hostgroup.name
-            return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
 class IpaddressList(HostPermissionsListCreateAPIView):
@@ -1414,17 +1371,7 @@ class HostGroupDetail(MregRetrieveUpdateDestroyAPIView):
     delete:
     Delete the specified hostgroup.
     """
+
     queryset = HostGroup.objects.all()
     serializer_class = HostGroupDetailSerializer
-
-    def get_object(self, queryset=queryset):
-        return get_object_or_404(HostGroup, name=self.kwargs['pk'])
-
-    def patch(self, request, *args, **kwargs):
-        query = self.kwargs['pk']
-        hostgroup = get_object_or_404(HostGroup, name=query)
-        serializer = HostGroupDetailSerializer(hostgroup, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        location = '/hostgroups/%s' % serializer.validated_data['name']
-        return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
+    lookup_field = 'name'
