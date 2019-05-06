@@ -43,6 +43,7 @@ urlpatterns = [
     path('txts/', views.TxtList.as_view()),
     path('txts/<pk>', views.TxtDetail.as_view()),
     path('zones/', views.ZoneList.as_view()),
+    path('zones/hostname/<hostname>', views.zone_by_hostname),
     re_path(r'^zones/(?P<name>(\d+/)?[^/]+)$', views.ZoneDetail.as_view()),
     re_path(r'^zones/(?P<name>(\d+/)?[^/]+)/delegations/$', views.ZoneDelegationList.as_view()),
     re_path(r'^zones/(?P<name>(\d+/)?[^/]+)/delegations/(?P<delegation>(.*))', views.ZoneDelegationDetail.as_view()),
