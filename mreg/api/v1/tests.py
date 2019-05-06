@@ -851,6 +851,20 @@ class APIForwardZonesTestCase(MregAPITestCase):
         """"Deleting an entry with registered entries should require force"""
 
 
+    def test_zone_by_hostname_404_not_found(self):
+        response = self.client.get('/zones/hostname/invalid.example.wrongtld')
+        self.assertEqual(response.status_code, 404)
+
+    def test_zone_by_hostname_200_ok(self):
+        def _test(hostname, zone, zonetype):
+            response = self.client.get(f'/zones/hostname/{hostname}')
+            self.assertEqual(response.status_code, 200)
+            data = response.json()
+            self.assertEqual(data[zonetype]['name'], zone)
+        _test('host.example.org', 'example.org', 'zone')
+        _test('example.org', 'example.org', 'zone')
+
+
 class APIZonesForwardDelegationTestCase(MregAPITestCase):
     """ This class defines test testsuite for api/zones/<name>/delegations/
         But only for ForwardZones.
@@ -865,7 +879,7 @@ class APIZonesForwardDelegationTestCase(MregAPITestCase):
         self.client.post("/zones/", self.data_exampleorg)
 
     def test_list_empty_delegation_200_ok(self):
-        response = self.client.get(f"/zones/example.org/delegations/")
+        response = self.client.get("/zones/example.org/delegations/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['results'], [])
 
@@ -950,6 +964,24 @@ class APIZonesForwardDelegationTestCase(MregAPITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['results'], [])
 
+
+    def test_zone_by_hostname_404_not_found(self):
+        self.test_delegate_forward_201_ok()
+        response = self.client.get('/zones/hostname/invalid.example.wrongtld')
+        self.assertEqual(response.status_code, 404)
+
+    def test_zone_by_hostname_200_ok(self):
+        self.test_delegate_forward_201_ok()
+        def _test(hostname, zone, zonetype):
+            response = self.client.get(f'/zones/hostname/{hostname}')
+            self.assertEqual(response.status_code, 200)
+            data = response.json()
+            self.assertEqual(data[zonetype]['name'], zone)
+
+        _test('host.example.org', 'example.org', 'zone')
+        _test('example.org', 'example.org', 'zone')
+        _test('host.delegated.example.org', 'delegated.example.org', 'delegation')
+        _test('delegated.example.org', 'delegated.example.org', 'delegation')
 
 class APIZonesReverseDelegationTestCase(MregAPITestCase):
     """ This class defines test testsuite for api/zones/<name>/delegations/

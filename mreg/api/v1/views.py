@@ -1035,6 +1035,28 @@ class ZoneDelegationList(generics.ListCreateAPIView):
         return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
 
 
+@api_view()
+def zone_by_hostname(request, *args, **kwargs):
+    """
+    Get which zone would match a hostname.
+
+    Note the hostname does not need to exist as a Host.
+    """
+    hostname = kwargs['hostname'].lower()
+    zone = ForwardZone.get_zone_by_hostname(hostname)
+    if zone is None:
+        raise Http404
+    if zone.name != hostname and zone.delegations.exists():
+        for delegation in zone.delegations.all():
+            if hostname == delegation.name or hostname.endswith(f".{delegation.name}"):
+                serializer = ForwardZoneDelegationSerializer(delegation)
+                ret = {"delegation": serializer.data }
+                return Response(ret, status=status.HTTP_200_OK)
+    serializer = ForwardZoneSerializer(zone)
+    ret = {"zone": serializer.data }
+    return Response(ret, status=status.HTTP_200_OK)
+
+
 class ZoneDetail(MregRetrieveUpdateDestroyAPIView):
     """
     get:
