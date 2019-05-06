@@ -6,7 +6,8 @@ from rest_framework import serializers
 from mreg.models import (Cname, HinfoPreset, Host, HostGroup, HostGroupMember, Ipaddress, Mx, NameServer,
                          Naptr, PtrOverride, Srv, Network, Txt, ForwardZone,
                          ForwardZoneDelegation, ReverseZone,
-                         ReverseZoneDelegation, ModelChangeLog, Sshfp)
+                         ReverseZoneDelegation, ModelChangeLog, Sshfp,
+                         NetGroupRegexPermission)
 
 from mreg.utils import nonify
 from mreg.validators import validate_keys
@@ -93,7 +94,7 @@ class IpaddressSerializer(ValidationMixin, serializers.ModelSerializer):
                 if self.instance.macaddress == mac and \
                    self.instance.ipaddress == macip:
                     return data
-            network = Network.get_network_by_ip(macip)
+            network = Network.objects.filter(network__net_contains=macip).first()
             if not network:
                 # XXX: what to do? Currently just make sure it is a unique mac
                 _raise_if_mac_found(Ipaddress.objects, mac)
@@ -148,7 +149,6 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
     def get_ipaddresses(self, instance):
         ipaddresses = instance.ipaddresses.all().order_by('ipaddress')
         return IpaddressSerializer(ipaddresses, many=True, read_only=True).data
-
 
 
 class HostSaveSerializer(ForwardZoneMixin, serializers.ModelSerializer):
@@ -206,6 +206,11 @@ class NetworkSerializer(ValidationMixin, serializers.ModelSerializer):
     def create(self):
         return Network(**self.validated_data)
 
+class NetGroupRegexPermissionSerializer(ValidationMixin, serializers.ModelSerializer):
+    class Meta:
+        model = NetGroupRegexPermission
+        fields = '__all__'
+
 
 class BaseZoneSerializer(ValidationMixin, serializers.ModelSerializer):
     nameservers = NameServerSerializer(read_only=True, many=True)
@@ -230,7 +235,7 @@ class ForwardZoneSerializer(BaseZoneSerializer):
 
 
 class ReverseZoneSerializer(BaseZoneSerializer):
-    range = serializers.CharField(read_only=True, required=False)
+    network = serializers.CharField(read_only=True, required=False)
 
     class Meta(BaseZoneSerializer.Meta):
         model = ReverseZone
