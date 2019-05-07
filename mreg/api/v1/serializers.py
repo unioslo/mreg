@@ -1,9 +1,10 @@
 import ipaddress
 
+from django.contrib.auth.models import Group
 from django.utils import timezone
 from rest_framework import serializers
 
-from mreg.models import (Cname, HinfoPreset, Host, HostGroup, HostGroupMember, Ipaddress, Mx, NameServer,
+from mreg.models import (Cname, HinfoPreset, Host, HostGroup, Ipaddress, Mx, NameServer,
                          Naptr, PtrOverride, Srv, Network, Txt, ForwardZone,
                          ForwardZoneDelegation, ReverseZone,
                          ReverseZoneDelegation, ModelChangeLog, Sshfp,
@@ -279,45 +280,26 @@ class ModelChangeLogSerializer(ValidationMixin, serializers.ModelSerializer):
         return ModelChangeLog(**self.validated_data)
 
 
-class HostGroupMemberSerializer(ValidationMixin, serializers.ModelSerializer):
-    name = serializers.SlugRelatedField(read_only=True, slug_field="name", source="host")
-    #id = serializers.PrimaryKeyRelatedField(read_only=True, source="host")
-
+class GroupSerializer(serializers.ModelSerializer):
     class Meta:
-        model = HostGroupMember
-        fields = ['name']
-
-    #def get_hosts(self, instance):
-    #    return instance.hostgroupmember_set.all()
+        model = Group
+        fields = ('name',)
 
 
 class HostGroupSerializer(ValidationMixin, serializers.ModelSerializer):
-    # groups_count = serializers.SerializerMethodField()
-    hosts = HostGroupMemberSerializer(many=True, read_only=True)
+    #name = HostGroupNameSerializer(many=True, read_only=True)
 
     class Meta:
         model =  HostGroup
-        fields = ['name','hosts']
+        fields = ('name',)
 
 
 class HostGroupDetailSerializer(ValidationMixin, serializers.ModelSerializer):
-    #groups = HostGroupSerializer(many=True,read_only=True)
-    groups = HostGroupSerializer(many=True)
-    hosts = HostGroupMemberSerializer(many=True, source="hostmembers",read_only=True)
+    owners = GroupSerializer(many=True, read_only=True)
+    parent = HostGroupSerializer(many=True, read_only=True)
+    groups = HostGroupSerializer(many=True, read_only=True)
+    hosts = HostNameSerializer(many=True, read_only=True)
 
     class Meta:
         model = HostGroup
-        fields = ['name', 'hosts', 'groups']
-
-    def create(self, validated_data):
-        groups_data = validated_data.pop("groups")
-        HostGroup = HostGroup
-
-"""
-class HostGroupGroupsSerializer(ValidationMixin, serializers.ModelSerializer):
-    groups = HostGroupMemberSerializer(many=True)
-
-    class Meta:
-        model = HostGroupMember
-        fields = ['name']
-"""
+        fields = '__all__'
