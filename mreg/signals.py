@@ -192,21 +192,24 @@ def prevent_hostgroup_parent_recursion(sender, instance, action, model, reverse,
     """
     pk_set contains the group(s) being added to a group
     instance is the group getting new group members
-    This prevents groups from being able to become their own grandparent
+    This prevents groups from being able to become their own parent
     """
+
     if action != 'pre_add':
         return
-    else:
-        child_id = list(pk_set)[0]
-        parent_parents = HostGroup.objects.get(id=instance.id).parent.all()
 
-        for parent in parent_parents:
-            if child_id == parent.id:
-                raise PermissionDenied(detail='Recursive memberships are not allowed.' \
-                                              ' This group is a member of %s' % HostGroup.objects.get(id=parent.id).name)
-            elif HostGroup.objects.get(id=parent.id).parent.all():
-                pk_set = {child_id}
-                prevent_hostgroup_parent_recursion(sender, parent, action, model, reverse, pk_set, **kwargs)
+    if instance.id in pk_set:
+        raise PermissionDenied(detail='A group can not be its own child')
+
+    child_id = list(pk_set)[0]
+
+    for parent in instance.parent.all():
+        if child_id == parent.id:
+            raise PermissionDenied(detail='Recursive memberships are not allowed.' \
+                                          ' This group is a member of %s' % parent.name)
+        elif parent.parent.exists():
+            pk_set = {child_id}
+            prevent_hostgroup_parent_recursion(sender, parent, action, model, reverse, pk_set, **kwargs)
 
 
 
