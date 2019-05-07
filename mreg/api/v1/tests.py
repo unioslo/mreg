@@ -8,7 +8,7 @@ from django.utils import timezone
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient, APITestCase
 
-from mreg.models import (Cname, HinfoPreset, Host, HostGroup, HostGroupMember, Ipaddress, NameServer,
+from mreg.models import (Cname, HinfoPreset, Host, Ipaddress, NameServer,
                          Naptr, PtrOverride, Srv, Network, Txt, ForwardZone,
                          ReverseZone, ModelChangeLog, Sshfp)
 
@@ -2046,40 +2046,3 @@ class APIModelChangeLogsTestCase(MregAPITestCase):
         response = self.client.get('/history/hosts/{}'.format(self.host_one.id))
         self.assertEqual(response.status_code, 200)
         self.assertIsInstance(response.data, list)
-
-
-class APIHostGroupsTestCase(MregAPITestCase):
-    """This class defines the test suite for api/hostgroups"""
-
-    def setUp(self):
-        """Define the test client and other test variables."""
-        super().setUp()
-        self.hostgroup_one = HostGroup(name='testgroup1')
-        clean_and_save(self.hostgroup_one)
-        self.hostgroup_two = HostGroup(name='testgroup2')
-        clean_and_save(self.hostgroup_two)
-        self.post_data = {'name': 'testgroup3'}
-
-    def test_hostgroups_get_200_ok(self):
-        """"Getting an existing entry should return 200"""
-        response = self.client.get('/hostgroups/%s' % self.hostgroup_one.name)
-        self.assertEqual(response.status_code, 200)
-
-    def test_hostgroups_list_200_ok(self):
-        """List all hosts should return 200"""
-        response = self.client.get('/hostgroups/')
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data['count'], 2)
-        self.assertEqual(len(data['results']), 2)
-
-    def test_hostgroups_get_404_not_found(self):
-        """"Getting a non-existing entry should return 404"""
-        response = self.client.get('/hostgroups/nonexisting-group')
-        self.assertEqual(response.status_code, 404)
-
-    def test_hostgroups_post_201_created(self):
-        """"Posting a new host should return 201 and location"""
-        response = self.client.post('/hostgroups/', self.post_data)
-        self.assertEqual(response.status_code, 201)
-        self.assertEqual(response['Location'], '/hostgroups/%s' % self.post_data['name'])
