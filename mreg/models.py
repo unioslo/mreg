@@ -4,6 +4,7 @@ from collections import defaultdict
 from datetime import timedelta
 from functools import reduce
 
+from django.contrib.auth.models import Group
 from django.db import DatabaseError, models, transaction
 from django.db.models import Q
 from django.utils import timezone
@@ -549,26 +550,17 @@ class Srv(ForwardZoneMember):
 
 class HostGroup(models.Model):
     name = models.CharField(max_length=50, unique=True)
+    description = models.CharField(max_length=200, blank=True)
+    owners = models.ManyToManyField(Group, blank=True)
     parent = models.ManyToManyField('self', symmetrical=False, blank=True, related_name='groups')
+    hosts = models.ManyToManyField(Host, related_name='hostgroups')
 
     class Meta:
         db_table = 'hostgroup'
         ordering = ('name',)
 
     def __str__(self):
-        return("%s" % (self.name))
-
-
-class HostGroupMember(models.Model):
-    host = models.ForeignKey(Host, on_delete=models.PROTECT, db_column='host', related_name='hostgroups')
-    group = models.ForeignKey(HostGroup, on_delete=models.PROTECT, related_name="hostmembers")
-
-    class Meta:
-        db_table = 'hostmember'
-        ordering = ('group',)
-
-    def __str__(self):
-        return('%s' % self.host)
+        return "%s" % self.name
 
 
 class NetGroupRegexPermission(models.Model):
