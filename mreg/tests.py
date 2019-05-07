@@ -930,6 +930,18 @@ class ModelHostGroupTestCase(TestCase):
         new_count = self.group_one.groups.count()
         self.assertNotEqual(old_count, new_count)
 
+    def test_model_can_not_be_own_child(self):
+        clean_and_save(self.group_one)
+        with self.assertRaises(PermissionDenied) as context:
+            self.group_one.groups.add(self.group_one)
+
+    def test_model_can_not_be_own_grandchild(self):
+        clean_and_save(self.group_one)
+        clean_and_save(self.group_two)
+        self.group_one.groups.add(self.group_two)
+        with self.assertRaises(PermissionDenied) as context:
+            self.group_two.groups.add(self.group_one)
+
     def test_model_group_parent_can_never_be_child_of_child_groupmember(self):
         clean_and_save(self.group_one)
         clean_and_save(self.group_two)
