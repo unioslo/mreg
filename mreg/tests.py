@@ -4,7 +4,7 @@ from django.utils import timezone
 
 from mreg.models import (ForwardZone, Host, Ipaddress, NameServer, Network, ReverseZone,
                          PtrOverride, Txt, Sshfp, Cname, Naptr, Srv, ModelChangeLog,
-                         NetGroupRegexPermission, HostGroup, HostGroupMember)
+                         NetGroupRegexPermission, HostGroup)
 from rest_framework.exceptions import PermissionDenied
 
 
@@ -871,7 +871,7 @@ class NameServerDeletionTestCase(TestCase):
 
 
 class ModelHostGroupTestCase(TestCase):
-    """This class defines the test suite for the HostGroup and HostGroupmember model."""
+    """This class defines the test suite for the HostGroup model."""
 
     def setUp(self):
         """Define the test client and other test variables."""
@@ -894,27 +894,24 @@ class ModelHostGroupTestCase(TestCase):
         old_count = HostGroup.objects.count()
         self.group_one.delete()
         new_count = HostGroup.objects.count()
-        self.assertNotEqual(old_count, new_count)
+        self.assertGreater(old_count, new_count)
 
     def test_model_can_add_host_to_hostgroup(self):
         clean_and_save(self.group_one)
         clean_and_save(self.host_one)
-        old_count = self.group_one.hostmembers.count()
-        self.group_one.hostmembers.create(host=self.host_one)
-        self.group_one.save()
-        new_count = self.group_one.hostmembers.count()
-        self.assertNotEqual(old_count, new_count)
+        old_count = self.group_one.hosts.count()
+        self.group_one.hosts.add(self.host_one)
+        new_count = self.group_one.hosts.count()
+        self.assertLess(old_count, new_count)
 
     def test_model_can_remove_host_from_hostgroup(self):
         clean_and_save(self.group_one)
         clean_and_save(self.host_one)
-        self.group_one.hostmembers.create(host=self.host_one)
-        clean_and_save(self.group_one)
-        old_count = self.group_one.hostmembers.count()
-        host_one_membership_object = HostGroupMember.objects.get(host=self.host_one, group=self.group_one)
-        host_one_membership_object.delete()
-        new_count = self.group_one.hostmembers.count()
-        self.assertNotEqual(old_count, new_count)
+        self.group_one.hosts.add(self.host_one)
+        old_count = self.group_one.hosts.count()
+        self.group_one.hosts.remove(self.host_one)
+        new_count = self.group_one.hosts.count()
+        self.assertGreater(old_count, new_count)
 
     def test_model_can_add_group_to_group(self):
         clean_and_save(self.group_one)
