@@ -22,13 +22,15 @@ from mreg.api.permissions import (IsSuperGroupMember,
                                   ReadOnlyForRequiredGroup, )
 from mreg.api.v1.serializers import (CnameSerializer, HinfoPresetSerializer,
         HostNameSerializer, HostSerializer, HostSaveSerializer,
-        HostGroupSerializer, HostGroupDetailSerializer,
         IpaddressSerializer, MxSerializer, NameServerSerializer,
         NaptrSerializer, PtrOverrideSerializer, SrvSerializer,
         NetworkSerializer, TxtSerializer, ForwardZoneSerializer,
         ForwardZoneDelegationSerializer, ReverseZoneSerializer,
         ReverseZoneDelegationSerializer, ModelChangeLogSerializer,
         SshfpSerializer, NetGroupRegexPermissionSerializer)
+
+from . import serializers
+
 from mreg.models import (Cname, ForwardZone, ForwardZoneDelegation, HinfoPreset, Host, Ipaddress,
                          HostGroup,
                          Mx, NameServer, Naptr, Network, PtrOverride, ReverseZone,
@@ -1338,7 +1340,7 @@ class HostGroupList(generics.ListCreateAPIView):
     Creates a new hostgroup object.
     """
     queryset = HostGroup.objects.get_queryset()
-    serializer_class = HostGroupSerializer
+    serializer_class = serializers.HostGroupSerializer
     filter_backends = (filters.OrderingFilter,)
     ordering_fields = '__all__'
 
@@ -1373,5 +1375,71 @@ class HostGroupDetail(MregRetrieveUpdateDestroyAPIView):
     """
 
     queryset = HostGroup.objects.all()
-    serializer_class = HostGroupDetailSerializer
+    serializer_class = serializers.HostGroupDetailSerializer
     lookup_field = 'name'
+
+
+class HostGroupGroupsList(generics.ListCreateAPIView):
+    """
+    get:
+    Lists all host group members for a hostgroup.
+
+    post:
+    Adds a new host group member to a hostgroup.
+    """
+
+    serializer_class = serializers.HostGroupSerializer
+    filter_backends = (filters.OrderingFilter,)
+    ordering_fields = '__all__'
+    lookup_field = 'name'
+
+    def get_queryset(self):
+        self.hostgroup = get_object_or_404(HostGroup,
+                                           name=self.kwargs[self.lookup_field])
+        self.queryset = self.hostgroup.groups.all()
+        return self.queryset
+
+    def post(self, request, *args, **kwargs):
+        qs = self.get_queryset()
+        if "name" in request.data:
+            membername = request.data['name']
+            if qs.filter(name=membername).exists():
+                content = {'ERROR': 'Group already a member'}
+                return Response(content, status=status.HTTP_409_CONFLICT)
+            try:
+                member = HostGroup.objects.get(name=membername)
+            except HostGroup.DoesNotExist:
+                content = {'ERROR': f'Group "{membername}" does not exist'}
+                return Response(content, status=status.HTTP_404_NOT_FOUND)
+            self.hostgroup.groups.add(member)
+            location = f'/hostgroups/{self.hostgroup.name}/groups/{member.name}'
+            return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
+        else:
+            content = {'ERROR': 'No group name provided'}
+            return Response(content, status=status.HTTP_400_BAD_REQUEST)
+
+
+class HostGroupGroupsDetail(MregRetrieveUpdateDestroyAPIView):
+    """
+    get:
+    Returns details for the specified hostgroup member.
+
+    patch:
+    Not allowed.
+
+    delete:
+    Delete the specified hostgroup member.
+    """
+
+    queryset = HostGroup.objects.all()
+    serializer_class = serializers.HostGroupDetailSerializer
+    lookup_field = 'name'
+
+    def get_queryset(self):
+        self.hostgroup = get_object_or_404(HostGroup,
+                                           name=self.kwargs['group'])
+        self.queryset = self.hostgroup.groups.all()
+        return self.queryset
+
+    def patch(self, request, *args, **kwargs):
+        raise MethodNotAllowed()
