@@ -551,6 +551,7 @@ class Srv(ForwardZoneMember):
 class HostGroup(models.Model):
     name = models.CharField(max_length=50, unique=True)
     description = models.CharField(max_length=200, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
     owners = models.ManyToManyField(Group, blank=True)
     parent = models.ManyToManyField('self', symmetrical=False, blank=True, related_name='groups')
     hosts = models.ManyToManyField(Host, related_name='hostgroups')
