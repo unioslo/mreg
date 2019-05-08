@@ -361,37 +361,6 @@ class HostDetail(HostPermissionsUpdateDestroy,
             return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
-class HostGroupList(generics.ListCreateAPIView):
-    """
-    get:
-    Lists all hostgroups in use.
-
-    post:
-    Creates a new hostgroup object.
-    """
-    queryset = HostGroup.objects.get_queryset()
-    serializer_class = HostGroupSerializer
-    filter_backends = (filters.OrderingFilter,)
-    ordering_fields = '__all__'
-
-    def get_queryset(self):
-        qs = super().get_queryset()
-        return HostGroupFilterSet(data=self.request.GET, queryset=qs).filter()
-
-
-    def post(self, request, *args, **kwargs):
-        if "name" in request.data:
-            if self.queryset.filter(name=request.data['name']).exists():
-                content = {'ERROR': 'hostgroup name already in use'}
-                return Response(content, status=status.HTTP_409_CONFLICT)
-
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        location = '/hostgroups/%s' % serializer.validated_data['name']
-        return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
-
-
 class IpaddressList(HostPermissionsListCreateAPIView):
     """
     get:
