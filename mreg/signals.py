@@ -187,6 +187,40 @@ def save_host_history_on_delete(sender, instance, **kwargs):
     new_log_entry.save()
 
 
+@receiver(pre_save, sender=Host)
+def hostgroups_update_update_at_on_host_rename(sender, instance, raw, using, update_fields, **kwargs):
+    """
+    Update hostgroup on host rename
+    """
+    # Ignore newly created hosts
+    if not instance.id:
+        return
+
+    oldname = Host.objects.get(id=instance.id).name
+    if oldname != instance.name:
+        for hostgroup in instance.hostgroups.all():
+            hostgroup.save()
+
+
+@receiver(pre_delete, sender=Host)
+def hostgroup_update_updated_at_on_host_delete(sender, instance, using, **kwargs):
+    """
+    No signal is sent for m2m relations on delete, so use a pre_delete on Host
+    instead.
+    """
+    for hostgroup in instance.hostgroups.all():
+        hostgroup.save()
+
+@receiver(m2m_changed, sender=HostGroup.hosts.through)
+@receiver(m2m_changed, sender=HostGroup.parent.through)
+def hostgroup_update_updated_at_on_changes(sender, instance, action, model, reverse, pk_set, **kwargs):
+    """
+    Update the hostgroups updated_at field whenever its hosts or parent
+    m2m relations have successfully been altered.
+    """
+    if action in ('post_add', 'post_remove', 'post_clear',):
+        instance.save()
+
 @receiver(m2m_changed, sender=HostGroup.parent.through)
 def prevent_hostgroup_parent_recursion(sender, instance, action, model, reverse, pk_set, **kwargs):
     """
