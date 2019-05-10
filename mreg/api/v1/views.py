@@ -5,7 +5,9 @@ from collections import defaultdict
 
 import django.core.exceptions
 
+from django.contrib.auth.models import Group
 from django.db import transaction
+from django.db.models import Prefetch
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from rest_framework import (filters, generics, renderers, status)
@@ -1315,6 +1317,10 @@ class HostGroupList(generics.ListCreateAPIView):
 
     def get_queryset(self):
         qs = super().get_queryset()
+        qs = qs.prefetch_related(Prefetch(
+             'hosts', queryset=Host.objects.order_by('name'))
+             ).prefetch_related(Prefetch(
+             'owners', queryset=Group.objects.order_by('name')))
         return HostGroupFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
@@ -1344,17 +1350,17 @@ class HostGroupDetail(MregRetrieveUpdateDestroyAPIView):
     """
 
     queryset = HostGroup.objects.all()
-    serializer_class = serializers.HostGroupDetailSerializer
+    serializer_class = serializers.HostGroupSerializer
     lookup_field = 'name'
 
 
 class HostGroupGroupsList(generics.ListCreateAPIView):
     """
     get:
-    Lists all host group members for a hostgroup.
+    Lists all hostgroup members for a hostgroup.
 
     post:
-    Adds a new host group member to a hostgroup.
+    Adds a new hostgroup member to a hostgroup.
     """
 
     serializer_class = serializers.HostGroupSerializer
@@ -1400,14 +1406,140 @@ class HostGroupGroupsDetail(MregRetrieveUpdateDestroyAPIView):
     Delete the specified hostgroup member.
     """
 
-    queryset = HostGroup.objects.all()
-    serializer_class = serializers.HostGroupDetailSerializer
+    serializer_class = serializers.HostGroupSerializer
+    lookup_field = 'name'
+
+    def get_queryset(self):
+        hostgroup = get_object_or_404(HostGroup, name=self.kwargs['group'])
+        self.queryset = hostgroup.groups.all()
+        return self.queryset
+
+    def patch(self, request, *args, **kwargs):
+        raise MethodNotAllowed()
+
+
+class HostGroupHostsList(generics.ListCreateAPIView):
+    """
+    get:
+    Lists all host members for a hostgroup.
+
+    post:
+    Adds a new host member to a hostgroup.
+    """
+
+    serializer_class = serializers.HostNameSerializer
+    filter_backends = (filters.OrderingFilter,)
+    ordering_fields = '__all__'
     lookup_field = 'name'
 
     def get_queryset(self):
         self.hostgroup = get_object_or_404(HostGroup,
-                                           name=self.kwargs['group'])
-        self.queryset = self.hostgroup.groups.all()
+                                           name=self.kwargs[self.lookup_field])
+        self.queryset = self.hostgroup.hosts.all().order_by('name')
+        return self.queryset
+
+    def post(self, request, *args, **kwargs):
+        qs = self.get_queryset()
+        if "name" in request.data:
+            membername = request.data['name']
+            if qs.filter(name=membername).exists():
+                content = {'ERROR': 'Host already a member'}
+                return Response(content, status=status.HTTP_409_CONFLICT)
+            try:
+                member = Host.objects.get(name=membername)
+            except Host.DoesNotExist:
+                content = {'ERROR': f'Host "{membername}" does not exist'}
+                return Response(content, status=status.HTTP_404_NOT_FOUND)
+            self.hostgroup.hosts.add(member)
+            location = f'/hostgroups/{self.hostgroup.name}/hosts/{member.name}'
+            return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
+        else:
+            content = {'ERROR': 'No group name provided'}
+            return Response(content, status=status.HTTP_400_BAD_REQUEST)
+
+
+class HostGroupHostsDetail(MregRetrieveUpdateDestroyAPIView):
+    """
+    get:
+    Returns details for the specified host member.
+
+    patch:
+    Not allowed.
+
+    delete:
+    Delete the specified host member.
+    """
+
+    serializer_class = serializers.GroupSerializer
+    lookup_field = 'name'
+
+    def get_queryset(self):
+        hostgroup = get_object_or_404(HostGroup, name=self.kwargs['group'])
+        self.queryset = hostgroup.hosts.all()
+        return self.queryset
+
+    def patch(self, request, *args, **kwargs):
+        raise MethodNotAllowed()
+
+
+class HostGroupOwnersList(generics.ListCreateAPIView):
+    """
+    get:
+    Lists all owners for a hostgroup.
+
+    post:
+    Adds a new owner to a hostgroup.
+    """
+
+    serializer_class = serializers.HostNameSerializer
+    filter_backends = (filters.OrderingFilter,)
+    ordering_fields = '__all__'
+    lookup_field = 'name'
+
+    def get_queryset(self):
+        self.hostgroup = get_object_or_404(HostGroup,
+                                           name=self.kwargs[self.lookup_field])
+        self.queryset = self.hostgroup.owners.order_by('name')
+        return self.queryset
+
+    def post(self, request, *args, **kwargs):
+        qs = self.get_queryset()
+        if "name" in request.data:
+            ownername = request.data['name']
+            if qs.filter(name=ownername).exists():
+                content = {'ERROR': 'Group already an owner'}
+                return Response(content, status=status.HTTP_409_CONFLICT)
+            try:
+                owner = Group.objects.get(name=ownername)
+            except Group.DoesNotExist:
+                content = {'ERROR': f'Group "{ownername}" does not exist'}
+                return Response(content, status=status.HTTP_404_NOT_FOUND)
+            self.hostgroup.owners.add(owner)
+            location = f'/hostgroups/{self.hostgroup.name}/owners/{owner.name}'
+            return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
+        else:
+            content = {'ERROR': 'No group name provided'}
+            return Response(content, status=status.HTTP_400_BAD_REQUEST)
+
+
+class HostGroupOwnersDetail(MregRetrieveUpdateDestroyAPIView):
+    """
+    get:
+    Returns details for the specified host owner.
+
+    patch:
+    Not allowed.
+
+    delete:
+    Delete the specified host owner.
+    """
+
+    serializer_class = serializers.GroupSerializer
+    lookup_field = 'name'
+
+    def get_queryset(self):
+        hostgroup = get_object_or_404(HostGroup, name=self.kwargs['group'])
+        self.queryset = hostgroup.owners.all()
         return self.queryset
 
     def patch(self, request, *args, **kwargs):

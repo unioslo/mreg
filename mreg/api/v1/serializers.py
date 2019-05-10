@@ -285,20 +285,17 @@ class GroupSerializer(serializers.ModelSerializer):
         model = Group
         fields = ('name',)
 
-
-class HostGroupSerializer(ValidationMixin, serializers.ModelSerializer):
-    #name = HostGroupNameSerializer(many=True, read_only=True)
+class HostGroupNameSerializer(serializers.ModelSerializer):
 
     class Meta:
-        model =  HostGroup
-        fields = ('name',)
+        model = HostGroup
+        fields = ('name', )
 
-
-class HostGroupDetailSerializer(ValidationMixin, serializers.ModelSerializer):
-    owners = GroupSerializer(many=True, read_only=True)
-    parent = HostGroupSerializer(many=True, read_only=True)
-    groups = HostGroupSerializer(many=True, read_only=True)
+class HostGroupSerializer(serializers.ModelSerializer):
+    parent = HostGroupNameSerializer(many=True, read_only=True)
+    groups = HostGroupNameSerializer(many=True, read_only=True)
     hosts = HostNameSerializer(many=True, read_only=True)
+    owners = GroupSerializer(many=True, read_only=True)
 
     class Meta:
         model = HostGroup
