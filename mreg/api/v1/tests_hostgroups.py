@@ -48,6 +48,14 @@ class APIHostGroupsTestCase(MregAPITestCase):
         self.assertEqual(response['Location'], '/hostgroups/newname')
         self.assertEqual(response.status_code, 204)
 
+    def test_hostgroups_patch_description_204_ok(self):
+        """Rename a group should return 204 ok"""
+        response = self.client.patch(f'/hostgroups/{self.hostgroup_one.name}',
+                                     {'description': 'new d€scription'})
+        self.assertEqual(response.status_code, 204)
+        response = self.client.get('/hostgroups/%s' % self.hostgroup_one.name)
+        self.assertEqual(response.json()['description'], 'new d€scription')
+
     def test_hostgroups_rename_to_name_in_use_400_bad_request(self):
         """Rename a group should return 204 ok"""
         response = self.client.patch(f'/hostgroups/{self.hostgroup_one.name}',
@@ -100,12 +108,15 @@ class APIHostGroupGroupsTestCase(MregAPITestCase):
                                     {'name': 'cheese'})
         self.assertEqual(response.status_code, 404)
 
-    def test_delete_groupmember_204_ok(self):
+    def test_remove_groupmember_204_ok(self):
         self.client.post(f'/hostgroups/{self.hostgroup_one.name}/groups/',
                          {'name': self.hostgroup_two.name})
         path = f'/hostgroups/{self.hostgroup_one.name}/groups/{self.hostgroup_two.name}'
         response = self.client.delete(path)
         self.assertEqual(response.status_code, 204)
+        # Make sure the group itself is not deleted, just removed from m2m-relation.
+        self.hostgroup_two.refresh_from_db()
+        self.assertEqual(self.hostgroup_one.groups.count(), 0)
 
 
 class APIHostGroupHostsTestCase(MregAPITestCase):
@@ -141,12 +152,15 @@ class APIHostGroupHostsTestCase(MregAPITestCase):
                                     {'name': 'cheese'})
         self.assertEqual(response.status_code, 404)
 
-    def test_delete_hostsmember_204_ok(self):
+    def test_remove_hostsmember_204_ok(self):
         self.client.post(f'/hostgroups/{self.hostgroup_one.name}/hosts/',
                          {'name': self.host_one.name})
         path = f'/hostgroups/{self.hostgroup_one.name}/hosts/{self.host_one.name}'
         response = self.client.delete(path)
         self.assertEqual(response.status_code, 204)
+        # Make sure the host itself is not deleted, just removed from m2m-relation.
+        self.host_one.refresh_from_db()
+        self.assertEqual(self.hostgroup_one.hosts.count(), 0)
 
 
 class APIHostGroupOwnersTestCase(MregAPITestCase):
@@ -182,9 +196,12 @@ class APIHostGroupOwnersTestCase(MregAPITestCase):
                                     {'name': 'cheese'})
         self.assertEqual(response.status_code, 404)
 
-    def test_delete_hostsmember_204_ok(self):
+    def test_remove_hostsmember_204_ok(self):
         self.client.post(f'/hostgroups/{self.hostgroup_one.name}/owners/',
                          {'name': self.owner_one.name})
         path = f'/hostgroups/{self.hostgroup_one.name}/owners/{self.owner_one.name}'
         response = self.client.delete(path)
         self.assertEqual(response.status_code, 204)
+        # Make sure the group itself is not deleted, just removed from m2m-relation.
+        self.owner_one.refresh_from_db()
+        self.assertEqual(self.hostgroup_one.owners.count(), 0)
