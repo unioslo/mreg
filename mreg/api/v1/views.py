@@ -1326,7 +1326,7 @@ class HostGroupList(generics.ListCreateAPIView):
 
     def post(self, request, *args, **kwargs):
         if "name" in request.data:
-            if self.queryset.filter(name=request.data['name']).exists():
+            if self.get_queryset().filter(name=request.data['name']).exists():
                 content = {'ERROR': 'hostgroup name already in use'}
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
@@ -1349,7 +1349,11 @@ class HostGroupDetail(MregRetrieveUpdateDestroyAPIView):
     Delete the specified hostgroup.
     """
 
-    queryset = HostGroup.objects.all()
+    queryset = HostGroup.objects.get_queryset(
+                 ).prefetch_related(Prefetch(
+                   'hosts', queryset=Host.objects.order_by('name'))
+                 ).prefetch_related(Prefetch(
+                    'owners', queryset=Group.objects.order_by('name')))
     serializer_class = serializers.HostGroupSerializer
     lookup_field = 'name'
 
@@ -1371,8 +1375,7 @@ class HostGroupGroupsList(generics.ListCreateAPIView):
     def get_queryset(self):
         self.hostgroup = get_object_or_404(HostGroup,
                                            name=self.kwargs[self.lookup_field])
-        self.queryset = self.hostgroup.groups.all()
-        return self.queryset
+        return self.hostgroup.groups.all()
 
     def post(self, request, *args, **kwargs):
         qs = self.get_queryset()
@@ -1411,8 +1414,7 @@ class HostGroupGroupsDetail(MregRetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         hostgroup = get_object_or_404(HostGroup, name=self.kwargs['group'])
-        self.queryset = hostgroup.groups.all()
-        return self.queryset
+        return hostgroup.groups.all()
 
     def patch(self, request, *args, **kwargs):
         raise MethodNotAllowed()
@@ -1435,8 +1437,7 @@ class HostGroupHostsList(generics.ListCreateAPIView):
     def get_queryset(self):
         self.hostgroup = get_object_or_404(HostGroup,
                                            name=self.kwargs[self.lookup_field])
-        self.queryset = self.hostgroup.hosts.all().order_by('name')
-        return self.queryset
+        return self.hostgroup.hosts.all().order_by('name')
 
     def post(self, request, *args, **kwargs):
         qs = self.get_queryset()
@@ -1475,8 +1476,7 @@ class HostGroupHostsDetail(MregRetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         hostgroup = get_object_or_404(HostGroup, name=self.kwargs['group'])
-        self.queryset = hostgroup.hosts.all()
-        return self.queryset
+        return hostgroup.hosts.all()
 
     def patch(self, request, *args, **kwargs):
         raise MethodNotAllowed()
@@ -1499,8 +1499,7 @@ class HostGroupOwnersList(generics.ListCreateAPIView):
     def get_queryset(self):
         self.hostgroup = get_object_or_404(HostGroup,
                                            name=self.kwargs[self.lookup_field])
-        self.queryset = self.hostgroup.owners.order_by('name')
-        return self.queryset
+        return self.hostgroup.owners.order_by('name')
 
     def post(self, request, *args, **kwargs):
         qs = self.get_queryset()
@@ -1539,8 +1538,7 @@ class HostGroupOwnersDetail(MregRetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         hostgroup = get_object_or_404(HostGroup, name=self.kwargs['group'])
-        self.queryset = hostgroup.owners.all()
-        return self.queryset
+        return hostgroup.owners.all()
 
     def patch(self, request, *args, **kwargs):
         raise MethodNotAllowed()
