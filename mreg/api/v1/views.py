@@ -167,10 +167,7 @@ class MregRetrieveUpdateDestroyAPIView(ETAGMixin,
         location = '/%s/%s' % (resource, getattr(instance, self.lookup_field))
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
-class HostPermissionsUpdateDestroy:
-
-    # permission_classes = settings.MREG_PERMISSION_CLASSES
-    permission_classes = (IsGrantedNetGroupRegexPermission, )
+class MregPermissionUpdateDestroy:
 
     def perform_destroy(self, instance):
         # Custom check destroy permissions
@@ -196,11 +193,7 @@ class HostPermissionsUpdateDestroy:
                                                     validated_serializer):
                 self.permission_denied(request)
 
-
-class HostPermissionsListCreateAPIView(MregMixin, generics.ListCreateAPIView):
-
-    # permission_classes = settings.MREG_PERMISSION_CLASSES
-    permission_classes = (IsGrantedNetGroupRegexPermission, )
+class MregPermissionsListCreateAPIView(MregMixin, generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         # Custom check create permissions
@@ -213,6 +206,17 @@ class HostPermissionsListCreateAPIView(MregMixin, generics.ListCreateAPIView):
                                                     self,
                                                     validated_serializer):
                 self.permission_denied(request)
+
+class HostPermissionsUpdateDestroy(MregPermissionUpdateDestroy):
+
+    # permission_classes = settings.MREG_PERMISSION_CLASSES
+    permission_classes = (IsGrantedNetGroupRegexPermission, )
+
+
+class HostPermissionsListCreateAPIView(MregPermissionsListCreateAPIView):
+
+    # permission_classes = settings.MREG_PERMISSION_CLASSES
+    permission_classes = (IsGrantedNetGroupRegexPermission, )
 
 
 class CnameList(HostPermissionsListCreateAPIView):
