@@ -167,7 +167,7 @@ class MregRetrieveUpdateDestroyAPIView(ETAGMixin,
         location = '/%s/%s' % (resource, getattr(instance, self.lookup_field))
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
-class MregPermissionUpdateDestroy:
+class MregPermissionsUpdateDestroy:
 
     def perform_destroy(self, instance):
         # Custom check destroy permissions
@@ -207,7 +207,7 @@ class MregPermissionsListCreateAPIView(MregMixin, generics.ListCreateAPIView):
                                                     validated_serializer):
                 self.permission_denied(request)
 
-class HostPermissionsUpdateDestroy(MregPermissionUpdateDestroy):
+class HostPermissionsUpdateDestroy(MregPermissionsUpdateDestroy):
 
     # permission_classes = settings.MREG_PERMISSION_CLASSES
     permission_classes = (IsGrantedNetGroupRegexPermission, )

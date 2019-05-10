@@ -5,8 +5,7 @@ from rest_framework.permissions import BasePermission, SAFE_METHODS
 import mreg.api.v1.views
 
 from mreg.api.v1.serializers import HostSerializer
-from mreg.models import NetGroupRegexPermission
-
+from mreg.models import NetGroupRegexPermission, HostGroup
 
 def get_settings_groups(group_setting_name):
     groupnames = getattr(settings, group_setting_name, None)
@@ -42,8 +41,17 @@ def user_is_adminuser(user):
     return _list_in_list(groups, user.group_list)
 
 
+def user_is_group_adminuser(user):
+    groups = get_settings_groups('GROUPADMINUSER_GROUP')
+    return _list_in_list(groups, user.group_list)
+
+
 def is_super_or_admin(user):
     return user_is_superuser(user) or user_is_adminuser(user)
+
+
+def is_super_or_group_admin(user):
+    return user_is_superuser(user) or user_is_group_adminuser(user)
 
 
 class ReadOnly(BasePermission):
@@ -88,19 +96,20 @@ class IsSuperGroupMember(BasePermission):
         return user_in_settings_group(request, 'SUPERUSER_GROUP')
 
 
-class IsSuperOrAdminOrReadOnly(BasePermission):
+class IsSuperOrGroupAdminOrReadOnly(BasePermission):
     """
-    Permit user if in super or admin group, else read only.
+    Permit user if in super or group admin group, else read only.
     """
 
     def has_permission(self, request, view):
+        print(request.user)
         if not bool(request.user and request.user.is_authenticated):
+            return False
+        if not user_in_required_group(request.user):
             return False
         if request.method in SAFE_METHODS:
             return True
-        if not user_in_required_group(request.user):
-            return False
-        return is_super_or_admin(request.user)
+        return is_super_or_group_admin(request.user)
 
 
 class IsGrantedNetGroupRegexPermission(BasePermission):
@@ -114,12 +123,12 @@ class IsGrantedNetGroupRegexPermission(BasePermission):
         # just do some preliminary checks.
         if not bool(request.user and request.user.is_authenticated):
             return False
+        if not user_in_required_group(request.user):
+            return False
         if request.method in SAFE_METHODS:
             return True
         if is_super_or_admin(request.user):
             return True
-        if not user_in_required_group(request.user):
-            return False
         # Will do do more object checks later, but initially refuse any
         # unwarranted requests.
         if NetGroupRegexPermission.objects.filter(group__in=request.user.group_list
@@ -195,3 +204,40 @@ class IsGrantedNetGroupRegexPermission(BasePermission):
         for i in host.data['ipaddresses']:
             ips.append(i['ipaddress'])
         return host.data['name'], ips
+
+
+class HostGroupPermission(BasePermission):
+
+    def has_permission(self, request, view):
+        # This method is called before the view is executed, so
+        # just do some preliminary checks.
+        if not bool(request.user and request.user.is_authenticated):
+            return False
+        if request.method in SAFE_METHODS:
+            return True
+        if is_super_or_group_admin(request.user):
+            return True
+        if not user_in_required_group(request.user):
+            return False
+        # Will do do more object checks later, but initially refuse any
+        # unwarranted requests.
+        if HostGroup.objects.filter(owners__name__in=request.user.group_list).exists():
+            return True
+        return False
+
+    def is_super_or_group_admin(self, request):
+        return is_super_or_group_admin(request.user)
+
+    def _request_user_is_owner(self, hostgroup, request):
+        owners = set(hostgroup.owners.values_list('name', flat=True))
+        return _list_in_list(request.user.group_list, owners)
+
+    def has_m2m_change_permission(self, request, view):
+        if is_super_or_group_admin(request.user):
+            return True
+        return self._request_user_is_owner(view.hostgroup, request)
+
+    def has_update_permission(self, request, view, validated_serializer):
+        if is_super_or_group_admin(request.user):
+            return True
+        return self._request_user_is_owner(view.hostgroup, request)

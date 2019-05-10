@@ -1,23 +1,58 @@
 from django.contrib.auth.models import Group
 from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
-from rest_framework import (filters, generics, status)
+from rest_framework import generics, status
 from rest_framework.exceptions import MethodNotAllowed
 from rest_framework.response import Response
 from url_filter.filtersets import ModelFilterSet
 
 from mreg.models import Host, HostGroup
+from mreg.api.permissions import (HostGroupPermission,
+                                  IsSuperOrGroupAdminOrReadOnly)
 
 from . import serializers
-from .views import MregMixin, MregRetrieveUpdateDestroyAPIView
+from .views import (MregMixin,
+                    MregPermissionsListCreateAPIView,
+                    MregPermissionsUpdateDestroy,
+                    MregRetrieveUpdateDestroyAPIView,
+                    )
 
 
 class HostGroupFilterSet(ModelFilterSet):
     class Meta:
         model = HostGroup
 
+class M2MPermissions:
 
-class HostGroupList(generics.ListCreateAPIView):
+    def perform_m2m_alteration(self, method, instance):
+        self.check_m2m_update_permission(self.request)
+        method(instance)
+
+    def check_m2m_update_permission(self, request):
+        for permission in self.get_permissions():
+            if isinstance(self, (HostGroupOwnersList, HostGroupOwnersDetail)):
+                if not permission.is_super_or_group_admin(request):
+                    self.permission_denied(request)
+            else:
+                if not permission.has_m2m_change_permission(request, self):
+                    self.permission_denied(request)
+
+
+class HostGroupPermissionsListCreateAPIView(M2MPermissions,
+                                            MregPermissionsListCreateAPIView):
+
+    permission_classes = (HostGroupPermission, )
+
+
+class HostGroupPermissionsUpdateDestroy(M2MPermissions,
+                                        MregPermissionsUpdateDestroy,
+                                        MregRetrieveUpdateDestroyAPIView):
+
+    permission_classes = (HostGroupPermission, )
+
+
+
+class HostGroupList(MregMixin, generics.ListCreateAPIView):
     """
     get:
     Lists all hostgroups in use.
@@ -27,8 +62,7 @@ class HostGroupList(generics.ListCreateAPIView):
     """
     queryset = HostGroup.objects.get_queryset()
     serializer_class = serializers.HostGroupSerializer
-    filter_backends = (filters.OrderingFilter,)
-    ordering_fields = '__all__'
+    permission_classes = (IsSuperOrGroupAdminOrReadOnly, )
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -51,7 +85,7 @@ class HostGroupList(generics.ListCreateAPIView):
         return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
 
 
-class HostGroupDetail(MregRetrieveUpdateDestroyAPIView):
+class HostGroupDetail(HostGroupPermissionsUpdateDestroy):
     """
     get:
     Returns details for the specified hostgroup. Includes hostgroups that are members.
@@ -72,7 +106,7 @@ class HostGroupDetail(MregRetrieveUpdateDestroyAPIView):
     lookup_field = 'name'
 
 
-class HostGroupM2MList(MregMixin, generics.ListCreateAPIView):
+class HostGroupM2MList(HostGroupPermissionsListCreateAPIView):
     lookup_field = 'name'
 
     def get_queryset(self):
@@ -93,7 +127,7 @@ class HostGroupM2MList(MregMixin, generics.ListCreateAPIView):
             except self.m2m_object.DoesNotExist:
                 content = {'ERROR': f'"{name}" does not exist'}
                 return Response(content, status=status.HTTP_404_NOT_FOUND)
-            self.m2mrelation.add(instance)
+            self.perform_m2m_alteration(self.m2mrelation.add, instance)
             location = f'/hostgroups/{self.hostgroup.name}/{self.m2m_field}/{instance.name}'
             return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
         else:
@@ -102,7 +136,7 @@ class HostGroupM2MList(MregMixin, generics.ListCreateAPIView):
 
 
 
-class HostGroupM2MDetail(MregRetrieveUpdateDestroyAPIView):
+class HostGroupM2MDetail(HostGroupPermissionsUpdateDestroy):
     """
     get:
     Returns details for the specified m2mrelation member.
@@ -117,8 +151,8 @@ class HostGroupM2MDetail(MregRetrieveUpdateDestroyAPIView):
     lookup_field = 'name'
 
     def get_queryset(self):
-        hostgroup = get_object_or_404(HostGroup, name=self.kwargs['group'])
-        self.m2mrelation = getattr(hostgroup, self.m2m_field)
+        self.hostgroup = get_object_or_404(HostGroup, name=self.kwargs['group'])
+        self.m2mrelation = getattr(self.hostgroup, self.m2m_field)
         return self.m2mrelation.all()
 
     def patch(self, request, *args, **kwargs):
@@ -126,7 +160,7 @@ class HostGroupM2MDetail(MregRetrieveUpdateDestroyAPIView):
 
     def delete(self, request, *args, **kwargs):
         instance = self.get_object()
-        self.m2mrelation.remove(instance) 
+        self.perform_m2m_alteration(self.m2mrelation.remove, instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 

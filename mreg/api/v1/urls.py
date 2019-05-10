@@ -1,6 +1,6 @@
 from django.urls import path, re_path
 
-from . import views
+from . import views, views_hostgroups
 
 urlpatterns = [
     path('cnames/', views.CnameList.as_view()),
@@ -14,14 +14,14 @@ urlpatterns = [
     path('hinfopresets/<pk>', views.HinfoPresetDetail.as_view()),
     path('hosts/', views.HostList.as_view()),
     path('hosts/<name>', views.HostDetail.as_view()),
-    path('hostgroups/', views.HostGroupList.as_view()),
-    path('hostgroups/<name>', views.HostGroupDetail.as_view()),
-    path('hostgroups/<name>/groups/', views.HostGroupGroupsList.as_view()),
-    path('hostgroups/<group>/groups/<name>', views.HostGroupGroupsDetail.as_view()),
-    path('hostgroups/<name>/hosts/', views.HostGroupHostsList.as_view()),
-    path('hostgroups/<group>/hosts/<name>', views.HostGroupHostsDetail.as_view()),
-    path('hostgroups/<name>/owners/', views.HostGroupOwnersList.as_view()),
-    path('hostgroups/<group>/owners/<name>', views.HostGroupOwnersDetail.as_view()),
+    path('hostgroups/', views_hostgroups.HostGroupList.as_view()),
+    path('hostgroups/<name>', views_hostgroups.HostGroupDetail.as_view()),
+    path('hostgroups/<name>/groups/', views_hostgroups.HostGroupGroupsList.as_view()),
+    path('hostgroups/<group>/groups/<name>', views_hostgroups.HostGroupGroupsDetail.as_view()),
+    path('hostgroups/<name>/hosts/', views_hostgroups.HostGroupHostsList.as_view()),
+    path('hostgroups/<group>/hosts/<name>', views_hostgroups.HostGroupHostsDetail.as_view()),
+    path('hostgroups/<name>/owners/', views_hostgroups.HostGroupOwnersList.as_view()),
+    path('hostgroups/<group>/owners/<name>', views_hostgroups.HostGroupOwnersDetail.as_view()),
     path('ipaddresses/', views.IpaddressList.as_view()),
     path('ipaddresses/<pk>', views.IpaddressDetail.as_view()),
     path('mxs/', views.MxList.as_view()),
