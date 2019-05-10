@@ -102,7 +102,6 @@ class IsSuperOrGroupAdminOrReadOnly(BasePermission):
     """
 
     def has_permission(self, request, view):
-        print(request.user)
         if not bool(request.user and request.user.is_authenticated):
             return False
         if not user_in_required_group(request.user):
