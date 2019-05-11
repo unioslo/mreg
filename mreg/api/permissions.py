@@ -236,7 +236,8 @@ class HostGroupPermission(BasePermission):
             return True
         return self._request_user_is_owner(view.hostgroup, request)
 
+    # patch will only happen on HostGroupDetail
     def has_update_permission(self, request, view, validated_serializer):
         if is_super_or_group_admin(request.user):
             return True
-        return self._request_user_is_owner(view.hostgroup, request)
+        return self._request_user_is_owner(view.get_object(), request)
