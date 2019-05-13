@@ -130,11 +130,6 @@ class ReverseZoneDelegationFilterSet(ModelFilterSet):
         model = ReverseZoneDelegation
 
 
-class HostGroupFilterSet(ModelFilterSet):
-    class Meta:
-        model = HostGroup
-
-
 class MregMixin:
 
     filter_backends = (filters.SearchFilter, filters.OrderingFilter,)
