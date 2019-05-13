@@ -207,6 +207,7 @@ class NetworkSerializer(ValidationMixin, serializers.ModelSerializer):
     def create(self):
         return Network(**self.validated_data)
 
+
 class NetGroupRegexPermissionSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
         model = NetGroupRegexPermission
@@ -281,15 +282,18 @@ class ModelChangeLogSerializer(ValidationMixin, serializers.ModelSerializer):
 
 
 class GroupSerializer(serializers.ModelSerializer):
+
     class Meta:
         model = Group
         fields = ('name',)
+
 
 class HostGroupNameSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = HostGroup
         fields = ('name', )
+
 
 class HostGroupSerializer(serializers.ModelSerializer):
     parent = HostGroupNameSerializer(many=True, read_only=True)
