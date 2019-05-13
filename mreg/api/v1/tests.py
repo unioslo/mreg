@@ -380,6 +380,60 @@ class APIHostsTestCase(MregAPITestCase):
         self.assertEqual(response.status_code, 409)
 
 
+class APIHinfoTestCase(MregAPITestCase):
+    """Test HinfoPresets and hinfo field on Host"""
+
+    def setUp(self):
+        super().setUp()
+        self.zone = ForwardZone(name='example.org',
+                                primary_ns='ns1.example.org',
+                                email='hostmaster@example.org')
+        clean_and_save(self.zone)
+        self.host_data = {'name': 'host.example.org',
+                          'contact': 'mail@example.org'}
+        self.client.post('/hosts/', self.host_data)
+        self.host = Host.objects.get(name=self.host_data['name'])
+
+    def test_hinfopresets_post_201_ok(self):
+        data = {'cpu': 'cpuname', 'os': 'superos'}
+        ret = self.client.post('/hinfopresets/', data)
+        self.assertEqual(ret.status_code, 201)
+
+    def test_hinfopresets_list(self):
+        self.test_hinfopresets_post_201_ok()
+        ret = self.client.get('/hinfopresets/')
+        self.assertEqual(ret.status_code, 200)
+        self.assertEqual(ret.data['count'], 1)
+
+
+    def test_hinfopresets_post_must_have_both_fields_400_bad_request(self):
+        ret = self.client.post('/hinfopresets/', {'cpu': 'cpuname'})
+        self.assertEqual(ret.json(), {'os': ['This field is required.']})
+        self.assertEqual(ret.status_code, 400)
+        ret = self.client.post('/hinfopresets/', {'os': 'superos'})
+        self.assertEqual(ret.status_code, 400)
+
+
+    def test_patch_add_hinfo_to_host_204_ok(self):
+        data = {'cpu': 'cpuname', 'os': 'superos'}
+        ret = self.client.post('/hinfopresets/', data)
+        hinfoid = ret.json()['id']
+        ret = self.client.patch(f'/hosts/{self.host.name}', {'hinfo': hinfoid})
+        self.assertEqual(ret.status_code, 204)
+        self.host.refresh_from_db()
+        self.assertEqual(self.host.hinfo.id, hinfoid)
+
+    def test_patch_remove_hinfo_to_host_204_ok(self):
+        ret = self.client.patch(f'/hosts/{self.host.name}', {'hinfo': ''})
+        self.assertEqual(ret.status_code, 204)
+        self.host.refresh_from_db()
+        self.assertEqual(self.host.hinfo, None)
+
+    def test_patch_add_invalid_hinfo_to_host_400_bad_request(self):
+        ret = self.client.patch(f'/hosts/{self.host.name}', {'hinfo': 12345788})
+        self.assertEqual(ret.status_code, 400)
+
+
 class APIMxTestcase(MregAPITestCase):
     """Test MX records."""
 
@@ -389,7 +443,7 @@ class APIMxTestcase(MregAPITestCase):
                                 primary_ns='ns1.example.org',
                                 email='hostmaster@example.org')
         clean_and_save(self.zone)
-        self.host_data = {'name': 'ns1.example.org',
+        self.host_data = {'name': 'host.example.org',
                           'contact': 'mail@example.org'}
         self.client.post('/hosts/', self.host_data)
         self.host = Host.objects.get(name=self.host_data['name'])
