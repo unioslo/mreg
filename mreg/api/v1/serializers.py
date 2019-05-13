@@ -151,29 +151,6 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
         return IpaddressSerializer(ipaddresses, many=True, read_only=True).data
 
 
-class HostSaveSerializer(ForwardZoneMixin, serializers.ModelSerializer):
-    """
-    Used for saving hosts, due to complications with nulling out a field by patching it with '-1'.
-    """
-    ipaddresses = IpaddressSerializer(many=True, read_only=True)
-    cnames = CnameSerializer(many=True, read_only=True)
-    mxs = MxSerializer(many=True, read_only=True)
-    txts = TxtSerializer(many=True, read_only=True)
-    ptr_overrides = PtrOverrideSerializer(many=True, read_only=True)
-    hinfo = serializers.IntegerField(required=False)
-
-    class Meta:
-        model = Host
-        fields = '__all__'
-
-    def validate_hinfo(self, value):
-        value = nonify(value)
-
-        if value is not None:
-            value = HinfoPreset.objects.get(pk=value)
-        return value
-
-
 class HostNameSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
         model = Host
