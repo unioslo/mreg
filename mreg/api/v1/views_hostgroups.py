@@ -107,6 +107,7 @@ class HostGroupDetail(HostGroupPermissionsUpdateDestroy):
 
 
 class HostGroupM2MList(HostGroupPermissionsListCreateAPIView):
+
     lookup_field = 'name'
 
     def get_queryset(self):
@@ -148,10 +149,13 @@ class HostGroupM2MDetail(HostGroupPermissionsUpdateDestroy):
     Delete the specified m2mrelation member.
     """
 
-    lookup_field = 'name'
+    def get_object(self):
+        queryset = self.filter_queryset(self.get_queryset())
+        obj = get_object_or_404(queryset, name=self.kwargs[self.lookup_field])
+        return obj
 
     def get_queryset(self):
-        self.hostgroup = get_object_or_404(HostGroup, name=self.kwargs['group'])
+        self.hostgroup = get_object_or_404(HostGroup, name=self.kwargs['name'])
         self.m2mrelation = getattr(self.hostgroup, self.m2m_field)
         return self.m2mrelation.all()
 
@@ -192,6 +196,7 @@ class HostGroupGroupsDetail(HostGroupM2MDetail):
 
     serializer_class = serializers.HostGroupSerializer
     m2m_field = 'groups'
+    lookup_field = 'group'
 
 
 class HostGroupHostsList(HostGroupM2MList):
@@ -221,6 +226,7 @@ class HostGroupHostsDetail(HostGroupM2MDetail):
 
     serializer_class = serializers.GroupSerializer
     m2m_field = 'hosts'
+    lookup_field = 'host'
 
 
 class HostGroupOwnersList(HostGroupM2MList):
@@ -251,3 +257,4 @@ class HostGroupOwnersDetail(HostGroupM2MDetail):
 
     serializer_class = serializers.GroupSerializer
     m2m_field = 'owners'
+    lookup_field = 'owner'
