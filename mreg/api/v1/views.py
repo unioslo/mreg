@@ -21,7 +21,7 @@ from mreg.api.permissions import (IsSuperGroupMember,
                                   IsGrantedNetGroupRegexPermission,
                                   ReadOnlyForRequiredGroup, )
 from mreg.api.v1.serializers import (CnameSerializer, HinfoPresetSerializer,
-        HostNameSerializer, HostSerializer, HostSaveSerializer,
+        HostNameSerializer, HostSerializer,
         IpaddressSerializer, MxSerializer, NameServerSerializer,
         NaptrSerializer, PtrOverrideSerializer, SrvSerializer,
         NetworkSerializer, TxtSerializer, ForwardZoneSerializer,
@@ -244,7 +244,7 @@ class HinfoPresetList(HostPermissionsListCreateAPIView):
     post:
     Creates a new hinfo preset.
     """
-    queryset = HinfoPreset.objects.all()
+    queryset = HinfoPreset.objects.order_by('cpu', 'os')
     serializer_class = HinfoPresetSerializer
 
     def get_queryset(self):
@@ -338,13 +338,7 @@ class HostDetail(HostPermissionsUpdateDestroy,
                 content = {'ERROR': 'name already in use'}
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
-        host = self.get_object()
-        serializer = HostSaveSerializer(host, data=request.data, partial=True)
-
-        if serializer.is_valid(raise_exception=True):
-            self.perform_update(serializer)
-            location = '/hosts/%s' % host.name
-            return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
+        return super().patch(request, *args, **kwargs)
 
 
 class IpaddressList(HostPermissionsListCreateAPIView):
