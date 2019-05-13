@@ -664,11 +664,7 @@ class NetworkDetail(MregRetrieveUpdateDestroyAPIView):
             error = _overlap_check(request.data['network'], exclude=network)
             if error:
                 return error
-        serializer = self.get_serializer(network, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        self.perform_update(serializer)
-        location = '/networks/%s' % network.network
-        return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
+        return super().patch(request, *args, **kwargs)
 
     def delete(self, request, *args, **kwargs):
         network = self.get_object()
