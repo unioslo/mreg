@@ -21,16 +21,19 @@ from mreg.api.permissions import (IsSuperGroupMember,
                                   IsGrantedNetGroupRegexPermission,
                                   ReadOnlyForRequiredGroup, )
 from mreg.api.v1.serializers import (CnameSerializer, HinfoPresetSerializer,
-        HostNameSerializer, HostSerializer, HostSaveSerializer,
+        HostNameSerializer, HostSerializer,
         IpaddressSerializer, MxSerializer, NameServerSerializer,
         NaptrSerializer, PtrOverrideSerializer, SrvSerializer,
         NetworkSerializer, TxtSerializer, ForwardZoneSerializer,
         ForwardZoneDelegationSerializer, ReverseZoneSerializer,
         ReverseZoneDelegationSerializer, ModelChangeLogSerializer,
         SshfpSerializer, NetGroupRegexPermissionSerializer)
-from mreg.models import (Cname, ForwardZone, ForwardZoneDelegation, HinfoPreset, Host, Ipaddress,
-                         Mx, NameServer, Naptr, Network, PtrOverride, ReverseZone,
-                         ReverseZoneDelegation, Srv, Txt, ModelChangeLog, Sshfp)
+
+from mreg.models import (Cname, ForwardZone, ForwardZoneDelegation,
+                         HinfoPreset, Host, Ipaddress, HostGroup, Mx,
+                         NameServer, Naptr, Network, PtrOverride, ReverseZone,
+                         ReverseZoneDelegation, Srv, Txt, ModelChangeLog,
+                         Sshfp)
 import mreg.models
 
 from .zonefile import ZoneFile
@@ -50,6 +53,11 @@ class HinfoFilterSet(ModelFilterSet):
 class HostFilterSet(ModelFilterSet):
     class Meta:
         model = Host
+
+
+class HostGroupFilterSet(ModelFilterSet):
+    class Meta:
+        model = HostGroup
 
 
 class IpaddressFilterSet(ModelFilterSet):
@@ -154,10 +162,7 @@ class MregRetrieveUpdateDestroyAPIView(ETAGMixin,
         location = '/%s/%s' % (resource, getattr(instance, self.lookup_field))
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
-class HostPermissionsUpdateDestroy:
-
-    # permission_classes = settings.MREG_PERMISSION_CLASSES
-    permission_classes = (IsGrantedNetGroupRegexPermission, )
+class MregPermissionsUpdateDestroy:
 
     def perform_destroy(self, instance):
         # Custom check destroy permissions
@@ -183,11 +188,7 @@ class HostPermissionsUpdateDestroy:
                                                     validated_serializer):
                 self.permission_denied(request)
 
-
-class HostPermissionsListCreateAPIView(MregMixin, generics.ListCreateAPIView):
-
-    # permission_classes = settings.MREG_PERMISSION_CLASSES
-    permission_classes = (IsGrantedNetGroupRegexPermission, )
+class MregPermissionsListCreateAPIView(MregMixin, generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         # Custom check create permissions
@@ -200,6 +201,17 @@ class HostPermissionsListCreateAPIView(MregMixin, generics.ListCreateAPIView):
                                                     self,
                                                     validated_serializer):
                 self.permission_denied(request)
+
+class HostPermissionsUpdateDestroy(MregPermissionsUpdateDestroy):
+
+    # permission_classes = settings.MREG_PERMISSION_CLASSES
+    permission_classes = (IsGrantedNetGroupRegexPermission, )
+
+
+class HostPermissionsListCreateAPIView(MregPermissionsListCreateAPIView):
+
+    # permission_classes = settings.MREG_PERMISSION_CLASSES
+    permission_classes = (IsGrantedNetGroupRegexPermission, )
 
 
 class CnameList(HostPermissionsListCreateAPIView):
@@ -244,7 +256,7 @@ class HinfoPresetList(HostPermissionsListCreateAPIView):
     post:
     Creates a new hinfo preset.
     """
-    queryset = HinfoPreset.objects.all()
+    queryset = HinfoPreset.objects.order_by('cpu', 'os')
     serializer_class = HinfoPresetSerializer
 
     def get_queryset(self):
@@ -338,13 +350,7 @@ class HostDetail(HostPermissionsUpdateDestroy,
                 content = {'ERROR': 'name already in use'}
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
-        host = self.get_object()
-        serializer = HostSaveSerializer(host, data=request.data, partial=True)
-
-        if serializer.is_valid(raise_exception=True):
-            self.perform_update(serializer)
-            location = '/hosts/%s' % host.name
-            return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
+        return super().patch(request, *args, **kwargs)
 
 
 class IpaddressList(HostPermissionsListCreateAPIView):

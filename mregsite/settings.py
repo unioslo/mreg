@@ -206,3 +206,4 @@ if TESTING:
     REQUIRED_USER_GROUPS = "default-required-group"
     SUPERUSER_GROUP = "default-super-group"
     ADMINUSER_GROUP = "default-admin-group"
+    GROUPADMINUSER_GROUP = "default-groupadmin-group"

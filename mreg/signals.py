@@ -3,13 +3,14 @@ import re
 
 from django.conf import settings
 from django.contrib.auth.models import Group
-from django.db.models.signals import post_delete, pre_delete , post_save, pre_save
+from django.db.models.signals import m2m_changed, post_delete, pre_delete , post_save, pre_save
 from django.dispatch import receiver
 from django.utils import timezone
 from django_auth_ldap.backend import populate_user
+from django.utils.translation import ugettext as _
 
 from mreg.api.v1.serializers import HostSerializer
-from mreg.models import (Cname, ForwardZoneMember, Host, Ipaddress,
+from mreg.models import (Cname, ForwardZoneMember, Host, HostGroup, Ipaddress,
         ModelChangeLog, Mx, Naptr, NameServer, PtrOverride, ReverseZone, Srv,
         Txt, Sshfp, Network, NetGroupRegexPermission)
 from rest_framework.exceptions import PermissionDenied
@@ -184,6 +185,66 @@ def save_host_history_on_delete(sender, instance, **kwargs):
                                    action='deleted',
                                    timestamp=timezone.now())
     new_log_entry.save()
+
+
+@receiver(pre_save, sender=Host)
+def hostgroups_update_update_at_on_host_rename(sender, instance, raw, using, update_fields, **kwargs):
+    """
+    Update hostgroup on host rename
+    """
+    # Ignore newly created hosts
+    if not instance.id:
+        return
+
+    oldname = Host.objects.get(id=instance.id).name
+    if oldname != instance.name:
+        for hostgroup in instance.hostgroups.all():
+            hostgroup.save()
+
+
+@receiver(pre_delete, sender=Host)
+def hostgroup_update_updated_at_on_host_delete(sender, instance, using, **kwargs):
+    """
+    No signal is sent for m2m relations on delete, so use a pre_delete on Host
+    instead.
+    """
+    for hostgroup in instance.hostgroups.all():
+        hostgroup.save()
+
+@receiver(m2m_changed, sender=HostGroup.hosts.through)
+@receiver(m2m_changed, sender=HostGroup.parent.through)
+def hostgroup_update_updated_at_on_changes(sender, instance, action, model, reverse, pk_set, **kwargs):
+    """
+    Update the hostgroups updated_at field whenever its hosts or parent
+    m2m relations have successfully been altered.
+    """
+    if action in ('post_add', 'post_remove', 'post_clear',):
+        instance.save()
+
+@receiver(m2m_changed, sender=HostGroup.parent.through)
+def prevent_hostgroup_parent_recursion(sender, instance, action, model, reverse, pk_set, **kwargs):
+    """
+    pk_set contains the group(s) being added to a group
+    instance is the group getting new group members
+    This prevents groups from being able to become their own parent
+    """
+
+    if action != 'pre_add':
+        return
+
+    if instance.id in pk_set:
+        raise PermissionDenied(detail='A group can not be its own child')
+
+    child_id = list(pk_set)[0]
+
+    for parent in instance.parent.all():
+        if child_id == parent.id:
+            raise PermissionDenied(detail='Recursive memberships are not allowed.' \
+                                          ' This group is a member of %s' % parent.name)
+        elif parent.parent.exists():
+            pk_set = {child_id}
+            prevent_hostgroup_parent_recursion(sender, parent, action, model, reverse, pk_set, **kwargs)
+
 
 
 @receiver(pre_delete, sender=Ipaddress)
