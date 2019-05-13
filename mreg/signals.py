@@ -218,3 +218,16 @@ def cleanup_network_permissions(sender, instance, **kwargs):
        Network's network range."""
     NetGroupRegexPermission.objects.filter(
             range__net_contained_or_equal=instance.network).delete()
+
+@receiver(post_save, sender=Host)
+def add_auto_txt_records_on_new_host(sender, instance, created, **kwargs):
+    """Create TXT record(s) for a host if the host's zone defines
+       records in settings.TXT_AUTO_RECORDS."""
+    if created:
+        autozones = getattr(settings, 'TXT_AUTO_RECORDS', None)
+        if autozones is None:
+            return
+        if instance.zone is None:
+            return
+        for data in autozones.get(instance.zone.name, []):
+            Txt.objects.create(host=instance, txt=data)

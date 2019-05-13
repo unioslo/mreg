@@ -191,6 +191,11 @@ SWAGGER_SETTINGS = {
     'USE_SESSION_AUTH': False,
 }
 
+# TXT record(s) automatically added to a host when added to a ForwardZone.
+TXT_AUTO_RECORDS = {
+        'example.org': ('v=spf1 -all', ),
+}
+
 # Import local settings that may override those in this file.
 try:
     from .local_settings import *
