@@ -1,9 +1,10 @@
 import ipaddress
 
+from django.contrib.auth.models import Group
 from django.utils import timezone
 from rest_framework import serializers
 
-from mreg.models import (Cname, HinfoPreset, Host, Ipaddress, Mx, NameServer,
+from mreg.models import (Cname, HinfoPreset, Host, HostGroup, Ipaddress, Mx, NameServer,
                          Naptr, PtrOverride, Srv, Network, Txt, ForwardZone,
                          ForwardZoneDelegation, ReverseZone,
                          ReverseZoneDelegation, ModelChangeLog, Sshfp,
@@ -206,6 +207,7 @@ class NetworkSerializer(ValidationMixin, serializers.ModelSerializer):
     def create(self):
         return Network(**self.validated_data)
 
+
 class NetGroupRegexPermissionSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
         model = NetGroupRegexPermission
@@ -277,3 +279,28 @@ class ModelChangeLogSerializer(ValidationMixin, serializers.ModelSerializer):
 
     def create(self):
         return ModelChangeLog(**self.validated_data)
+
+
+class GroupSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Group
+        fields = ('name',)
+
+
+class HostGroupNameSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = HostGroup
+        fields = ('name', )
+
+
+class HostGroupSerializer(serializers.ModelSerializer):
+    parent = HostGroupNameSerializer(many=True, read_only=True)
+    groups = HostGroupNameSerializer(many=True, read_only=True)
+    hosts = HostNameSerializer(many=True, read_only=True)
+    owners = GroupSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = HostGroup
+        fields = '__all__'
