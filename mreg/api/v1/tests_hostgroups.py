@@ -68,12 +68,9 @@ class APIHostGroupGroupsTestCase(MregAPITestCase):
     def setUp(self):
         """Define the test client and other test variables."""
         super().setUp()
-        self.hostgroup_one = HostGroup(name='testgroup1')
-        clean_and_save(self.hostgroup_one)
-        self.hostgroup_two = HostGroup(name='testgroup2')
-        clean_and_save(self.hostgroup_two)
-        self.hostgroup_three = HostGroup(name='testgroup3')
-        clean_and_save(self.hostgroup_three)
+        self.hostgroup_one = HostGroup.objects.create(name='testgroup1')
+        self.hostgroup_two = HostGroup.objects.create(name='testgroup2')
+        self.hostgroup_three = HostGroup.objects.create(name='testgroup3')
 
     def test_groups_list_200_ok(self):
         response = self.client.get(f'/hostgroups/{self.hostgroup_one.name}/groups/')
@@ -126,9 +123,9 @@ class APIHostGroupHostsTestCase(MregAPITestCase):
         """Define the test client and other test variables."""
         super().setUp()
         self.hostgroup_one = HostGroup(name='testgroup1')
-        self.host_one = Host(name='host1.example.org', contact='mail1@example.org')
+        self.host_one = Host.objects.create(name='host1.example.org',
+                                            contact='mail1@example.org')
         clean_and_save(self.hostgroup_one)
-        clean_and_save(self.host_one)
 
     def test_hosts_list_200_ok(self):
         response = self.client.get(f'/hostgroups/{self.hostgroup_one.name}/hosts/')
@@ -169,10 +166,8 @@ class APIHostGroupOwnersTestCase(MregAPITestCase):
     def setUp(self):
         """Define the test client and other test variables."""
         super().setUp()
-        self.owner_one = Group(name='testowner')
-        self.hostgroup_one = HostGroup(name='testgroup1')
-        clean_and_save(self.owner_one)
-        clean_and_save(self.hostgroup_one)
+        self.owner_one = Group.objects.create(name='testowner')
+        self.hostgroup_one = HostGroup.objects.create(name='testgroup1')
 
     def test_owners_list_200_ok(self):
         response = self.client.get(f'/hostgroups/{self.hostgroup_one.name}/owners/')

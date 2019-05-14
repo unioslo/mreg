@@ -1,4 +1,4 @@
-from .tests import MregAPITestCase, clean_and_save
+from .tests import MregAPITestCase
 
 
 class APINetGroupRegexPermissionTestCase(MregAPITestCase):

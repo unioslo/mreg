@@ -52,6 +52,14 @@ def clean_and_save(entity):
     entity.full_clean()
     entity.save()
 
+def create_forward_zone(name='example.org', primary_ns='ns.example.org',
+                        email='hostmaster@example.org'):
+    return ForwardZone.objects.create(name=name, primary_ns=primary_ns, email=email)
+
+def create_reverse_zone(name='10.10.in-addr.arpa', primary_ns='ns.example.org',
+                        email='hostmaster@example.org'):
+    return ReverseZone.objects.create(name=name, primary_ns=primary_ns, email=email)
+
 
 class APITokenAutheticationTestCase(MregAPITestCase):
     """Test various token authentication operations."""
@@ -91,18 +99,9 @@ class APIAutoupdateZonesTestCase(MregAPITestCase):
         self.subzone = {"name": "sub.example.org",
                         "email": "hostmaster@example.org",
                         "primary_ns": "ns.example.org"}
-        self.zone_exampleorg = ForwardZone(name='example.org',
-                                           primary_ns='ns.example.org',
-                                           email='hostmaster@example.org')
-        self.zone_examplecom = ForwardZone(name='example.com',
-                                           primary_ns='ns.example.com',
-                                           email='hostmaster@example.com')
-        self.zone_1010 = ReverseZone(name='10.10.in-addr.arpa',
-                                     primary_ns='ns.example.org',
-                                     email='hostmaster@example.org')
-        clean_and_save(self.zone_exampleorg)
-        clean_and_save(self.zone_examplecom)
-        clean_and_save(self.zone_1010)
+        self.zone_exampleorg = create_forward_zone()
+        self.zone_examplecom = create_forward_zone(name='example.com')
+        self.zone_1010 = create_reverse_zone()
 
     def test_add_host(self):
         old_org_updated_at = self.zone_exampleorg.updated_at
@@ -192,21 +191,11 @@ class APIAutoupdateHostZoneTestCase(MregAPITestCase):
     def setUp(self):
         """Add the a couple of zones and hosts for used in testing."""
         super().setUp()
-        self.zone_org = ForwardZone(name='example.org',
-                                    primary_ns='ns.example.org',
-                                    email='hostmaster@example.org')
-        self.zone_long = ForwardZone(name='longexample.org',
-                                     primary_ns='ns.example.org',
-                                     email='hostmaster@example.org')
-        self.zone_sub = ForwardZone(name='sub.example.org',
-                                    primary_ns='ns.example.org',
-                                    email='hostmaster@example.org')
-        self.zone_com = ForwardZone(name='example.com',
-                                    primary_ns='ns.example.com',
-                                    email='hostmaster@example.com')
-        self.zone_1010 = ReverseZone(name='10.10.in-addr.arpa',
-                                     primary_ns='ns.example.org',
-                                     email='hostmaster@example.org')
+        self.zone_org = create_forward_zone(name='example.org')
+        self.zone_long = create_forward_zone(name='longexample.org')
+        self.zone_sub = create_forward_zone(name='sub.example.org')
+        self.zone_com = create_forward_zone(name='example.com')
+        self.zone_1010 = create_reverse_zone(name='10.10.in-addr.arpa')
 
         self.org_host1 = {"name": "host1.example.org",
                          "ipaddress": "10.10.0.1",
@@ -226,11 +215,6 @@ class APIAutoupdateHostZoneTestCase(MregAPITestCase):
         self.long_host2 = {"name": "longexample.org",
                            "ipaddress": "10.30.0.2",
                            "contact": "mail@example.org"}
-        clean_and_save(self.zone_org)
-        clean_and_save(self.zone_long)
-        clean_and_save(self.zone_com)
-        clean_and_save(self.zone_sub)
-        clean_and_save(self.zone_1010)
 
     def test_add_host_known_zone(self):
         res = self.client.post("/hosts/", self.org_host1)
@@ -301,12 +285,9 @@ class APIHostsTestCase(MregAPITestCase):
                           'contact': 'hostmaster@example.org'}
         self.post_data_name = {'name': 'host1.example.org', "ipaddress": '127.0.0.2',
                                'contact': 'hostmaster@example.org'}
-        self.zone_sample = ForwardZone(name='example.org',
-                                       primary_ns='ns.example.org',
-                                       email='hostmaster@example.org')
+        self.zone_sample = create_forward_zone()
         clean_and_save(self.host_one)
         clean_and_save(self.host_two)
-        clean_and_save(self.zone_sample)
 
     def test_hosts_get_200_ok(self):
         """"Getting an existing entry should return 200"""
@@ -385,10 +366,7 @@ class APIHinfoTestCase(MregAPITestCase):
 
     def setUp(self):
         super().setUp()
-        self.zone = ForwardZone(name='example.org',
-                                primary_ns='ns1.example.org',
-                                email='hostmaster@example.org')
-        clean_and_save(self.zone)
+        self.zone = create_forward_zone()
         self.host_data = {'name': 'host.example.org',
                           'contact': 'mail@example.org'}
         self.client.post('/hosts/', self.host_data)
@@ -439,10 +417,7 @@ class APIMxTestcase(MregAPITestCase):
 
     def setUp(self):
         super().setUp()
-        self.zone = ForwardZone(name='example.org',
-                                primary_ns='ns1.example.org',
-                                email='hostmaster@example.org')
-        clean_and_save(self.zone)
+        self.zone = create_forward_zone()
         self.host_data = {'name': 'host.example.org',
                           'contact': 'mail@example.org'}
         self.client.post('/hosts/', self.host_data)
@@ -531,15 +506,12 @@ class APIPtrOverrideTestcase(MregAPITestCase):
         self.ptr_override_ipv6_patch_data = {'host': self.host.id,
                                              'ipaddress': '2001:db8::feed'}
      
-        self.zone = ReverseZone(name="0.10.in-addr.arpa",
-                                primary_ns="ns1.example.org",
-                                email="hostmaster@example.org")
-        clean_and_save(self.zone)
-     
-        self.ipv6_zone = ReverseZone(name="8.b.d.0.1.0.0.2.ip6.arpa",
-                                     primary_ns="ns1.example.org",
-                                     email="hostmaster@example.org")
-        clean_and_save(self.ipv6_zone)
+        self.zone = ReverseZone.objects.create(name="0.10.in-addr.arpa",
+                                               primary_ns="ns1.example.org",
+                                               email="hostmaster@example.org")
+        self.ipv6_zone = ReverseZone.objects.create(name="8.b.d.0.1.0.0.2.ip6.arpa",
+                                                    primary_ns="ns1.example.org",
+                                                    email="hostmaster@example.org")
                    
     def test_ptr_override_post_201(self):
         ptr_override_data = {'host': self.host.id,
@@ -731,10 +703,7 @@ class APISshfpTestcase(MregAPITestCase):
 
     def setUp(self):
         super().setUp()
-        self.zone = ForwardZone(name='example.org',
-                                primary_ns='ns1.example.org',
-                                email='hostmaster@example.org')
-        clean_and_save(self.zone)
+        self.zone = create_forward_zone()
         self.host_data = {'name': 'ns1.example.org',
                           'contact': 'mail@example.org'}
         self.client.post('/hosts/', self.host_data)
@@ -1532,14 +1501,8 @@ class APICnamesTestCase(MregAPITestCase):
     """This class defines the test suite for api/cnames """
     def setUp(self):
         super().setUp()
-        self.zone_one = ForwardZone(name='example.org',
-                                    primary_ns='ns.example.org',
-                                    email='hostmaster@example.org')
-        self.zone_two = ForwardZone(name='example.net',
-                                    primary_ns='ns.example.net',
-                                    email='hostmaster@example.org')
-        clean_and_save(self.zone_one)
-        clean_and_save(self.zone_two)
+        self.zone_one = create_forward_zone()
+        self.zone_two = create_forward_zone(name='example.net')
 
         self.post_host_one = {'name': 'host1.example.org',
                               'contact': 'mail@example.org' }
@@ -2026,17 +1989,12 @@ class APIZonefileTestCase(MregAPITestCase):
     def setUp(self):
         self.client = self.get_token_client(superuser=False, adminuser=False)
 
-    def _save_and_get_zone(self, zone):
-        clean_and_save(zone)
+    def _get_zone(self, zone):
         response = self.client.get(f"/zonefiles/{zone.name}")
         self.assertEqual(response.status_code, 200)
 
     def test_get_forward(self):
-        zone = ForwardZone(
-            name="example.org",
-            primary_ns="ns1.example.org",
-            email="hostmaster@example.org")
-        self._save_and_get_zone(zone)
+        self._get_zone(create_forward_zone())
 
     def test_get_nonexistent(self):
         response = self.client.get("/zonefiles/ops")
@@ -2048,18 +2006,12 @@ class APIZonefileTestCase(MregAPITestCase):
         self.assertEqual(response.status_code, 401)
 
     def test_get_rev_v4(self):
-        zone = ReverseZone(
-            name="10.10.in-addr.arpa",
-            primary_ns="ns1.example.org",
-            email="hostmaster@example.org")
-        self._save_and_get_zone(zone)
+        zone = create_reverse_zone(name='10.10.in-addr.arpa')
+        self._get_zone(zone)
 
     def test_get_rev_v6(self):
-        zone = ReverseZone(
-            name="0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa",
-            primary_ns="ns1.example.org",
-            email="hostmaster@example.org")
-        self._save_and_get_zone(zone)
+        zone = create_reverse_zone(name='0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa')
+        self._get_zone(zone)
 
 
 class APIModelChangeLogsTestCase(MregAPITestCase):
