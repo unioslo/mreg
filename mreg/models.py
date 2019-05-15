@@ -19,11 +19,11 @@ from mreg.validators import (validate_hostname, validate_reverse_zone_name,
 from mreg.utils import (create_serialno, encode_mail, clear_none, qualify,
         idna_encode, get_network_from_zonename)
 
+from .fields import LCICharField, DnsNameField
 from .models_auth import User
 
-
 class NameServer(models.Model):
-    name = models.CharField(unique=True, max_length=253, validators=[validate_hostname])
+    name = DnsNameField(unique=True)
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
 
     class Meta:
@@ -86,7 +86,7 @@ class ZoneHelpers:
 class BaseZone(models.Model, ZoneHelpers):
     updated_at = models.DateTimeField(auto_now=True)
     updated = models.BooleanField(default=True)
-    primary_ns = models.CharField(max_length=253, validators=[validate_hostname])
+    primary_ns = DnsNameField()
     nameservers = models.ManyToManyField(NameServer, db_column='ns')
     email = models.EmailField()
     serialno = models.BigIntegerField(default=create_serialno, validators=[validate_zones_serialno])
@@ -153,7 +153,7 @@ $TTL {ttl}
 
 
 class ForwardZone(BaseZone):
-    name = models.CharField(unique=True, max_length=253, validators=[validate_hostname])
+    name = DnsNameField(unique=True)
 
     class Meta:
         db_table = 'forward_zone'
@@ -184,7 +184,7 @@ class ForwardZone(BaseZone):
 
 
 class ReverseZone(BaseZone):
-    name = models.CharField(unique=True, max_length=253, validators=[validate_reverse_zone_name])
+    name = DnsNameField(unique=True, validators=[validate_reverse_zone_name])
     # network can not be blank, but it will allow full_clean() to pass, even if
     # the network is not set. Will anyway be overridden by update() and save().
     network = CidrAddressField(unique=True, blank=True)
@@ -256,7 +256,7 @@ class ReverseZone(BaseZone):
 
 class ForwardZoneDelegation(models.Model, ZoneHelpers):
     zone = models.ForeignKey(ForwardZone, on_delete=models.CASCADE, db_column='zone', related_name='delegations')
-    name = models.CharField(unique=True, max_length=253, validators=[validate_hostname])
+    name = DnsNameField(unique=True)
     nameservers = models.ManyToManyField(NameServer, db_column='ns')
 
     class Meta:
@@ -268,7 +268,7 @@ class ForwardZoneDelegation(models.Model, ZoneHelpers):
 
 class ReverseZoneDelegation(models.Model, ZoneHelpers):
     zone = models.ForeignKey(ReverseZone, on_delete=models.CASCADE, db_column='zone', related_name='delegations')
-    name = models.CharField(unique=True, max_length=253, validators=[validate_reverse_zone_name])
+    name = DnsNameField(unique=True, validators=[validate_reverse_zone_name])
     nameservers = models.ManyToManyField(NameServer, db_column='ns')
 
     class Meta:
@@ -307,7 +307,7 @@ class HinfoPreset(models.Model):
 
 
 class Host(ForwardZoneMember):
-    name = models.CharField(unique=True, max_length=253, validators=[validate_hostname])
+    name = DnsNameField(unique=True)
     contact = models.EmailField()
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
     hinfo = models.ForeignKey(HinfoPreset, models.DO_NOTHING, db_column='hinfo', blank=True, null=True)
@@ -364,7 +364,7 @@ class Ipaddress(models.Model):
 class Mx(models.Model):
     host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='mxs')
     priority = models.PositiveIntegerField(validators=[validate_16bit_uint])
-    mx = models.TextField(max_length=253, validators=[validate_hostname])
+    mx = DnsNameField()
 
     class Meta:
         db_table = 'mx'
@@ -399,7 +399,7 @@ class Txt(models.Model):
 
 class Cname(ForwardZoneMember):
     host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='cnames')
-    name = models.CharField(max_length=255, unique=True)
+    name = DnsNameField(unique=True)
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
 
     class Meta:
@@ -500,9 +500,9 @@ class Naptr(models.Model):
     preference = models.IntegerField(validators=[validate_16bit_uint])
     order = models.IntegerField(validators=[validate_16bit_uint])
     flag = models.CharField(max_length=1, blank=True, validators=[validate_naptr_flag])
-    service = models.CharField(max_length=255, blank=True)
-    regex = models.TextField(blank=True)
-    replacement = models.CharField(max_length=255)
+    service = LCICharField(max_length=128, blank=True)
+    regex = models.CharField(max_length=128, blank=True)
+    replacement = LCICharField(max_length=255)
 
     class Meta:
         db_table = 'naptr'
@@ -518,13 +518,13 @@ class Naptr(models.Model):
 
 
 class Srv(ForwardZoneMember):
-    name = models.TextField(validators=[validate_srv_service_text])
+    name = LCICharField(max_length=255, validators=[validate_srv_service_text])
     priority = models.IntegerField(validators=[validate_16bit_uint])
     weight = models.IntegerField(validators=[validate_16bit_uint])
     port = models.IntegerField(validators=[validate_16bit_uint])
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
     # XXX: target MUST not be a alias aka cname
-    target = models.CharField(max_length=255)
+    target = DnsNameField()
 
     class Meta:
         db_table = 'srv'
@@ -549,7 +549,7 @@ class Srv(ForwardZoneMember):
 
 
 class HostGroup(models.Model):
-    name = models.CharField(max_length=50, unique=True)
+    name = LCICharField(max_length=50, unique=True)
     description = models.CharField(max_length=200, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
     owners = models.ManyToManyField(Group, blank=True)

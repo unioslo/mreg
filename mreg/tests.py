@@ -65,7 +65,7 @@ class ModelSrvTestCase(TestCase):
                               weight=1,
                               port=5433,
                               ttl=300,
-                              target='some-target')
+                              target='target.example.org')
 
     def test_model_can_create_srv(self):
         """Test that the model is able to create a srv entry."""
@@ -196,6 +196,23 @@ class ModelHostsTestCase(TestCase):
         clean_and_save(self.host_one)
         new_count = Host.objects.count()
         self.assertNotEqual(old_count, new_count)
+
+    def test_model_case_insesitive(self):
+        """Hosts names must be case insensitive"""
+        clean_and_save(self.host_one)
+        self.assertEqual(self.host_one, Host.objects.get(name=self.host_one.name.upper()))
+        upper = Host(name=self.host_one.name.upper(), contact=self.host_one.contact)
+        with self.assertRaises(ValidationError) as context:
+            clean_and_save(upper)
+        self.assertEqual(context.exception.messages,
+                         ['Host with this Name already exists.'])
+        hostname = 'UPPERCASE.EXAMPLE.ORG'
+        host = Host.objects.create(name=hostname, contact='mail@example.org')
+        # Must do a refresh_from_db() as host.name is otherwise the unmodfied
+        # uppercase hostname.
+        host.refresh_from_db()
+        self.assertEqual(host.name, hostname.lower())
+
 
     def test_model_can_change_a_host(self):
         """Test that the model is able to change a host."""
