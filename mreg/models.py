@@ -4,6 +4,8 @@ from collections import defaultdict
 from datetime import timedelta
 from functools import reduce
 
+import django.contrib.postgres.fields as pgfields
+
 from django.contrib.auth.models import Group
 from django.db import DatabaseError, models, transaction
 from django.db.models import Q
@@ -88,7 +90,7 @@ class BaseZone(models.Model, ZoneHelpers):
     updated = models.BooleanField(default=True)
     primary_ns = DnsNameField()
     nameservers = models.ManyToManyField(NameServer, db_column='ns')
-    email = models.EmailField()
+    email = pgfields.CIEmailField()
     serialno = models.BigIntegerField(default=create_serialno, validators=[validate_zones_serialno])
     serialno_updated_at = models.DateTimeField(default=timezone.now)
     # TODO: Configurable? Ask hostmaster
@@ -308,7 +310,7 @@ class HinfoPreset(models.Model):
 
 class Host(ForwardZoneMember):
     name = DnsNameField(unique=True)
-    contact = models.EmailField()
+    contact = pgfields.CIEmailField(blank=True)
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
     hinfo = models.ForeignKey(HinfoPreset, models.DO_NOTHING, db_column='hinfo', blank=True, null=True)
     loc = models.TextField(blank=True, validators=[validate_loc])
