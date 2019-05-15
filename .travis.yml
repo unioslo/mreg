@@ -20,8 +20,8 @@ before_install:
   - sudo systemctl restart postgresql.service || sudo journalctl -xe -n 20 -u postgresql.service
   - sleep 2
 before_script:
+  - psql -c 'CREATE EXTENSION citext;' -U postgres template1
   - psql -c 'CREATE DATABASE travisci;' -U postgres
-  - psql -c 'CREATE EXTENSION citext;' -U postgres travisci
   - python manage.py migrate
 script:
   - coverage run manage.py test
