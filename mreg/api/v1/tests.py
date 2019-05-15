@@ -1,4 +1,5 @@
 from datetime import timedelta
+from operator import itemgetter
 
 from django.contrib.auth import get_user_model
 from django.conf import settings
@@ -374,6 +375,28 @@ class APIHostsTestCase(MregAPITestCase):
         self.assertEqual(response.status_code, 409)
 
 
+class APIHostsAutoTxtRecords(MregAPITestCase):
+
+    data =  {'name': 'host.example.org', 'contact': 'mail@example.org'}
+    settings.TXT_AUTO_RECORDS = {'example.org': ('test1', 'test2')}
+
+    def test_no_zone_no_txts_added(self):
+        self.assertFalse(Txt.objects.exists())
+        response = self.client.post('/hosts/', self.data)
+        self.assertEqual(response.status_code, 201)
+        self.assertFalse(Txt.objects.exists())
+
+    def test_zone_txts_added(self):
+        self.assertFalse(Txt.objects.exists())
+        ForwardZone.objects.create(name='example.org',
+                                   primary_ns='ns1.example.org',
+                                   email='hostmaster@example.org')
+        self.client.post('/hosts/', self.data)
+        response = self.client.get('/hosts/%s' % self.data['name']).json()
+        txts = tuple(map(itemgetter('txt'), response['txts']))
+        self.assertEqual(txts, list(settings.TXT_AUTO_RECORDS.values())[0])
+
+                              
 class APIHinfoTestCase(MregAPITestCase):
     """Test HinfoPresets and hinfo field on Host"""
 
