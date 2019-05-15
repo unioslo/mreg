@@ -294,6 +294,11 @@ class APIHostsTestCase(MregAPITestCase):
         response = self.client.get('/hosts/%s' % self.host_one.name)
         self.assertEqual(response.status_code, 200)
 
+    def test_hosts_get_case_insensitive_200_ok(self):
+        """"Getting an existing entry should return 200"""
+        response = self.client.get('/hosts/%s' % self.host_one.name.upper())
+        self.assertEqual(response.status_code, 200)
+
     def test_hosts_list_200_ok(self):
         """List all hosts should return 200"""
         response = self.client.get('/hosts/')
@@ -310,6 +315,14 @@ class APIHostsTestCase(MregAPITestCase):
     def test_hosts_post_201_created(self):
         """"Posting a new host should return 201 and location"""
         response = self.client.post('/hosts/', self.post_data)
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response['Location'], '/hosts/%s' % self.post_data['name'])
+
+    def test_hosts_post_case_insenstive_201_created(self):
+        """"Posting a new host should return 201 and location"""
+        data = self.post_data
+        data['name'] = data['name'].upper()
+        response = self.client.post('/hosts/', data)
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response['Location'], '/hosts/%s' % self.post_data['name'])
 
