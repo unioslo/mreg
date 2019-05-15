@@ -51,15 +51,6 @@ class ModelSrvTestCase(TestCase):
 
     def setUp(self):
         """Define the test client and other test variables."""
-        # Needs sample host to test properly
-        self.host_one = Host(name='some-host.example.org',
-                             contact='mail@example.org',
-                             ttl=300,
-                             loc='23 58 23 N 10 43 50 E 80m',
-                             comment='some comment')
-
-        clean_and_save(self.host_one)
-
         self.srv_sample = Srv(name='_abc._udp.example.org',
                               priority=3,
                               weight=1,
@@ -98,15 +89,8 @@ class ModelNaptrTestCase(TestCase):
     def setUp(self):
         """Define the test client and other test variables."""
         # Needs sample host to test properly
-        self.host_one = Host(name='some-host.example.org',
-                             contact='mail@example.org',
-                             ttl=300,
-                             loc='23 58 23 N 10 43 50 E 80m',
-                             comment='some comment')
-
-        clean_and_save(self.host_one)
-
-        self.naptr_sample = Naptr(host=Host.objects.get(name='some-host.example.org'),
+        host = Host.objects.create(name='host.example.org')
+        self.naptr_sample = Naptr(host=host,
                                   preference=1,
                                   order=1,
                                   flag='a',
@@ -145,12 +129,8 @@ class ModelCnameTestCase(TestCase):
     def setUp(self):
         """Define the test client and other test variables."""
         # Needs sample host to test properly
-        self.host_one = Host(name='some-host.example.org',
-                             contact='mail@example.org')
-
-        clean_and_save(self.host_one)
-
-        self.cname_sample = Cname(host=Host.objects.get(name='some-host.example.org'),
+        host = Host.objects.create(name='host.example.org')
+        self.cname_sample = Cname(host=host,
                                   name='some-cname.example.org',
                                   ttl=300)
 
@@ -167,7 +147,7 @@ class ModelCnameTestCase(TestCase):
         new_cname = 'some-new-cname.example.org'
         self.cname_sample.name = new_cname
         clean_and_save(self.cname_sample)
-        updated_cname = Cname.objects.filter(host__name='some-host.example.org')[0].name
+        updated_cname = Cname.objects.filter(host__name='host.example.org')[0].name
         self.assertEqual(new_cname, updated_cname)
 
     def test_model_can_delete_cname(self):
@@ -184,7 +164,7 @@ class ModelHostsTestCase(TestCase):
 
     def setUp(self):
         """Define the test client and other test variables."""
-        self.host_one = Host(name='some-host.example.org',
+        self.host_one = Host(name='host.example.org',
                              contact='mail@example.org',
                              ttl=300,
                              loc='23 58 23 N 10 43 50 E 80m',
@@ -195,7 +175,14 @@ class ModelHostsTestCase(TestCase):
         old_count = Host.objects.count()
         clean_and_save(self.host_one)
         new_count = Host.objects.count()
-        self.assertNotEqual(old_count, new_count)
+        self.assertLess(old_count, new_count)
+
+    def test_model_can_create_without_contact(self):
+        old_count = Host.objects.count()
+        host = Host(name='host2.example.org')
+        clean_and_save(host)
+        new_count = Host.objects.count()
+        self.assertLess(old_count, new_count)
 
     def test_model_case_insesitive(self):
         """Hosts names must be case insensitive"""
@@ -254,12 +241,12 @@ class ModelNameServerTestCase(TestCase):
     def setUp(self):
         """Define the test client and other test variables."""
         self.zone_sample = ForwardZone(name='example.org',
-                                       primary_ns='some-ns-server.example.org',
+                                       primary_ns='ns.example.org',
                                        email='hostmaster@example.org')
 
         clean_and_save(self.zone_sample)
 
-        self.ns_sample = NameServer(name='some-ns-server.example.org',
+        self.ns_sample = NameServer(name='ns.example.org',
                                     ttl=300)
 
     def test_model_can_create_ns(self):
@@ -273,7 +260,7 @@ class ModelNameServerTestCase(TestCase):
         """Test that the model is able to change an Ns."""
         clean_and_save(self.ns_sample)
         old_name = self.ns_sample.name
-        new_name = 'some-new-ns.example.com'
+        new_name = 'new-ns.example.com'
         ns_sample_id = NameServer.objects.get(name=old_name).id
         self.ns_sample.name = new_name
         clean_and_save(self.ns_sample)
@@ -367,31 +354,13 @@ class ModelIpaddressTestCase(TestCase):
     def setUp(self):
         """Define the test client and other test variables."""
         # Needs sample host and sample network to test properly
-        self.host_one = Host(name='some-host.example.org',
-                             contact='mail@example.org',
-                             ttl=300,
-                             loc='23 58 23 N 10 43 50 E 80m',
-                             comment='some comment')
+        self.host = Host.objects.create(name='host.example.org')
 
-        self.network_sample = Network(network='192.168.202.0/20',
-                                      description='some description',
-                                      vlan=123,
-                                      dns_delegated=False)
-
-        self.network_ipv6_sample = Network(network='2001:db8::/32',
-                                           description='some IPv6 description',
-                                           vlan=123,
-                                           dns_delegated=False)
-
-
-        clean_and_save(self.host_one)
-        # clean_and_save(self.network_sample) # Needed when network ForeignKey is implemented.
-
-        self.ipaddress_sample = Ipaddress(host=Host.objects.get(name='some-host.example.org'),
+        self.ipaddress_sample = Ipaddress(host=self.host,
                                           ipaddress='192.168.202.123',
                                           macaddress='a4:34:d9:0e:88:b9')
 
-        self.ipv6address_sample = Ipaddress(host=Host.objects.get(name='some-host.example.org'),
+        self.ipv6address_sample = Ipaddress(host=self.host,
                                             ipaddress='2001:db8::beef',
                                             macaddress='a4:34:d9:0e:88:b9')
 
@@ -416,7 +385,7 @@ class ModelIpaddressTestCase(TestCase):
         new_ipaddress = '192.168.202.124'
         self.ipaddress_sample.ipaddress = new_ipaddress
         clean_and_save(self.ipaddress_sample)
-        updated_ipaddress = Ipaddress.objects.filter(host__name='some-host.example.org')[0].ipaddress
+        updated_ipaddress = Ipaddress.objects.get(host=self.host).ipaddress
         self.assertEqual(new_ipaddress, updated_ipaddress)
 
     def test_model_can_change_ipv6address(self):
@@ -425,7 +394,7 @@ class ModelIpaddressTestCase(TestCase):
         new_ipv6address = '2001:db8::feed'
         self.ipv6address_sample.ipaddress = new_ipv6address
         clean_and_save(self.ipv6address_sample)
-        updated_ipv6address = Ipaddress.objects.filter(host__name='some-host.example.org')[0].ipaddress
+        updated_ipv6address = Ipaddress.objects.get(host=self.host).ipaddress
         self.assertEqual(new_ipv6address, updated_ipv6address)
 
     def test_model_can_delete_ipaddress(self):
@@ -451,22 +420,10 @@ class ModelPtrOverrideTestCase(TestCase):
     def setUp(self):
         """Define the test client and other test variables."""
         # Needs sample host to test
-        self.host_one = Host(name='host1.example.org',
-                             contact='mail@example.org')
-        self.host_two = Host(name='host2.example.org',
-                        contact='mail@example.org')
-
-        self.host_ipv6_one = Host(name='host3.example.org',
-                             contact='mail@example.org')
-        self.host_ipv6_two = Host(name='host4.example.org',
-                        contact='mail@example.org')
-        
-
-        clean_and_save(self.host_one)
-        clean_and_save(self.host_two)
-        
-        clean_and_save(self.host_ipv6_one)
-        clean_and_save(self.host_ipv6_two)
+        self.host_one = Host.objects.create(name='host1.example.org')
+        self.host_two = Host.objects.create(name='host2.example.org')
+        self.host_ipv6_one = Host.objects.create(name='host3.example.org')
+        self.host_ipv6_two = Host.objects.create(name='host4.example.org')
 
         self.ptr_sample = PtrOverride(host=self.host_one, ipaddress='10.0.0.2')
         self.ptr_ipv6_sample = PtrOverride(host=self.host_ipv6_one,
@@ -654,17 +611,8 @@ class ModelTxtTestCase(TestCase):
 
     def setUp(self):
         """Define the test client and other test variables."""
-        # Needs sample host to test properly
-        self.host_one = Host(name='some-host.example.org',
-                             contact='mail@example.org',
-                             ttl=300,
-                             loc='23 58 23 N 10 43 50 E 80m',
-                             comment='some comment')
-
-        clean_and_save(self.host_one)
-
-        self.txt_sample = Txt(host=Host.objects.get(name='some-host.example.org'),
-                              txt='some-text')
+        host = Host.objects.create(name='host.example.org')
+        self.txt_sample = Txt(host=host, txt='some-text')
 
     def test_model_can_create_txt(self):
         """Test that the model is able to create a txt entry."""
@@ -697,17 +645,9 @@ class ModelSshfpTestCase(TestCase):
 
     def setUp(self):
         """Define the test client and other test variables."""
-        # Needs sample host to test properly
-        self.host_one = Host(name='some-host.example.org',
-                             contact='mail@example.org',
-                             ttl=300,
-                             loc='23 58 23 N 10 43 50 E 80m',
-                             comment='some comment')
-
-        clean_and_save(self.host_one)
-
-        self.sshfp_sample = Sshfp(host=Host.objects.get(name='some-host.example.org'),
-                              algorithm=1, hash_type=1, fingerprint='01234567890abcdef')
+        host = Host.objects.create(name='host.example.org')
+        self.sshfp_sample = Sshfp(host=host, algorithm=1, hash_type=1,
+                                  fingerprint='01234567890abcdef')
 
     def test_model_can_create_sshfp(self):
         """Test that the model is able to create an sshfp entry."""
