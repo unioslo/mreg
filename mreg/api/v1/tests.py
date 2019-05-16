@@ -1140,6 +1140,8 @@ class APIZonesReverseDelegationTestCase(MregAPITestCase):
         response = self.client.post(path, self.del_10101010)
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response['Location'], f"{path}10.10.10.10.in-addr.arpa")
+        response = self.client.get(response['Location'])
+        self.assertEqual(response.status_code, 200)
 
     def test_delegate_ipv4_zonefiles_200_ok(self):
         self.test_delegate_ipv4_201_ok()
@@ -1187,6 +1189,8 @@ class APIZonesReverseDelegationTestCase(MregAPITestCase):
         response = self.client.post(path, self.del_2001db810)
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response['Location'], f"{path}{self.del_2001db810['name']}")
+        response = self.client.get(response['Location'])
+        self.assertEqual(response.status_code, 200)
 
     def test_delegate_ipv6_zonefiles_200_ok(self):
         self.test_delegate_ipv6_201_ok()
@@ -1564,6 +1568,17 @@ class APIMACaddressTestCase(MregAPITestCase):
         self.test_mac_post_ip_with_mac_201_ok()
         self.test_mac_patch_ip_and_mac_200_ok()
         self.test_mac_patch_mac_200_ok()
+
+
+    def test_get_dhcphost_v4(self):
+        self.test_mac_with_network()
+        dhcpall = self.client.get('/dhcphosts/v4/all')
+        self.assertEqual(dhcpall.status_code, 200)
+        dhcpv4 = self.client.get(f'/dhcphosts/{self.network_one.network}')
+        self.assertEqual(dhcpv4.status_code, 200)
+        self.assertEqual(len(dhcpv4.json()), 3)
+        self.assertEqual(Ipaddress.objects.exclude(macaddress='').count(), 3)
+        self.assertEqual(dhcpall.json(), dhcpv4.json())
 
     def test_mac_with_network_vlan(self):
         self.network_one = Network(network='10.0.0.0/24', vlan=10)
