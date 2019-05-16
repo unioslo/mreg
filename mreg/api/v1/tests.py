@@ -1902,7 +1902,7 @@ class APINetworksTestCase(MregAPITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['network'], str(self.network_ipv6_sample.network))
 
-    def test_networks_get_network_invalid_by_ip_400_not_found(self):
+    def test_networks_get_network_by_invalid_ip_400_bad_request(self):
         """GET on an IP in a invalid network should return 400 bad request."""
         response = self.client.get('/networks/ip/10.0.0.0.1')
         self.assertEqual(response.status_code, 400)
@@ -2025,6 +2025,17 @@ class APINetworksTestCase(MregAPITestCase):
         response = self.client.get('/networks/%s/first_unused' % self.network_ipv6_sample.network)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, '2001:db8::4')
+
+    def test_networks_get_first_unued_on_full_network_404_not_found(self):
+        """GET first unused IP on a full network should return 404 not found."""
+        data = {
+            'network': '172.16.0.0/30',
+            'description': 'Tiny network',
+        }
+        response = self.client.post('/networks/', data)
+        self.assertEqual(response.status_code, 201)
+        response = self.client.get('/networks/%s/first_unused' % data['network'])
+        self.assertEqual(response.status_code, 404)
 
     def test_networks_get_ptroverride_list(self):
         """GET on /networks/<ip/mask>/ptroverride_list should return 200 ok and data."""
