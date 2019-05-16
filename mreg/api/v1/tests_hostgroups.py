@@ -38,8 +38,6 @@ class APIHostGroupsTestCase(MregAPITestCase):
         response = self.client.post('/hostgroups/', post_data)
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response['Location'], '/hostgroups/%s' % post_data['name'])
-        response = self.client.get('/hostgroups/%s' % post_data['name'])
-        self.assertEqual(response.status_code, 200)
 
     def test_hostgroups_rename_204_ok(self):
         """Rename a group should return 204 ok"""
@@ -55,6 +53,14 @@ class APIHostGroupsTestCase(MregAPITestCase):
         self.assertEqual(response.status_code, 204)
         response = self.client.get('/hostgroups/%s' % self.hostgroup_one.name)
         self.assertEqual(response.json()['description'], 'new d€scription')
+
+    def test_hostgroup_create_group_twice_409_conflict(self):
+        post_data = {'name': 'testgroup'}
+        response = self.client.post('/hostgroups/', post_data)
+        self.assertEqual(response.status_code, 201)
+        post_data = {'name': 'TESTGROUP'}
+        response = self.client.post('/hostgroups/', post_data)
+        self.assertEqual(response.status_code, 409)
 
     def test_hostgroups_rename_to_name_in_use_400_bad_request(self):
         """Rename a group should return 204 ok"""
@@ -89,10 +95,15 @@ class APIHostGroupGroupsTestCase(MregAPITestCase):
                                     {'name': self.hostgroup_two.name})
         self.assertEqual(response.status_code, 409)
 
-    def test_groups_add_self_to_group_403_forbidden(self):
+    def test_groups_add_group_to_group_201_ok(self):
         response = self.client.post(f'/hostgroups/{self.hostgroup_one.name}/groups/',
-                                    {'name': self.hostgroup_one.name})
-        self.assertEqual(response.status_code, 403)
+                                    {'name': self.hostgroup_two.name})
+        self.assertEqual(response.status_code, 201)
+
+    def test_groups_add_missing_name_group_400_forbidden(self):
+        response = self.client.post(f'/hostgroups/{self.hostgroup_one.name}/groups/',
+                                    {'name2': 'something'})
+        self.assertEqual(response.status_code, 400)
 
     def test_group_list_with_content_200_ok(self):
         self.test_groups_add_group_to_group_201_ok()
