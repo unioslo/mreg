@@ -19,12 +19,6 @@ def validate_16bit_uint(value):
     if value > 65535:
         raise ValidationError("Ensure this value is less than or equal to 65535.")
 
-def validate_31bit_uint(value):
-    if value < 0:
-        raise ValidationError("Ensure this value is greater than or equal to 0.")
-    if value > 2**31-1:
-        raise ValidationError("Ensure this value is less than or equal to 2147483647.")
-
 def validate_ttl(value):
     """Ensures a ttl-value is within accepted range."""
     if value < 300:
@@ -115,13 +109,6 @@ def validate_mac_address(address):
     validator = RegexValidator(adr_regex,
                                message="Must be on form: aa:bb:cc:00:11:22")
     validator(address)
-
-def validate_network(network):
-    """Validate that the network given as a string is valid network."""
-    try:
-        ipaddress.ip_network(network)
-    except ValueError as e:
-        raise ValidationError(str(e))
 
 
 def validate_loc(location):
