@@ -53,9 +53,8 @@ def validate_hostname(name):
         if all(ord(char) < 128 for char in label):
             if "*" in label:
                 if len(label) > 1:
-                        raise ValidationError("Wildcard must be standalone")
-                else:
-                    continue
+                    raise ValidationError("Wildcard must be standalone")
+                continue
             label_regex = "^([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])$"
             validator = RegexValidator(label_regex,
                                        message="Label '{}' is not valid. "
