@@ -580,22 +580,6 @@ class SrvDetail(HostPermissionsUpdateDestroy,
     serializer_class = SrvSerializer
 
 
-def _get_iprange(kwargs):
-    """
-    Helper function to get the range from the params dict.
-    :param kwargs: kwargs
-    :return: The iprange as a string, or raises an error
-    """
-    try:
-        ip = kwargs['ip']
-        mask = kwargs['range']
-        iprange = '%s/%s' % (ip, mask)
-        ipaddress.ip_network(iprange)
-        return iprange
-    except ValueError as error:
-        raise ParseError(detail=str(error))
-
-
 def _overlap_check(range, exclude=None):
     try:
         network = ipaddress.ip_network(range)
@@ -1178,6 +1162,22 @@ class ModelChangeLogDetail(generics.RetrieveAPIView):
             return Response(logs_by_date, status=status.HTTP_200_OK)
         except ModelChangeLog.DoesNotExist:
             raise Http404
+
+
+def _get_iprange(kwargs):
+    """
+    Helper function to get the range from the params dict.
+    :param kwargs: kwargs
+    :return: The iprange as a string, or raises an error
+    """
+    try:
+        ip = kwargs['ip']
+        mask = kwargs['range']
+        iprange = '%s/%s' % (ip, mask)
+        ipaddress.ip_network(iprange)
+        return iprange
+    except ValueError as error:
+        raise ParseError(detail=str(error))
 
 
 def _get_ips_by_range(iprange):
