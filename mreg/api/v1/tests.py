@@ -399,6 +399,33 @@ class APIHostsAutoTxtRecords(MregAPITestCase):
         txts = tuple(map(itemgetter('txt'), response['txts']))
         self.assertEqual(txts, list(settings.TXT_AUTO_RECORDS.values())[0])
 
+class APIHostsIdna(MregAPITestCase):
+
+    data_v4 = {'name': 'æøå.example.org', "ipaddress": '10.10.0.1'}
+
+    def _add_data(self, data):
+        self.client.post('/hosts/', data)
+
+    def test_hosts_idna_forward(self):
+        """Test that a hostname outside ASCII 128 is handled properly"""
+        zone = create_forward_zone()
+        self._add_data(self.data_v4)
+        response = self.client.get(f'/zonefiles/{zone.name}')
+        self.assertTrue('xn--5cab8c                     IN A      10.10.0.1' in response.data)
+
+    def test_hosts_idna_reverse_v4(self):
+        zone = create_reverse_zone()
+        self._add_data(self.data_v4)
+        response = self.client.get(f'/zonefiles/{zone.name}')
+        self.assertTrue('xn--5cab8c.example.org.' in response.data)
+
+    def test_hosts_idna_reverse_v6(self):
+        zone = create_reverse_zone('0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa')
+        data = {'name': 'æøå.example.org', "ipaddress": '2001:db8::1'}
+        self._add_data(data)
+        response = self.client.get(f'/zonefiles/{zone.name}')
+        self.assertTrue('xn--5cab8c.example.org.' in response.data)
+
                               
 class APIHinfoTestCase(MregAPITestCase):
     """Test HinfoPresets and hinfo field on Host"""
