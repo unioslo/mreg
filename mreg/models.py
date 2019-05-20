@@ -119,8 +119,8 @@ class BaseZone(models.Model, ZoneHelpers):
             'refresh': self.refresh,
             'retry': self.retry,
             'expire': self.expire,
-            'zupdated_at': self.updated_at,
-            'supdated_at': self.serialno_updated_at
+            'zupdated_at': timezone.localtime(self.updated_at),
+            'supdated_at': timezone.localtime(self.serialno_updated_at)
         }
         zf = """$ORIGIN {origin}
 $TTL {ttl}
