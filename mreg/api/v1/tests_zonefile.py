@@ -79,7 +79,7 @@ class APIZonefileTestCase(MregAPITestCase):
                 'flag': 'a',
                 'service': 'SERVICE',
                 'regex': r'1(.*@example.org)',
-                'replacement': 'replacement.example.org'
+                'replacement': 'replacementhost.example.org'
         }
         ret = self.client.post("/naptrs/", data)
         data = {'host': host1.id,
@@ -93,7 +93,7 @@ class APIZonefileTestCase(MregAPITestCase):
                 'port': '1234',
                 'target': 'target.example.org'}
         self.client.post("/srvs/", data)
-        print(self._get_zone(self.forward))
+        self._get_zone(self.forward)
 
     def test_get_nonexistent(self):
         response = self.client.get("/zonefiles/ops")
