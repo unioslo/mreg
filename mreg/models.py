@@ -301,7 +301,7 @@ class HinfoPreset(models.Model):
             'cpu': quote_if_space(self.cpu),
             'os': quote_if_space(self.os)
         }
-        return '                                  {record_type:6} {cpu} {os}\n'.format_map(data)
+        return '                               IN {record_type:6} {cpu} {os}\n'.format_map(data)
 
 
 class Host(ForwardZoneMember):
