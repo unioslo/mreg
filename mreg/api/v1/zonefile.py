@@ -45,8 +45,10 @@ class Common:
         if host.zone == self.zone:
             return ""
         data = ""
+        name_idna = idna_encode(qualify(host.name, self.zone.name))
+        ttl = clear_none(host.ttl)
         for ip in host.ipaddresses.all():
-            data += ip.zf_string(self.zone.name)
+            data += self.ip_zf_string(name_idna, ttl, ipaddress.ip_address(ip.ipaddress))
         return data
 
     def get_ns_data(self, qs):
@@ -88,7 +90,6 @@ class ForwardFile(Common):
         return '{name:24} {ttl:5} IN {record_type:6} {record_data:39}\n'.format_map(data)
 
     def mx_zf_string(self, name, ttl, priority, mx):
-
         data = {
             'name': name,
             'ttl': ttl,
@@ -124,8 +125,6 @@ class ForwardFile(Common):
         """String representation for zonefile export."""
         if flag in ('a', 's'):
             replacement = idna_encode(qualify(replacement, self.zone.name))
-        else:
-            replacement = replacement
 
         data = {
             'name': name,
@@ -153,8 +152,7 @@ class ForwardFile(Common):
 
     def host_data(self, host):
         data = ""
-        first = True
-        name_idna = idna_encode(qualify(host.name, self.zone.name))
+        name = idna_encode(qualify(host.name, self.zone.name))
         ttl = clear_none(host.ttl)
         for values, func in ((self.ipaddresses, self.ip_zf_string),
                              (self.mxs, self.mx_zf_string),
@@ -164,12 +162,8 @@ class ForwardFile(Common):
                              ):
             if host.name in values:
                 for i in values[host.name]:
-                    if first:
-                        first = False
-                        name = name_idna
-                    else:
-                        name = ""
                     data += func(name, ttl, *i)
+                    name = ""
 
 
         # XXX: add caching for this one, if we populate it..
@@ -180,7 +174,7 @@ class ForwardFile(Common):
         # For entries where the host is the resource record
         if host.name in self.host_cnames:
             for alias, ttl in self.host_cnames[host.name]:
-                data += self.cname_zf_string(alias, ttl, name_idna)
+                data += self.cname_zf_string(alias, ttl, name)
         return data
 
     def cache_hostdata(self):
@@ -260,8 +254,8 @@ class ForwardFile(Common):
         cnames = Cname.objects.filter(zone=zone.id).exclude(host__zone=zone.id)
         if cnames:
             data += ';\n; Cnames pointing out of the zone\n;\n'
-            for cname in cnames:
-                data += cname.zf_string(zone.name)
+            for i in cnames.values_list('name', 'ttl', 'host__name'):
+                data += self.cname_zf_string(*i)
         return data
 
 
