@@ -152,7 +152,7 @@ class ForwardFile(Common):
 
     def host_data(self, host):
         data = ""
-        name = idna_encode(qualify(host.name, self.zone.name))
+        idna_name = name = idna_encode(qualify(host.name, self.zone.name))
         ttl = clear_none(host.ttl)
         for values, func in ((self.ipaddresses, self.ip_zf_string),
                              (self.mxs, self.mx_zf_string),
@@ -174,7 +174,7 @@ class ForwardFile(Common):
         # For entries where the host is the resource record
         if host.name in self.host_cnames:
             for alias, ttl in self.host_cnames[host.name]:
-                data += self.cname_zf_string(alias, ttl, name)
+                data += self.cname_zf_string(alias, ttl, idna_name)
         return data
 
     def cache_hostdata(self):
