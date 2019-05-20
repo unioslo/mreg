@@ -14,6 +14,11 @@ def clear_none(value):
         value = ""
     return value
 
+def quote_if_space(value):
+    if ' ' in value:
+        return f'"{value}"'
+    return value
+
 
 def qualify(name, zone, shortform=True):
     """

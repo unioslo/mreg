@@ -16,10 +16,10 @@ from mreg.validators import (validate_hostname, validate_reverse_zone_name,
                              validate_mac_address, validate_loc,
                              validate_naptr_flag, validate_srv_service_text,
                              validate_zones_serialno, validate_16bit_uint,
-                             validate_network, validate_ttl, validate_hexadecimal,
+                             validate_ttl, validate_hexadecimal,
                              validate_regex)
 from mreg.utils import (create_serialno, encode_mail, clear_none, qualify,
-        idna_encode, get_network_from_zonename)
+        idna_encode, get_network_from_zonename, quote_if_space)
 
 from .fields import LCICharField, DnsNameField
 from .models_auth import User
@@ -196,10 +196,6 @@ class ReverseZone(BaseZone):
     class Meta:
         db_table = 'reverse_zone'
 
-    def update(self, *args, **kwargs):
-        self.network = get_network_from_zonename(self.name)
-        super().update(*args, **kwargs)
-
     def save(self, *args, **kwargs):
         self.network = get_network_from_zonename(self.name)
         super().save(*args, **kwargs)
@@ -295,17 +291,17 @@ class HinfoPreset(models.Model):
         unique_together = ('cpu', 'os')
 
     def __str__(self):
-        return f"{self.cpu} {self.os}"
+        return f"cpu: {self.cpu} os: {self.os}"
 
     @property
     def zf_string(self):
         """String representation for zonefile export."""
         data = {
             'record_type': 'HINFO',
-            'cpu': self.cpu,
-            'os': self.os
+            'cpu': quote_if_space(self.cpu),
+            'os': quote_if_space(self.os)
         }
-        return '                                  {record_type:6} {cpu} {os}\n'.format_map(data)
+        return '                               IN {record_type:6} {cpu} {os}\n'.format_map(data)
 
 
 class Host(ForwardZoneMember):
@@ -582,16 +578,16 @@ class NetGroupRegexPermission(models.Model):
 
     @staticmethod
     def find_perm(groups, hostname, ips):
-        if not (groups or hostname or ips):
-            return False
+        if not isinstance(hostname, str):
+            raise ValueError(f'hostname is invalid type ({type(hostname)})')
         if isinstance(groups, str):
             groups = [groups]
         if not isinstance(groups, (list, tuple)):
-            return ValueError(f'groups on invalid type ({type(groups)})')
+            raise ValueError(f'groups on invalid type ({type(groups)})')
         if isinstance(ips, str):
             ips = [ips]
         if not isinstance(ips, (list, tuple)):
-            return ValueError(f'ips on invalid type ({type(ips)})')
+            raise ValueError(f'ips on invalid type ({type(ips)})')
         qs = NetGroupRegexPermission.objects.filter(
                 group__in=groups
             ).extra(

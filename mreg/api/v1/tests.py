@@ -361,8 +361,11 @@ class APIHostsTestCase(MregAPITestCase):
 
     def test_hosts_patch_400_bad_ttl(self):
         """Patching with invalid ttl should return 400"""
-        response = self.client.patch('/hosts/%s' % self.host_one.name, data={'ttl': 100})
-        self.assertEqual(response.status_code, 400)
+        def _test_ttl(ttl):
+            response = self.client.patch('/hosts/%s' % self.host_one.name, data={'ttl': ttl})
+            self.assertEqual(response.status_code, 400)
+        _test_ttl(100)
+        _test_ttl(100000)
 
     def test_hosts_patch_404_not_found(self):
         """Patching a non-existing entry should return 404"""
@@ -395,6 +398,33 @@ class APIHostsAutoTxtRecords(MregAPITestCase):
         response = self.client.get('/hosts/%s' % self.data['name']).json()
         txts = tuple(map(itemgetter('txt'), response['txts']))
         self.assertEqual(txts, list(settings.TXT_AUTO_RECORDS.values())[0])
+
+class APIHostsIdna(MregAPITestCase):
+
+    data_v4 = {'name': 'æøå.example.org', "ipaddress": '10.10.0.1'}
+
+    def _add_data(self, data):
+        self.client.post('/hosts/', data)
+
+    def test_hosts_idna_forward(self):
+        """Test that a hostname outside ASCII 128 is handled properly"""
+        zone = create_forward_zone()
+        self._add_data(self.data_v4)
+        response = self.client.get(f'/zonefiles/{zone.name}')
+        self.assertTrue('xn--5cab8c                     IN A      10.10.0.1' in response.data)
+
+    def test_hosts_idna_reverse_v4(self):
+        zone = create_reverse_zone()
+        self._add_data(self.data_v4)
+        response = self.client.get(f'/zonefiles/{zone.name}')
+        self.assertTrue('xn--5cab8c.example.org.' in response.data)
+
+    def test_hosts_idna_reverse_v6(self):
+        zone = create_reverse_zone('0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa')
+        data = {'name': 'æøå.example.org', "ipaddress": '2001:db8::1'}
+        self._add_data(data)
+        response = self.client.get(f'/zonefiles/{zone.name}')
+        self.assertTrue('xn--5cab8c.example.org.' in response.data)
 
                               
 class APIHinfoTestCase(MregAPITestCase):
@@ -511,6 +541,59 @@ class APIMxTestcase(MregAPITestCase):
         self.zone.save()
         mxs = self.client.get("/mxs/").data['results']
         self.client.delete("/mxs/{}".format(mxs[0]['id']))
+        self.zone.refresh_from_db()
+        self.assertTrue(self.zone.updated)
+
+
+class APINaptrTestCase(MregAPITestCase):
+
+    def setUp(self):
+        super().setUp()
+        self.zone = create_forward_zone()
+        self.host_data = {'name': 'host.example.org',
+                          'contact': 'mail@example.org'}
+        self.client.post('/hosts/', self.host_data)
+        self.host = Host.objects.get(name=self.host_data['name'])
+
+    def test_naptr_post(self):
+        data = {'host': self.host.id,
+                'preference': 10,
+                'order': 20,
+                'flag': 'a',
+                'service': 'SERVICE',
+                'regex': r'1(.*@example.org)',
+                'replacement': 'replacement.example.org'
+        }
+        ret = self.client.post("/naptrs/", data)
+        self.assertEqual(ret.status_code, 201)
+
+    def test_naptr_list(self):
+        self.test_naptr_post()
+        ret = self.client.get("/naptrs/")
+        self.assertEqual(ret.status_code, 200)
+        self.assertEqual(ret.data['count'], 1)
+
+    def test_naptr_delete(self):
+        self.test_naptr_post()
+        naptrs = self.client.get("/naptrs/").json()['results']
+        ret = self.client.delete("/naptrs/{}".format(naptrs[0]['id']))
+        self.assertEqual(ret.status_code, 204)
+        naptrs = self.client.get("/naptrs/").json()
+        self.assertEqual(len(naptrs['results']), 0)
+
+    def test_naptr_zone_autoupdate_add(self):
+        self.zone.updated = False
+        self.zone.save()
+        self.test_naptr_post()
+        self.zone.refresh_from_db()
+        self.assertTrue(self.zone.updated)
+
+    def test_naptr_zone_autoupdate_delete(self):
+        self.test_naptr_post()
+        self.zone.updated = False
+        self.zone.save()
+        naptrs = self.client.get("/naptrs/").data['results']
+        self.client.delete("/naptrs/{}".format(naptrs[0]['id']))
         self.zone.refresh_from_db()
         self.assertTrue(self.zone.updated)
 
@@ -1084,6 +1167,8 @@ class APIZonesReverseDelegationTestCase(MregAPITestCase):
         response = self.client.post(path, self.del_10101010)
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response['Location'], f"{path}10.10.10.10.in-addr.arpa")
+        response = self.client.get(response['Location'])
+        self.assertEqual(response.status_code, 200)
 
     def test_delegate_ipv4_zonefiles_200_ok(self):
         self.test_delegate_ipv4_201_ok()
@@ -1131,6 +1216,8 @@ class APIZonesReverseDelegationTestCase(MregAPITestCase):
         response = self.client.post(path, self.del_2001db810)
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response['Location'], f"{path}{self.del_2001db810['name']}")
+        response = self.client.get(response['Location'])
+        self.assertEqual(response.status_code, 200)
 
     def test_delegate_ipv6_zonefiles_200_ok(self):
         self.test_delegate_ipv6_201_ok()
@@ -1509,6 +1596,17 @@ class APIMACaddressTestCase(MregAPITestCase):
         self.test_mac_patch_ip_and_mac_200_ok()
         self.test_mac_patch_mac_200_ok()
 
+
+    def test_get_dhcphost_v4(self):
+        self.test_mac_with_network()
+        dhcpall = self.client.get('/dhcphosts/v4/all')
+        self.assertEqual(dhcpall.status_code, 200)
+        dhcpv4 = self.client.get(f'/dhcphosts/{self.network_one.network}')
+        self.assertEqual(dhcpv4.status_code, 200)
+        self.assertEqual(len(dhcpv4.json()), 3)
+        self.assertEqual(Ipaddress.objects.exclude(macaddress='').count(), 3)
+        self.assertEqual(dhcpall.json(), dhcpv4.json())
+
     def test_mac_with_network_vlan(self):
         self.network_one = Network(network='10.0.0.0/24', vlan=10)
         self.network_two = Network(network='10.0.1.0/24', vlan=10)
@@ -1846,6 +1944,11 @@ class APINetworksTestCase(MregAPITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['network'], str(self.network_ipv6_sample.network))
 
+    def test_networks_get_network_by_invalid_ip_400_bad_request(self):
+        """GET on an IP in a invalid network should return 400 bad request."""
+        response = self.client.get('/networks/ip/10.0.0.0.1')
+        self.assertEqual(response.status_code, 400)
+
     def test_networks_get_network_unknown_by_ip_404_not_found(self):
         """GET on an IP in a unknown network should return 404 not found."""
         response = self.client.get('/networks/ip/127.0.0.1')
@@ -1883,6 +1986,15 @@ class APINetworksTestCase(MregAPITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, ['10.0.0.17'])
 
+    def test_networks_get_host_list_200_ok(self):
+        ip_sample = Ipaddress(host=self.host_one, ipaddress='10.0.0.17')
+        clean_and_save(ip_sample)
+
+        response = self.client.get('/networks/%s/used_host_list' % self.network_sample.network)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {'10.0.0.17': ['some-host.example.org']})
+
+
     def test_ipv6_networks_get_usedlist_200_ok(self):
         """GET on /networks/<ipv6/mask>/used_list should return 200 ok and data."""
         ipv6_sample = Ipaddress(host=self.host_one, ipaddress='2001:db8::beef')
@@ -1891,6 +2003,15 @@ class APINetworksTestCase(MregAPITestCase):
         response = self.client.get('/networks/%s/used_list' % self.network_ipv6_sample.network)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, ['2001:db8::beef'])
+
+    def test_networks_get_host_list_200_ok(self):
+        ip_sample = Ipaddress(host=self.host_one, ipaddress='2001:db8::beef')
+        clean_and_save(ip_sample)
+
+        response = self.client.get('/networks/%s/used_host_list' % self.network_ipv6_sample.network)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {'2001:db8::beef': ['some-host.example.org']})
+
 
     def test_networks_get_unusedcount_200_ok(self):
         """GET on /networks/<ip/mask>/unused_count should return 200 ok and data."""
@@ -1946,6 +2067,17 @@ class APINetworksTestCase(MregAPITestCase):
         response = self.client.get('/networks/%s/first_unused' % self.network_ipv6_sample.network)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, '2001:db8::4')
+
+    def test_networks_get_first_unued_on_full_network_404_not_found(self):
+        """GET first unused IP on a full network should return 404 not found."""
+        data = {
+            'network': '172.16.0.0/30',
+            'description': 'Tiny network',
+        }
+        response = self.client.post('/networks/', data)
+        self.assertEqual(response.status_code, 201)
+        response = self.client.get('/networks/%s/first_unused' % data['network'])
+        self.assertEqual(response.status_code, 404)
 
     def test_networks_get_ptroverride_list(self):
         """GET on /networks/<ip/mask>/ptroverride_list should return 200 ok and data."""
@@ -2018,36 +2150,6 @@ class APINetworksTestCase(MregAPITestCase):
 
         response = self.client.delete('/networks/%s' % self.post_ipv6_data['network'])
         self.assertEqual(response.status_code, 409)
-
-
-class APIZonefileTestCase(MregAPITestCase):
-
-    def setUp(self):
-        self.client = self.get_token_client(superuser=False, adminuser=False)
-
-    def _get_zone(self, zone):
-        response = self.client.get(f"/zonefiles/{zone.name}")
-        self.assertEqual(response.status_code, 200)
-
-    def test_get_forward(self):
-        self._get_zone(create_forward_zone())
-
-    def test_get_nonexistent(self):
-        response = self.client.get("/zonefiles/ops")
-        self.assertEqual(response.status_code, 404)
-
-    def test_get_not_authenticated(self):
-        client = APIClient()
-        response = client.get("/zonefiles/ops")
-        self.assertEqual(response.status_code, 401)
-
-    def test_get_rev_v4(self):
-        zone = create_reverse_zone(name='10.10.in-addr.arpa')
-        self._get_zone(zone)
-
-    def test_get_rev_v6(self):
-        zone = create_reverse_zone(name='0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa')
-        self._get_zone(zone)
 
 
 class APIModelChangeLogsTestCase(MregAPITestCase):

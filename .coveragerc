@@ -2,6 +2,7 @@
 [run]
 omit =
     manage.py
+    mreg/migrations/*
     # omit anything in a .local, venv/* directory anywhere
     */.local/*
     venv/*
