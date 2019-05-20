@@ -196,10 +196,6 @@ class ReverseZone(BaseZone):
     class Meta:
         db_table = 'reverse_zone'
 
-    def update(self, *args, **kwargs):
-        self.network = get_network_from_zonename(self.name)
-        super().update(*args, **kwargs)
-
     def save(self, *args, **kwargs):
         self.network = get_network_from_zonename(self.name)
         super().save(*args, **kwargs)
