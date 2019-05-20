@@ -1,11 +1,13 @@
+from datetime import timedelta
+
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
+from rest_framework.exceptions import PermissionDenied
 
 from mreg.models import (ForwardZone, Host, Ipaddress, NameServer, Network, ReverseZone,
                          PtrOverride, Txt, Sshfp, Cname, Naptr, Srv, ModelChangeLog,
                          NetGroupRegexPermission, HostGroup)
-from rest_framework.exceptions import PermissionDenied
 
 
 def clean_and_save(entity):
@@ -64,6 +66,7 @@ class ModelSrvTestCase(TestCase):
         clean_and_save(self.srv_sample)
         new_count = Srv.objects.count()
         self.assertNotEqual(old_count, new_count)
+        str(self.srv_sample)
 
     def test_model_can_change_srv(self):
         """Test that the model is able to change a srv entry."""
@@ -104,6 +107,7 @@ class ModelNaptrTestCase(TestCase):
         clean_and_save(self.naptr_sample)
         new_count = Naptr.objects.count()
         self.assertNotEqual(old_count, new_count)
+        str(self.naptr_sample)
 
     def test_model_can_change_naptr(self):
         """Test that the model is able to change a naptr entry."""
@@ -140,6 +144,7 @@ class ModelCnameTestCase(TestCase):
         clean_and_save(self.cname_sample)
         new_count = Cname.objects.count()
         self.assertNotEqual(old_count, new_count)
+        str(self.cname_sample)
 
     def test_model_can_change_cname(self):
         """Test that the model is able to change a cname entry."""
@@ -170,12 +175,17 @@ class ModelHostsTestCase(TestCase):
                              loc='23 58 23 N 10 43 50 E 80m',
                              comment='some comment')
 
+    def assert_validation_error(self, obj):
+        with self.assertRaises(ValidationError) as context:
+            obj.full_clean()
+
     def test_model_can_create_a_host(self):
         """Test that the model is able to create a host."""
         old_count = Host.objects.count()
         clean_and_save(self.host_one)
         new_count = Host.objects.count()
         self.assertLess(old_count, new_count)
+        str(self.host_one)
 
     def test_model_can_create_without_contact(self):
         old_count = Host.objects.count()
@@ -183,6 +193,10 @@ class ModelHostsTestCase(TestCase):
         clean_and_save(host)
         new_count = Host.objects.count()
         self.assertLess(old_count, new_count)
+
+    def test_can_create_wildcard_host(self):
+        Host(name='*.example.org').full_clean()
+        Host(name='*.sub.example.org').full_clean()
 
     def test_model_case_insesitive(self):
         """Hosts names must be case insensitive"""
@@ -199,6 +213,17 @@ class ModelHostsTestCase(TestCase):
         # uppercase hostname.
         host.refresh_from_db()
         self.assertEqual(host.name, hostname.lower())
+
+    def test_reject_bad_host_names(self):
+        def _assert(hostname):
+            host = Host(name=hostname)
+            self.assert_validation_error(host)
+
+        _assert('host..example.org')
+        _assert('host.example.org.')
+        _assert('host-.example.org')
+        _assert('looooooooooooooooooooooooooooooooooooooooooooooooooooooooooooong.example.org')
+        _assert('host*.example.org')
 
 
     def test_model_can_change_a_host(self):
@@ -255,6 +280,7 @@ class ModelNameServerTestCase(TestCase):
         clean_and_save(self.ns_sample)
         new_count = NameServer.objects.count()
         self.assertNotEqual(old_count, new_count)
+        str(self.ns_sample)
 
     def test_model_can_change_ns(self):
         """Test that the model is able to change an Ns."""
@@ -303,6 +329,7 @@ class ModelNetworkTestCase(TestCase):
         clean_and_save(self.network_sample)
         new_count = Network.objects.count()
         self.assertNotEqual(old_count, new_count)
+        str(self.network_sample)
 
     def test_model_can_create_ipv6_ns(self):
         """Test that the model is able to create an IPv6 Network."""
@@ -371,6 +398,7 @@ class ModelIpaddressTestCase(TestCase):
         clean_and_save(self.ipaddress_sample)
         new_count = Ipaddress.objects.count()
         self.assertLess(old_count, new_count)
+        str(self.ipaddress_sample)
 
     def test_model_can_create_ipv6address(self):
         """Test that the model is able to create an IPv6 Address."""
@@ -435,6 +463,7 @@ class ModelPtrOverrideTestCase(TestCase):
         clean_and_save(self.ptr_sample)
         new_count = PtrOverride.objects.count()
         self.assertNotEqual(old_count, new_count)
+        str(self.ptr_sample)
 
     def test_model_can_create_ipv6_ptr(self):
         """Test that the model is able to create an IPv6 PTR Override."""
@@ -620,6 +649,7 @@ class ModelTxtTestCase(TestCase):
         clean_and_save(self.txt_sample)
         new_count = Txt.objects.count()
         self.assertNotEqual(old_count, new_count)
+        str(self.txt_sample)
 
     def test_model_can_change_txt(self):
         """Test that the model is able to change a txt entry."""
@@ -655,6 +685,8 @@ class ModelSshfpTestCase(TestCase):
         clean_and_save(self.sshfp_sample)
         new_count = Sshfp.objects.count()
         self.assertNotEqual(old_count, new_count)
+        str(self.sshfp_sample)
+
 
     def test_model_can_change_sshfp(self):
         """Test that the model is able to change an sshfp entry."""
@@ -696,6 +728,7 @@ class ModelForwardZoneTestCase(TestCase):
         clean_and_save(self.zone_sample)
         new_count = ForwardZone.objects.count()
         self.assertNotEqual(old_count, new_count)
+        str(self.zone_sample)
 
     def test_model_can_change_a_zone(self):
         """Test that the model is able to change a zone."""
@@ -716,6 +749,33 @@ class ModelForwardZoneTestCase(TestCase):
         new_count = ForwardZone.objects.count()
         self.assertNotEqual(old_count, new_count)
 
+    def test_update_serialno(self):
+	# Force update by setting serialno_updated_at in the past
+        zone = ForwardZone(name='example.org', primary_ns='ns.example.org',
+                           email='hostmaster@example.org')
+        zone.save()
+        zone.serialno_updated_at = timezone.now() - timedelta(minutes=10)
+        old_serial = zone.serialno
+        zone.save()
+        zone.update_serialno()
+        self.assertLess(old_serial, zone.serialno)
+        # Will not update serialno just becase updated = True, requires a timedelta
+        old_serial = zone.serialno
+        self.updated = True
+        zone.update_serialno()
+        zone.save()
+        zone.refresh_from_db()
+        self.assertEqual(old_serial, zone.serialno)
+        self.assertFalse(zone.updated)
+        # Make sure the serialno does not wrap, but instead keeps stays the same
+        zone.serialno += 98
+        self.assertEqual(zone.serialno % 100, 99)
+        self.updated = True
+        zone.serialno_updated_at = timezone.now() - timedelta(minutes=10)
+        old_serial = zone.serialno
+        zone.update_serialno()
+        self.assertEqual(old_serial, zone.serialno)
+
 
 class ModelReverseZoneTestCase(TestCase):
     """This class defines the test suite for the ReverseZone model."""
@@ -729,12 +789,17 @@ class ModelReverseZoneTestCase(TestCase):
                                    primary_ns='ns.example.org',
                                    email='hostmaster@example.org')
 
+    def assert_validation_error(self, obj):
+        with self.assertRaises(ValidationError) as context:
+            obj.full_clean()
+
     def test_model_can_create_a_ipv4_zone(self):
         """Test that the model is able to create a ipv4 zone."""
         old_count = ReverseZone.objects.count()
         clean_and_save(self.zone_v4)
         new_count = ReverseZone.objects.count()
         self.assertNotEqual(old_count, new_count)
+        str(self.zone_v4)
 
     def test_model_can_create_a_ipv6_zone(self):
         """Test that the model is able to create a ipv6 zone."""
@@ -742,6 +807,16 @@ class ModelReverseZoneTestCase(TestCase):
         clean_and_save(self.zone_v6)
         new_count = ReverseZone.objects.count()
         self.assertNotEqual(old_count, new_count)
+
+    def test_reject_invalid_names(self):
+
+        def _assert(name):
+            zone = ReverseZone(name=name, primary_ns='ns.example.org',
+                               email='hostmaster@example.org')
+            self.assert_validation_error(zone)
+
+        _assert('x.8.d.0.1.0.0.2.ip6.arpa')
+        _assert('0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.d.0.1.0.0.2.ip6.arpa')
 
     def test_model_can_delete_a_zone(self):
         """Test that the model is able to delete a zone."""
@@ -850,6 +925,7 @@ class ModelHostGroupTestCase(TestCase):
         clean_and_save(group)
         new_count = HostGroup.objects.count()
         self.assertLess(old_count, new_count)
+        str(group)
 
     def test_model_can_delete_hostgroup(self):
         old_count = HostGroup.objects.count()
@@ -934,27 +1010,37 @@ class ModelHostGroupTestCase(TestCase):
 
 class NetGroupRegexPermissionTestCase(TestCase):
 
+    def create_sample_permission(self):
+        perm = NetGroupRegexPermission(group='testgroup',
+                                       range='10.0.0.0/25',
+                                       regex=r'.*\.example\.org$')
+        clean_and_save(perm)
+        return perm
+
     def test_model_create(self):
         old_count = NetGroupRegexPermission.objects.count()
-        perm = NetGroupRegexPermission(group='testgroup',
-                                       range='10.0.0.0/25',
-                                       regex=r'.*\.example\.org$')
-        clean_and_save(perm)
+        perm = self.create_sample_permission()
         self.assertGreater(NetGroupRegexPermission.objects.count(), old_count)
+        str(perm)
 
     def test_model_find_perm(self):
-        perm = NetGroupRegexPermission(group='testgroup',
-                                       range='10.0.0.0/25',
-                                       regex=r'.*\.example\.org$')
-        clean_and_save(perm)
-        qs = NetGroupRegexPermission.find_perm(('randomgroup', 'testgroup',),
-                                               'www.example.org',
-                                               '10.0.0.1')
+        perm = self.create_sample_permission()
+        find_perm = NetGroupRegexPermission.find_perm
+        qs = find_perm(('randomgroup', 'testgroup',), 'www.example.org', '10.0.0.1')
         self.assertEqual(qs.first(), perm)
-        qs = NetGroupRegexPermission.find_perm('testgroup',
-                                               'www.example.org',
-                                               ('2.2.2.2', '10.0.0.1',))
+        qs = find_perm('testgroup', 'www.example.org', ('2.2.2.2', '10.0.0.1',))
         self.assertEqual(qs.first(), perm)
+
+    def test_model_invalid_find_perm(self):
+        def _assert(groups, hostname, ips):
+            with self.assertRaises(ValueError) as context:
+                find_perm(groups, hostname, ips)
+        find_perm = NetGroupRegexPermission.find_perm
+        # hostname is not a string
+        _assert('testgroup', ('www.example.org', ), '10.0.0.1')
+        # group is not string/tuple/list
+        _assert({'name': 'testgroup'}, 'www.example.org', '10.0.0.1')
+        _assert('testgroup', 'www.example.org', None)
 
     def test_model_reject_invalid(self):
         # Reject invalid range. Hostbit set.
