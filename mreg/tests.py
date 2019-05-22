@@ -68,6 +68,37 @@ class ModelSrvTestCase(TestCase):
         self.assertNotEqual(old_count, new_count)
         str(self.srv_sample)
 
+    def test_can_create_various_service_names(self):
+        def _create(name):
+            srv = Srv(name=name,
+                      priority=3,
+                      weight=1,
+                      port=5433,
+                      target='target.example.org')
+            clean_and_save(srv)
+        # Two underscores in _service
+        _create('_test_underscore._tls.example.org')
+        # Hypen
+        _create('_test_underscore-hypen._tls.example.org')
+
+    def test_reject_various_service_names(self):
+        def _create(name):
+            srv = Srv(name=name,
+                      priority=3,
+                      weight=1,
+                      port=5433,
+                      target='target.example.org')
+            with self.assertRaises(ValidationError) as context:
+                clean_and_save(srv)
+        # Two underscores after each other
+        _create('_test__underscore._tls.example.org')
+        # No leading underscore
+        _create('opsmissingunderscore._tls.example.org')
+        # No traling underscore
+        _create('_underscoreinbothends_._tls.example.org')
+        # Trailing hypen
+        _create('_hypten-._tls.example.org')
+
     def test_model_can_change_srv(self):
         """Test that the model is able to change a srv entry."""
         clean_and_save(self.srv_sample)
