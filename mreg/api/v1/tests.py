@@ -1599,7 +1599,7 @@ class APIMACaddressTestCase(MregAPITestCase):
 
     def test_get_dhcphost_v4(self):
         self.test_mac_with_network()
-        dhcpall = self.client.get('/dhcphosts/v4/all')
+        dhcpall = self.client.get('/dhcphosts/ipv4/')
         self.assertEqual(dhcpall.status_code, 200)
         dhcpv4 = self.client.get(f'/dhcphosts/{self.network_one.network}')
         self.assertEqual(dhcpv4.status_code, 200)

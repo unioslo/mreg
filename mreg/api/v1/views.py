@@ -1190,7 +1190,7 @@ def _get_ips_by_range(iprange):
 def _dhcphosts_by_range(iprange):
     ips = _get_ips_by_range(iprange)
     ips = ips.exclude(macaddress='').order_by('ipaddress')
-    ips = ips.values('host__name', 'ipaddress', 'macaddress')
+    ips = ips.values('host__name', 'ipaddress', 'macaddress', 'host__zone__name')
     return Response(ips)
 
 class DhcpHostsAllV4(generics.GenericAPIView):
