@@ -157,8 +157,7 @@ def save_host_history_on_save(sender, instance, created, **kwargs):
     new_log_entry = ModelChangeLog(table_name='host',
                                    table_row=hostdata['id'],
                                    data=hostdata,
-                                   action='saved',
-                                   timestamp=timezone.now())
+                                   action='saved')
     new_log_entry.save()
 
 
@@ -180,8 +179,7 @@ def save_host_history_on_delete(sender, instance, **kwargs):
     new_log_entry = ModelChangeLog(table_name='host',
                                    table_row=hostdata['id'],
                                    data=hostdata,
-                                   action='deleted',
-                                   timestamp=timezone.now())
+                                   action='deleted')
     new_log_entry.save()
 
 
