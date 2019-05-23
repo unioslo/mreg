@@ -627,8 +627,7 @@ class ModelPtrOverrideTestCase(TestCase):
         not created automatically.
         """
         def _add_ip(host, ipaddress):
-            ip = Ipaddress(host=host, ipaddress=ipaddress)
-            clean_and_save(ip)
+            Ipaddress.objects.create(host=host, ipaddress=ipaddress)
         _add_ip(self.host_one, '10.0.0.1')
         _add_ip(self.host_two, '10.0.0.1')
         host_three = Host.objects.create(name='host3.example.org')
@@ -643,8 +642,7 @@ class ModelPtrOverrideTestCase(TestCase):
         not created automatically.
         """
         def _add_ip(host, ipaddress):
-            ip = Ipaddress(host=host, ipaddress=ipaddress)
-            clean_and_save(ip)
+            Ipaddress.objects.create(host=host, ipaddress=ipaddress)
         _add_ip(self.host_one, '2001:db8::4')
         _add_ip(self.host_two, '2001:db8::4')
         host_three = Host.objects.create(name='host3.example.org')
@@ -652,6 +650,15 @@ class ModelPtrOverrideTestCase(TestCase):
         self.host_one.delete()
         self.assertEqual(PtrOverride.objects.count(), 0)
         self.assertEqual(Ipaddress.objects.filter(ipaddress='2001:db8::4').count(), 2)
+
+    def test_ptr_not_removed_on_ipaddress_object_change(self):
+        """Make sure the PtrOverride is not removed when an Ipaddress is changed, e.g.
+           updated mac address."""
+        ip1 = Ipaddress.objects.create(host=self.host_one, ipaddress='10.0.0.1')
+        ip2 = Ipaddress.objects.create(host=self.host_two, ipaddress='10.0.0.1')
+        ip1.macaddress = 'aa:bb:cc:dd:ee:ff'
+        ip1.save()
+        self.assertEqual(PtrOverride.objects.count(), 1)
 
 
 class ModelTxtTestCase(TestCase):

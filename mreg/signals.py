@@ -47,7 +47,8 @@ def _del_ptr(ipaddress):
 def updated_ipaddress_fix_ptroverride(sender, instance, raw, using, update_fields, **kwargs):
     if instance.id:
         oldinstance = Ipaddress.objects.get(id=instance.id)
-        _del_ptr(oldinstance.ipaddress)
+        if oldinstance.ipaddress != instance.ipaddress:
+            _del_ptr(oldinstance.ipaddress)
     else:
         # Can only add a PtrOverride if count == 1, otherwise we can not guess which
         # one should get it.
