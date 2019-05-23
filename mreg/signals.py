@@ -37,10 +37,7 @@ def populate_user_from_ldap(sender, signal, user=None, ldap_user=None, **kwargs)
             group.user_set.add(user)
 
 def _del_ptr(ipaddress):
-    ptrs = PtrOverride.objects.filter(ipaddress=ipaddress)
-    if ptrs:
-        assert(ptrs.count() == 1)
-        ptrs.delete()
+    PtrOverride.objects.filter(ipaddress=ipaddress).delete()
 
 # Update PtrOverride whenever a Ipaddress is created or changed
 @receiver(pre_save, sender=Ipaddress)
@@ -52,8 +49,9 @@ def updated_ipaddress_fix_ptroverride(sender, instance, raw, using, update_field
     else:
         # Can only add a PtrOverride if count == 1, otherwise we can not guess which
         # one should get it.
-        if Ipaddress.objects.filter(ipaddress=instance.ipaddress).count() == 1:
-            host = Ipaddress.objects.get(ipaddress=instance.ipaddress).host
+        qs = Ipaddress.objects.filter(ipaddress=instance.ipaddress)
+        if qs and qs.count() == 1:
+            host = qs.first().host
             PtrOverride.objects.create(host=host, ipaddress=instance.ipaddress)
 
 # Remove old PtrOverride, if possible, when an Ipaddress is deleted.
