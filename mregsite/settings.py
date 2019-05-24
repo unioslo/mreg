@@ -185,6 +185,7 @@ REST_FRAMEWORK_EXTENSIONS = {
 # add "DISABLE_EXISTING_LOGGERS" = False
 DJANGO_LOGGING = {
     "CONSOLE_LOG": False,
+    'IGNORED_PATHS': ['/admin', '/static', '/favicon.ico', '/api/token-auth']
 }
 
 SWAGGER_SETTINGS = {
