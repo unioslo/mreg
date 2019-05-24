@@ -258,17 +258,24 @@ def prevent_nameserver_deletion(sender, instance, using, **kwargs):
         if instance.host.ipaddresses.count() > 1:
             return
 
-    nameserver = NameServer.objects.filter(name=name).first()
+    try:
+        nameserver = NameServer.objects.get(name=name)
+    except NameServer.DoesNotExist:
+        return
 
-    if nameserver:
-        usedcount = 0
-        for i in ('forwardzone', 'reversezone', 'forwardzonedelegation',
-                  'reversezonedelegation'):
-            usedcount += getattr(nameserver, f"{i}_set").count()
+    zones = list()
+    for i in ('forwardzone', 'reversezone', 'forwardzonedelegation',
+              'reversezonedelegation'):
+        qs = getattr(nameserver, f"{i}_set")
+        if qs.exists():
+            zones.append([i, list(qs.values_list('name', flat=True))])
 
-        if usedcount >= 1:
-            raise PermissionDenied(detail='This host is a nameserver and cannot be deleted until' \
-                                    'it has been removed from all zones its setup as a nameserver')
+    if zones:
+        if sender == Ipaddress:
+            raise PermissionDenied(f'IP {instance.ipaddress} is the only IP for host {name} '
+                                   f'that is used as nameserver in {zones}')
+        raise PermissionDenied(detail=f'Host {name} is a nameserver in {zones} and cannot '
+                                      'be deleted until it is removed from them.')
 
 @receiver(post_delete, sender=Network)
 def cleanup_network_permissions(sender, instance, **kwargs):
