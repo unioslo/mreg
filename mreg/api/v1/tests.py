@@ -2010,8 +2010,7 @@ class APINetworksTestCase(MregAPITestCase):
         self.assertEqual(response.data, ['10.0.0.17'])
 
     def test_networks_get_host_list_200_ok(self):
-        ip_sample = Ipaddress(host=self.host_one, ipaddress='10.0.0.17')
-        clean_and_save(ip_sample)
+        Ipaddress.objects.create(host=self.host_one, ipaddress='10.0.0.17')
 
         response = self.client.get('/networks/%s/used_host_list' % self.network_sample.network)
         self.assertEqual(response.status_code, 200)
@@ -2027,14 +2026,12 @@ class APINetworksTestCase(MregAPITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, ['2001:db8::beef'])
 
-    def test_networks_get_host_list_200_ok(self):
-        ip_sample = Ipaddress(host=self.host_one, ipaddress='2001:db8::beef')
-        clean_and_save(ip_sample)
+    def test_ipv6_networks_get_host_list_200_ok(self):
+        Ipaddress.objects.create(host=self.host_one, ipaddress='2001:db8::beef')
 
         response = self.client.get('/networks/%s/used_host_list' % self.network_ipv6_sample.network)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {'2001:db8::beef': ['some-host.example.org']})
-
 
     def test_networks_get_unusedcount_200_ok(self):
         """GET on /networks/<ip/mask>/unused_count should return 200 ok and data."""
