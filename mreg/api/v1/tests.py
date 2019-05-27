@@ -73,6 +73,11 @@ class APITokenAutheticationTestCase(MregAPITestCase):
         ret = self.client.get("/zones/")
         self.assertEqual(ret.status_code, 401)
 
+    def test_logout_without_authentication(self):
+        self.client = APIClient()
+        ret = self.client.post("/api/token-logout/")
+        self.assertEqual(ret.status_code, 401)
+
     def test_force_expire(self):
         ret = self.client.get("/zones/")
         self.assertEqual(ret.status_code, 200)
@@ -1517,51 +1522,32 @@ class APIMACaddressTestCase(MregAPITestCase):
     def setUp(self):
         """Define the test client and other test variables."""
         super().setUp()
-        self.host_one = Host(name='host1.example.org',
-                             contact='mail@example.org')
-
-        self.host_two = Host(name='host2.example.org',
-                             contact='mail@example.com')
-
-        clean_and_save(self.host_one)
-        clean_and_save(self.host_two)
-
-        self.ipaddress_one = Ipaddress(host=self.host_one,
-                                       ipaddress='10.0.0.10',
-                                       macaddress='aa:bb:cc:00:00:10')
-
-        self.ipaddress_two = Ipaddress(host=self.host_two,
-                                       ipaddress='10.0.0.11',
-                                       macaddress='aa:bb:cc:00:00:11')
-
-        clean_and_save(self.ipaddress_one)
-        clean_and_save(self.ipaddress_two)
-
-        self.post_data_full = {'host': self.host_one.id,
-                               'ipaddress': '10.0.0.12',
-                               'macaddress': 'aa:bb:cc:00:00:12'}
-        self.post_data_full_conflict = {'host': self.host_one.id,
-                                        'ipaddress': self.ipaddress_one.ipaddress,
-                                        'macaddress': self.ipaddress_one.macaddress}
-        self.patch_mac = {'macaddress': 'aa:bb:cc:00:00:ff'}
-        self.patch_mac_in_use = {'macaddress': self.ipaddress_two.macaddress}
-        self.patch_ip_and_mac = {'ipaddress': '10.0.0.13',
-                                 'macaddress': 'aa:bb:cc:00:00:ff'}
+        self.host_one = Host.objects.create(name='host1.example.org')
+        self.ipaddress_one = Ipaddress.objects.create(host=self.host_one,
+                                                      ipaddress='10.0.0.10',
+                                                      macaddress='aa:bb:cc:00:00:10')
 
     def test_mac_post_ip_with_mac_201_ok(self):
         """Post a new IP with MAC should return 201 ok."""
-        response = self.client.post('/ipaddresses/', self.post_data_full)
+        post_data_full = {'host': self.host_one.id,
+                          'ipaddress': '10.0.0.12',
+                          'macaddress': 'aa:bb:cc:00:00:12'}
+        response = self.client.post('/ipaddresses/', post_data_full)
         self.assertEqual(response.status_code, 201)
 
     def test_mac_post_conflict_ip_and_mac_400_bad_request(self):
         """"Posting an existing IP and mac IP a host should return 400."""
-        response = self.client.post('/ipaddresses/', self.post_data_full_conflict)
+        post_data_full_conflict = {'host': self.host_one.id,
+                                   'ipaddress': self.ipaddress_one.ipaddress,
+                                   'macaddress': self.ipaddress_one.macaddress}
+        response = self.client.post('/ipaddresses/', post_data_full_conflict)
         self.assertEqual(response.status_code, 400)
 
     def test_mac_patch_mac_200_ok(self):
         """Patch an IP with a new mac should return 200 ok."""
+        patch_mac = {'macaddress': 'aa:bb:cc:00:00:ff'}
         response = self.client.patch('/ipaddresses/%s' % self.ipaddress_one.id,
-                                    self.patch_mac)
+                                     patch_mac)
         self.assertEqual(response.status_code, 204)
 
     def test_mac_remove_mac_200_ok(self):
@@ -1572,8 +1558,13 @@ class APIMACaddressTestCase(MregAPITestCase):
 
     def test_mac_patch_mac_in_use_400_bad_request(self):
         """Patch an IP with a MAC in use should return 400 bad request."""
+        host_two = Host.objects.create(name='host2.example.org')
+        ipaddress_two = Ipaddress.objects.create(host=host_two,
+                                                 ipaddress='10.0.0.11',
+                                                 macaddress='aa:bb:cc:00:00:11')
+        patch_mac_in_use = {'macaddress': ipaddress_two.macaddress}
         response = self.client.patch('/ipaddresses/%s' % self.ipaddress_one.id,
-                                    self.patch_mac_in_use)
+                                     patch_mac_in_use)
         self.assertEqual(response.status_code, 400)
 
     def test_mac_patch_invalid_mac_400_bad_request(self):
@@ -1585,13 +1576,14 @@ class APIMACaddressTestCase(MregAPITestCase):
 
     def test_mac_patch_ip_and_mac_200_ok(self):
         """Patch an IP with a new IP and MAC should return 200 ok."""
+        patch_ip_and_mac = {'ipaddress': '10.0.0.13',
+                            'macaddress': 'aa:bb:cc:00:00:ff'}
         response = self.client.patch('/ipaddresses/%s' % self.ipaddress_one.id,
-                                    self.patch_ip_and_mac)
+                                    patch_ip_and_mac)
         self.assertEqual(response.status_code, 204)
 
     def test_mac_with_network(self):
-        self.network_one = Network(network='10.0.0.0/24')
-        clean_and_save(self.network_one)
+        self.network_one = Network.objects.create(network='10.0.0.0/24')
         self.test_mac_post_ip_with_mac_201_ok()
         self.test_mac_patch_ip_and_mac_200_ok()
         self.test_mac_patch_mac_200_ok()
@@ -1603,17 +1595,48 @@ class APIMACaddressTestCase(MregAPITestCase):
         self.assertEqual(dhcpall.status_code, 200)
         dhcpv4 = self.client.get(f'/dhcphosts/{self.network_one.network}')
         self.assertEqual(dhcpv4.status_code, 200)
-        self.assertEqual(len(dhcpv4.json()), 3)
-        self.assertEqual(Ipaddress.objects.exclude(macaddress='').count(), 3)
+        self.assertEqual(len(dhcpv4.json()), 2)
+        self.assertEqual(Ipaddress.objects.exclude(macaddress='').count(), 2)
         self.assertEqual(dhcpall.json(), dhcpv4.json())
+        self.assertEqual(sorted(dhcpall.json()[0].keys()),
+                         ['host__name', 'host__zone__name', 'ipaddress', 'macaddress'])
+
+    def test_get_dhcphost_v6(self):
+        Ipaddress.objects.create(host=self.host_one,
+                                 ipaddress='2001:db8::1',
+                                 macaddress='aa:bb:cc:00:00:10')
+        dhcpall = self.client.get('/dhcphosts/ipv6/')
+        self.assertEqual(dhcpall.status_code, 200)
+        dhcprange = self.client.get('/dhcphosts/2001:db8::/64')
+        self.assertEqual(dhcprange.status_code, 200)
+        self.assertEqual(len(dhcpall.json()), 1)
+        self.assertEqual(dhcprange.json(), dhcpall.json())
+
+    def test_get_dhcphost_ipv6byipv4(self):
+        # Create an ipaddress without, but will test that we get the
+        # ipv4-address' mac.
+        Ipaddress.objects.create(host=self.host_one,
+                                 ipaddress='2001:db8::1')
+        dhcpall = self.client.get('/dhcphosts/ipv6byipv4/')
+        self.assertEqual(dhcpall.status_code, 200)
+        dhcprange = self.client.get('/dhcphosts/ipv6byipv4/10.0.0.0/24')
+        self.assertEqual(dhcprange.status_code, 200)
+        self.assertEqual(dhcprange.json(), dhcpall.json())
+        self.assertEqual(len(dhcpall.json()), 1)
+        data = dhcpall.json()[0]
+        self.assertEqual(list(data.keys()),
+                         ['host__name', 'host__zone__name', 'ipaddress', 'macaddress'])
+        self.assertEqual(data['macaddress'], self.ipaddress_one.macaddress)
+        self.assertEqual(data['host__name'], self.host_one.name)
+
+    def test_get_dhcphost_invalid_network(self):
+        dhcpall = self.client.get('/dhcphosts/300.10.10.0/24')
+        self.assertEqual(dhcpall.status_code, 400)
 
     def test_mac_with_network_vlan(self):
-        self.network_one = Network(network='10.0.0.0/24', vlan=10)
-        self.network_two = Network(network='10.0.1.0/24', vlan=10)
-        self.network_ipv6 = Network(network='2001:db8:1::/64', vlan=10)
-        clean_and_save(self.network_one)
-        clean_and_save(self.network_two)
-        clean_and_save(self.network_ipv6)
+        Network.objects.create(network='10.0.0.0/24', vlan=10)
+        Network.objects.create(network='10.0.1.0/24', vlan=10)
+        Network.objects.create(network='2001:db8:1::/64', vlan=10)
         self.test_mac_post_ip_with_mac_201_ok()
         self.test_mac_patch_ip_and_mac_200_ok()
         self.test_mac_patch_mac_200_ok()
