@@ -19,7 +19,7 @@ from url_filter.filtersets import ModelFilterSet
 
 from mreg.api.permissions import (IsSuperGroupMember,
                                   IsGrantedNetGroupRegexPermission,
-                                  ReadOnlyForRequiredGroup, )
+                                  IsAuthenticatedAndReadOnly, )
 from mreg.api.v1.serializers import (CnameSerializer, HinfoPresetSerializer,
         HostNameSerializer, HostSerializer,
         IpaddressSerializer, MxSerializer, NameServerSerializer,
@@ -604,7 +604,7 @@ class NetworkList(generics.ListCreateAPIView):
     """
     queryset = Network.objects.all()
     serializer_class = NetworkSerializer
-    permission_classes = ( IsSuperGroupMember | ReadOnlyForRequiredGroup, )
+    permission_classes = ( IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
 
     def post(self, request, *args, **kwargs):
         error = _overlap_check(request.data['network'])
@@ -644,7 +644,7 @@ class NetworkDetail(MregRetrieveUpdateDestroyAPIView):
     """
     queryset = Network.objects.all()
     serializer_class = NetworkSerializer
-    permission_classes = (IsSuperGroupMember | ReadOnlyForRequiredGroup, )
+    permission_classes = (IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
 
     lookup_field = 'network'
 
@@ -829,7 +829,7 @@ class ZoneList(generics.ListCreateAPIView):
 
     lookup_field = 'name'
     serializer_class = ForwardZoneSerializer
-    permission_classes = (IsSuperGroupMember | ReadOnlyForRequiredGroup, )
+    permission_classes = (IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
 
     def _get_forward(self):
         self.queryset = ForwardZone.objects.all().order_by('id')
@@ -893,7 +893,7 @@ class ZoneDelegationList(generics.ListCreateAPIView):
 
     lookup_field = 'name'
     serializer_class = ForwardZoneDelegationSerializer
-    permission_classes = ( IsSuperGroupMember | ReadOnlyForRequiredGroup, )
+    permission_classes = ( IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
 
     def get_queryset(self):
         """
@@ -972,7 +972,7 @@ class ZoneDetail(MregRetrieveUpdateDestroyAPIView):
 
     lookup_field = 'name'
     serializer_class = ForwardZoneSerializer
-    permission_classes = ( IsSuperGroupMember | ReadOnlyForRequiredGroup, )
+    permission_classes = ( IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
 
     def get_queryset(self):
         zonename = self.kwargs[self.lookup_field]
@@ -1020,7 +1020,7 @@ class ZoneDelegationDetail(MregRetrieveUpdateDestroyAPIView):
 
     lookup_field = 'delegation'
     serializer_class = ForwardZoneDelegationSerializer
-    permission_classes = ( IsSuperGroupMember | ReadOnlyForRequiredGroup, )
+    permission_classes = ( IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
 
     def get_queryset(self):
         zonename = self.kwargs[self.lookup_field]
@@ -1072,7 +1072,7 @@ class ZoneNameServerDetail(MregRetrieveUpdateDestroyAPIView):
 
     lookup_field = 'name'
     serializer_class = ForwardZoneSerializer
-    permission_classes = ( IsSuperGroupMember | ReadOnlyForRequiredGroup, )
+    permission_classes = ( IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
 
     def get_queryset(self):
         zonename = self.kwargs[self.lookup_field]
@@ -1108,7 +1108,7 @@ class NetGroupRegexPermissionList(MregMixin, generics.ListCreateAPIView):
 
     queryset = mreg.models.NetGroupRegexPermission.objects.all().order_by('id')
     serializer_class = NetGroupRegexPermissionSerializer
-    permission_classes = ( IsSuperGroupMember | ReadOnlyForRequiredGroup, )
+    permission_classes = ( IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -1121,7 +1121,7 @@ class NetGroupRegexPermissionDetail(MregRetrieveUpdateDestroyAPIView):
 
     queryset = mreg.models.NetGroupRegexPermission.objects.all().order_by('id')
     serializer_class = NetGroupRegexPermissionSerializer
-    permission_classes = ( IsSuperGroupMember | ReadOnlyForRequiredGroup, )
+    permission_classes = ( IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
 
 
 class ModelChangeLogList(generics.ListAPIView):
