@@ -1227,9 +1227,9 @@ def _dhcpv6_hosts_by_ipv4(iprange):
     ipv6 = ipv6.filter(macaddress='')
     ipv6 = ipv6.filter(host__in=ipv4_host_ids).order_by('ipaddress')
     ret = []
-    for hostname, ip in ipv6.values_list('host__name', 'ipaddress'):
-        ret.append({'host__name': hostname, 'ipaddress': ip,
-                    'macaddress': ipv4_host2mac[hostname]})
+    for values in ipv6.values('host__name', 'host__zone__name', 'ipaddress'):
+        values['macaddress'] = ipv4_host2mac[values['host__name']]
+        ret.append(values)
     return Response(ret)
 
 
