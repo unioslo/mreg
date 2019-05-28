@@ -166,7 +166,7 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS':
         'mreg.api.v1.pagination.StandardResultsSetPagination',
     'DEFAULT_PERMISSION_CLASSES': (
-        'mreg.api.permissions.IsInRequiredGroup',
+        'mreg.api.permissions.IsAuthenticatedAndReadOnly',
     ),
 }
 
@@ -204,7 +204,6 @@ except ImportError:
     pass
 
 if TESTING:
-    REQUIRED_USER_GROUPS = "default-required-group"
     SUPERUSER_GROUP = "default-super-group"
     ADMINUSER_GROUP = "default-admin-group"
     GROUPADMINUSER_GROUP = "default-groupadmin-group"

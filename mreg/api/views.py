@@ -2,6 +2,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.authtoken.views import ObtainAuthToken
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -22,6 +23,8 @@ class ObtainExpiringAuthToken(ObtainAuthToken):
 
 
 class TokenLogout(APIView):
+
+    permission_classes = (IsAuthenticated, )
 
     def post(self, request):
         # simply delete the token to force a login
