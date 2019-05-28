@@ -12,7 +12,7 @@ class APIZonefileTestCase(MregAPITestCase):
         for name, ips in (('example.org', ('10.10.0.1', )),
                           ('ns1.example.org', ('10.10.0.2', '2001:db8::2')),
                           ('host1.example.org', ('10.10.1.10', '2001:db8:0:1::10')),
-                          ('host2.example.org', ('10.10.1.10', '2001:db8:0:1::10')),
+                          ('høst2.example.org', ('10.10.1.10', '2001:db8:0:1::10')),
                          ):
             ret = self._add_host(name, ip=ips[0])
             info = self.client.get(ret['Location']).json()
@@ -61,18 +61,21 @@ class APIZonefileTestCase(MregAPITestCase):
         hinfo = HinfoPreset.objects.create(cpu='supercpu', os='operative system')
         host1.hinfo = hinfo
         clean_and_save(host1)
-        host2 = Host.objects.create(name='host1.example.com')
+        host2 = Host.objects.create(name='hostæøå1.example.com')
         data = {'name': 'host-alias.example.org',
                 'host': host1.id,
-                'ttl': 5000 }
-        self.client.post("/cnames/", data)
-        data = {'name': 'external-alias.example.org',
+                'ttl': 5000}
+        ret = self.client.post("/cnames/", data)
+        self.assertEqual(ret.status_code, 201)
+        data = {'name': 'extærnal-alias.example.org',
                 'host': host2.id}
-        self.client.post("/cnames/", data)
+        ret = self.client.post("/cnames/", data)
+        self.assertEqual(ret.status_code, 201)
         data = {'host': host1.id,
                 'priority': 10,
                 'mx': 'smtp.example.org'}
         ret = self.client.post("/mxs/", data)
+        self.assertEqual(ret.status_code, 201)
         data = {'host': host1.id,
                 'preference': 10,
                 'order': 20,
@@ -82,17 +85,27 @@ class APIZonefileTestCase(MregAPITestCase):
                 'replacement': 'replacementhost.example.org'
         }
         ret = self.client.post("/naptrs/", data)
+        self.assertEqual(ret.status_code, 201)
         data = {'host': host1.id,
                 'algorithm': 1,
                 'hash_type': 1,
                 'fingerprint': '0123456789abcdef'}
         ret = self.client.post("/sshfps/", data)
+        self.assertEqual(ret.status_code, 201)
         data = {'name': '_test123._tls.example.org',
                 'priority': 10,
                 'weight': 20,
                 'port': '1234',
-                'target': 'target.example.org'}
-        self.client.post("/srvs/", data)
+                'host': host1.id}
+        ret = self.client.post("/srvs/", data)
+        self.assertEqual(ret.status_code, 201)
+        data = {'name': '_test123._tls.example.org',
+                'priority': 10,
+                'weight': 10,
+                'port': '1234',
+                'host': host2.id}
+        ret = self.client.post("/srvs/", data)
+        self.assertEqual(ret.status_code, 201)
         self._get_zone(self.forward)
 
     def test_get_nonexistent(self):
@@ -104,4 +117,3 @@ class APIZonefileTestCase(MregAPITestCase):
         rev_v6 = self.create_reverse_zone('0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa')
         self._get_zone(rev_v4)
         self._get_zone(rev_v6)
-

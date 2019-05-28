@@ -521,29 +521,17 @@ class Srv(ForwardZoneMember):
     weight = models.IntegerField(validators=[validate_16bit_uint])
     port = models.IntegerField(validators=[validate_16bit_uint])
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
-    # XXX: target MUST not be a alias aka cname
-    target = DnsNameField()
+    # This field is called "Target" in the RFC, but to utilize other code we
+    # name a field with foreignKey to Host as "host".
+    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='srvs')
 
     class Meta:
         db_table = 'srv'
-        unique_together = ('name', 'priority', 'weight', 'port', 'target')
-        ordering = ('name', 'priority', 'weight', 'port', 'target')
+        unique_together = ('name', 'priority', 'weight', 'port', 'host')
+        ordering = ('name', 'priority', 'weight', 'port', 'host')
 
     def __str__(self):
         return str(self.name)
-
-    def zf_string(self, zone):
-        """String representation for zonefile export."""
-        data = {
-            'name': idna_encode(qualify(self.name, zone)),
-            'ttl': clear_none(self.ttl),
-            'record_type': 'SRV',
-            'priority': self.priority,
-            'weight': self.weight,
-            'port': self.port,
-            'target': idna_encode(qualify(self.target, zone))
-        }
-        return '{name:24} {ttl:5} IN {record_type:6} {priority} {weight} {port} {target}\n'.format_map(data)
 
 
 class HostGroup(models.Model):

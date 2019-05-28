@@ -140,6 +140,19 @@ class ForwardFile(Common):
         return '{name:24} {ttl:5} IN {record_type:6} {order} {preference} ' \
                '\"{flag}\" \"{service}\" \"{regex}\" {replacement}\n'.format_map(data)
 
+    def srv_zf_string(self, name, ttl, priority, weight, port, target):
+        """String representation for zonefile export."""
+        data = {
+            'name': idna_encode(qualify(name, self.zone.name)),
+            'ttl': clear_none(ttl),
+            'record_type': 'SRV',
+            'priority': priority,
+            'weight': weight,
+            'port': port,
+            'target': target,
+        }
+        return '{name:24} {ttl:5} IN {record_type:6} {priority} {weight} {port} {target}\n'.format_map(data)
+
     def cname_zf_string(self, alias, ttl, target):
         """String representation for zonefile export."""
         data = {
@@ -172,9 +185,12 @@ class ForwardFile(Common):
         if host.loc:
             data += host.loc_string(self.zone.name)
         # For entries where the host is the resource record
-        if host.name in self.host_cnames:
-            for alias, ttl in self.host_cnames[host.name]:
-                data += self.cname_zf_string(alias, ttl, idna_name)
+        for values, func in ((self.host_cnames, self.cname_zf_string),
+                             (self.srvs, self.srv_zf_string),
+                             ):
+            if host.name in values:
+                for i in values[host.name]:
+                    data += func(*i, idna_name)
         return data
 
     def cache_hostdata(self):
@@ -182,6 +198,7 @@ class ForwardFile(Common):
         self.ipaddresses = defaultdict(list)
         self.mxs = defaultdict(list)
         self.naptrs = defaultdict(list)
+        self.srvs = defaultdict(list)
         self.sshfps = defaultdict(list)
         self.txts = defaultdict(list)
 
@@ -201,6 +218,10 @@ class ForwardFile(Common):
         for i in naptrs.values_list("host__name", "order", "preference", "flag",
                                     "service", "regex", "replacement"):
             self.naptrs[i[0]].append(i[1:])
+
+        srvs = Srv.objects.filter(host__zone=self.zone)
+        for i in srvs.values_list('host__name', 'name', 'ttl', 'priority', 'weight', 'port'):
+            self.srvs[i[0]].append(i[1:])
 
         sshfps = Sshfp.objects.filter(host__zone=self.zone)
         for i in sshfps.values_list("host__name", "algorithm", "hash_type", "fingerprint"):
@@ -246,16 +267,18 @@ class ForwardFile(Common):
             for host in hosts:
                 data += self.host_data(host)
         # Print misc entries
-        srvs = Srv.objects.filter(zone=zone.id)
+        srvs = Srv.objects.filter(zone=zone.id).exclude(host__zone=zone.id)
         if srvs:
-            data += ';\n; Services\n;\n'
-            for srv in srvs:
-                data += srv.zf_string(zone.name)
+            data += ';\n; Services pointing out of the zone\n;\n'
+            for i in srvs.values_list('name', 'ttl', 'priority', 'weight', 'port', 'host__name'):
+                host = idna_encode(qualify(i[-1], self.zone.name))
+                data += self.srv_zf_string(*i[:-1], host)
         cnames = Cname.objects.filter(zone=zone.id).exclude(host__zone=zone.id)
         if cnames:
             data += ';\n; Cnames pointing out of the zone\n;\n'
             for i in cnames.values_list('name', 'ttl', 'host__name'):
-                data += self.cname_zf_string(*i)
+                host = idna_encode(qualify(i[-1], self.zone.name))
+                data += self.cname_zf_string(*i[:-1], host)
         return data
 
 

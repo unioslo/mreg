@@ -53,12 +53,13 @@ class ModelSrvTestCase(TestCase):
 
     def setUp(self):
         """Define the test client and other test variables."""
+        self.host_target = Host.objects.create(name='target.example.org')
         self.srv_sample = Srv(name='_abc._udp.example.org',
                               priority=3,
                               weight=1,
                               port=5433,
                               ttl=300,
-                              target='target.example.org')
+                              host=self.host_target)
 
     def test_model_can_create_srv(self):
         """Test that the model is able to create a srv entry."""
@@ -74,7 +75,7 @@ class ModelSrvTestCase(TestCase):
                       priority=3,
                       weight=1,
                       port=5433,
-                      target='target.example.org')
+                      host=self.host_target)
             clean_and_save(srv)
         # Two underscores in _service
         _create('_test_underscore._tls.example.org')
@@ -87,8 +88,8 @@ class ModelSrvTestCase(TestCase):
                       priority=3,
                       weight=1,
                       port=5433,
-                      target='target.example.org')
-            with self.assertRaises(ValidationError) as context:
+                      host=self.host_target)
+            with self.assertRaises(ValidationError):
                 clean_and_save(srv)
         # Two underscores after each other
         _create('_test__underscore._tls.example.org')
@@ -207,7 +208,7 @@ class ModelHostsTestCase(TestCase):
                              comment='some comment')
 
     def assert_validation_error(self, obj):
-        with self.assertRaises(ValidationError) as context:
+        with self.assertRaises(ValidationError):
             obj.full_clean()
 
     def test_model_can_create_a_host(self):
