@@ -3,11 +3,13 @@ from datetime import timedelta
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
+
 from rest_framework.exceptions import PermissionDenied
 
-from mreg.models import (ForwardZone, Host, Ipaddress, NameServer, Network, ReverseZone,
-                         PtrOverride, Txt, Sshfp, Cname, Naptr, Srv, ModelChangeLog,
-                         NetGroupRegexPermission, HostGroup)
+from .models import (Cname, ForwardZone, Host, HostGroup, Ipaddress,
+                     ModelChangeLog, NameServer, Naptr,
+                     NetGroupRegexPermission, Network, PtrOverride,
+                     ReverseZone, Srv, Sshfp, Txt)
 
 
 def clean_and_save(entity):
@@ -257,7 +259,6 @@ class ModelHostsTestCase(TestCase):
         _assert('looooooooooooooooooooooooooooooooooooooooooooooooooooooooooooong.example.org')
         _assert('host*.example.org')
 
-
     def test_model_can_change_a_host(self):
         """Test that the model is able to change a host."""
         clean_and_save(self.host_one)
@@ -340,20 +341,19 @@ class ModelNetworkTestCase(TestCase):
     def setUp(self):
         """Define the test client and other test variables."""
         self.network_sample = Network(network='10.0.0.0/20',
-                                    description='some description',
-                                    vlan=123,
-                                    dns_delegated=False,
-                                    category='so',
-                                    location='Test location',
-                                    frozen=False)
+                                      description='some description',
+                                      vlan=123,
+                                      dns_delegated=False,
+                                      category='so',
+                                      location='Test location',
+                                      frozen=False)
         self.network_ipv6_sample = Network(network='2001:db8::/32',
-                                    description='some IPv6 description',
-                                    vlan=123,
-                                    dns_delegated=False,
-                                    category='so',
-                                    location='Test location',
-                                    frozen=False)
-
+                                           description='some IPv6 description',
+                                           vlan=123,
+                                           dns_delegated=False,
+                                           category='so',
+                                           location='Test location',
+                                           frozen=False)
 
     def test_model_can_create_ns(self):
         """Test that the model is able to create a Network."""
@@ -422,7 +422,6 @@ class ModelIpaddressTestCase(TestCase):
         self.ipv6address_sample = Ipaddress(host=self.host,
                                             ipaddress='2001:db8::beef',
                                             macaddress='a4:34:d9:0e:88:b9')
-
 
     def test_model_can_create_ipaddress(self):
         """Test that the model is able to create an IP Address."""
@@ -563,7 +562,7 @@ class ModelPtrOverrideTestCase(TestCase):
         one_count = PtrOverride.objects.count()
         ip_two = Ipaddress(host=self.host_two, ipaddress='10.0.0.1')
         clean_and_save(ip_two)
-        ptr =  PtrOverride.objects.first()
+        ptr = PtrOverride.objects.first()
         self.assertEqual(ptr.host, self.host_one)
         self.assertEqual(ptr.ipaddress, '10.0.0.1')
         self.assertEqual(initial_count, 0)
@@ -571,15 +570,17 @@ class ModelPtrOverrideTestCase(TestCase):
         self.assertEqual(PtrOverride.objects.count(), 1)
 
     def test_model_updated_by_added_ipv6(self):
-        """Test to check that an PtrOverride is added when two hosts share the same ipv6.
-           Also makes sure that the PtrOverride points to the first host which held the ipv6."""
+        """Test to check that an PtrOverride is added when two hosts share the
+           same ipv6.  Also makes sure that the PtrOverride points to the first
+           host which held the ipv6."""
+
         initial_count = PtrOverride.objects.count()
         ipv6_one = Ipaddress(host=self.host_one, ipaddress='2001:db8::4')
         clean_and_save(ipv6_one)
         one_count = PtrOverride.objects.count()
         ipv6_two = Ipaddress(host=self.host_two, ipaddress='2001:db8::4')
         clean_and_save(ipv6_two)
-        ptr =  PtrOverride.objects.first()
+        ptr = PtrOverride.objects.first()
         self.assertEqual(ptr.host, self.host_one)
         self.assertEqual(ptr.ipaddress, '2001:db8::4')
         self.assertEqual(initial_count, 0)
@@ -591,9 +592,9 @@ class ModelPtrOverrideTestCase(TestCase):
            Also makes sure that the PtrOverride points to the first host which held the ip.
            Also makes sure that the PtrOverride is deleted when the host is deleted."""
         initial_count = PtrOverride.objects.count()
-        ip_one = Ipaddress.objects.create(host=self.host_one, ipaddress='10.0.0.1')
+        Ipaddress.objects.create(host=self.host_one, ipaddress='10.0.0.1')
         one_count = PtrOverride.objects.count()
-        ip_two = Ipaddress.objects.create(host=self.host_two, ipaddress='10.0.0.1')
+        Ipaddress.objects.create(host=self.host_two, ipaddress='10.0.0.1')
         two_count = PtrOverride.objects.count()
         ptr = PtrOverride.objects.first()
         self.assertEqual(ptr.host, self.host_one)
@@ -609,9 +610,9 @@ class ModelPtrOverrideTestCase(TestCase):
            Also makes sure that the PtrOverride points to the first host which held the ipv6.
            Also makes sure that the PtrOverride is deleted when the host is deleted."""
         initial_count = PtrOverride.objects.count()
-        ipv6_one = Ipaddress.objects.create(host=self.host_one, ipaddress='2001:db8::4')
+        Ipaddress.objects.create(host=self.host_one, ipaddress='2001:db8::4')
         one_count = PtrOverride.objects.count()
-        ipv6_two = Ipaddress.objects.create(host=self.host_two, ipaddress='2001:db8::4')
+        Ipaddress.objects.create(host=self.host_two, ipaddress='2001:db8::4')
         two_count = PtrOverride.objects.count()
         ptr = PtrOverride.objects.first()
         self.assertEqual(ptr.host, self.host_one)
@@ -623,7 +624,7 @@ class ModelPtrOverrideTestCase(TestCase):
         self.assertEqual(PtrOverride.objects.count(), 0)
 
     def test_model_two_ips_no_ptroverrides(self):
-        """When three or more hosts all have the same ipaddress and the first host, 
+        """When three or more hosts all have the same ipaddress and the first host,
         e.g. the one with the PtrOverride, is deleted, a new PtrOverride is
         not created automatically.
         """
@@ -638,7 +639,7 @@ class ModelPtrOverrideTestCase(TestCase):
         self.assertEqual(Ipaddress.objects.filter(ipaddress='10.0.0.1').count(), 2)
 
     def test_model_two_ipv6s_no_ptroverrides(self):
-        """When three or more hosts all have the same IPv6 address and the first host, 
+        """When three or more hosts all have the same IPv6 address and the first host,
         e.g. the one with the PtrOverride, is deleted, a new PtrOverride is
         not created automatically.
         """
@@ -656,7 +657,7 @@ class ModelPtrOverrideTestCase(TestCase):
         """Make sure the PtrOverride is not removed when an Ipaddress is changed, e.g.
            updated mac address."""
         ip1 = Ipaddress.objects.create(host=self.host_one, ipaddress='10.0.0.1')
-        ip2 = Ipaddress.objects.create(host=self.host_two, ipaddress='10.0.0.1')
+        Ipaddress.objects.create(host=self.host_two, ipaddress='10.0.0.1')
         ip1.macaddress = 'aa:bb:cc:dd:ee:ff'
         ip1.save()
         self.assertEqual(PtrOverride.objects.count(), 1)
@@ -713,7 +714,6 @@ class ModelSshfpTestCase(TestCase):
         new_count = Sshfp.objects.count()
         self.assertNotEqual(old_count, new_count)
         str(self.sshfp_sample)
-
 
     def test_model_can_change_sshfp(self):
         """Test that the model is able to change an sshfp entry."""
@@ -777,7 +777,7 @@ class ModelForwardZoneTestCase(TestCase):
         self.assertNotEqual(old_count, new_count)
 
     def test_update_serialno(self):
-	# Force update by setting serialno_updated_at in the past
+        """Force update by setting serialno_updated_at in the past"""
         zone = ForwardZone(name='example.org', primary_ns='ns.example.org',
                            email='hostmaster@example.org')
         zone.save()
@@ -817,7 +817,7 @@ class ModelReverseZoneTestCase(TestCase):
                                    email='hostmaster@example.org')
 
     def assert_validation_error(self, obj):
-        with self.assertRaises(ValidationError) as context:
+        with self.assertRaises(ValidationError):
             obj.full_clean()
 
     def test_model_can_create_a_ipv4_zone(self):
@@ -912,7 +912,8 @@ class NameServerDeletionTestCase(TestCase):
             self.ns_hostip.delete()
 
     def test_model_can_delete_ns_hostip(self):
-        """Test that the model is able to delete an IP from a nameserver, if nameserver has multiple IPs."""
+        """Test that the model is able to delete an IP from a nameserver, if
+        nameserver has multiple IPs."""
         ip = Ipaddress.objects.create(host=self.ns_hostsample, ipaddress='10.0.0.112')
         old_count = Ipaddress.objects.count()
         ip.delete()
@@ -976,19 +977,19 @@ class ModelHostGroupTestCase(TestCase):
         self.assertNotEqual(old_count, new_count)
 
     def test_model_can_not_be_own_child(self):
-        with self.assertRaises(PermissionDenied) as context:
+        with self.assertRaises(PermissionDenied):
             self.group_one.groups.add(self.group_one)
 
     def test_model_can_not_be_own_grandchild(self):
         self.group_one.groups.add(self.group_two)
-        with self.assertRaises(PermissionDenied) as context:
+        with self.assertRaises(PermissionDenied):
             self.group_two.groups.add(self.group_one)
 
     def test_model_group_parent_can_never_be_child_of_child_groupmember(self):
         self.group_one.groups.add(self.group_two)
         self.group_two.groups.add(self.group_three)
         self.group_three.groups.add(self.group_four)
-        with self.assertRaises(PermissionDenied) as context:
+        with self.assertRaises(PermissionDenied):
             self.group_four.groups.add(self.group_one)
 
     def test_model_altered_updated_at_group_changes(self):
@@ -1049,7 +1050,7 @@ class NetGroupRegexPermissionTestCase(TestCase):
 
     def test_model_invalid_find_perm(self):
         def _assert(groups, hostname, ips):
-            with self.assertRaises(ValueError) as context:
+            with self.assertRaises(ValueError):
                 find_perm(groups, hostname, ips)
         find_perm = NetGroupRegexPermission.find_perm
         # hostname is not a string
@@ -1075,7 +1076,6 @@ class NetGroupRegexPermissionTestCase(TestCase):
             clean_and_save(perm)
         self.assertEqual(str(cm.exception),
                          "{'regex': ['missing ), unterminated subpattern at position 6']}")
-
 
     def test_model_clean_permissions(self):
         # Make sure that permissions are removed if a Network with equal

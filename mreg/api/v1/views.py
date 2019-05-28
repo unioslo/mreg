@@ -1,41 +1,44 @@
 import bisect
 import ipaddress
-
 from collections import defaultdict
 
 import django.core.exceptions
-
 from django.db import transaction
 from django.http import Http404
 from django.shortcuts import get_object_or_404
+
 from rest_framework import (filters, generics, renderers, status)
 from rest_framework.decorators import api_view
-from rest_framework.exceptions import ParseError, MethodNotAllowed
+from rest_framework.exceptions import MethodNotAllowed, ParseError
 from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
 from rest_framework_extensions.etag.mixins import ETAGMixin
+
 from url_filter.filtersets import ModelFilterSet
 
-from mreg.api.permissions import (IsSuperGroupMember,
-                                  IsGrantedNetGroupRegexPermission,
-                                  IsAuthenticatedAndReadOnly, )
-from mreg.api.v1.serializers import (CnameSerializer, HinfoPresetSerializer,
-        HostNameSerializer, HostSerializer,
-        IpaddressSerializer, MxSerializer, NameServerSerializer,
-        NaptrSerializer, PtrOverrideSerializer, SrvSerializer,
-        NetworkSerializer, TxtSerializer, ForwardZoneSerializer,
-        ForwardZoneDelegationSerializer, ReverseZoneSerializer,
-        ReverseZoneDelegationSerializer, ModelChangeLogSerializer,
-        SshfpSerializer, NetGroupRegexPermissionSerializer)
 
-from mreg.models import (Cname, ForwardZone, ForwardZoneDelegation,
-                         HinfoPreset, Host, Ipaddress, HostGroup, Mx,
-                         NameServer, Naptr, Network, PtrOverride, ReverseZone,
-                         ReverseZoneDelegation, Srv, Txt, ModelChangeLog,
-                         Sshfp)
 import mreg.models
+from mreg.api.permissions import (IsAuthenticatedAndReadOnly,
+                                  IsGrantedNetGroupRegexPermission,
+                                  IsSuperGroupMember, )
+from mreg.models import (Cname, ForwardZone, ForwardZoneDelegation,
+                         HinfoPreset, Host, HostGroup, Ipaddress,
+                         ModelChangeLog, Mx, NameServer, Naptr, Network,
+                         PtrOverride, ReverseZone, ReverseZoneDelegation, Srv,
+                         Sshfp, Txt)
 
+from .serializers import (CnameSerializer, ForwardZoneDelegationSerializer,
+                          ForwardZoneSerializer, HinfoPresetSerializer,
+                          HostSerializer, IpaddressSerializer,
+                          ModelChangeLogSerializer, MxSerializer,
+                          NameServerSerializer, NaptrSerializer,
+                          NetGroupRegexPermissionSerializer, NetworkSerializer,
+                          PtrOverrideSerializer,
+                          ReverseZoneDelegationSerializer,
+                          ReverseZoneSerializer, SrvSerializer,
+                          SshfpSerializer, TxtSerializer)
 from .zonefile import ZoneFile
 
 
@@ -137,7 +140,7 @@ class MregMixin:
 
 
 class MregRetrieveUpdateDestroyAPIView(ETAGMixin,
-        generics.RetrieveUpdateDestroyAPIView):
+                                       generics.RetrieveUpdateDestroyAPIView):
     """
     Makes sure patch returns sempty body, 204 - No Content, and location of object.
     """
@@ -161,6 +164,7 @@ class MregRetrieveUpdateDestroyAPIView(ETAGMixin,
         resource = request.path.split("/")[1]
         location = '/%s/%s' % (resource, getattr(instance, self.lookup_field))
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
+
 
 class MregPermissionsUpdateDestroy:
 
@@ -188,6 +192,7 @@ class MregPermissionsUpdateDestroy:
                                                     validated_serializer):
                 self.permission_denied(request)
 
+
 class MregPermissionsListCreateAPIView(MregMixin, generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
@@ -201,6 +206,7 @@ class MregPermissionsListCreateAPIView(MregMixin, generics.ListCreateAPIView):
                                                     self,
                                                     validated_serializer):
                 self.permission_denied(request)
+
 
 class HostPermissionsUpdateDestroy(MregPermissionsUpdateDestroy):
 
@@ -590,9 +596,10 @@ def _overlap_check(range, exclude=None):
     if exclude:
         overlap = overlap.exclude(id=exclude.id)
     if overlap:
-        info = ", ".join(map(str,overlap))
+        info = ", ".join(map(str, overlap))
         return Response({'ERROR': 'Network overlaps with: {}'.format(info)},
                         status=status.HTTP_409_CONFLICT)
+
 
 class NetworkList(generics.ListCreateAPIView):
     """
@@ -604,7 +611,7 @@ class NetworkList(generics.ListCreateAPIView):
     """
     queryset = Network.objects.all()
     serializer_class = NetworkSerializer
-    permission_classes = ( IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
+    permission_classes = (IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
 
     def post(self, request, *args, **kwargs):
         error = _overlap_check(request.data['network'])
@@ -620,7 +627,6 @@ class NetworkList(generics.ListCreateAPIView):
         self.perform_create(network)
         location = '/networks/%s' % request.data
         return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
-
 
     def get_queryset(self):
         """
@@ -660,10 +666,12 @@ class NetworkDetail(MregRetrieveUpdateDestroyAPIView):
         network = self.get_object()
         used_ipaddresses = network.get_used_ipaddresses()
         if used_ipaddresses:
-            return Response({'ERROR': 'Network contains IP addresses that are in use'}, status=status.HTTP_409_CONFLICT)
+            return Response({'ERROR': 'Network contains IP addresses that are in use'},
+                            status=status.HTTP_409_CONFLICT)
 
         self.perform_destroy(network)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
 
 @api_view()
 def network_by_ip(request, *args, **kwargs):
@@ -686,6 +694,7 @@ def network_first_unused(request, *args, **kwargs):
         content = {'ERROR': 'No available IPs'}
         return Response(content, status=status.HTTP_404_NOT_FOUND)
 
+
 def _network_ptroverride_list(kwargs):
     network = get_object_or_404(Network, network=kwargs['network'])
     from_ip = str(network.network.network_address)
@@ -696,7 +705,7 @@ def _network_ptroverride_list(kwargs):
 @api_view()
 def network_ptroverride_list(request, *args, **kwargs):
     ptrs = _network_ptroverride_list(kwargs)
-    ptr_list = [ i.ipaddress for i in ptrs ]
+    ptr_list = [i.ipaddress for i in ptrs]
     return Response(ptr_list, status=status.HTTP_200_OK)
 
 
@@ -704,7 +713,7 @@ def network_ptroverride_list(request, *args, **kwargs):
 def network_ptroverride_host_list(request, *args, **kwargs):
     ptrs = _network_ptroverride_list(kwargs)
     ret = dict()
-    info =  ptrs.values_list('host__name', 'ipaddress')
+    info = ptrs.values_list('host__name', 'ipaddress')
     for host, ip in sorted(info, key=lambda i: ipaddress.ip_address(i[1])):
         ret[ip] = host
     return Response(ret, status=status.HTTP_200_OK)
@@ -734,7 +743,7 @@ def network_used_list(request, *args, **kwargs):
 def network_used_host_list(request, *args, **kwargs):
     network = get_object_or_404(Network, network=kwargs['network'])
     ret = defaultdict(list)
-    info =  network._get_used_ipaddresses().values_list('host__name', 'ipaddress')
+    info = network._get_used_ipaddresses().values_list('host__name', 'ipaddress')
     for host, ip in sorted(info, key=lambda i: ipaddress.ip_address(i[1])):
         bisect.insort(ret[ip], host)
     return Response(ret, status=status.HTTP_200_OK)
@@ -893,7 +902,7 @@ class ZoneDelegationList(generics.ListCreateAPIView):
 
     lookup_field = 'name'
     serializer_class = ForwardZoneDelegationSerializer
-    permission_classes = ( IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
+    permission_classes = (IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
 
     def get_queryset(self):
         """
@@ -950,10 +959,10 @@ def zone_by_hostname(request, *args, **kwargs):
         for delegation in zone.delegations.all():
             if hostname == delegation.name or hostname.endswith(f".{delegation.name}"):
                 serializer = ForwardZoneDelegationSerializer(delegation)
-                ret = {"delegation": serializer.data }
+                ret = {"delegation": serializer.data}
                 return Response(ret, status=status.HTTP_200_OK)
     serializer = ForwardZoneSerializer(zone)
-    ret = {"zone": serializer.data }
+    ret = {"zone": serializer.data}
     return Response(ret, status=status.HTTP_200_OK)
 
 
@@ -972,7 +981,7 @@ class ZoneDetail(MregRetrieveUpdateDestroyAPIView):
 
     lookup_field = 'name'
     serializer_class = ForwardZoneSerializer
-    permission_classes = ( IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
+    permission_classes = (IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
 
     def get_queryset(self):
         zonename = self.kwargs[self.lookup_field]
@@ -1020,7 +1029,7 @@ class ZoneDelegationDetail(MregRetrieveUpdateDestroyAPIView):
 
     lookup_field = 'delegation'
     serializer_class = ForwardZoneDelegationSerializer
-    permission_classes = ( IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
+    permission_classes = (IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
 
     def get_queryset(self):
         zonename = self.kwargs[self.lookup_field]
@@ -1072,7 +1081,7 @@ class ZoneNameServerDetail(MregRetrieveUpdateDestroyAPIView):
 
     lookup_field = 'name'
     serializer_class = ForwardZoneSerializer
-    permission_classes = ( IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
+    permission_classes = (IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
 
     def get_queryset(self):
         zonename = self.kwargs[self.lookup_field]
@@ -1108,7 +1117,7 @@ class NetGroupRegexPermissionList(MregMixin, generics.ListCreateAPIView):
 
     queryset = mreg.models.NetGroupRegexPermission.objects.all().order_by('id')
     serializer_class = NetGroupRegexPermissionSerializer
-    permission_classes = ( IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
+    permission_classes = (IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -1121,7 +1130,7 @@ class NetGroupRegexPermissionDetail(MregRetrieveUpdateDestroyAPIView):
 
     queryset = mreg.models.NetGroupRegexPermission.objects.all().order_by('id')
     serializer_class = NetGroupRegexPermissionSerializer
-    permission_classes = ( IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
+    permission_classes = (IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
 
 
 class ModelChangeLogList(generics.ListAPIView):
@@ -1192,6 +1201,7 @@ def _dhcphosts_by_range(iprange):
     ips = ips.exclude(macaddress='').order_by('ipaddress')
     ips = ips.values('host__name', 'ipaddress', 'macaddress', 'host__zone__name')
     return Response(ips)
+
 
 class DhcpHostsAllV4(generics.GenericAPIView):
 

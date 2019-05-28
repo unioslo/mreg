@@ -1,6 +1,6 @@
 from mreg.models import Host
 
-from .tests import MregAPITestCase, clean_and_save, create_forward_zone
+from .tests import MregAPITestCase, create_forward_zone
 
 
 class APISrvsTestCase(MregAPITestCase):
@@ -25,6 +25,7 @@ class APISrvsTestCase(MregAPITestCase):
                 'weight': 20,
                 'port': '1234',
                 'host': self.host_target.id}
+
         def _assert_400():
             ret = self.client.post("/srvs/", fail)
             self.assertEqual(ret.status_code, 400)

@@ -1,28 +1,26 @@
 import ipaddress
-
 from collections import defaultdict
 from datetime import timedelta
 from functools import reduce
 
 import django.contrib.postgres.fields as pgfields
-
 from django.contrib.auth.models import Group
 from django.db import DatabaseError, models, transaction
 from django.db.models import Q
 from django.utils import timezone
+
 from netfields import CidrAddressField, NetManager
 
-from mreg.validators import (validate_hostname, validate_reverse_zone_name,
-                             validate_mac_address, validate_loc,
-                             validate_naptr_flag, validate_srv_service_text,
-                             validate_zones_serialno, validate_16bit_uint,
-                             validate_ttl, validate_hexadecimal,
-                             validate_regex)
-from mreg.utils import (create_serialno, encode_mail, clear_none, qualify,
-        idna_encode, get_network_from_zonename, quote_if_space)
+from .fields import DnsNameField, LCICharField
+from .models_auth import User  # noqa: F401, needed by mreg.settings for now
+from .utils import (clear_none, create_serialno, encode_mail,
+                    get_network_from_zonename, idna_encode, qualify, quote_if_space)
+from .validators import (validate_16bit_uint, validate_hexadecimal,
+                         validate_hostname, validate_loc, validate_mac_address,
+                         validate_naptr_flag, validate_regex,
+                         validate_reverse_zone_name, validate_srv_service_text,
+                         validate_ttl, validate_zones_serialno)
 
-from .fields import LCICharField, DnsNameField
-from .models_auth import User
 
 class NameServer(models.Model):
     name = DnsNameField(unique=True)
@@ -63,7 +61,7 @@ class ZoneHelpers:
         for ns in remove_ns:
             ns = NameServer.objects.get(name=ns)
             usedcount = 0
-            #Must check all zone sets
+            # Must check all zone sets
             for i in ('forwardzone', 'reversezone', 'forwardzonedelegation',
                       'reversezonedelegation'):
                 usedcount += getattr(ns, f"{i}_set").count()
@@ -91,7 +89,8 @@ class BaseZone(models.Model, ZoneHelpers):
     primary_ns = DnsNameField()
     nameservers = models.ManyToManyField(NameServer, db_column='ns')
     email = pgfields.CIEmailField()
-    serialno = models.BigIntegerField(default=create_serialno, validators=[validate_zones_serialno])
+    serialno = models.BigIntegerField(default=create_serialno,
+                                      validators=[validate_zones_serialno])
     serialno_updated_at = models.DateTimeField(default=timezone.now)
     # TODO: Configurable? Ask hostmaster
     refresh = models.IntegerField(default=10800)
@@ -143,7 +142,7 @@ $TTL {ttl}
         # the 100 possible daily serial numbers.
         min_delta = timedelta(minutes=1)
         if force or self.updated and \
-          timezone.now() > self.serialno_updated_at + min_delta:
+           timezone.now() > self.serialno_updated_at + min_delta:
             self.serialno = create_serialno(self.serialno)
             self.serialno_updated_at = timezone.now()
             self.updated = False
@@ -253,7 +252,8 @@ class ReverseZone(BaseZone):
 
 
 class ForwardZoneDelegation(models.Model, ZoneHelpers):
-    zone = models.ForeignKey(ForwardZone, on_delete=models.CASCADE, db_column='zone', related_name='delegations')
+    zone = models.ForeignKey(ForwardZone, on_delete=models.CASCADE, db_column='zone',
+                             related_name='delegations')
     name = DnsNameField(unique=True)
     nameservers = models.ManyToManyField(NameServer, db_column='ns')
 
@@ -265,7 +265,8 @@ class ForwardZoneDelegation(models.Model, ZoneHelpers):
 
 
 class ReverseZoneDelegation(models.Model, ZoneHelpers):
-    zone = models.ForeignKey(ReverseZone, on_delete=models.CASCADE, db_column='zone', related_name='delegations')
+    zone = models.ForeignKey(ReverseZone, on_delete=models.CASCADE, db_column='zone',
+                             related_name='delegations')
     name = DnsNameField(unique=True, validators=[validate_reverse_zone_name])
     nameservers = models.ManyToManyField(NameServer, db_column='ns')
 
@@ -277,10 +278,12 @@ class ReverseZoneDelegation(models.Model, ZoneHelpers):
 
 
 class ForwardZoneMember(models.Model):
-    zone = models.ForeignKey(ForwardZone, models.DO_NOTHING, db_column='zone', blank=True, null=True)
+    zone = models.ForeignKey(ForwardZone, models.DO_NOTHING, db_column='zone',
+                             blank=True, null=True)
 
     class Meta:
         abstract = True
+
 
 class HinfoPreset(models.Model):
     cpu = models.TextField()
@@ -308,13 +311,13 @@ class Host(ForwardZoneMember):
     name = DnsNameField(unique=True)
     contact = pgfields.CIEmailField(blank=True)
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
-    hinfo = models.ForeignKey(HinfoPreset, models.DO_NOTHING, db_column='hinfo', blank=True, null=True)
+    hinfo = models.ForeignKey(HinfoPreset, models.DO_NOTHING, db_column='hinfo',
+                              blank=True, null=True)
     loc = models.TextField(blank=True, validators=[validate_loc])
     comment = models.TextField(blank=True)
 
     class Meta:
         db_table = 'host'
-
 
     def __str__(self):
         return str(self.name)
@@ -332,7 +335,8 @@ class Host(ForwardZoneMember):
 class Sshfp(models.Model):
     host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host')
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
-    algorithm = models.IntegerField(choices=((1, 'RSA'), (2, 'DSS'), (3, 'ECDSA'), (4, 'Ed25519')))
+    algorithm = models.IntegerField(choices=((1, 'RSA'), (2, 'DSS'), (3, 'ECDSA'),
+                                             (4, 'Ed25519')))
     hash_type = models.IntegerField(choices=((1, 'SHA-1'), (2, 'SHA-256')))
     fingerprint = models.CharField(max_length=64, validators=[validate_hexadecimal])
 
@@ -347,7 +351,8 @@ class Sshfp(models.Model):
 
 
 class Ipaddress(models.Model):
-    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='ipaddresses')
+    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host',
+                             related_name='ipaddresses')
     ipaddress = models.GenericIPAddressField()
     macaddress = models.CharField(max_length=17, blank=True, validators=[validate_mac_address])
 
@@ -360,7 +365,8 @@ class Ipaddress(models.Model):
 
 
 class Mx(models.Model):
-    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='mxs')
+    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host',
+                             related_name='mxs')
     priority = models.PositiveIntegerField(validators=[validate_16bit_uint])
     mx = DnsNameField()
 
@@ -373,7 +379,8 @@ class Mx(models.Model):
 
 
 class PtrOverride(models.Model):
-    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='ptr_overrides')
+    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host',
+                             related_name='ptr_overrides')
     ipaddress = models.GenericIPAddressField(unique=True)
 
     class Meta:
@@ -384,19 +391,21 @@ class PtrOverride(models.Model):
 
 
 class Txt(models.Model):
-    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='txts')
+    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host',
+                             related_name='txts')
     txt = models.TextField(max_length=255)
 
     class Meta:
         db_table = 'txt'
-        unique_together = ('host','txt')
+        unique_together = ('host', 'txt')
 
     def __str__(self):
         return str(self.txt)
 
 
 class Cname(ForwardZoneMember):
-    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='cnames')
+    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host',
+                             related_name='cnames')
     name = DnsNameField(unique=True)
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
 
@@ -440,8 +449,6 @@ class Network(models.Model):
     def _get_used_ipaddresses(self):
         from_ip = str(self.network.network_address)
         to_ip = str(self.network.broadcast_address)
-        #where_str = "ipaddress BETWEEN '{}' AND '{}'".format(from_ip, to_ip)
-        #ips = Ipaddress.objects.extra(where=[where_str])
         return Ipaddress.objects.filter(ipaddress__range=(from_ip, to_ip))
 
     def get_used_ipaddresses(self):
@@ -494,7 +501,8 @@ class Network(models.Model):
 
 
 class Naptr(models.Model):
-    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='naptrs')
+    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host',
+                             related_name='naptrs')
     preference = models.IntegerField(validators=[validate_16bit_uint])
     order = models.IntegerField(validators=[validate_16bit_uint])
     flag = models.CharField(max_length=1, blank=True, validators=[validate_naptr_flag])
@@ -523,7 +531,8 @@ class Srv(ForwardZoneMember):
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
     # This field is called "Target" in the RFC, but to utilize other code we
     # name a field with foreignKey to Host as "host".
-    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='srvs')
+    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host',
+                             related_name='srvs')
 
     class Meta:
         db_table = 'srv'
@@ -539,7 +548,8 @@ class HostGroup(models.Model):
     description = models.CharField(max_length=200, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
     owners = models.ManyToManyField(Group, blank=True)
-    parent = models.ManyToManyField('self', symmetrical=False, blank=True, related_name='groups')
+    parent = models.ManyToManyField('self', symmetrical=False, blank=True,
+                                    related_name='groups')
     hosts = models.ManyToManyField(Host, related_name='hostgroups')
 
     class Meta:

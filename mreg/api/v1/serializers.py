@@ -2,14 +2,14 @@ import ipaddress
 
 from django.contrib.auth.models import Group
 from django.utils import timezone
+
 from rest_framework import serializers
 
-from mreg.models import (Cname, HinfoPreset, Host, HostGroup, Ipaddress, Mx, NameServer,
-                         Naptr, PtrOverride, Srv, Network, Txt, ForwardZone,
-                         ForwardZoneDelegation, ReverseZone,
-                         ReverseZoneDelegation, ModelChangeLog, Sshfp,
-                         NetGroupRegexPermission)
-
+from mreg.models import (Cname, ForwardZone, ForwardZoneDelegation,
+                         HinfoPreset, Host, HostGroup, Ipaddress,
+                         ModelChangeLog, Mx, NameServer, Naptr,
+                         NetGroupRegexPermission, Network, PtrOverride,
+                         ReverseZone, ReverseZoneDelegation, Srv, Sshfp, Txt)
 from mreg.utils import nonify
 from mreg.validators import validate_keys
 
@@ -89,7 +89,6 @@ class IpaddressSerializer(ValidationMixin, serializers.ModelSerializer):
         if data.get('macaddress'):
             mac = data['macaddress']
             macip = data.get('ipaddress') or self.instance.ipaddress
-            host = data.get('host') or self.instance.host
             # If MAC and IP unchanged, nothing to validate.
             if self.instance:
                 if self.instance.macaddress == mac and \
@@ -234,7 +233,6 @@ class BaseZoneDelegationSerializer(BaseZoneSerializer):
                 raise serializers.ValidationError(
                     f"Delegation {name} is not contained in {parentzone}")
         return data
-
 
 
 class ForwardZoneDelegationSerializer(BaseZoneDelegationSerializer):

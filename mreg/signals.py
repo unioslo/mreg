@@ -3,17 +3,20 @@ import re
 
 from django.conf import settings
 from django.contrib.auth.models import Group
-from django.db.models.signals import m2m_changed, post_delete, pre_delete , post_save, pre_save
+from django.db.models.signals import m2m_changed, post_delete, post_save, pre_delete, pre_save
 from django.dispatch import receiver
 from django.utils import timezone
+
 from django_auth_ldap.backend import populate_user
-from django.utils.translation import ugettext as _
+
+from rest_framework.exceptions import PermissionDenied
 
 from mreg.api.v1.serializers import HostSerializer
-from mreg.models import (Cname, ForwardZoneMember, Host, HostGroup, Ipaddress,
-        ModelChangeLog, Mx, Naptr, NameServer, PtrOverride, ReverseZone, Srv,
-        Txt, Sshfp, Network, NetGroupRegexPermission)
-from rest_framework.exceptions import PermissionDenied
+
+from .models import (Cname, ForwardZoneMember, Host, HostGroup, Ipaddress,
+                     ModelChangeLog, Mx, NameServer, Naptr,
+                     NetGroupRegexPermission, Network, PtrOverride,
+                     ReverseZone, Srv, Sshfp, Txt)
 
 
 @receiver(populate_user)
@@ -35,6 +38,7 @@ def populate_user_from_ldap(sender, signal, user=None, ldap_user=None, **kwargs)
             group_name = res.group('group_name')
             group, created = Group.objects.get_or_create(name=group_name)
             group.user_set.add(user)
+
 
 def _del_ptr(ipaddress):
     PtrOverride.objects.filter(ipaddress=ipaddress).delete()
@@ -101,6 +105,7 @@ def _common_update_zone(signal, sender, instance):
             zone.updated = True
             zone.save()
 
+
 @receiver(pre_save, sender=Cname)
 @receiver(pre_save, sender=Ipaddress)
 @receiver(pre_save, sender=Host)
@@ -135,7 +140,8 @@ def deleted_objects_update_zone_serial(sender, instance, using, **kwargs):
 # so ipaddress data isn't available at the time of post_save for the Hosts object.
 #
 # Currently saves a JSON-snapshot of all data for the host.
-# TODO: Deleting a host should probably do something. Export/delete log for that host after some time?
+# TODO: Deleting a host should probably do something. Export/delete log for
+# that host after some time?
 
 
 @receiver(post_save, sender=PtrOverride)
@@ -144,7 +150,9 @@ def deleted_objects_update_zone_serial(sender, instance, using, **kwargs):
 @receiver(post_save, sender=Cname)
 @receiver(post_save, sender=Naptr)
 def save_host_history_on_save(sender, instance, created, **kwargs):
-    """Receives post_save signal for models that have a ForeignKey to Hosts and updates the host history log."""
+    """Receives post_save signal for models that have a ForeignKey to Hosts and
+       updates the host history log."""
+
     hostdata = HostSerializer(Host.objects.get(pk=instance.host_id)).data
 
     # Cleaning up data from related tables
@@ -166,7 +174,9 @@ def save_host_history_on_save(sender, instance, created, **kwargs):
 @receiver(post_delete, sender=Cname)
 @receiver(post_delete, sender=Naptr)
 def save_host_history_on_delete(sender, instance, **kwargs):
-    """Receives post_delete signal for models that have a ForeignKey to Hosts and updates the host history log."""
+    """Receives post_delete signal for models that have a ForeignKey to Hosts
+       and updates the host history log."""
+
     hostdata = HostSerializer(Host.objects.get(pk=instance.host_id)).data
 
     # Cleaning up data from related tables
@@ -207,9 +217,11 @@ def hostgroup_update_updated_at_on_host_delete(sender, instance, using, **kwargs
     for hostgroup in instance.hostgroups.all():
         hostgroup.save()
 
+
 @receiver(m2m_changed, sender=HostGroup.hosts.through)
 @receiver(m2m_changed, sender=HostGroup.parent.through)
-def hostgroup_update_updated_at_on_changes(sender, instance, action, model, reverse, pk_set, **kwargs):
+def hostgroup_update_updated_at_on_changes(sender, instance, action, model,
+                                           reverse, pk_set, **kwargs):
     """
     Update the hostgroups updated_at field whenever its hosts or parent
     m2m relations have successfully been altered.
@@ -217,8 +229,10 @@ def hostgroup_update_updated_at_on_changes(sender, instance, action, model, reve
     if action in ('post_add', 'post_remove', 'post_clear',):
         instance.save()
 
+
 @receiver(m2m_changed, sender=HostGroup.parent.through)
-def prevent_hostgroup_parent_recursion(sender, instance, action, model, reverse, pk_set, **kwargs):
+def prevent_hostgroup_parent_recursion(sender, instance, action, model,
+                                       reverse, pk_set, **kwargs):
     """
     pk_set contains the group(s) being added to a group
     instance is the group getting new group members
@@ -235,12 +249,12 @@ def prevent_hostgroup_parent_recursion(sender, instance, action, model, reverse,
 
     for parent in instance.parent.all():
         if child_id == parent.id:
-            raise PermissionDenied(detail='Recursive memberships are not allowed.' \
+            raise PermissionDenied(detail='Recursive memberships are not allowed.'
                                           ' This group is a member of %s' % parent.name)
         elif parent.parent.exists():
             pk_set = {child_id}
-            prevent_hostgroup_parent_recursion(sender, parent, action, model, reverse, pk_set, **kwargs)
-
+            prevent_hostgroup_parent_recursion(sender, parent, action, model,
+                                               reverse, pk_set, **kwargs)
 
 
 @receiver(pre_delete, sender=Ipaddress)
@@ -248,7 +262,8 @@ def prevent_hostgroup_parent_recursion(sender, instance, action, model, reverse,
 def prevent_nameserver_deletion(sender, instance, using, **kwargs):
     """
     Receives pre_delete signal for Host and Ipaddress-models that are about to be deleted.
-    It then checks if the object about to be deleted belongs to a nameserver, and then prevents the deletion.
+    It then checks if the object about to be deleted belongs to a nameserver,
+    and then prevents the deletion.
     """
     if isinstance(instance, Host):
         name = instance.name
@@ -276,12 +291,14 @@ def prevent_nameserver_deletion(sender, instance, using, **kwargs):
         raise PermissionDenied(detail=f'Host {name} is a nameserver in {zones} and cannot '
                                       'be deleted until it is removed from them.')
 
+
 @receiver(post_delete, sender=Network)
 def cleanup_network_permissions(sender, instance, **kwargs):
     """Remove any permissions equal to or smaller than the newly deleted
        Network's network range."""
     NetGroupRegexPermission.objects.filter(
             range__net_contained_or_equal=instance.network).delete()
+
 
 @receiver(post_save, sender=Host)
 def add_auto_txt_records_on_new_host(sender, instance, created, **kwargs):

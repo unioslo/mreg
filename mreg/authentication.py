@@ -1,9 +1,11 @@
 from datetime import timedelta
+
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils import timezone
-from rest_framework.authentication import TokenAuthentication
+
 from rest_framework import exceptions
+from rest_framework.authentication import TokenAuthentication
 
 EXPIRE_HOURS = getattr(settings, 'REST_FRAMEWORK_TOKEN_EXPIRE_HOURS', 8)
 

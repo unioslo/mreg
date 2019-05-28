@@ -1,7 +1,9 @@
 from django.contrib.auth.models import Group
 
 from mreg.models import Host, HostGroup
+
 from .tests import MregAPITestCase, clean_and_save
+
 
 class APIHostGroupsTestCase(MregAPITestCase):
     """This class defines the test suite for api/hostgroups"""
@@ -68,6 +70,7 @@ class APIHostGroupsTestCase(MregAPITestCase):
                                      {'name': self.hostgroup_two})
         self.assertEqual(response.status_code, 400)
 
+
 class APIHostGroupGroupsTestCase(MregAPITestCase):
     """Tests nesting of hostgroups in hostgroups"""
 
@@ -94,11 +97,6 @@ class APIHostGroupGroupsTestCase(MregAPITestCase):
         response = self.client.post(f'/hostgroups/{self.hostgroup_one.name}/groups/',
                                     {'name': self.hostgroup_two.name})
         self.assertEqual(response.status_code, 409)
-
-    def test_groups_add_group_to_group_201_ok(self):
-        response = self.client.post(f'/hostgroups/{self.hostgroup_one.name}/groups/',
-                                    {'name': self.hostgroup_two.name})
-        self.assertEqual(response.status_code, 201)
 
     def test_groups_add_missing_name_group_400_forbidden(self):
         response = self.client.post(f'/hostgroups/{self.hostgroup_one.name}/groups/',

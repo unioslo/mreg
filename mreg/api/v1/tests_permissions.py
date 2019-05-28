@@ -27,7 +27,7 @@ class APINetGroupRegexPermissionTestCase(MregAPITestCase):
     def test_update(self):
         ret1 = self.client.post('/permissions/netgroupregex/', self.data)
         ret = self.client.patch('/permissions/netgroupregex/{}'.format(ret1.json()['id']),
-                                 {'group': 'testgroup2'})
+                                {'group': 'testgroup2'})
         self.assertEqual(ret.status_code, 204)
         ret = self.client.get('/permissions/netgroupregex/{}'.format(ret1.json()['id']))
         self.assertEqual(ret.json()['group'], 'testgroup2')

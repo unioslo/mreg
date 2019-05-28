@@ -2,6 +2,7 @@ import django.contrib.postgres.fields as pgfields
 
 from .validators import validate_hostname
 
+
 class LCICharField(pgfields.CICharField):
     """A pgfields.CICharField where the value is stored in lower case.  """
 

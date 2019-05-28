@@ -1,11 +1,12 @@
-import ipaddress
 import re
+
+from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
 
 import idna
 
-from django.core.validators import RegexValidator, MinValueValidator, MaxValueValidator
-from django.core.exceptions import ValidationError
 from rest_framework import serializers
+
 
 from .utils import get_network_from_zonename
 
@@ -19,12 +20,14 @@ def validate_16bit_uint(value):
     if value > 65535:
         raise ValidationError("Ensure this value is less than or equal to 65535.")
 
+
 def validate_ttl(value):
     """Ensures a ttl-value is within accepted range."""
     if value < 300:
         raise ValidationError("Ensure this value is greater than or equal to 300.")
     if value > 68400:
         raise ValidationError("Ensure this value is less than or equal to 68400.")
+
 
 def validate_hexadecimal(value):
     """Ensures a string provided is a hexadecimal number"""
@@ -33,13 +36,14 @@ def validate_hexadecimal(value):
     except ValueError:
         raise ValidationError("The provided value is not a hexadecimal number")
 
+
 def validate_hostname(name):
     """ Validate a hostname. """
 
     if name.endswith("."):
         raise ValidationError("Name must not end with a punctuation mark.")
     # Assume we are not running a tld
-    if not "." in name:
+    if '.' not in name:
         raise ValidationError("Name must include a tld.")
     # Any label in can be max 63 characters, after idna encoding
     for label in name.split("."):
@@ -55,7 +59,7 @@ def validate_hostname(name):
                 if len(label) > 1:
                     raise ValidationError("Wildcard must be standalone")
                 continue
-            label_regex = "^([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])$"
+            label_regex = r"^([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])$"
             validator = RegexValidator(label_regex,
                                        message="Label '{}' is not valid. "
                                                "Must be within [a-zA-Z0-9-].".format(label))
@@ -68,6 +72,7 @@ def validate_hostname(name):
             except idna.core.IDNAError as e:
                 raise ValidationError(
                         "Label '{}' could not be idna encoded: {}".format(label, e))
+
 
 def validate_reverse_zone_name(name):
     """ Validate a reverse zone name."""
@@ -83,7 +88,7 @@ def validate_reverse_zone_name(name):
                 raise ValidationError("Maximum CIDR for RFC 2317 is 25")
         else:
             try:
-                [ int(octet) for octet in octets ]
+                [int(octet) for octet in octets]
             except ValueError:
                 raise ValidationError("Non-integers in the octets in reverse zone")
     elif name.endswith(".ip6.arpa"):
@@ -91,7 +96,7 @@ def validate_reverse_zone_name(name):
         if len(hexes) > 32:
             raise ValidationError("Reverse zone is not valid: too long")
         try:
-            [ int(i, 16) for i in hexes ]
+            [int(i, 16) for i in hexes]
         except ValueError:
             raise ValidationError("Non-hex in the reverse zone")
     else:
@@ -101,6 +106,7 @@ def validate_reverse_zone_name(name):
         get_network_from_zonename(name)
     except ValueError as error:
         raise ValidationError(f"Invalid network from name: {error}")
+
 
 def validate_mac_address(address):
     """Validates that the mac address is on a valid form."""
@@ -112,7 +118,7 @@ def validate_mac_address(address):
 
 def validate_loc(location):
     """Validates that the loc input is on a valid form."""
-    loc_regex = "^\d+( \d+ \d+(\.\d+)?)? [NS] \d+( \d+ \d+(\.\d+)?)? [EW] -?\d+m?( \d+m?( \d+m?)?)?$"
+    loc_regex = r"^\d+( \d+ \d+(\.\d+)?)? [NS] \d+( \d+ \d+(\.\d+)?)? [EW] -?\d+m?( \d+m?( \d+m?)?)?$"
     validator = RegexValidator(loc_regex)
     validator(location)
 
@@ -147,7 +153,6 @@ def validate_zones_serialno(serialno):
     validator_max(serialno)
 
 
-
 def validate_keys(obj):
     """
     Filters out unknown keys and raises a ValidationError.
@@ -155,4 +160,5 @@ def validate_keys(obj):
     """
     unknown_keys = set(obj.initial_data.keys()) - set(obj.fields.keys())
     if unknown_keys:
-        raise serializers.ValidationError('invalid keys passed into serializer: {0}'.format(unknown_keys))
+        raise serializers.ValidationError(
+                f'invalid keys passed into serializer: {unknown_keys}')

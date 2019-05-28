@@ -1,14 +1,16 @@
 from django.contrib.auth.models import Group
 from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
+
 from rest_framework import generics, status
 from rest_framework.exceptions import MethodNotAllowed
 from rest_framework.response import Response
+
 from url_filter.filtersets import ModelFilterSet
 
-from mreg.models import Host, HostGroup
 from mreg.api.permissions import (HostGroupPermission,
                                   IsSuperOrGroupAdminOrReadOnly)
+from mreg.models import Host, HostGroup
 
 from . import serializers
 from .views import (MregMixin,
@@ -21,6 +23,7 @@ from .views import (MregMixin,
 class HostGroupFilterSet(ModelFilterSet):
     class Meta:
         model = HostGroup
+
 
 class M2MPermissions:
 
@@ -49,7 +52,6 @@ class HostGroupPermissionsUpdateDestroy(M2MPermissions,
                                         MregRetrieveUpdateDestroyAPIView):
 
     permission_classes = (HostGroupPermission, )
-
 
 
 class HostGroupList(MregMixin, generics.ListCreateAPIView):
@@ -136,7 +138,6 @@ class HostGroupM2MList(HostGroupPermissionsListCreateAPIView):
             return Response(content, status=status.HTTP_400_BAD_REQUEST)
 
 
-
 class HostGroupM2MDetail(HostGroupPermissionsUpdateDestroy):
     """
     get:
@@ -211,6 +212,7 @@ class HostGroupHostsList(HostGroupM2MList):
     serializer_class = serializers.HostNameSerializer
     m2m_field = 'hosts'
     m2m_object = Host
+
 
 class HostGroupHostsDetail(HostGroupM2MDetail):
     """

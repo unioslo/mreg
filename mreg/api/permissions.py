@@ -1,11 +1,11 @@
 from django.conf import settings
+
 from rest_framework import exceptions
-from rest_framework.permissions import BasePermission, IsAuthenticated, SAFE_METHODS
+from rest_framework.permissions import IsAuthenticated, SAFE_METHODS
 
 import mreg.api.v1.views
-
 from mreg.api.v1.serializers import HostSerializer
-from mreg.models import NetGroupRegexPermission, HostGroup
+from mreg.models import HostGroup, NetGroupRegexPermission
 
 
 def get_settings_groups(group_setting_name):

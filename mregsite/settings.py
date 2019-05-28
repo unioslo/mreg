@@ -172,7 +172,7 @@ REST_FRAMEWORK = {
 
 # This setting must be defined for mreg.api.permissions.IsInRequiredGroup
 # to work.
-#REQUIRED_USER_GROUPS = "default-required-group"
+# REQUIRED_USER_GROUPS = "default-required-group"
 
 REST_FRAMEWORK_EXTENSIONS = {
     'DEFAULT_OBJECT_ETAG_FUNC':
@@ -199,7 +199,7 @@ TXT_AUTO_RECORDS = {
 
 # Import local settings that may override those in this file.
 try:
-    from .local_settings import *
+    from .local_settings import *  # noqa: F401,F403
 except ImportError:
     pass
 

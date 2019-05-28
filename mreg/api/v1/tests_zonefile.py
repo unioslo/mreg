@@ -1,7 +1,7 @@
-from rest_framework.test import APIClient
+from mreg.models import ForwardZone, HinfoPreset, Host, Ipaddress, ReverseZone
 
-from mreg.models import Host, HinfoPreset, Ipaddress, ForwardZone, ReverseZone
 from .tests import MregAPITestCase, clean_and_save
+
 
 class APIZonefileTestCase(MregAPITestCase):
 
@@ -13,13 +13,13 @@ class APIZonefileTestCase(MregAPITestCase):
                           ('ns1.example.org', ('10.10.0.2', '2001:db8::2')),
                           ('host1.example.org', ('10.10.1.10', '2001:db8:0:1::10')),
                           ('høst2.example.org', ('10.10.1.10', '2001:db8:0:1::10')),
-                         ):
+                          ):
             ret = self._add_host(name, ip=ips[0])
             info = self.client.get(ret['Location']).json()
             for ip in ips[1:]:
                 Ipaddress.objects.create(host=Host.objects.get(id=info['id']),
                                          ipaddress=ip)
-    
+
     def _add_host(self, name, ip=None):
         data = {'name': name, 'ipaddress': ip}
         return self.client.post('/hosts/', data)
@@ -28,7 +28,7 @@ class APIZonefileTestCase(MregAPITestCase):
                      primary_ns=['ns1.example.org', 'ns2.example.org'],
                      email='hostmaster@example.org'):
         data = locals().copy()
-        del data['self'] 
+        del data['self']
         self.client.post('/zones/', data)
 
     def create_forward_zone(self, name, **kwargs):
@@ -50,7 +50,7 @@ class APIZonefileTestCase(MregAPITestCase):
         self.create_forward_zone(subname,
                                  primary_ns=[subname, ns1, 'ns1.example.org'])
         self._get_zone(self.forward)
-        ## Fix subzone NS error
+        # Fix subzone NS error
         self._add_host(subname, ip='10.10.1.100')
         self._add_host(ns1, ip='10.10.1.101')
         self._get_zone(self.forward)
@@ -83,7 +83,7 @@ class APIZonefileTestCase(MregAPITestCase):
                 'service': 'SERVICE',
                 'regex': r'1(.*@example.org)',
                 'replacement': 'replacementhost.example.org'
-        }
+                }
         ret = self.client.post("/naptrs/", data)
         self.assertEqual(ret.status_code, 201)
         data = {'host': host1.id,

@@ -1,8 +1,7 @@
 import ipaddress
-
 from collections import defaultdict
 
-from mreg.models import Cname, ForwardZone, Host, Ipaddress, Mx, Naptr, Sshfp, Srv, Txt
+from mreg.models import Cname, ForwardZone, Host, Ipaddress, Mx, Naptr, Srv, Sshfp, Txt
 from mreg.utils import clear_none, idna_encode, qualify
 
 
@@ -17,6 +16,7 @@ class ZoneFile:
 
     def generate(self):
         return self.zonetype.generate()
+
 
 class Common:
 
@@ -35,10 +35,10 @@ class Common:
         try:
             host = Host.objects.get(name=ns)
         except Host.DoesNotExist:
-            #XXX: signal hostmaster?
+            # XXX: signal hostmaster?
             return f"OPS: missing glue for {ns}\n"
         if not host.ipaddresses.exists():
-            #XXX: signal hostmaster?
+            # XXX: signal hostmaster?
             return f"OPS: no ipaddress for name server {ns}\n"
         # self's name servers do not need glue, as they will come later
         # in the zonefile.
@@ -177,7 +177,6 @@ class ForwardFile(Common):
                 for i in values[host.name]:
                     data += func(name, ttl, *i)
                     name = ""
-
 
         # XXX: add caching for this one, if we populate it..
         if host.hinfo is not None:
