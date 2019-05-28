@@ -9,7 +9,7 @@ from django.db import DatabaseError, models, transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from netfields import CidrAddressField, NetManager
+from netfields import CidrAddressField, InetAddressField, NetManager
 
 from .fields import DnsNameField, LCICharField
 from .models_auth import User  # noqa: F401, needed by mreg.settings for now
@@ -214,7 +214,7 @@ class ReverseZone(BaseZone):
         ptrs = PtrOverride.objects.filter(ipaddress__range=(from_ip, to_ip))
         ptrs = ptrs.select_related('host')
         for p in ptrs:
-            override_ips[p.ipaddress] = p
+            override_ips[str(p.ipaddress)] = p
         # XXX: send signal/mail to hostmaster(?) about issues with multiple_ip_no_ptr
         count = defaultdict(int)
         for i in ips:
@@ -228,7 +228,11 @@ class ReverseZone(BaseZone):
 
         def _add_to_result(item):
             ttl = item.host.ttl or ""
-            result.append((ipaddress.ip_address(item.ipaddress), ttl, item.host.name))
+            if isinstance(item, PtrOverride):
+                ip = item.ipaddress
+            else:
+                ip = ipaddress.ip_address(item.ipaddress)
+            result.append((ip, ttl, item.host.name))
 
         for i in ips:
             ip = i.ipaddress
@@ -381,7 +385,9 @@ class Mx(models.Model):
 class PtrOverride(models.Model):
     host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host',
                              related_name='ptr_overrides')
-    ipaddress = models.GenericIPAddressField(unique=True)
+    ipaddress = InetAddressField(unique=True, store_prefix_length=False)
+
+    objects = NetManager()
 
     class Meta:
         db_table = 'ptr_override'
