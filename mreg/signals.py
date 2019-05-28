@@ -89,8 +89,7 @@ def _common_update_zone(signal, sender, instance):
     if signal == "pre_save" and sender == Host and instance.id:
         oldname = Host.objects.get(id=instance.id).name
         if instance.name != oldname:
-            # XXX: add SRV in after usit-gd/mreg#192
-            for model in (Cname,):
+            for model in (Cname, Srv,):
                 for i in model.objects.filter(host=instance):
                     zones.add(i.zone)
             for model in (Ipaddress, PtrOverride):
