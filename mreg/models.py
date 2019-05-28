@@ -521,12 +521,14 @@ class Srv(ForwardZoneMember):
     weight = models.IntegerField(validators=[validate_16bit_uint])
     port = models.IntegerField(validators=[validate_16bit_uint])
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
-    target = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='target', related_name='srvs')
+    # This field is called "Target" in the RFC, but to utilize other code we
+    # name a field with foreignKey to Host as "host".
+    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='srvs')
 
     class Meta:
         db_table = 'srv'
-        unique_together = ('name', 'priority', 'weight', 'port', 'target')
-        ordering = ('name', 'priority', 'weight', 'port', 'target')
+        unique_together = ('name', 'priority', 'weight', 'port', 'host')
+        ordering = ('name', 'priority', 'weight', 'port', 'host')
 
     def __str__(self):
         return str(self.name)
