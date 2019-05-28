@@ -1,11 +1,11 @@
 from django.conf import settings
+
 from rest_framework import exceptions
-from rest_framework.permissions import BasePermission, SAFE_METHODS
+from rest_framework.permissions import IsAuthenticated, SAFE_METHODS
 
 import mreg.api.v1.views
-
 from mreg.api.v1.serializers import HostSerializer
-from mreg.models import NetGroupRegexPermission
+from mreg.models import HostGroup, NetGroupRegexPermission
 
 
 def get_settings_groups(group_setting_name):
@@ -42,24 +42,33 @@ def user_is_adminuser(user):
     return _list_in_list(groups, user.group_list)
 
 
+def user_is_group_adminuser(user):
+    groups = get_settings_groups('GROUPADMINUSER_GROUP')
+    return _list_in_list(groups, user.group_list)
+
+
 def is_super_or_admin(user):
     return user_is_superuser(user) or user_is_adminuser(user)
 
 
-class ReadOnly(BasePermission):
+def is_super_or_group_admin(user):
+    return user_is_superuser(user) or user_is_group_adminuser(user)
+
+
+class IsAuthenticatedAndReadOnly(IsAuthenticated):
     def has_permission(self, request, view):
-        if not bool(request.user and request.user.is_authenticated):
+        if not super().has_permission(request, view):
             return False
         return request.method in SAFE_METHODS
 
 
-class IsInRequiredGroup(BasePermission):
+class IsInRequiredGroup(IsAuthenticated):
     """
     Allows only access to users in the required group.
     """
 
     def has_permission(self, request, view):
-        if not bool(request.user and request.user.is_authenticated):
+        if not super().has_permission(request, view):
             return False
         return user_in_settings_group(request, 'REQUIRED_USER_GROUPS')
 
@@ -70,12 +79,12 @@ class ReadOnlyForRequiredGroup(IsInRequiredGroup):
     """
 
     def has_permission(self, request, view):
-        if super().has_permission(request, view):
-            return request.method in SAFE_METHODS
-        return False
+        if not super().has_permission(request, view):
+            return False
+        return request.method in SAFE_METHODS
 
 
-class IsSuperGroupMember(BasePermission):
+class IsSuperGroupMember(IsAuthenticated):
     """
     Permit user if in super user group.
     """
@@ -83,27 +92,25 @@ class IsSuperGroupMember(BasePermission):
     group = 'SUPERUSER_GROUP'
 
     def has_permission(self, request, view):
-        if not bool(request.user and request.user.is_authenticated):
+        if not super().has_permission(request, view):
             return False
         return user_in_settings_group(request, 'SUPERUSER_GROUP')
 
 
-class IsSuperOrAdminOrReadOnly(BasePermission):
+class IsSuperOrGroupAdminOrReadOnly(IsAuthenticated):
     """
-    Permit user if in super or admin group, else read only.
+    Permit user if in super or group admin group, else read only.
     """
 
     def has_permission(self, request, view):
-        if not bool(request.user and request.user.is_authenticated):
+        if not super().has_permission(request, view):
             return False
         if request.method in SAFE_METHODS:
             return True
-        if not user_in_required_group(request.user):
-            return False
-        return is_super_or_admin(request.user)
+        return is_super_or_group_admin(request.user)
 
 
-class IsGrantedNetGroupRegexPermission(BasePermission):
+class IsGrantedNetGroupRegexPermission(IsAuthenticated):
     """
     Permit user if the user has been granted access through a
     NetGroupRegexPermission.
@@ -112,14 +119,12 @@ class IsGrantedNetGroupRegexPermission(BasePermission):
     def has_permission(self, request, view):
         # This method is called before the view is executed, so
         # just do some preliminary checks.
-        if not bool(request.user and request.user.is_authenticated):
+        if not super().has_permission(request, view):
             return False
         if request.method in SAFE_METHODS:
             return True
         if is_super_or_admin(request.user):
             return True
-        if not user_in_required_group(request.user):
-            return False
         # Will do do more object checks later, but initially refuse any
         # unwarranted requests.
         if NetGroupRegexPermission.objects.filter(group__in=request.user.group_list
@@ -195,3 +200,39 @@ class IsGrantedNetGroupRegexPermission(BasePermission):
         for i in host.data['ipaddresses']:
             ips.append(i['ipaddress'])
         return host.data['name'], ips
+
+
+class HostGroupPermission(IsAuthenticated):
+
+    def has_permission(self, request, view):
+        # This method is called before the view is executed, so
+        # just do some preliminary checks.
+        if not super().has_permission(request, view):
+            return False
+        if request.method in SAFE_METHODS:
+            return True
+        if is_super_or_group_admin(request.user):
+            return True
+        # Will do do more object checks later, but initially refuse any
+        # unwarranted requests.
+        if HostGroup.objects.filter(owners__name__in=request.user.group_list).exists():
+            return True
+        return False
+
+    def is_super_or_group_admin(self, request):
+        return is_super_or_group_admin(request.user)
+
+    def _request_user_is_owner(self, hostgroup, request):
+        owners = set(hostgroup.owners.values_list('name', flat=True))
+        return _list_in_list(request.user.group_list, owners)
+
+    def has_m2m_change_permission(self, request, view):
+        if is_super_or_group_admin(request.user):
+            return True
+        return self._request_user_is_owner(view.hostgroup, request)
+
+    # patch will only happen on HostGroupDetail
+    def has_update_permission(self, request, view, validated_serializer):
+        if is_super_or_group_admin(request.user):
+            return True
+        return self._request_user_is_owner(view.get_object(), request)

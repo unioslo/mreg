@@ -5,4 +5,4 @@ class MregAppConfig(AppConfig):
     name = 'mreg'
 
     def ready(self):
-        import mreg.signals
+        import mreg.signals # noqa

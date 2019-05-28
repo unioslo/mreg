@@ -1,26 +1,29 @@
 import ipaddress
-
 from collections import defaultdict
 from datetime import timedelta
+from functools import reduce
 
+import django.contrib.postgres.fields as pgfields
+from django.contrib.auth.models import Group
 from django.db import DatabaseError, models, transaction
+from django.db.models import Q
 from django.utils import timezone
+
 from netfields import CidrAddressField, InetAddressField, NetManager
 
-from mreg.validators import (validate_hostname, validate_reverse_zone_name,
-                             validate_mac_address, validate_loc,
-                             validate_naptr_flag, validate_srv_service_text,
-                             validate_zones_serialno, validate_16bit_uint,
-                             validate_network, validate_ttl, validate_hexadecimal,
-                             validate_regex)
-from mreg.utils import (create_serialno, encode_mail, clear_none, qualify,
-        idna_encode, get_network_from_zonename)
-
-from .models_auth import User
+from .fields import DnsNameField, LCICharField
+from .models_auth import User  # noqa: F401, needed by mreg.settings for now
+from .utils import (clear_none, create_serialno, encode_mail,
+                    get_network_from_zonename, idna_encode, qualify, quote_if_space)
+from .validators import (validate_16bit_uint, validate_hexadecimal,
+                         validate_hostname, validate_loc, validate_mac_address,
+                         validate_naptr_flag, validate_regex,
+                         validate_reverse_zone_name, validate_srv_service_text,
+                         validate_ttl, validate_zones_serialno)
 
 
 class NameServer(models.Model):
-    name = models.CharField(unique=True, max_length=253, validators=[validate_hostname])
+    name = DnsNameField(unique=True)
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
 
     class Meta:
@@ -58,7 +61,7 @@ class ZoneHelpers:
         for ns in remove_ns:
             ns = NameServer.objects.get(name=ns)
             usedcount = 0
-            #Must check all zone sets
+            # Must check all zone sets
             for i in ('forwardzone', 'reversezone', 'forwardzonedelegation',
                       'reversezonedelegation'):
                 usedcount += getattr(ns, f"{i}_set").count()
@@ -83,10 +86,11 @@ class ZoneHelpers:
 class BaseZone(models.Model, ZoneHelpers):
     updated_at = models.DateTimeField(auto_now=True)
     updated = models.BooleanField(default=True)
-    primary_ns = models.CharField(max_length=253, validators=[validate_hostname])
+    primary_ns = DnsNameField()
     nameservers = models.ManyToManyField(NameServer, db_column='ns')
-    email = models.EmailField()
-    serialno = models.BigIntegerField(default=create_serialno, validators=[validate_zones_serialno])
+    email = pgfields.CIEmailField()
+    serialno = models.BigIntegerField(default=create_serialno,
+                                      validators=[validate_zones_serialno])
     serialno_updated_at = models.DateTimeField(default=timezone.now)
     # TODO: Configurable? Ask hostmaster
     refresh = models.IntegerField(default=10800)
@@ -114,8 +118,8 @@ class BaseZone(models.Model, ZoneHelpers):
             'refresh': self.refresh,
             'retry': self.retry,
             'expire': self.expire,
-            'zupdated_at': self.updated_at,
-            'supdated_at': self.serialno_updated_at
+            'zupdated_at': timezone.localtime(self.updated_at),
+            'supdated_at': timezone.localtime(self.serialno_updated_at)
         }
         zf = """$ORIGIN {origin}
 $TTL {ttl}
@@ -138,7 +142,7 @@ $TTL {ttl}
         # the 100 possible daily serial numbers.
         min_delta = timedelta(minutes=1)
         if force or self.updated and \
-          timezone.now() > self.serialno_updated_at + min_delta:
+           timezone.now() > self.serialno_updated_at + min_delta:
             self.serialno = create_serialno(self.serialno)
             self.serialno_updated_at = timezone.now()
             self.updated = False
@@ -150,7 +154,7 @@ $TTL {ttl}
 
 
 class ForwardZone(BaseZone):
-    name = models.CharField(unique=True, max_length=253, validators=[validate_hostname])
+    name = DnsNameField(unique=True)
 
     class Meta:
         db_table = 'forward_zone'
@@ -181,7 +185,7 @@ class ForwardZone(BaseZone):
 
 
 class ReverseZone(BaseZone):
-    name = models.CharField(unique=True, max_length=253, validators=[validate_reverse_zone_name])
+    name = DnsNameField(unique=True, validators=[validate_reverse_zone_name])
     # network can not be blank, but it will allow full_clean() to pass, even if
     # the network is not set. Will anyway be overridden by update() and save().
     network = CidrAddressField(unique=True, blank=True)
@@ -190,10 +194,6 @@ class ReverseZone(BaseZone):
 
     class Meta:
         db_table = 'reverse_zone'
-
-    def update(self, *args, **kwargs):
-        self.network = get_network_from_zonename(self.name)
-        super().update(*args, **kwargs)
 
     def save(self, *args, **kwargs):
         self.network = get_network_from_zonename(self.name)
@@ -214,7 +214,7 @@ class ReverseZone(BaseZone):
         ptrs = PtrOverride.objects.filter(ipaddress__range=(from_ip, to_ip))
         ptrs = ptrs.select_related('host')
         for p in ptrs:
-            override_ips[p.ipaddress] = p
+            override_ips[str(p.ipaddress)] = p
         # XXX: send signal/mail to hostmaster(?) about issues with multiple_ip_no_ptr
         count = defaultdict(int)
         for i in ips:
@@ -228,7 +228,11 @@ class ReverseZone(BaseZone):
 
         def _add_to_result(item):
             ttl = item.host.ttl or ""
-            result.append((ipaddress.ip_address(item.ipaddress), ttl, item.host.name))
+            if isinstance(item, PtrOverride):
+                ip = item.ipaddress
+            else:
+                ip = ipaddress.ip_address(item.ipaddress)
+            result.append((ip, ttl, item.host.name))
 
         for i in ips:
             ip = i.ipaddress
@@ -252,8 +256,9 @@ class ReverseZone(BaseZone):
 
 
 class ForwardZoneDelegation(models.Model, ZoneHelpers):
-    zone = models.ForeignKey(ForwardZone, on_delete=models.CASCADE, db_column='zone', related_name='delegations')
-    name = models.CharField(unique=True, max_length=253, validators=[validate_hostname])
+    zone = models.ForeignKey(ForwardZone, on_delete=models.CASCADE, db_column='zone',
+                             related_name='delegations')
+    name = DnsNameField(unique=True)
     nameservers = models.ManyToManyField(NameServer, db_column='ns')
 
     class Meta:
@@ -264,8 +269,9 @@ class ForwardZoneDelegation(models.Model, ZoneHelpers):
 
 
 class ReverseZoneDelegation(models.Model, ZoneHelpers):
-    zone = models.ForeignKey(ReverseZone, on_delete=models.CASCADE, db_column='zone', related_name='delegations')
-    name = models.CharField(unique=True, max_length=253, validators=[validate_reverse_zone_name])
+    zone = models.ForeignKey(ReverseZone, on_delete=models.CASCADE, db_column='zone',
+                             related_name='delegations')
+    name = DnsNameField(unique=True, validators=[validate_reverse_zone_name])
     nameservers = models.ManyToManyField(NameServer, db_column='ns')
 
     class Meta:
@@ -276,10 +282,12 @@ class ReverseZoneDelegation(models.Model, ZoneHelpers):
 
 
 class ForwardZoneMember(models.Model):
-    zone = models.ForeignKey(ForwardZone, models.DO_NOTHING, db_column='zone', blank=True, null=True)
+    zone = models.ForeignKey(ForwardZone, models.DO_NOTHING, db_column='zone',
+                             blank=True, null=True)
 
     class Meta:
         abstract = True
+
 
 class HinfoPreset(models.Model):
     cpu = models.TextField()
@@ -290,30 +298,30 @@ class HinfoPreset(models.Model):
         unique_together = ('cpu', 'os')
 
     def __str__(self):
-        return f"{self.cpu} {self.os}"
+        return f"cpu: {self.cpu} os: {self.os}"
 
     @property
     def zf_string(self):
         """String representation for zonefile export."""
         data = {
             'record_type': 'HINFO',
-            'cpu': self.cpu,
-            'os': self.os
+            'cpu': quote_if_space(self.cpu),
+            'os': quote_if_space(self.os)
         }
-        return '                                  {record_type:6} {cpu} {os}\n'.format_map(data)
+        return '                               IN {record_type:6} {cpu} {os}\n'.format_map(data)
 
 
 class Host(ForwardZoneMember):
-    name = models.CharField(unique=True, max_length=253, validators=[validate_hostname])
-    contact = models.EmailField()
+    name = DnsNameField(unique=True)
+    contact = pgfields.CIEmailField(blank=True)
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
-    hinfo = models.ForeignKey(HinfoPreset, models.DO_NOTHING, db_column='hinfo', blank=True, null=True)
+    hinfo = models.ForeignKey(HinfoPreset, models.DO_NOTHING, db_column='hinfo',
+                              blank=True, null=True)
     loc = models.TextField(blank=True, validators=[validate_loc])
     comment = models.TextField(blank=True)
 
     class Meta:
         db_table = 'host'
-
 
     def __str__(self):
         return str(self.name)
@@ -331,7 +339,8 @@ class Host(ForwardZoneMember):
 class Sshfp(models.Model):
     host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host')
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
-    algorithm = models.IntegerField(choices=((1, 'RSA'), (2, 'DSS'), (3, 'ECDSA'), (4, 'Ed25519')))
+    algorithm = models.IntegerField(choices=((1, 'RSA'), (2, 'DSS'), (3, 'ECDSA'),
+                                             (4, 'Ed25519')))
     hash_type = models.IntegerField(choices=((1, 'SHA-1'), (2, 'SHA-256')))
     fingerprint = models.CharField(max_length=64, validators=[validate_hexadecimal])
 
@@ -346,7 +355,8 @@ class Sshfp(models.Model):
 
 
 class Ipaddress(models.Model):
-    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='ipaddresses')
+    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host',
+                             related_name='ipaddresses')
     ipaddress = models.GenericIPAddressField()
     macaddress = models.CharField(max_length=17, blank=True, validators=[validate_mac_address])
 
@@ -359,9 +369,10 @@ class Ipaddress(models.Model):
 
 
 class Mx(models.Model):
-    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='mxs')
+    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host',
+                             related_name='mxs')
     priority = models.PositiveIntegerField(validators=[validate_16bit_uint])
-    mx = models.TextField(max_length=253, validators=[validate_hostname])
+    mx = DnsNameField()
 
     class Meta:
         db_table = 'mx'
@@ -372,8 +383,9 @@ class Mx(models.Model):
 
 
 class PtrOverride(models.Model):
-    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='ptr_overrides')
-    ipaddress = InetAddressField(unique=True)
+    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host',
+                             related_name='ptr_overrides')
+    ipaddress = InetAddressField(unique=True, store_prefix_length=False)
 
     objects = NetManager()
 
@@ -385,20 +397,22 @@ class PtrOverride(models.Model):
 
 
 class Txt(models.Model):
-    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='txts')
+    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host',
+                             related_name='txts')
     txt = models.TextField(max_length=255)
 
     class Meta:
         db_table = 'txt'
-        unique_together = ('host','txt')
+        unique_together = ('host', 'txt')
 
     def __str__(self):
         return str(self.txt)
 
 
 class Cname(ForwardZoneMember):
-    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='cnames')
-    name = models.CharField(max_length=255, unique=True)
+    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host',
+                             related_name='cnames')
+    name = DnsNameField(unique=True)
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
 
     class Meta:
@@ -441,8 +455,6 @@ class Network(models.Model):
     def _get_used_ipaddresses(self):
         from_ip = str(self.network.network_address)
         to_ip = str(self.network.broadcast_address)
-        #where_str = "ipaddress BETWEEN '{}' AND '{}'".format(from_ip, to_ip)
-        #ips = Ipaddress.objects.extra(where=[where_str])
         return Ipaddress.objects.filter(ipaddress__range=(from_ip, to_ip))
 
     def get_used_ipaddresses(self):
@@ -495,13 +507,14 @@ class Network(models.Model):
 
 
 class Naptr(models.Model):
-    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host', related_name='naptrs')
+    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host',
+                             related_name='naptrs')
     preference = models.IntegerField(validators=[validate_16bit_uint])
     order = models.IntegerField(validators=[validate_16bit_uint])
     flag = models.CharField(max_length=1, blank=True, validators=[validate_naptr_flag])
-    service = models.CharField(max_length=255, blank=True)
-    regex = models.TextField(blank=True)
-    replacement = models.CharField(max_length=255)
+    service = LCICharField(max_length=128, blank=True)
+    regex = models.CharField(max_length=128, blank=True)
+    replacement = LCICharField(max_length=255)
 
     class Meta:
         db_table = 'naptr'
@@ -517,34 +530,40 @@ class Naptr(models.Model):
 
 
 class Srv(ForwardZoneMember):
-    name = models.TextField(validators=[validate_srv_service_text])
+    name = LCICharField(max_length=255, validators=[validate_srv_service_text])
     priority = models.IntegerField(validators=[validate_16bit_uint])
     weight = models.IntegerField(validators=[validate_16bit_uint])
     port = models.IntegerField(validators=[validate_16bit_uint])
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
-    # XXX: target MUST not be a alias aka cname
-    target = models.CharField(max_length=255)
+    # This field is called "Target" in the RFC, but to utilize other code we
+    # name a field with foreignKey to Host as "host".
+    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host',
+                             related_name='srvs')
 
     class Meta:
         db_table = 'srv'
-        unique_together = ('name', 'priority', 'weight', 'port', 'target')
-        ordering = ('name', 'priority', 'weight', 'port', 'target')
+        unique_together = ('name', 'priority', 'weight', 'port', 'host')
+        ordering = ('name', 'priority', 'weight', 'port', 'host')
 
     def __str__(self):
         return str(self.name)
 
-    def zf_string(self, zone):
-        """String representation for zonefile export."""
-        data = {
-            'name': idna_encode(qualify(self.name, zone)),
-            'ttl': clear_none(self.ttl),
-            'record_type': 'SRV',
-            'priority': self.priority,
-            'weight': self.weight,
-            'port': self.port,
-            'target': idna_encode(qualify(self.target, zone))
-        }
-        return '{name:24} {ttl:5} IN {record_type:6} {priority} {weight} {port} {target}\n'.format_map(data)
+
+class HostGroup(models.Model):
+    name = LCICharField(max_length=50, unique=True)
+    description = models.CharField(max_length=200, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    owners = models.ManyToManyField(Group, blank=True)
+    parent = models.ManyToManyField('self', symmetrical=False, blank=True,
+                                    related_name='groups')
+    hosts = models.ManyToManyField(Host, related_name='hostgroups')
+
+    class Meta:
+        db_table = 'hostgroup'
+        ordering = ('name',)
+
+    def __str__(self):
+        return "%s" % self.name
 
 
 class NetGroupRegexPermission(models.Model):
@@ -563,23 +582,22 @@ class NetGroupRegexPermission(models.Model):
 
     @staticmethod
     def find_perm(groups, hostname, ips):
-        if not (groups or hostname or ips):
-            return False
+        if not isinstance(hostname, str):
+            raise ValueError(f'hostname is invalid type ({type(hostname)})')
         if isinstance(groups, str):
             groups = [groups]
         if not isinstance(groups, (list, tuple)):
-            return ValueError(f'groups on invalid type ({type(groups)})')
+            raise ValueError(f'groups on invalid type ({type(groups)})')
         if isinstance(ips, str):
             ips = [ips]
         if not isinstance(ips, (list, tuple)):
-            return ValueError(f'ips on invalid type ({type(ips)})')
-        iplist = '{%s}' % ', '.join(ips)
+            raise ValueError(f'ips on invalid type ({type(ips)})')
         qs = NetGroupRegexPermission.objects.filter(
                 group__in=groups
             ).extra(
                 where=["%s ~ regex"], params=[str(hostname)]
-            ).extra(
-                where=["range >>= ANY (%s::inet[])"], params=[iplist]
+            ).filter(
+                reduce(lambda x, y: x | y, [Q(range__net_contains=ip) for ip in ips])
             )
         return qs
 

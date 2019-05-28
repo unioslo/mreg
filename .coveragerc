@@ -1,9 +1,13 @@
 # .coveragerc to check coverage
 [run]
 omit =
+    manage.py
+    mreg/migrations/*
     # omit anything in a .local, venv/* directory anywhere
     */.local/*
     venv/*
+    */.virtualenvs/*
+
 
 [report]
 exclude_lines = def __repr__

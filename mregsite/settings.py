@@ -166,13 +166,13 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS':
         'mreg.api.v1.pagination.StandardResultsSetPagination',
     'DEFAULT_PERMISSION_CLASSES': (
-        'mreg.api.permissions.IsInRequiredGroup',
+        'mreg.api.permissions.IsAuthenticatedAndReadOnly',
     ),
 }
 
 # This setting must be defined for mreg.api.permissions.IsInRequiredGroup
 # to work.
-#REQUIRED_USER_GROUPS = "default-required-group"
+# REQUIRED_USER_GROUPS = "default-required-group"
 
 REST_FRAMEWORK_EXTENSIONS = {
     'DEFAULT_OBJECT_ETAG_FUNC':
@@ -185,19 +185,25 @@ REST_FRAMEWORK_EXTENSIONS = {
 # add "DISABLE_EXISTING_LOGGERS" = False
 DJANGO_LOGGING = {
     "CONSOLE_LOG": False,
+    'IGNORED_PATHS': ['/admin', '/static', '/favicon.ico', '/api/token-auth']
 }
 
 SWAGGER_SETTINGS = {
     'USE_SESSION_AUTH': False,
 }
 
+# TXT record(s) automatically added to a host when added to a ForwardZone.
+TXT_AUTO_RECORDS = {
+        'example.org': ('v=spf1 -all', ),
+}
+
 # Import local settings that may override those in this file.
 try:
-    from .local_settings import *
+    from .local_settings import *  # noqa: F401,F403
 except ImportError:
     pass
 
 if TESTING:
-    REQUIRED_USER_GROUPS = "default-required-group"
     SUPERUSER_GROUP = "default-super-group"
     ADMINUSER_GROUP = "default-admin-group"
+    GROUPADMINUSER_GROUP = "default-groupadmin-group"

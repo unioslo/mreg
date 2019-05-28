@@ -1,7 +1,8 @@
-import idna
 import ipaddress
 import re
 import time
+
+import idna
 
 
 def clear_none(value):
@@ -12,6 +13,12 @@ def clear_none(value):
     """
     if value is None:
         value = ""
+    return value
+
+
+def quote_if_space(value):
+    if ' ' in value:
+        return f'"{value}"'
     return value
 
 
@@ -30,6 +37,7 @@ def qualify(name, zone, shortform=True):
     elif not name.endswith("."):
         name += '.'
     return name
+
 
 def idna_encode(entry):
     """
@@ -50,13 +58,13 @@ def idna_encode(entry):
 
 def encode_mail(mail):
     """
-    Encodes an e-mail address as a name by converting '.' to '\.' and '@' to '.'
+    Encodes an e-mail address as a name by converting '.' to '\\.' and '@' to '.'
     Also appends a punctuation mark after the domain.
     :param mail: E-mail address to encode
     :return: Encoded e-mail address
     """
     user, domain = mail.split('@')
-    user = user.replace('.', '\.')
+    user = user.replace('.', r'\.')
     mail = '%s.%s.' % (user, domain)
     return mail
 
@@ -90,12 +98,13 @@ def create_serialno(serialno=0):
         else:
             return serialno+1
 
+
 def get_network_from_zonename(name):
     """
     Returns a ipaddress.ip_network for given zonename
     """
     if name.endswith(".in-addr.arpa"):
-        name = name.replace('.in-addr.arpa','')
+        name = name.replace('.in-addr.arpa', '')
         splitted = list(reversed(name.split(".")))
         # RFC 2317. Classless in-addr. E.g: 128/25.0.0.0.in-addr.arpa
         if len(splitted) == 4 and "/" in splitted[3]:
@@ -108,7 +117,7 @@ def get_network_from_zonename(name):
             network = f"{net}/{netmask}"
         return ipaddress.ip_network(network)
     elif name.endswith(".ip6.arpa"):
-        name = name.replace('.ip6.arpa','')
+        name = name.replace('.ip6.arpa', '')
         splitted = name.split(".")
         netmask = 4 * len(splitted)
         net = ""
