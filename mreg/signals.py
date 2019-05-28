@@ -90,7 +90,7 @@ def _common_update_zone(signal, sender, instance):
         oldname = Host.objects.get(id=instance.id).name
         if instance.name != oldname:
             for model in (Cname, Srv,):
-                for i in model.objects.filter(host=instance):
+                for i in model.objects.filter(host=instance).exclude(zone=instance.zone):
                     zones.add(i.zone)
             for model in (Ipaddress, PtrOverride):
                 for i in model.objects.filter(host=instance):
