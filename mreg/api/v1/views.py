@@ -705,7 +705,7 @@ def _network_ptroverride_list(kwargs):
 @api_view()
 def network_ptroverride_list(request, *args, **kwargs):
     ptrs = _network_ptroverride_list(kwargs)
-    ptr_list = [str(i) for i in ptrs.values_list('ipaddress', flat=True)]
+    ptr_list = [i.ipaddress for i in ptrs]
     return Response(ptr_list, status=status.HTTP_200_OK)
 
 
