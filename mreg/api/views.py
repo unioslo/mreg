@@ -10,7 +10,7 @@ from rest_framework.views import APIView
 
 class ObtainExpiringAuthToken(ObtainAuthToken):
 
-    def post(self, request, **kwargs):
+    def post(self, request, *args, **kwargs):
         serializer = self.serializer_class(data=request.data,
                                            context={'request': request})
         serializer.is_valid(raise_exception=True)
