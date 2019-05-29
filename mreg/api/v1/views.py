@@ -1146,7 +1146,7 @@ class ModelChangeLogList(generics.ListAPIView):
 
     def get(self, request, *args, **kwargs):
         # Return a list of available tables there are logged histories for.
-        tables = list(set([value['table_name'] for value in self.queryset.values('table_name')]))
+        tables = list({value['table_name'] for value in self.queryset.values('table_name')})
         return Response(data=tables, status=status.HTTP_200_OK)
 
 
@@ -1231,8 +1231,8 @@ def _dhcpv6_hosts_by_ipv4(iprange):
     ipv4 = ipv4.exclude(macaddress='')
     ipv4 = ipv4.select_related('host')
     ipv4_host_ids = [ip.host.id for ip in ipv4]
-    ipv4_host2mac = dict([(hostname, mac) for hostname, mac in
-                          ipv4.values_list('host__name', 'macaddress')])
+    ipv4_host2mac = {hostname: mac for hostname, mac in
+                     ipv4.values_list('host__name', 'macaddress')}
     ipv6 = _get_ips_by_range('::/0')
     ipv6 = ipv6.filter(macaddress='')
     ipv6 = ipv6.filter(host__in=ipv4_host_ids).order_by('ipaddress')

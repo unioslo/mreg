@@ -52,7 +52,7 @@ class NameServer(models.Model):
 
 class ZoneHelpers:
     def update_nameservers(self, new_ns):
-        existing = set([i.name for i in self.nameservers.all()])
+        existing = {i.name for i in self.nameservers.all()}
         remove_ns = existing - set(new_ns)
         add_ns = set(new_ns) - existing
 
