@@ -87,7 +87,7 @@ class ForwardFile(Common):
             'record_type': iptype,
             'record_data': str(ip),
         }
-        return '{name:24} {ttl} IN {record_type:6} {record_data:39}\n'.format_map(data)
+        return '{name:24} {ttl} IN {record_type:6} {record_data}\n'.format_map(data)
 
     def mx_zf_string(self, name, ttl, priority, mx):
         data = {
@@ -97,7 +97,7 @@ class ForwardFile(Common):
             'priority': priority,
             'mx': idna_encode(qualify(mx, self.zone.name))
         }
-        return '{name:24} {ttl} IN {record_type} {priority:6} {mx:39}\n'.format_map(data)
+        return '{name:24} {ttl} IN {record_type} {priority:6} {mx}\n'.format_map(data)
 
     def sshfp_zf_string(self, name, ttl, algorithm, hash_type, fingerprint):
 
@@ -109,7 +109,7 @@ class ForwardFile(Common):
             'hash_type': hash_type,
             'fingerprint': fingerprint
         }
-        return '{name:24} {ttl} IN {record_type:6} {algorithm:2} {hash_type:2} {fingerprint:39}\n'.format_map(data)
+        return '{name:24} {ttl} IN {record_type:6} {algorithm:2} {hash_type:2} {fingerprint}\n'.format_map(data)
 
     def txt_zf_string(self, name, ttl, txt):
 
@@ -119,7 +119,7 @@ class ForwardFile(Common):
             'record_type': "TXT",
             'record_data': f'"{txt}"'
         }
-        return '{name:24} {ttl} IN {record_type:6} {record_data:39}\n'.format_map(data)
+        return '{name:24} {ttl} IN {record_type:6} {record_data}\n'.format_map(data)
 
     def naptr_zf_string(self, name, ttl, preference, order, flag, service, regex, replacement):
         """String representation for zonefile export."""
@@ -161,7 +161,7 @@ class ForwardFile(Common):
             'record_type': 'CNAME',
             'record_data': target,
         }
-        return '{alias:24} {ttl} IN {record_type:6} {record_data:39}\n'.format_map(data)
+        return '{alias:24} {ttl} IN {record_type:6} {record_data}\n'.format_map(data)
 
     def host_data(self, host):
         data = ""
