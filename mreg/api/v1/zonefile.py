@@ -194,7 +194,7 @@ class ForwardFile(Common):
             self.host_cnames[hostname].append((alias, ttl))
 
         ips = Ipaddress.objects.filter(host__zone=self.zone)
-        for network, record_type in (('0.0.0.0/0', 'A    '),
+        for network, record_type in (('0.0.0.0/0', 'A     '),
                                      ('::/0', 'AAAA  '),):
             ipfilter = ips.extra(where=["ipaddress << %s"], params=[network])
             for hostname, ip in ipfilter.values_list("host__name", "ipaddress"):
