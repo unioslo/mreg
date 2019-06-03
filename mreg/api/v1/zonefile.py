@@ -2,7 +2,7 @@ import ipaddress
 from collections import defaultdict
 
 from mreg.models import Cname, ForwardZone, Host, Ipaddress, Mx, Naptr, Srv, Sshfp, Txt
-from mreg.utils import clear_none, idna_encode, qualify
+from mreg.utils import idna_encode, qualify
 
 
 class ZoneFile:
@@ -45,10 +45,12 @@ class Common:
         if host.zone == self.zone:
             return ""
         data = ""
-        name_idna = idna_encode(qualify(host.name, self.zone.name))
+        idna_name = 'f{idna_encode(qualify(host.name, self.zone.name)):24}'
         ttl = prep_ttl(host.ttl)
         for ip in host.ipaddresses.all():
-            data += self.ip_zf_string(name_idna, ttl, ipaddress.ip_address(ip.ipaddress))
+            ipaddr = ipaddress.ip_address(ip.ipaddress)
+            record_type = 'A     ' if ipaddr.version == 4 else 'AAAA  '
+            data += self.ip_zf_string(idna_name, ttl, record_type, ip.ipaddress)
         return data
 
     def get_ns_data(self, qs):
@@ -75,19 +77,8 @@ class Common:
 
 class ForwardFile(Common):
 
-    def ip_zf_string(self, name, ttl, ip):
-        if ip.version == 4:
-            iptype = "A"
-        else:
-            iptype = "AAAA"
-
-        data = {
-            'name': name,
-            'ttl': ttl,
-            'record_type': iptype,
-            'record_data': str(ip),
-        }
-        return '{name:24} {ttl} IN {record_type:6} {record_data}\n'.format_map(data)
+    def ip_zf_string(self, name, ttl, record_type, record_data):
+        return f'{name} {ttl} IN {record_type} {record_data}\n'
 
     def mx_zf_string(self, name, ttl, priority, mx):
         data = {
@@ -97,29 +88,24 @@ class ForwardFile(Common):
             'priority': priority,
             'mx': idna_encode(qualify(mx, self.zone.name))
         }
-        return '{name:24} {ttl} IN {record_type} {priority:6} {mx}\n'.format_map(data)
+        return '{name} {ttl} IN {record_type} {priority:6} {mx}\n'.format_map(data)
 
     def sshfp_zf_string(self, name, ttl, algorithm, hash_type, fingerprint):
 
         data = {
             'name': name,
             'ttl': ttl,
-            'record_type': "SSHFP",
+            'record_type': "SSHFP ",
             'algorithm': algorithm,
             'hash_type': hash_type,
             'fingerprint': fingerprint
         }
-        return '{name:24} {ttl} IN {record_type:6} {algorithm:2} {hash_type:2} {fingerprint}\n'.format_map(data)
+        return '{name} {ttl} IN {record_type} {algorithm:2} {hash_type:2} {fingerprint}\n'.format_map(data)
 
     def txt_zf_string(self, name, ttl, txt):
-
-        data = {
-            'name': name,
-            'ttl': ttl,
-            'record_type': "TXT",
-            'record_data': f'"{txt}"'
-        }
-        return '{name:24} {ttl} IN {record_type:6} {record_data}\n'.format_map(data)
+        record_type = 'TXT   '
+        record_data = f'"{txt}"'
+        return f'{name} {ttl} IN {record_type} {record_data}\n'
 
     def naptr_zf_string(self, name, ttl, preference, order, flag, service, regex, replacement):
         """String representation for zonefile export."""
@@ -129,7 +115,7 @@ class ForwardFile(Common):
         data = {
             'name': name,
             'ttl': ttl,
-            'record_type': 'NAPTR',
+            'record_type': 'NAPTR ',
             'order': order,
             'preference': preference,
             'flag': flag,
@@ -137,7 +123,7 @@ class ForwardFile(Common):
             'regex': regex,
             'replacement': replacement,
         }
-        return '{name:24} {ttl} IN {record_type:6} {order} {preference} ' \
+        return '{name} {ttl} IN {record_type} {order} {preference} ' \
                '\"{flag}\" \"{service}\" \"{regex}\" {replacement}\n'.format_map(data)
 
     def srv_zf_string(self, name, ttl, priority, weight, port, target):
@@ -145,27 +131,28 @@ class ForwardFile(Common):
         data = {
             'name': idna_encode(qualify(name, self.zone.name)),
             'ttl': prep_ttl(ttl),
-            'record_type': 'SRV',
+            'record_type': 'SRV   ',
             'priority': priority,
             'weight': weight,
             'port': port,
             'target': target,
         }
-        return '{name:24} {ttl} IN {record_type:6} {priority} {weight} {port} {target}\n'.format_map(data)
+        return '{name:24} {ttl} IN {record_type} {priority} {weight} {port} {target}\n'.format_map(data)
 
     def cname_zf_string(self, alias, ttl, target):
         """String representation for zonefile export."""
         data = {
             'alias': idna_encode(qualify(alias, self.zone.name)),
             'ttl': prep_ttl(ttl),
-            'record_type': 'CNAME',
+            'record_type': 'CNAME ',
             'record_data': target,
         }
-        return '{alias:24} {ttl} IN {record_type:6} {record_data}\n'.format_map(data)
+        return '{alias:24} {ttl} IN {record_type} {record_data}\n'.format_map(data)
 
     def host_data(self, host):
         data = ""
-        idna_name = name = idna_encode(qualify(host.name, self.zone.name))
+        idna_name = idna_encode(qualify(host.name, self.zone.name))
+        name = f'{idna_name:24}'
         ttl = prep_ttl(host.ttl)
         for values, func in ((self.ipaddresses, self.ip_zf_string),
                              (self.mxs, self.mx_zf_string),
@@ -176,7 +163,8 @@ class ForwardFile(Common):
             if host.name in values:
                 for i in values[host.name]:
                     data += func(name, ttl, *i)
-                    name = ""
+                    if data:
+                        name = f'{" ":24}'
 
         # XXX: add caching for this one, if we populate it..
         if host.hinfo is not None:
@@ -206,8 +194,11 @@ class ForwardFile(Common):
             self.host_cnames[hostname].append((alias, ttl))
 
         ips = Ipaddress.objects.filter(host__zone=self.zone)
-        for hostname, ip in ips.values_list("host__name", "ipaddress"):
-            self.ipaddresses[hostname].append((ipaddress.ip_address(ip),))
+        for network, record_type in (('0.0.0.0/0', 'A     '),
+                                     ('::/0', 'AAAA  '),):
+            ipfilter = ips.extra(where=["ipaddress << %s"], params=[network])
+            for hostname, ip in ipfilter.values_list("host__name", "ipaddress"):
+                self.ipaddresses[hostname].append((record_type, ip,))
 
         mxs = Mx.objects.filter(host__zone=self.zone)
         for hostname, priority, mx in mxs.values_list("host__name", "priority", "mx"):
@@ -323,4 +314,6 @@ class IPv6ReverseFile(Common):
 
 
 def prep_ttl(ttl):
-    return f'{clear_none(ttl):5}'
+    if ttl is None:
+        return '     '
+    return f'{ttl:5}'
