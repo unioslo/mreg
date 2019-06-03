@@ -95,12 +95,12 @@ class ForwardFile(Common):
         data = {
             'name': name,
             'ttl': ttl,
-            'record_type': "SSHFP",
+            'record_type': "SSHFP ",
             'algorithm': algorithm,
             'hash_type': hash_type,
             'fingerprint': fingerprint
         }
-        return '{name} {ttl} IN {record_type:6} {algorithm:2} {hash_type:2} {fingerprint}\n'.format_map(data)
+        return '{name} {ttl} IN {record_type} {algorithm:2} {hash_type:2} {fingerprint}\n'.format_map(data)
 
     def txt_zf_string(self, name, ttl, txt):
         record_type = 'TXT   '
@@ -115,7 +115,7 @@ class ForwardFile(Common):
         data = {
             'name': name,
             'ttl': ttl,
-            'record_type': 'NAPTR',
+            'record_type': 'NAPTR ',
             'order': order,
             'preference': preference,
             'flag': flag,
@@ -123,7 +123,7 @@ class ForwardFile(Common):
             'regex': regex,
             'replacement': replacement,
         }
-        return '{name} {ttl} IN {record_type:6} {order} {preference} ' \
+        return '{name} {ttl} IN {record_type} {order} {preference} ' \
                '\"{flag}\" \"{service}\" \"{regex}\" {replacement}\n'.format_map(data)
 
     def srv_zf_string(self, name, ttl, priority, weight, port, target):
@@ -131,23 +131,23 @@ class ForwardFile(Common):
         data = {
             'name': idna_encode(qualify(name, self.zone.name)),
             'ttl': prep_ttl(ttl),
-            'record_type': 'SRV',
+            'record_type': 'SRV   ',
             'priority': priority,
             'weight': weight,
             'port': port,
             'target': target,
         }
-        return '{name:24} {ttl} IN {record_type:6} {priority} {weight} {port} {target}\n'.format_map(data)
+        return '{name:24} {ttl} IN {record_type} {priority} {weight} {port} {target}\n'.format_map(data)
 
     def cname_zf_string(self, alias, ttl, target):
         """String representation for zonefile export."""
         data = {
             'alias': idna_encode(qualify(alias, self.zone.name)),
             'ttl': prep_ttl(ttl),
-            'record_type': 'CNAME',
+            'record_type': 'CNAME ',
             'record_data': target,
         }
-        return '{alias:24} {ttl} IN {record_type:6} {record_data}\n'.format_map(data)
+        return '{alias:24} {ttl} IN {record_type} {record_data}\n'.format_map(data)
 
     def host_data(self, host):
         data = ""
