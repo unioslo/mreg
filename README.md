@@ -74,7 +74,7 @@ you'll want to override this when testing. To to this, just add the following to
 ```
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql_psycopg2',
+        'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'mreg_sample',
         'USER': 'mreg_user',
         'PASSWORD': 'mregdbpass',
@@ -172,7 +172,7 @@ For å connecte til lokal database kan man legge inn følgende:
 ```
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql_psycopg2',
+        'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'mreg_sample',
         'USER': 'mreg_user',
         'PASSWORD': 'mregdbpass',

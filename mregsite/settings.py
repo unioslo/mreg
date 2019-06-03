@@ -111,7 +111,7 @@ if 'TRAVIS' in os.environ:
     ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
     DATABASES = {
         'default': {
-            'ENGINE':   'django.db.backends.postgresql_psycopg2',
+            'ENGINE':   'django.db.backends.postgresql',
             'NAME':     'travisci',
             'USER':     'postgres',
             'PASSWORD': '',
