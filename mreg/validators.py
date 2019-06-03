@@ -140,7 +140,7 @@ def validate_regex(regex):
 
 def validate_srv_service_text(servicetext):
     """Validates that the srv service text input is valid."""
-    servicetext_regex = r'^_[a-z0-9]+([a-z0-9][_-]?)+[a-z0-9]+._(tcp|tls|udp)\.'
+    servicetext_regex = r'^_[a-z0-9]+(([a-z0-9][_-]?)+[a-z0-9]+)?._(tcp|tls|udp)\.'
     validator = RegexValidator(servicetext_regex, message="Must match: " + servicetext_regex)
     validator(servicetext)
 

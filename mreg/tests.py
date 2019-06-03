@@ -83,6 +83,8 @@ class ModelSrvTestCase(TestCase):
         _create('_test_underscore._tls.example.org')
         # Hypen
         _create('_test_underscore-hypen._tls.example.org')
+        # short serivce
+        _create('_gc._tcp.example.org')
 
     def test_reject_various_service_names(self):
         def _create(name):
