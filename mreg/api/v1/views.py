@@ -619,12 +619,7 @@ class NetworkList(generics.ListCreateAPIView):
             return error
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        network = serializer.create()
-        ip_network = network.network
-        # Changed the default value of reserved if the size of the network is too low
-        if ip_network.num_addresses <= 4:
-            network.reserved = min(2, ip_network.num_addresses)
-        self.perform_create(network)
+        self.perform_create(serializer)
         location = '/networks/%s' % request.data
         return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
 
