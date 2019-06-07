@@ -1718,7 +1718,7 @@ class APICnamesTestCase(MregAPITestCase):
         self.assertEqual(response.status_code, 204)
 
 
-class APINetworksTestCase(MregAPITestCase):
+class NetworksTestCase(MregAPITestCase):
     """"This class defines the test suite for api/networks """
     def setUp(self):
         """Define the test client and other variables."""
@@ -1730,7 +1730,7 @@ class APINetworksTestCase(MregAPITestCase):
                                       category='so',
                                       location='Location 1',
                                       frozen=False)
-        self.network_ipv6_sample = Network(network='2001:db8::/32',
+        self.network_ipv6_sample = Network(network='2001:db8::/56',
                                            description='some IPv6 description',
                                            vlan=123,
                                            dns_delegated=False,
@@ -1746,7 +1746,7 @@ class APINetworksTestCase(MregAPITestCase):
                                           location='Location 2',
                                           frozen=False)
 
-        self.network_ipv6_sample_two = Network(network='2001:db8:8000::/33',
+        self.network_ipv6_sample_two = Network(network='2001:db8:0:1::/64',
                                                description='some IPv6 description',
                                                vlan=135,
                                                dns_delegated=False,
@@ -1781,7 +1781,7 @@ class APINetworksTestCase(MregAPITestCase):
         self.patch_data_network = {'network': '10.0.0.0/28'}
         self.patch_ipv6_data_network = {'network': '2001:db8::/64'}
         self.patch_data_network_overlap = {'network': '10.0.1.0/29'}
-        self.patch_ipv6_data_network_overlap = {'network': '2001:db8:8000::/34'}
+        self.patch_ipv6_data_network_overlap = {'network': '2001:db8:0:1::/64'}
 
         self.post_data = {
             'network': '192.0.2.0/29',
@@ -1826,7 +1826,7 @@ class APINetworksTestCase(MregAPITestCase):
             'dns_delegated': 'False',
         }
         self.post_ipv6_data_overlap = {
-            'network': '2001:db8:8000::/34',
+            'network': '2001:db8:0:1::/64',
             'description': 'Test IPv6 network',
             'vlan': '435',
             'dns_delegated': 'False',
@@ -2090,6 +2090,26 @@ class APINetworksTestCase(MregAPITestCase):
         self.assertEqual(response.status_code, 201)
         response = self.client.get('/networks/%s/first_unused' % data['network'])
         self.assertEqual(response.status_code, 404)
+
+    def test_reserved_is_less_or_equal_than_num_addresses(self):
+        def _assert(network, excepted, reserved=3):
+            data = {
+                'network': network,
+                'description': 'Tiny network',
+                'reserved': reserved,
+            }
+            response = self.client.post('/networks/', data)
+            self.assertEqual(response.status_code, 201)
+            obj = Network.objects.get(network=data['network'])
+            self.assertEqual(obj.reserved, excepted)
+            self.assertLessEqual(obj.reserved, obj.network.num_addresses)
+
+        _assert('172.16.0.0/30', 4, 8)
+        _assert('172.16.0.4/31', 1, 1)
+        _assert('172.16.0.6/32', 1, 2)
+        _assert('2001:db8:1::/126', 4, 8)
+        _assert('2001:db8:1::4/127', 1, 1)
+        _assert('2001:db8:1::6/128', 1, 2)
 
     def test_networks_get_ptroverride_list(self):
         """GET on /networks/<ip/mask>/ptroverride_list should return 200 ok and data."""
