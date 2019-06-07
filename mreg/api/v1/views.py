@@ -1018,8 +1018,14 @@ class ZoneDetail(MregRetrieveUpdateDestroyAPIView):
 
     def delete(self, request, *args, **kwargs):
         zone = self.get_object()
-        zone.remove_nameservers()
-        zone.delete()
+        if isinstance(zone, ForwardZone):
+            qs = Host.objects.filter(zone=zone)
+            if qs.exists():
+                content = {'ERROR': f'{zone.name} still in use by {qs.count()} hosts'}
+                return Response(content, status=status.HTTP_403_FORBIDDEN)
+        with transaction.atomic():
+            zone.remove_nameservers()
+            zone.delete()
         _update_parent_zone(self.get_queryset(), zone.name)
         location = f"/zones/{zone.name}"
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
