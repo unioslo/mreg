@@ -436,6 +436,16 @@ class Network(models.Model):
     def __str__(self):
         return str(self.network)
 
+    def save(self, *args, **kwargs):
+        if isinstance(self.network, str):
+            network = ipaddress.ip_network(self.network)
+        else:
+            network = self.network
+
+        if self.reserved > network.num_addresses:
+            self.reserved = network.num_addresses
+        super().save(*args, **kwargs)
+
     def get_reserved_ipaddresses(self):
         """ Returns a set with the reserved ip addresses for the network."""
         network = self.network
