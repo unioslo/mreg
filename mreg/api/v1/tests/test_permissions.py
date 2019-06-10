@@ -7,36 +7,30 @@ class APINetGroupRegexPermissionTestCase(MregAPITestCase):
             'regex': r'.*\.example\.org$'}
 
     def test_create(self):
-        ret = self.client.post('/permissions/netgroupregex/', self.data)
-        self.assertEqual(ret.status_code, 201)
+        self.assert_post('/permissions/netgroupregex/', self.data)
 
     def test_get(self):
-        ret1 = self.client.post('/permissions/netgroupregex/', self.data)
-        ret2 = self.client.get('/permissions/netgroupregex/{}'.format(ret1.json()['id']))
-        self.assertEqual(ret2.status_code, 200)
+        ret1 = self.assert_post('/permissions/netgroupregex/', self.data)
+        ret2 = self.assert_get('/permissions/netgroupregex/{}'.format(ret1.json()['id']))
         self.assertEqual(ret1.json(), ret2.json())
 
     def test_list(self):
-        ret1 = self.client.post('/permissions/netgroupregex/', self.data)
-        ret2 = self.client.get('/permissions/netgroupregex/')
-        self.assertEqual(ret2.status_code, 200)
-        data = ret2.json()
+        ret1 = self.assert_post('/permissions/netgroupregex/', self.data)
+        data = self.assert_get('/permissions/netgroupregex/').json()
         self.assertEqual(data['count'], 1)
         self.assertEqual(data['results'][0], ret1.json())
 
     def test_update(self):
-        ret1 = self.client.post('/permissions/netgroupregex/', self.data)
-        ret = self.client.patch('/permissions/netgroupregex/{}'.format(ret1.json()['id']),
-                                {'group': 'testgroup2'})
-        self.assertEqual(ret.status_code, 204)
-        ret = self.client.get('/permissions/netgroupregex/{}'.format(ret1.json()['id']))
+        ret1 = self.assert_post('/permissions/netgroupregex/', self.data)
+        self.assert_patch('/permissions/netgroupregex/{}'.format(ret1.json()['id']),
+                          {'group': 'testgroup2'})
+        ret = self.assert_get('/permissions/netgroupregex/{}'.format(ret1.json()['id']))
         self.assertEqual(ret.json()['group'], 'testgroup2')
 
     def test_delete(self):
-        ret1 = self.client.post('/permissions/netgroupregex/', self.data)
-        data = self.client.get('/permissions/netgroupregex/').json()
+        ret1 = self.assert_post('/permissions/netgroupregex/', self.data)
+        data = self.assert_get('/permissions/netgroupregex/').json()
         self.assertEqual(data['count'], 1)
-        ret = self.client.delete('/permissions/netgroupregex/{}'.format(ret1.json()['id']))
-        self.assertEqual(ret.status_code, 204)
-        data = self.client.get('/permissions/netgroupregex/').json()
+        self.assert_delete('/permissions/netgroupregex/{}'.format(ret1.json()['id']))
+        data = self.assert_get('/permissions/netgroupregex/').json()
         self.assertEqual(data['count'], 0)

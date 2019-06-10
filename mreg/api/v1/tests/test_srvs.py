@@ -16,8 +16,7 @@ class APISrvsTestCase(MregAPITestCase):
                 'weight': 20,
                 'port': '1234',
                 'host': self.host_target.id}
-        ret = self.client.post("/srvs/", data)
-        self.assertEqual(ret.status_code, 201)
+        self.assert_post("/srvs/", data)
 
     def test_srvs_post_reject_invalid(self):
         data = {'name': '_test._tcp.example.org',
@@ -27,8 +26,7 @@ class APISrvsTestCase(MregAPITestCase):
                 'host': self.host_target.id}
 
         def _assert_400():
-            ret = self.client.post("/srvs/", fail)
-            self.assertEqual(ret.status_code, 400)
+            self.assert_post_and_400("/srvs/", fail)
         # Missing name
         fail = data.copy()
         del fail['name']
@@ -44,16 +42,14 @@ class APISrvsTestCase(MregAPITestCase):
 
     def test_srvs_list(self):
         self.test_srvs_post()
-        ret = self.client.get("/srvs/")
-        self.assertEqual(ret.status_code, 200)
+        ret = self.assert_get("/srvs/")
         self.assertEqual(ret.data['count'], 1)
 
     def test_srvs_delete(self):
         self.test_srvs_post()
-        srvs = self.client.get("/srvs/").json()['results']
-        ret = self.client.delete("/srvs/{}".format(srvs[0]['id']))
-        self.assertEqual(ret.status_code, 204)
-        sshfps = self.client.get("/srvs/").json()
+        srvs = self.assert_get("/srvs/").json()['results']
+        self.assert_delete("/srvs/{}".format(srvs[0]['id']))
+        sshfps = self.assert_get("/srvs/").json()
         self.assertEqual(len(sshfps['results']), 0)
 
     def test_srvs_zone_autoupdate_add(self):
@@ -69,7 +65,7 @@ class APISrvsTestCase(MregAPITestCase):
         self.test_srvs_post()
         zone.updated = False
         zone.save()
-        sshfps = self.client.get("/srvs/").data['results']
-        self.client.delete("/srvs/{}".format(sshfps[0]['id']))
+        sshfps = self.assert_get("/srvs/").data['results']
+        self.assert_delete("/srvs/{}".format(sshfps[0]['id']))
         zone.refresh_from_db()
         self.assertTrue(zone.updated)
