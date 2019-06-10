@@ -18,57 +18,48 @@ class APIHostGroupsTestCase(MregAPITestCase):
 
     def test_hostgroups_get_200_ok(self):
         """"Getting an existing entry should return 200"""
-        response = self.client.get('/hostgroups/%s' % self.hostgroup_one.name)
-        self.assertEqual(response.status_code, 200)
+        self.assert_get('/hostgroups/%s' % self.hostgroup_one.name)
 
     def test_hostgroups_list_200_ok(self):
         """List all hosts should return 200"""
-        response = self.client.get('/hostgroups/')
-        self.assertEqual(response.status_code, 200)
+        response = self.assert_get('/hostgroups/')
         data = response.json()
         self.assertEqual(data['count'], 2)
         self.assertEqual(len(data['results']), 2)
 
     def test_hostgroups_get_404_not_found(self):
         """"Getting a non-existing entry should return 404"""
-        response = self.client.get('/hostgroups/nonexisting-group')
-        self.assertEqual(response.status_code, 404)
+        self.assert_get_and_404('/hostgroups/nonexisting-group')
 
     def test_hostgroups_post_201_created(self):
         """"Posting a new host should return 201 and location"""
         post_data = {'name': 'testgroup3'}
-        response = self.client.post('/hostgroups/', post_data)
-        self.assertEqual(response.status_code, 201)
+        response = self.assert_post('/hostgroups/', post_data)
         self.assertEqual(response['Location'], '/hostgroups/%s' % post_data['name'])
 
     def test_hostgroups_rename_204_ok(self):
         """Rename a group should return 204 ok"""
-        response = self.client.patch(f'/hostgroups/{self.hostgroup_one.name}',
+        response = self.assert_patch(f'/hostgroups/{self.hostgroup_one.name}',
                                      {'name': 'newname'})
         self.assertEqual(response['Location'], '/hostgroups/newname')
-        self.assertEqual(response.status_code, 204)
 
     def test_hostgroups_patch_description_204_ok(self):
         """Rename a group should return 204 ok"""
-        response = self.client.patch(f'/hostgroups/{self.hostgroup_one.name}',
-                                     {'description': 'new d€scription'})
-        self.assertEqual(response.status_code, 204)
-        response = self.client.get('/hostgroups/%s' % self.hostgroup_one.name)
-        self.assertEqual(response.json()['description'], 'new d€scription')
+        self.assert_patch(f'/hostgroups/{self.hostgroup_one.name}',
+                          {'description': 'new d€scription'})
+        data = self.assert_get('/hostgroups/%s' % self.hostgroup_one.name).json()
+        self.assertEqual(data['description'], 'new d€scription')
 
     def test_hostgroup_create_group_twice_409_conflict(self):
         post_data = {'name': 'testgroup'}
-        response = self.client.post('/hostgroups/', post_data)
-        self.assertEqual(response.status_code, 201)
+        self.assert_post('/hostgroups/', post_data)
         post_data = {'name': 'TESTGROUP'}
-        response = self.client.post('/hostgroups/', post_data)
-        self.assertEqual(response.status_code, 409)
+        self.assert_post_and_409('/hostgroups/', post_data)
 
     def test_hostgroups_rename_to_name_in_use_400_bad_request(self):
         """Rename a group should return 204 ok"""
-        response = self.client.patch(f'/hostgroups/{self.hostgroup_one.name}',
-                                     {'name': self.hostgroup_two})
-        self.assertEqual(response.status_code, 400)
+        self.assert_patch_and_400(f'/hostgroups/{self.hostgroup_one.name}',
+                                  {'name': self.hostgroup_two})
 
 
 class APIHostGroupGroupsTestCase(MregAPITestCase):
@@ -82,44 +73,37 @@ class APIHostGroupGroupsTestCase(MregAPITestCase):
         self.hostgroup_three = HostGroup.objects.create(name='testgroup3')
 
     def test_groups_list_200_ok(self):
-        response = self.client.get(f'/hostgroups/{self.hostgroup_one.name}/groups/')
-        self.assertEqual(response.status_code, 200)
+        response = self.assert_get(f'/hostgroups/{self.hostgroup_one.name}/groups/')
         self.assertEqual(response.json()['results'], [])
 
     def test_groups_add_group_to_group_201_ok(self):
-        response = self.client.post(f'/hostgroups/{self.hostgroup_one.name}/groups/',
-                                    {'name': self.hostgroup_two.name})
-        self.assertEqual(response.status_code, 201)
+        self.assert_post(f'/hostgroups/{self.hostgroup_one.name}/groups/',
+                         {'name': self.hostgroup_two.name})
 
     def test_hosts_add_host_twice_to_group_409_conflict(self):
-        response = self.client.post(f'/hostgroups/{self.hostgroup_one.name}/groups/',
-                                    {'name': self.hostgroup_two.name})
-        response = self.client.post(f'/hostgroups/{self.hostgroup_one.name}/groups/',
-                                    {'name': self.hostgroup_two.name})
-        self.assertEqual(response.status_code, 409)
+        self.assert_post(f'/hostgroups/{self.hostgroup_one.name}/groups/',
+                         {'name': self.hostgroup_two.name})
+        self.assert_post_and_409(f'/hostgroups/{self.hostgroup_one.name}/groups/',
+                                 {'name': self.hostgroup_two.name})
 
     def test_groups_add_missing_name_group_400_forbidden(self):
-        response = self.client.post(f'/hostgroups/{self.hostgroup_one.name}/groups/',
-                                    {'name2': 'something'})
-        self.assertEqual(response.status_code, 400)
+        self.assert_post_and_400(f'/hostgroups/{self.hostgroup_one.name}/groups/',
+                                 {'name2': 'something'})
 
     def test_group_list_with_content_200_ok(self):
         self.test_groups_add_group_to_group_201_ok()
-        response = self.client.get(f'/hostgroups/{self.hostgroup_one.name}/groups/')
-        self.assertEqual(response.status_code, 200)
+        response = self.assert_get(f'/hostgroups/{self.hostgroup_one.name}/groups/')
         self.assertEqual(response.json()['results'][0]['name'], 'testgroup2')
 
     def test_groups_add_invalid_group_to_group_404_not_found(self):
-        response = self.client.post(f'/hostgroups/{self.hostgroup_one.name}/groups/',
-                                    {'name': 'cheese'})
-        self.assertEqual(response.status_code, 404)
+        self.assert_post_and_404(f'/hostgroups/{self.hostgroup_one.name}/groups/',
+                                 {'name': 'cheese'})
 
     def test_remove_groupmember_204_ok(self):
-        self.client.post(f'/hostgroups/{self.hostgroup_one.name}/groups/',
+        self.assert_post(f'/hostgroups/{self.hostgroup_one.name}/groups/',
                          {'name': self.hostgroup_two.name})
         path = f'/hostgroups/{self.hostgroup_one.name}/groups/{self.hostgroup_two.name}'
-        response = self.client.delete(path)
-        self.assertEqual(response.status_code, 204)
+        self.assert_delete(path)
         # Make sure the group itself is not deleted, just removed from m2m-relation.
         self.hostgroup_two.refresh_from_db()
         self.assertEqual(self.hostgroup_one.groups.count(), 0)
@@ -137,33 +121,28 @@ class APIHostGroupHostsTestCase(MregAPITestCase):
         clean_and_save(self.hostgroup_one)
 
     def test_hosts_list_200_ok(self):
-        response = self.client.get(f'/hostgroups/{self.hostgroup_one.name}/hosts/')
-        self.assertEqual(response.status_code, 200)
+        response = self.assert_get(f'/hostgroups/{self.hostgroup_one.name}/hosts/')
         self.assertEqual(response.json()['results'], [])
 
     def test_hosts_add_host_to_group_201_ok(self):
-        response = self.client.post(f'/hostgroups/{self.hostgroup_one.name}/hosts/',
-                                    {'name': self.host_one.name})
-        self.assertEqual(response.status_code, 201)
+        self.assert_post(f'/hostgroups/{self.hostgroup_one.name}/hosts/',
+                         {'name': self.host_one.name})
 
     def test_hosts_add_host_twice_to_group_409_conflict(self):
-        self.client.post(f'/hostgroups/{self.hostgroup_one.name}/hosts/',
+        self.assert_post(f'/hostgroups/{self.hostgroup_one.name}/hosts/',
                          {'name': self.host_one.name})
-        response = self.client.post(f'/hostgroups/{self.hostgroup_one.name}/hosts/',
-                                    {'name': self.host_one.name})
-        self.assertEqual(response.status_code, 409)
+        self.assert_post_and_409(f'/hostgroups/{self.hostgroup_one.name}/hosts/',
+                                 {'name': self.host_one.name})
 
     def test_add_unknown_host_to_group_404_not_found(self):
-        response = self.client.post(f'/hostgroups/{self.hostgroup_one.name}/hosts/',
-                                    {'name': 'cheese'})
-        self.assertEqual(response.status_code, 404)
+        self.assert_post_and_404(f'/hostgroups/{self.hostgroup_one.name}/hosts/',
+                                 {'name': 'cheese'})
 
     def test_remove_hostsmember_204_ok(self):
-        self.client.post(f'/hostgroups/{self.hostgroup_one.name}/hosts/',
+        self.assert_post(f'/hostgroups/{self.hostgroup_one.name}/hosts/',
                          {'name': self.host_one.name})
         path = f'/hostgroups/{self.hostgroup_one.name}/hosts/{self.host_one.name}'
-        response = self.client.delete(path)
-        self.assertEqual(response.status_code, 204)
+        self.assert_delete(path)
         # Make sure the host itself is not deleted, just removed from m2m-relation.
         self.host_one.refresh_from_db()
         self.assertEqual(self.hostgroup_one.hosts.count(), 0)
@@ -179,33 +158,28 @@ class APIHostGroupOwnersTestCase(MregAPITestCase):
         self.hostgroup_one = HostGroup.objects.create(name='testgroup1')
 
     def test_owners_list_200_ok(self):
-        response = self.client.get(f'/hostgroups/{self.hostgroup_one.name}/owners/')
-        self.assertEqual(response.status_code, 200)
+        response = self.assert_get(f'/hostgroups/{self.hostgroup_one.name}/owners/')
         self.assertEqual(response.json()['results'], [])
 
     def test_owners_add_owner_to_group_201_ok(self):
-        response = self.client.post(f'/hostgroups/{self.hostgroup_one.name}/owners/',
-                                    {'name': self.owner_one.name})
-        self.assertEqual(response.status_code, 201)
+        self.assert_post(f'/hostgroups/{self.hostgroup_one.name}/owners/',
+                         {'name': self.owner_one.name})
 
     def test_owners_add_owner_twice_to_group_409_conflict(self):
-        self.client.post(f'/hostgroups/{self.hostgroup_one.name}/owners/',
+        self.assert_post(f'/hostgroups/{self.hostgroup_one.name}/owners/',
                          {'name': self.owner_one.name})
-        response = self.client.post(f'/hostgroups/{self.hostgroup_one.name}/owners/',
-                                    {'name': self.owner_one.name})
-        self.assertEqual(response.status_code, 409)
+        self.assert_post_and_409(f'/hostgroups/{self.hostgroup_one.name}/owners/',
+                                 {'name': self.owner_one.name})
 
     def test_add_unknown_owner_to_group_404_not_found(self):
-        response = self.client.post(f'/hostgroups/{self.hostgroup_one.name}/owners/',
-                                    {'name': 'cheese'})
-        self.assertEqual(response.status_code, 404)
+        self.assert_post_and_404(f'/hostgroups/{self.hostgroup_one.name}/owners/',
+                                 {'name': 'cheese'})
 
     def test_remove_hostsmember_204_ok(self):
-        self.client.post(f'/hostgroups/{self.hostgroup_one.name}/owners/',
+        self.assert_post(f'/hostgroups/{self.hostgroup_one.name}/owners/',
                          {'name': self.owner_one.name})
         path = f'/hostgroups/{self.hostgroup_one.name}/owners/{self.owner_one.name}'
-        response = self.client.delete(path)
-        self.assertEqual(response.status_code, 204)
+        self.assert_delete(path)
         # Make sure the group itself is not deleted, just removed from m2m-relation.
         self.owner_one.refresh_from_db()
         self.assertEqual(self.hostgroup_one.owners.count(), 0)
