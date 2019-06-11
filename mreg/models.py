@@ -15,11 +15,11 @@ from .fields import DnsNameField, LCICharField
 from .models_auth import User  # noqa: F401, needed by mreg.settings for now
 from .utils import (clear_none, create_serialno, encode_mail,
                     get_network_from_zonename, idna_encode, qualify, quote_if_space)
-from .validators import (validate_16bit_uint, validate_hexadecimal,
+from .validators import (validate_16bit_uint, validate_32bit_uint, validate_hexadecimal,
                          validate_hostname, validate_loc, validate_mac_address,
                          validate_naptr_flag, validate_regex,
                          validate_reverse_zone_name, validate_srv_service_text,
-                         validate_ttl, validate_zones_serialno)
+                         validate_ttl)
 
 
 class NameServer(models.Model):
@@ -90,7 +90,7 @@ class BaseZone(models.Model, ZoneHelpers):
     nameservers = models.ManyToManyField(NameServer, db_column='ns')
     email = pgfields.CIEmailField()
     serialno = models.BigIntegerField(default=create_serialno,
-                                      validators=[validate_zones_serialno])
+                                      validators=[validate_32bit_uint])
     serialno_updated_at = models.DateTimeField(default=timezone.now)
     # TODO: Configurable? Ask hostmaster
     refresh = models.IntegerField(default=10800)
@@ -363,6 +363,10 @@ class Ipaddress(models.Model):
 
     def __str__(self):
         return "{} -> {}".format(str(self.ipaddress), str(self.macaddress) or "None")
+
+    def delete(self, using=None, keep_parents=False):
+        PtrOverride.objects.filter(host=self.host, ipaddress=self.ipaddress).delete()
+        return super().delete(using=using, keep_parents=keep_parents)
 
 
 class Mx(models.Model):

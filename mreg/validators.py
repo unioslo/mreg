@@ -11,14 +11,20 @@ from rest_framework import serializers
 from .utils import get_network_from_zonename
 
 
-# TODO: Move some validators to client
 # TODO: Implement validation for retry, refresh, expire
 
 def validate_16bit_uint(value):
-    if value < 0:
-        raise ValidationError("Ensure this value is greater than or equal to 0.")
-    if value > 65535:
-        raise ValidationError("Ensure this value is less than or equal to 65535.")
+    validator_min = MinValueValidator(0)
+    validator_max = MaxValueValidator(2**16-1)
+    validator_min(value)
+    validator_max(value)
+
+
+def validate_32bit_uint(value):
+    validator_min = MinValueValidator(0)
+    validator_max = MaxValueValidator(2**31-1)
+    validator_min(value)
+    validator_max(value)
 
 
 def validate_ttl(value):
@@ -143,14 +149,6 @@ def validate_srv_service_text(servicetext):
     servicetext_regex = r'^_[a-z0-9]+(([a-z0-9][_-]?)+[a-z0-9]+)?._(tcp|tls|udp)\.'
     validator = RegexValidator(servicetext_regex, message="Must match: " + servicetext_regex)
     validator(servicetext)
-
-
-def validate_zones_serialno(serialno):
-    """ Validates that the zones serialno is within given parameters."""
-    validator_min = MinValueValidator(1000000000)
-    validator_max = MaxValueValidator(9999999999)
-    validator_min(serialno)
-    validator_max(serialno)
 
 
 def validate_keys(obj):
