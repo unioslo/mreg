@@ -180,10 +180,6 @@ class NetworkSerializer(ValidationMixin, serializers.ModelSerializer):
         model = Network
         fields = '__all__'
 
-    def create(self):
-        return Network(**self.validated_data)
-
-
 class NetGroupRegexPermissionSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
         model = NetGroupRegexPermission
