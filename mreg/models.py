@@ -355,6 +355,7 @@ class Ipaddress(models.Model):
                              related_name='ipaddresses')
     ipaddress = models.GenericIPAddressField()
     macaddress = models.CharField(max_length=17, blank=True, validators=[validate_mac_address])
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = 'ipaddress'
