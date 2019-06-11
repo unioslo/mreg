@@ -248,9 +248,6 @@ class ModelChangeLogSerializer(ValidationMixin, serializers.ModelSerializer):
         model = ModelChangeLog
         fields = '__all__'
 
-    def create(self):
-        return ModelChangeLog(**self.validated_data)
-
 
 class GroupSerializer(serializers.ModelSerializer):
 
