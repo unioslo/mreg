@@ -35,6 +35,7 @@ class APIHostGroupsTestCase(MregAPITestCase):
         """"Posting a new host should return 201 and location"""
         post_data = {'name': 'testgroup3'}
         response = self.assert_post('/hostgroups/', post_data)
+        self.assert_get(response['Location'])
         self.assertEqual(response['Location'], '/hostgroups/%s' % post_data['name'])
 
     def test_hostgroups_rename_204_ok(self):
@@ -77,8 +78,9 @@ class APIHostGroupGroupsTestCase(MregAPITestCase):
         self.assertEqual(response.json()['results'], [])
 
     def test_groups_add_group_to_group_201_ok(self):
-        self.assert_post(f'/hostgroups/{self.hostgroup_one.name}/groups/',
-                         {'name': self.hostgroup_two.name})
+        response = self.assert_post(f'/hostgroups/{self.hostgroup_one.name}/groups/',
+                                    {'name': self.hostgroup_two.name})
+        self.assert_get(response['Location'])
 
     def test_hosts_add_host_twice_to_group_409_conflict(self):
         self.assert_post(f'/hostgroups/{self.hostgroup_one.name}/groups/',
@@ -158,12 +160,18 @@ class APIHostGroupOwnersTestCase(MregAPITestCase):
         self.hostgroup_one = HostGroup.objects.create(name='testgroup1')
 
     def test_owners_list_200_ok(self):
-        response = self.assert_get(f'/hostgroups/{self.hostgroup_one.name}/owners/')
-        self.assertEqual(response.json()['results'], [])
-
-    def test_owners_add_owner_to_group_201_ok(self):
+        def _assert_get(result):
+            response = self.assert_get(f'/hostgroups/{self.hostgroup_one.name}/owners/')
+            self.assertEqual(response.json()['results'], result)
+        _assert_get([])
         self.assert_post(f'/hostgroups/{self.hostgroup_one.name}/owners/',
                          {'name': self.owner_one.name})
+        _assert_get([{'name': 'testowner'}])
+
+    def test_owners_add_owner_to_group_201_ok(self):
+        response = self.assert_post(f'/hostgroups/{self.hostgroup_one.name}/owners/',
+                                    {'name': self.owner_one.name})
+        self.assert_get(response['Location'])
 
     def test_owners_add_owner_twice_to_group_409_conflict(self):
         self.assert_post(f'/hostgroups/{self.hostgroup_one.name}/owners/',
@@ -183,3 +191,8 @@ class APIHostGroupOwnersTestCase(MregAPITestCase):
         # Make sure the group itself is not deleted, just removed from m2m-relation.
         self.owner_one.refresh_from_db()
         self.assertEqual(self.hostgroup_one.owners.count(), 0)
+
+    def test_patch_hostmember_405_method_not_allowed(self):
+        data = self.assert_post(f'/hostgroups/{self.hostgroup_one.name}/owners/',
+                                {'name': self.owner_one.name})
+        self.assert_patch_and_405(data['Location'], {'name': 'newgroupname'})
