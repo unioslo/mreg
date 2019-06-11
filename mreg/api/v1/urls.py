@@ -29,7 +29,7 @@ urlpatterns = [
     path('naptrs/', views.NaptrList.as_view()),
     path('naptrs/<pk>', views.NaptrDetail.as_view()),
     path('nameservers/', views.NameServerList.as_view()),
-    path('nameservers/<pk>', views.NameServerDetail.as_view()),
+    path('nameservers/<name>', views.NameServerDetail.as_view()),
     path('ptroverrides/', views.PtrOverrideList.as_view()),
     path('ptroverrides/<pk>', views.PtrOverrideDetail.as_view()),
     path('sshfps/', views.SshfpList.as_view()),

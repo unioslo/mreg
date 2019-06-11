@@ -453,6 +453,7 @@ class NaptrDetail(HostPermissionsUpdateDestroy,
     delete:
     Delete the specified Naptr-record.
     """
+
     queryset = Naptr.objects.all()
     serializer_class = NaptrSerializer
 
@@ -468,6 +469,7 @@ class NameServerList(HostPermissionsListCreateAPIView):
 
     queryset = NameServer.objects.all()
     serializer_class = NameServerSerializer
+    lookup_field = 'name'
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -488,6 +490,7 @@ class NameServerDetail(HostPermissionsUpdateDestroy,
     """
     queryset = NameServer.objects.all()
     serializer_class = NameServerSerializer
+    lookup_field = 'name'
 
 
 class PtrOverrideList(HostPermissionsListCreateAPIView):
@@ -1057,7 +1060,7 @@ class ZoneDelegationDetail(MregRetrieveUpdateDestroyAPIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def patch(self, request, *args, **kwargs):
-        raise MethodNotAllowed()
+        raise MethodNotAllowed(request.method)
 
     def delete(self, request, *args, **kwargs):
         zone = self.get_object()
@@ -1165,13 +1168,10 @@ class ModelChangeLogDetail(generics.RetrieveAPIView):
     def get(self, request, *args, **kwargs):
         query_table = self.kwargs['table']
         query_row = self.kwargs['pk']
-        try:
-            logs_by_date = [vals for vals in self.queryset.filter(table_name=query_table,
-                                                                  table_row=query_row).order_by('timestamp').values()]
+        logs_by_date = [vals for vals in self.queryset.filter(table_name=query_table,
+                                                              table_row=query_row).order_by('timestamp').values()]
 
-            return Response(logs_by_date, status=status.HTTP_200_OK)
-        except ModelChangeLog.DoesNotExist:
-            raise Http404
+        return Response(logs_by_date, status=status.HTTP_200_OK)
 
 
 def _get_iprange(kwargs):
