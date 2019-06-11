@@ -72,6 +72,9 @@ class MregAPITestCase(APITestCase):
     def assert_delete_and_204(self, path):
         return self._assert_delete_and_status(path, 204)
 
+    def assert_delete_and_403(self, path):
+        return self._assert_delete_and_status(path, 403)
+
     def assert_delete_and_404(self, path):
         return self._assert_delete_and_status(path, 404)
 
@@ -107,6 +110,9 @@ class MregAPITestCase(APITestCase):
 
     def assert_patch_and_404(self, path, data=None):
         return self._assert_patch_and_status(path, 404, data)
+
+    def assert_patch_and_405(self, path, data=None):
+        return self._assert_patch_and_status(path, 405, data)
 
     def assert_patch_and_409(self, path, data=None):
         return self._assert_patch_and_status(path, 409, data)
@@ -981,6 +987,12 @@ class APIForwardZonesTestCase(MregAPITestCase):
         self.assert_patch_and_403('/zones/%s' % self.post_data_two['name'],
                                   {'primary_ns': self.host_three.name})
 
+    def test_zones_patch_403_forbidden_nameservers(self):
+        """Trying to patch the nameservers directly is not allowed."""
+        self.assert_post('/zones/', self.post_data_two)
+        self.assert_patch_and_403('/zones/%s' % self.post_data_two['name'],
+                                  {'nameservers': self.host_three.name})
+
     def test_zones_patch_404_not_found(self):
         """"Patching a non-existing entry should return 404"""
         self.assert_patch_and_404("/zones/nonexisting.example.org", self.patch_data)
@@ -993,13 +1005,14 @@ class APIForwardZonesTestCase(MregAPITestCase):
         """"Deleting an existing entry with no conflicts should return 204"""
         self.assert_delete('/zones/%s' % self.zone_one.name)
 
+    def test_zones_delete_with_hosts_403_forbidden(self):
+        """"Deleting an existing zone with Hosts should return 403"""
+        self.assert_post('/hosts/', {'name': 'host.example.org'})
+        self.assert_delete_and_403('/zones/%s' % self.zone_one.name)
+
     def test_zones_404_not_found(self):
         """"Deleting a non-existing entry should return 404"""
         self.assert_delete_and_404("/zones/nonexisting.example.org")
-
-    def test_zones_403_forbidden(self):
-        # TODO: jobb skal gjøres her
-        """"Deleting an entry with registered entries should require force"""
 
     def test_zone_by_hostname_404_not_found(self):
         self.assert_get_and_404('/zones/hostname/invalid.example.wrongtld')
@@ -1010,6 +1023,104 @@ class APIForwardZonesTestCase(MregAPITestCase):
             self.assertEqual(data[zonetype]['name'], zone)
         _test('host.example.org', 'example.org', 'zone')
         _test('example.org', 'example.org', 'zone')
+
+
+class APIReverseZonesTestCase(MregAPITestCase):
+    """"This class defines the test suite for reverse zones API """
+
+    def setUp(self):
+        """Define the test client and other variables."""
+        super().setUp()
+        self.zone_one = ReverseZone.objects.create(
+            name="0.0.10.in-addr.arpa",
+            primary_ns="ns1.example.org",
+            email="hostmaster@example.org")
+        self.host_one = Host(name='ns1.example.org', contact="hostmaster@example.org")
+        self.host_two = Host(name='ns2.example.org', contact="hostmaster@example.org")
+        self.host_three = Host(name='ns3.example.org', contact="hostmaster@example.org")
+        self.ns_one = NameServer(name='ns1.example.org', ttl=400)
+        self.ns_two = NameServer(name='ns2.example.org', ttl=400)
+        self.post_data_one = {'name': 'example.com',
+                              'primary_ns': ['ns1.example.org', 'ns2.example.org'],
+                              'email': "hostmaster@example.org",
+                              'refresh': 400, 'retry': 300, 'expire': 800, 'ttl': 350}
+        self.post_data_two = {'name': 'example.net',
+                              'primary_ns': ['ns1.example.org', 'ns2.example.org'],
+                              'email': "hostmaster@example.org"}
+        self.patch_data = {'refresh': '500', 'expire': '1000'}
+        clean_and_save(self.host_one)
+        clean_and_save(self.host_two)
+        clean_and_save(self.ns_one)
+        clean_and_save(self.ns_two)
+
+    def test_zones_get_404_not_found(self):
+        """"Getting a non-existing entry should return 404"""
+        self.assert_get_and_404('/zones/1.10.in-addr.arpa')
+        self.assert_get_and_404('/zones/0.8.b.d.0.1.0.0.2.ip6.arpa')
+
+    def test_zones_get_200_ok(self):
+        """"Getting an existing entry should return 200"""
+        self.assert_get('/zones/%s' % self.zone_one.name)
+
+    def test_zones_list_200_ok(self):
+        """Listing all zones should return 200"""
+        response = self.assert_get('/zones/')
+        self.assertEqual(response.json()[0]['name'], self.zone_one.name)
+        self.assertEqual(len(response.json()), 1)
+
+    def test_zones_post_409_name_conflict(self):
+        """"Posting a entry that uses a name that is already taken should return 409"""
+        response = self.assert_get('/zones/%s' % self.zone_one.name)
+        self.assert_post_and_409('/zones/', {'name': response.data['name']})
+
+    def test_zones_post_201_created(self):
+        """"Posting a new zone should return 201 and location"""
+        response = self.assert_post('/zones/', self.post_data_one)
+        self.assertEqual(response['Location'], '/zones/%s' % self.post_data_one['name'])
+
+    def test_zones_post_serialno(self):
+        """serialno should be based on the current date and a sequential number"""
+        self.assert_post('/zones/', self.post_data_one)
+        self.assert_post('/zones/', self.post_data_two)
+        response_one = self.assert_get('/zones/%s' % self.post_data_one['name'])
+        response_two = self.assert_get('/zones/%s' % self.post_data_two['name'])
+        self.assertEqual(response_one.data['serialno'], response_two.data['serialno'])
+        self.assertEqual(response_one.data['serialno'], create_serialno())
+
+    def test_zones_patch_403_forbidden_name(self):
+        """"Trying to patch the name of an entry should return 403"""
+        response = self.assert_get('/zones/%s' % self.zone_one.name)
+        self.assert_patch_and_403('/zones/%s' % self.zone_one.name,
+                                  {'name': response.data['name']})
+
+    def test_zones_patch_403_forbidden_primary_ns(self):
+        """Trying to patch the primary_ns to be a nameserver that isn't in the nameservers list should return 403"""
+        self.assert_post('/zones/', self.post_data_two)
+        self.assert_patch_and_403('/zones/%s' % self.post_data_two['name'],
+                                  {'primary_ns': self.host_three.name})
+
+    def test_zones_patch_403_forbidden_nameservers(self):
+        """Trying to patch the nameservers directly is not allowed."""
+        self.assert_post('/zones/', self.post_data_two)
+        self.assert_patch_and_403('/zones/%s' % self.post_data_two['name'],
+                                  {'nameservers': self.host_three.name})
+
+    def test_zones_patch_404_not_found(self):
+        """"Patching a non-existing entry should return 404"""
+        self.assert_patch_and_404('/zones/1.11.in-addr.arpa', self.patch_data)
+        self.assert_patch_and_404('/zones/0.8.b.d.0.1.0.0.2.ip6.arpa', self.patch_data)
+
+    def test_zones_patch_204_no_content(self):
+        """"Patching an existing entry with valid data should return 204"""
+        self.assert_patch('/zones/%s' % self.zone_one.name, self.patch_data)
+
+    def test_zones_delete_204_no_content(self):
+        """"Deleting an existing entry with no conflicts should return 204"""
+        self.assert_delete('/zones/%s' % self.zone_one.name)
+
+    def test_zones_404_not_found(self):
+        """"Deleting a non-existing entry should return 404"""
+        self.assert_delete_and_404('/zones/1.11.in-addr.arpa')
 
 
 class APIZonesForwardDelegationTestCase(MregAPITestCase):
@@ -1039,6 +1150,13 @@ class APIZonesForwardDelegationTestCase(MregAPITestCase):
     def test_delegate_forward_zonefiles_200_ok(self):
         self.test_delegate_forward_201_ok()
         self.assert_get('/zonefiles/example.org')
+
+    def test_delegate_forward_patch_403_method_not_allowed(self):
+        path = "/zones/example.org/delegations/"
+        data = {'name': 'delegated.example.org',
+                'nameservers': ['ns1.example.org', 'ns1.delegated.example.org']}
+        response = self.assert_post(path, data)
+        self.assert_patch_and_405(response['Location'], {'name': 'notallowed.example.org'})
 
     def test_delegate_forward_badname_400_bad_request(self):
         path = "/zones/example.org/delegations/"
@@ -1232,6 +1350,15 @@ class APIZonesNsTestCase(MregAPITestCase):
         self.assert_post('/zones/', self.post_data)
         self.assertEqual(NameServer.objects.count(), 1)
         self.assert_get('/zones/%s/nameservers' % self.post_data['name'])
+
+    def test_zones_ns_create_and_get_reversezone_200_ok(self):
+        """Create a reverse zone and make sure we can get its nameservers"""
+        data = {'name': '10.in-addr.arpa', 'primary_ns': ['ns2.example.org'],
+                'email': "hostmaster@example.org"}
+        self.assertEqual(NameServer.objects.count(), 0)
+        self.assert_post('/zones/', data)
+        self.assertEqual(NameServer.objects.count(), 1)
+        self.assert_get('/zones/%s/nameservers' % data['name'])
 
     def test_zones_ns_get_404_not_found(self):
         """"Getting the list of nameservers of a non-existing zone should return 404"""
@@ -1966,6 +2093,30 @@ class NetworksTestCase(MregAPITestCase):
         self.assertEqual(_get_ptr_list(), [])
         PtrOverride.objects.create(host=self.host_one, ipaddress='2001:db8::feed')
         self.assertEqual(_get_ptr_list(), ['2001:db8::feed'])
+
+    def test_networks_get_ptroverride_host_list(self):
+        """GET on /networks/<ip/mask>/ptroverride_host_list should return 200 ok and data."""
+        def _get_ptr_list():
+            ret = self.assert_get('/networks/%s/ptroverride_host_list' % self.network_sample.network)
+            return ret.data
+        self.assertEqual(_get_ptr_list(), {})
+        # Add two PtrOverrides to make sure it is sorted by IP
+        PtrOverride.objects.create(host=self.host_one, ipaddress='10.0.0.10')
+        PtrOverride.objects.create(host=self.host_one, ipaddress='10.0.0.20')
+        self.assertEqual(_get_ptr_list(),
+                         {'10.0.0.10': 'host1.example.org', '10.0.0.20': 'host1.example.org'})
+
+    def test_ipv6_networks_get_ptroverride_host_list(self):
+        """GET on /networks/<ip/mask>/ptroverride_host_list should return 200 ok and data."""
+        def _get_ptr_list():
+            ret = self.assert_get('/networks/%s/ptroverride_host_list' % self.network_ipv6_sample.network)
+            return ret.data
+        self.assertEqual(_get_ptr_list(), {})
+        # Add two PtrOverrides to make sure it is sorted by IP
+        PtrOverride.objects.create(host=self.host_one, ipaddress='2001:db8::10')
+        PtrOverride.objects.create(host=self.host_one, ipaddress='2001:db8::20')
+        self.assertEqual(_get_ptr_list(),
+                         {'2001:db8::10': 'host1.example.org', '2001:db8::20': 'host1.example.org'})
 
     def test_networks_get_reserved_list(self):
         """GET on /networks/<ip/mask>/reserverd_list should return 200 ok and data."""
