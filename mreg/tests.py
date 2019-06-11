@@ -604,6 +604,8 @@ class ModelPtrOverrideTestCase(TestCase):
         self.assertEqual(initial_count, 0)
         self.assertEqual(initial_count, one_count)
         self.assertEqual(two_count, 1)
+        self.host_two.delete()
+        self.assertEqual(PtrOverride.objects.count(), 1)
         self.host_one.delete()
         self.assertEqual(PtrOverride.objects.count(), 0)
 
