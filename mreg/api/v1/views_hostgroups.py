@@ -160,8 +160,15 @@ class HostGroupM2MDetail(HostGroupPermissionsUpdateDestroy):
         self.m2mrelation = getattr(self.hostgroup, self.m2m_field)
         return self.m2mrelation.all()
 
+    # Not sure why this is needed, but GET on a detail bombs out without it, and
+    # it is exactly the same function as in DRF's mixins.py.
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
     def patch(self, request, *args, **kwargs):
-        raise MethodNotAllowed()
+        raise MethodNotAllowed(request.method)
 
     def delete(self, request, *args, **kwargs):
         instance = self.get_object()
