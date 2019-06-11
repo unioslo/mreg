@@ -215,7 +215,7 @@ class APIAutoupdateZonesTestCase(MregAPITestCase):
         old_com_updated_at = self.zone_examplecom.updated_at
         old_1010_updated_at = self.zone_1010.updated_at
         self.assert_patch_and_204('/hosts/host1.example.org',
-                                   {"name": "host1.example.com"})
+                                  {"name": "host1.example.com"})
         self.zone_exampleorg.refresh_from_db()
         self.zone_examplecom.refresh_from_db()
         self.zone_1010.refresh_from_db()
@@ -1545,12 +1545,12 @@ class APIIPaddressesTestCase(MregAPITestCase):
     def test_ipaddress_patch_400_bad_request(self):
         """Patching with invalid data should return 400"""
         self.assert_patch_and_400('/ipaddresses/%s' % self.ipaddress_one.id,
-                                  data={'this': 'is', 'so': 'wrong'})
+                                  {'this': 'is', 'so': 'wrong'})
 
     def test_ipv6address_patch_400_bad_request(self):
         """Patching with invalid data should return 400"""
         self.assert_patch_and_400('/ipaddresses/%s' % self.ipv6address_one.id,
-                                     data={'this': 'is', 'so': 'wrong'})
+                                  {'this': 'is', 'so': 'wrong'})
 
     def test_ipaddress_patch_400_bad_ip(self):
         """Patching with invalid data should return 400"""
