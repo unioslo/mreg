@@ -975,6 +975,15 @@ class APIForwardZonesTestCase(MregAPITestCase):
         self.assertEqual(response_one.data['serialno'], response_two.data['serialno'])
         self.assertEqual(response_one.data['serialno'], create_serialno())
 
+    def test_zones_patch_serialno(self):
+        """Make sure that the zone's serialno_updated_at field is updated when
+        the serialno is updated"""
+        response = self.assert_post('/zones/', self.post_data_one)
+        old_data = self.assert_get(response['Location']).data
+        self.assert_patch(response['Location'], data={'serialno': 1000000000})
+        new_data = self.assert_get(response['Location']).data
+        self.assertLess(old_data['serialno_updated_at'], new_data['serialno_updated_at'])
+
     def test_zones_patch_403_forbidden_name(self):
         """"Trying to patch the name of an entry should return 403"""
         response = self.assert_get('/zones/%s' % self.zone_one.name)
