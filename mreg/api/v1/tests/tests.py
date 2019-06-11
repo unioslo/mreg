@@ -1937,8 +1937,7 @@ class NetworksTestCase(MregAPITestCase):
                 'description': 'Tiny network',
                 'reserved': reserved,
             }
-            response = self.client.post('/networks/', data)
-            self.assertEqual(response.status_code, 201)
+            self.assert_post('/networks/', data)
             obj = Network.objects.get(network=data['network'])
             self.assertEqual(obj.reserved, excepted)
             self.assertLessEqual(obj.reserved, obj.network.num_addresses)
