@@ -132,6 +132,9 @@ class MregAPITestCase(APITestCase):
     def assert_post_and_401(self, path, data=None):
         return self._assert_post_and_status(path, 401, data)
 
+    def assert_post_and_403(self, path, data=None):
+        return self._assert_post_and_status(path, 403, data)
+
     def assert_post_and_404(self, path, data=None):
         return self._assert_post_and_status(path, 404, data)
 
