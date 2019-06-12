@@ -92,11 +92,11 @@ class BaseZone(models.Model, ZoneHelpers):
     serialno = models.BigIntegerField(default=create_serialno,
                                       validators=[validate_32bit_uint])
     serialno_updated_at = models.DateTimeField(default=timezone.now)
-    # TODO: Configurable? Ask hostmaster
     refresh = models.IntegerField(default=10800)
     retry = models.IntegerField(default=3600)
     expire = models.IntegerField(default=1814400)
-    ttl = models.IntegerField(default=43200, validators=[validate_ttl])
+    soa_ttl = models.IntegerField(default=43200, validators=[validate_ttl])
+    default_ttl = models.IntegerField(default=43200, validators=[validate_ttl])
 
     class Meta:
         abstract = True
@@ -109,7 +109,7 @@ class BaseZone(models.Model, ZoneHelpers):
         """String representation for zonefile export."""
         data = {
             'origin': idna_encode(qualify(self.name, self.name, shortform=False)),
-            'ttl': self.ttl,
+            'default_ttl': self.default_ttl,
             'name': '@',
             'record_type': 'SOA',
             'mname': idna_encode(qualify(self.primary_ns, self.name, shortform=False)),
@@ -118,17 +118,18 @@ class BaseZone(models.Model, ZoneHelpers):
             'refresh': self.refresh,
             'retry': self.retry,
             'expire': self.expire,
+            'soa_ttl': self.soa_ttl,
             'zupdated_at': timezone.localtime(self.updated_at),
             'supdated_at': timezone.localtime(self.serialno_updated_at)
         }
         zf = """$ORIGIN {origin}
-$TTL {ttl}
+$TTL {default_ttl}
 {name:30} IN {record_type:6} {mname} {rname} (
                                          {serial}    ; Serialnumber
                                          {refresh}   ; Refresh
                                          {retry}     ; Retry
                                          {expire}    ; Expire
-                                         {ttl} )     ; Negative Cache
+                                         {soa_ttl} ) ; Negative Cache
 ; zone.updated_at: {zupdated_at}
 ; zone.serialno_updated_at: {supdated_at}
 """.format_map(data)

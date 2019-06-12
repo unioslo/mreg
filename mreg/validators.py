@@ -13,26 +13,25 @@ from .utils import get_network_from_zonename
 
 # TODO: Implement validation for retry, refresh, expire
 
-def validate_16bit_uint(value):
-    validator_min = MinValueValidator(0)
-    validator_max = MaxValueValidator(2**16-1)
+
+def _min_max_validator(value, minvalue, maxvalue):
+    validator_min = MinValueValidator(minvalue)
+    validator_max = MaxValueValidator(maxvalue)
     validator_min(value)
     validator_max(value)
+
+
+def validate_16bit_uint(value):
+    _min_max_validator(value, 0, 2**16-1)
 
 
 def validate_32bit_uint(value):
-    validator_min = MinValueValidator(0)
-    validator_max = MaxValueValidator(2**31-1)
-    validator_min(value)
-    validator_max(value)
+    _min_max_validator(value, 0, 2**32-1)
 
 
 def validate_ttl(value):
     """Ensures a ttl-value is within accepted range."""
-    if value < 300:
-        raise ValidationError("Ensure this value is greater than or equal to 300.")
-    if value > 68400:
-        raise ValidationError("Ensure this value is less than or equal to 68400.")
+    _min_max_validator(value, 300, 86400)
 
 
 def validate_hexadecimal(value):

@@ -229,7 +229,7 @@ class APIAutoupdateZonesTestCase(MregAPITestCase):
     def test_change_soa(self):
         self.zone_exampleorg.updated = False
         self.zone_exampleorg.save()
-        self.assert_patch_and_204('/zones/example.org', {'ttl': 1000})
+        self.assert_patch_and_204('/zones/example.org', {'default_ttl': 1000})
         self.zone_exampleorg.refresh_from_db()
         self.assertTrue(self.zone_exampleorg.updated)
 
@@ -931,7 +931,7 @@ class APIForwardZonesTestCase(MregAPITestCase):
         self.post_data_one = {'name': 'example.com',
                               'primary_ns': ['ns1.example.org', 'ns2.example.org'],
                               'email': "hostmaster@example.org",
-                              'refresh': 400, 'retry': 300, 'expire': 800, 'ttl': 350}
+                              'refresh': 400, 'retry': 300, 'expire': 800, 'soa_ttl': 350}
         self.post_data_two = {'name': 'example.net',
                               'primary_ns': ['ns1.example.org', 'ns2.example.org'],
                               'email': "hostmaster@example.org"}
@@ -1052,7 +1052,8 @@ class APIReverseZonesTestCase(MregAPITestCase):
         self.post_data_one = {'name': 'example.com',
                               'primary_ns': ['ns1.example.org', 'ns2.example.org'],
                               'email': "hostmaster@example.org",
-                              'refresh': 400, 'retry': 300, 'expire': 800, 'ttl': 350}
+                              'refresh': 400, 'retry': 300, 'expire': 800,
+                              'soa_ttl': 350, 'default_ttl': 1000}
         self.post_data_two = {'name': 'example.net',
                               'primary_ns': ['ns1.example.org', 'ns2.example.org'],
                               'email': "hostmaster@example.org"}
