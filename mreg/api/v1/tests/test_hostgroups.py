@@ -2,7 +2,7 @@ from django.contrib.auth.models import Group
 
 from mreg.models import Host, HostGroup
 
-from .tests import MregAPITestCase, clean_and_save
+from .tests import MregAPITestCase
 
 
 class APIHostGroupsTestCase(MregAPITestCase):
@@ -226,6 +226,7 @@ class HostGroupOwnerHasRights(APIHostGroupHostsTestCase,
         self.assert_patch_and_403(f'/hostgroups/{self.hostgroup_one.name}',
                                   {'name': 'newname'})
 
+
 class HostGroupNoRights(MregAPITestCase):
     """Test that a user with no special rights can not create or alter host groups"""
 
@@ -255,6 +256,7 @@ class HostGroupNoRights(MregAPITestCase):
         hostgroup_one.owners.add(group_one)
         path = f'/hostgroups/{hostgroup_one.name}/owners/{group_one.name}'
         self.assert_delete_and_403(path)
+
 
 class HostGroupOwnerOfIrrelevantGroup(HostGroupNoRights):
     """Similar to HostGroupNoRights, but let the user be an owner
