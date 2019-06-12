@@ -11,10 +11,8 @@ class APIHostGroupsTestCase(MregAPITestCase):
     def setUp(self):
         """Define the test client and other test variables."""
         super().setUp()
-        self.hostgroup_one = HostGroup(name='testgroup1')
-        clean_and_save(self.hostgroup_one)
-        self.hostgroup_two = HostGroup(name='testgroup2')
-        clean_and_save(self.hostgroup_two)
+        self.hostgroup_one, _ = HostGroup.objects.get_or_create(name='testgroup1')
+        self.hostgroup_two, _ = HostGroup.objects.get_or_create(name='testgroup2')
 
     def test_hostgroups_get_200_ok(self):
         """"Getting an existing entry should return 200"""
@@ -69,9 +67,9 @@ class APIHostGroupGroupsTestCase(MregAPITestCase):
     def setUp(self):
         """Define the test client and other test variables."""
         super().setUp()
-        self.hostgroup_one = HostGroup.objects.create(name='testgroup1')
-        self.hostgroup_two = HostGroup.objects.create(name='testgroup2')
-        self.hostgroup_three = HostGroup.objects.create(name='testgroup3')
+        self.hostgroup_one, _ = HostGroup.objects.get_or_create(name='testgroup1')
+        self.hostgroup_two, _ = HostGroup.objects.get_or_create(name='testgroup2')
+        self.hostgroup_three, _ = HostGroup.objects.get_or_create(name='testgroup3')
 
     def test_groups_list_200_ok(self):
         response = self.assert_get(f'/hostgroups/{self.hostgroup_one.name}/groups/')
@@ -117,10 +115,8 @@ class APIHostGroupHostsTestCase(MregAPITestCase):
     def setUp(self):
         """Define the test client and other test variables."""
         super().setUp()
-        self.hostgroup_one = HostGroup(name='testgroup1')
-        self.host_one = Host.objects.create(name='host1.example.org',
-                                            contact='mail1@example.org')
-        clean_and_save(self.hostgroup_one)
+        self.hostgroup_one, _ = HostGroup.objects.get_or_create(name='testgroup1')
+        self.host_one, _ = Host.objects.get_or_create(name='host1.example.org')
 
     def test_hosts_list_200_ok(self):
         response = self.assert_get(f'/hostgroups/{self.hostgroup_one.name}/hosts/')
@@ -156,8 +152,8 @@ class APIHostGroupOwnersTestCase(MregAPITestCase):
     def setUp(self):
         """Define the test client and other test variables."""
         super().setUp()
-        self.owner_one = Group.objects.create(name='testowner')
-        self.hostgroup_one = HostGroup.objects.create(name='testgroup1')
+        self.owner_one, _ = Group.objects.get_or_create(name='testowner')
+        self.hostgroup_one, _ = HostGroup.objects.get_or_create(name='testgroup1')
 
     def test_owners_list_200_ok(self):
         def _assert_get(result):
@@ -196,3 +192,15 @@ class APIHostGroupOwnersTestCase(MregAPITestCase):
         data = self.assert_post(f'/hostgroups/{self.hostgroup_one.name}/owners/',
                                 {'name': self.owner_one.name})
         self.assert_patch_and_405(data['Location'], {'name': 'newgroupname'})
+
+
+class GroupAdminTestCase(APIHostGroupHostsTestCase, APIHostGroupGroupsTestCase,
+                         APIHostGroupOwnersTestCase):
+    """Test that all of the API for Hostgroups are available for the admin group
+       GROUPADMINUSER_GROUP and not only super users."""
+
+    def setUp(self):
+        """Create a client with groupadmin and not superuser access"""
+        super().setUp()
+        self.client = self.get_token_client(superuser=False)
+        self.add_user_to_groups('GROUPADMINUSER_GROUP')
