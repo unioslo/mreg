@@ -204,3 +204,11 @@ class GroupAdminTestCase(APIHostGroupHostsTestCase, APIHostGroupGroupsTestCase,
         super().setUp()
         self.client = self.get_token_client(superuser=False)
         self.add_user_to_groups('GROUPADMINUSER_GROUP')
+
+
+class HostGroupOwnerHasRights(MregAPITestCase):
+    """Test that a group owner has some extra rights"""
+
+    def setUp(self):
+        self.client = self.get_token_client(username='owneruser', superuser=False)
+        self.client_nobody = self.get_token_client(superuser=False)
