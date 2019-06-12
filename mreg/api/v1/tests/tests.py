@@ -24,8 +24,8 @@ class MregAPITestCase(APITestCase):
     def setUp(self):
         self.client = self.get_token_client()
 
-    def get_token_client(self, superuser=True, adminuser=False):
-        self.user, created = get_user_model().objects.get_or_create(username='nobody')
+    def get_token_client(self, username='nobody', superuser=True, adminuser=False):
+        self.user, created = get_user_model().objects.get_or_create(username=username)
         self.user.groups.clear()
         token, created = Token.objects.get_or_create(user=self.user)
         if superuser:
