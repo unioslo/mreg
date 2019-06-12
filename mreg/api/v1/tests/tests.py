@@ -443,6 +443,14 @@ class APIHostsTestCase(MregAPITestCase):
         self.assert_patch_and_409('/hosts/%s' % self.host_one.name, {'name': self.host_two.name})
 
 
+class APIHostsTestCaseAsAdminuser(APIHostsTestCase):
+    """Same tests as in APIHostsTestCase, only test as admin and not super"""
+
+    def setUp(self):
+        super().setUp()
+        self.client = self.get_token_client(superuser=False, adminuser=True)
+
+
 class APIHostsAutoTxtRecords(MregAPITestCase):
 
     data = {'name': 'host.example.org', 'contact': 'mail@example.org'}
