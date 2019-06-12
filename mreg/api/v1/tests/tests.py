@@ -45,7 +45,6 @@ class MregAPITestCase(APITestCase):
         for groupname in groups:
             group, created = Group.objects.get_or_create(name=groupname)
             group.user_set.add(self.user)
-            group.save()
 
     def _assert_delete_and_status(self, path, status_code):
         response = self.client.delete(path)
