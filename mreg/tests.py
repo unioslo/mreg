@@ -751,7 +751,8 @@ class ModelForwardZoneTestCase(TestCase):
                                        refresh=400,
                                        retry=300,
                                        expire=800,
-                                       ttl=300)
+                                       soa_ttl=300,
+                                       default_ttl=1000)
 
     def test_model_can_create_a_zone(self):
         """Test that the model is able to create a zone."""
