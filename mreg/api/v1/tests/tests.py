@@ -24,7 +24,14 @@ class MregAPITestCase(APITestCase):
     def setUp(self):
         self.client = self.get_token_client()
 
-    def get_token_client(self, username='nobody', superuser=True, adminuser=False):
+    def get_token_client(self, username=None, superuser=True, adminuser=False):
+        if username is None:
+            if superuser:
+                username = 'superuser'
+            elif adminuser:
+                username = 'adminuser'
+            else:
+                username = 'nobody'
         self.user, created = get_user_model().objects.get_or_create(username=username)
         self.user.groups.clear()
         token, created = Token.objects.get_or_create(user=self.user)
@@ -171,8 +178,7 @@ class APITokenAutheticationTestCase(MregAPITestCase):
 
     def test_force_expire(self):
         self.assert_get("/zones/")
-        user = get_user_model().objects.get(username='nobody')
-        token = Token.objects.get(user=user)
+        token = Token.objects.get(user=self.user)
         EXPIRE_HOURS = getattr(settings, 'REST_FRAMEWORK_TOKEN_EXPIRE_HOURS', 8)
         token.created = timezone.now() - timedelta(hours=EXPIRE_HOURS)
         token.save()
