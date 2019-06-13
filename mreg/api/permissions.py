@@ -141,12 +141,15 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
         return self.has_perm(user, *self._get_hostname_and_ips(obj))
 
     def has_create_permission(self, request, view, validated_serializer):
-        if is_super_or_admin(request.user):
+        if user_is_superuser(request.user):
             return True
         hostname = None
         ips = []
         data = validated_serializer.validated_data
-        # If the ip
+        if '*' in data.get('name', ''):
+            return False
+        if user_is_adminuser(request.user):
+            return True
         if isinstance(view, (mreg.api.v1.views.HostList,
                              mreg.api.v1.views.IpaddressList)):
             # HostList does not require ipaddress, but if none, the permissions
@@ -178,9 +181,13 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
         return self.has_obj_perm(request.user, obj)
 
     def has_update_permission(self, request, view, validated_serializer):
-        if is_super_or_admin(request.user):
+        if user_is_superuser(request.user):
             return True
         data = validated_serializer.validated_data
+        if '*' in data.get('name', ''):
+            return False
+        if user_is_adminuser(request.user):
+            return True
         obj = view.get_object()
         if isinstance(view, mreg.api.v1.views.HostDetail):
             hostname, ips = self._get_hostname_and_ips(obj)
