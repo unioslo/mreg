@@ -22,9 +22,9 @@ def user_in_settings_group(request, group_setting_name):
     return request.user.groups.filter(name__in=groupnames).exists()
 
 
-def _list_in_list(a, b):
-    # Returns true if any of element in a is in b
-    return any(i in b for i in a)
+def _list_in_list(list_a, list_b):
+    # Returns true if any of element in list_a is in list_b
+    return any(i in list_b for i in list_a)
 
 
 def user_in_required_group(user):
@@ -132,12 +132,13 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
             return True
         return False
 
-    def has_perm(self, user, hostname, ips):
+    @staticmethod
+    def has_perm(user, hostname, ips):
         return bool(NetGroupRegexPermission.find_perm(user.group_list,
                                                       hostname, ips))
 
     def has_obj_perm(self, user, obj):
-        return self.has_perm(user, self._get_hostname_and_ips(obj))
+        return self.has_perm(user, *self._get_hostname_and_ips(obj))
 
     def has_create_permission(self, request, view, validated_serializer):
         if is_super_or_admin(request.user):
@@ -191,8 +192,7 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
             return self.has_perm(request.user, hostname, ips)
         elif hasattr(obj, 'host'):
             return self.has_obj_perm(request.user, obj.host)
-        else:
-            raise exceptions.PermissionDenied(f"Unhandled view: {view}")
+        raise exceptions.PermissionDenied(f"Unhandled view: {view}")
 
     def _get_hostname_and_ips(self, hostobject):
         ips = []
@@ -219,10 +219,12 @@ class HostGroupPermission(IsAuthenticated):
             return True
         return False
 
-    def is_super_or_group_admin(self, request):
+    @staticmethod
+    def is_super_or_group_admin(request):
         return is_super_or_group_admin(request.user)
 
-    def _request_user_is_owner(self, hostgroup, request):
+    @staticmethod
+    def _request_user_is_owner(hostgroup, request):
         owners = set(hostgroup.owners.values_list('name', flat=True))
         return _list_in_list(request.user.group_list, owners)
 
@@ -235,4 +237,11 @@ class HostGroupPermission(IsAuthenticated):
     def has_update_permission(self, request, view, validated_serializer):
         if is_super_or_group_admin(request.user):
             return True
-        return self._request_user_is_owner(view.get_object(), request)
+        if 'description' in validated_serializer.validated_data:
+            return self._request_user_is_owner(view.get_object(), request)
+        return False
+
+    def has_destroy_permission(self, request, view, validated_serializer):
+        if is_super_or_group_admin(request.user):
+            return True
+        return False

@@ -357,7 +357,7 @@ class ModelNetworkTestCase(TestCase):
                                            location='Test location',
                                            frozen=False)
 
-    def test_model_can_create_ns(self):
+    def test_model_can_create_network(self):
         """Test that the model is able to create a Network."""
         old_count = Network.objects.count()
         clean_and_save(self.network_sample)
@@ -365,14 +365,14 @@ class ModelNetworkTestCase(TestCase):
         self.assertNotEqual(old_count, new_count)
         str(self.network_sample)
 
-    def test_model_can_create_ipv6_ns(self):
+    def test_model_can_create_ipv6_network(self):
         """Test that the model is able to create an IPv6 Network."""
         old_count = Network.objects.count()
         clean_and_save(self.network_ipv6_sample)
         new_count = Network.objects.count()
         self.assertNotEqual(old_count, new_count)
 
-    def test_model_can_change_ns(self):
+    def test_model_can_change_network(self):
         """Test that the model is able to change a Network."""
         clean_and_save(self.network_sample)
         new_vlan = 321
@@ -382,7 +382,7 @@ class ModelNetworkTestCase(TestCase):
         updated_vlan = Network.objects.get(pk=network_sample_id).vlan
         self.assertEqual(new_vlan, updated_vlan)
 
-    def test_model_can_change_ipv6_ns(self):
+    def test_model_can_change_ipv6_network(self):
         """Test that the model is able to change an IPv6 Network."""
         clean_and_save(self.network_ipv6_sample)
         new_vlan = 321
@@ -392,7 +392,7 @@ class ModelNetworkTestCase(TestCase):
         updated_vlan = Network.objects.get(pk=network_ipv6_sample_id).vlan
         self.assertEqual(new_vlan, updated_vlan)
 
-    def test_model_can_delete_ns(self):
+    def test_model_can_delete_network(self):
         """Test that the model is able to delete a Network."""
         clean_and_save(self.network_sample)
         old_count = Network.objects.count()
@@ -400,7 +400,7 @@ class ModelNetworkTestCase(TestCase):
         new_count = Network.objects.count()
         self.assertNotEqual(old_count, new_count)
 
-    def test_model_can_delete_ipv6_ns(self):
+    def test_model_can_delete_ipv6_network(self):
         """Test that the model is able to delete a Network."""
         clean_and_save(self.network_ipv6_sample)
         old_count = Network.objects.count()

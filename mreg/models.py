@@ -590,8 +590,8 @@ class NetGroupRegexPermission(models.Model):
     def __str__(self):
         return f"group {self.group}, range {self.range}, regex {self.regex}"
 
-    @staticmethod
-    def find_perm(groups, hostname, ips):
+    @classmethod
+    def find_perm(cls, groups, hostname, ips):
         if not isinstance(hostname, str):
             raise ValueError(f'hostname is invalid type ({type(hostname)})')
         if isinstance(groups, str):
@@ -602,7 +602,9 @@ class NetGroupRegexPermission(models.Model):
             ips = [ips]
         if not isinstance(ips, (list, tuple)):
             raise ValueError(f'ips on invalid type ({type(ips)})')
-        qs = NetGroupRegexPermission.objects.filter(
+        if not all([groups, hostname, ips]):
+            return cls.objects.none()
+        qs = cls.objects.filter(
                 group__in=groups
             ).extra(
                 where=["%s ~ regex"], params=[str(hostname)]

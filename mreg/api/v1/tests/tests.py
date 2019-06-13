@@ -24,8 +24,9 @@ class MregAPITestCase(APITestCase):
     def setUp(self):
         self.client = self.get_token_client()
 
-    def get_token_client(self, superuser=True, adminuser=False):
-        self.user, created = get_user_model().objects.get_or_create(username='nobody')
+    def get_token_client(self, username='nobody', superuser=True, adminuser=False):
+        self.user, created = get_user_model().objects.get_or_create(username=username)
+        self.user.groups.clear()
         token, created = Token.objects.get_or_create(user=self.user)
         if superuser:
             self.add_user_to_groups('SUPERUSER_GROUP')
@@ -44,7 +45,6 @@ class MregAPITestCase(APITestCase):
         for groupname in groups:
             group, created = Group.objects.get_or_create(name=groupname)
             group.user_set.add(self.user)
-            group.save()
 
     def _assert_delete_and_status(self, path, status_code):
         response = self.client.delete(path)
@@ -131,6 +131,9 @@ class MregAPITestCase(APITestCase):
 
     def assert_post_and_401(self, path, data=None):
         return self._assert_post_and_status(path, 401, data)
+
+    def assert_post_and_403(self, path, data=None):
+        return self._assert_post_and_status(path, 403, data)
 
     def assert_post_and_404(self, path, data=None):
         return self._assert_post_and_status(path, 404, data)
@@ -438,6 +441,14 @@ class APIHostsTestCase(MregAPITestCase):
     def test_hosts_patch_409_conflict_name(self):
         """Patching an entry with a name that already exists should return 409"""
         self.assert_patch_and_409('/hosts/%s' % self.host_one.name, {'name': self.host_two.name})
+
+
+class APIHostsTestCaseAsAdminuser(APIHostsTestCase):
+    """Same tests as in APIHostsTestCase, only test as admin and not super"""
+
+    def setUp(self):
+        super().setUp()
+        self.client = self.get_token_client(superuser=False, adminuser=True)
 
 
 class APIHostsAutoTxtRecords(MregAPITestCase):
@@ -2161,6 +2172,11 @@ class NetworksTestCase(MregAPITestCase):
         self.assert_post('/networks/', self.post_ipv6_data)
         Ipaddress.objects.create(host=self.host_one, ipaddress='beef:feed::beef')
         self.assert_delete_and_409('/networks/%s' % self.post_ipv6_data['network'])
+
+    def test_client_must_be_logged_in(self):
+        self.assert_get('/networks/')
+        self.client.logout()
+        self.assert_get_and_401('/networks/')
 
 
 class APIModelChangeLogsTestCase(MregAPITestCase):
