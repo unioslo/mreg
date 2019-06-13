@@ -43,6 +43,10 @@ class APIHostGroupsTestCase(MregAPITestCase):
                                      {'name': 'newname'})
         self.assertEqual(response['Location'], '/hostgroups/newname')
 
+    def test_hostgroups_delete_204_ok(self):
+        """Delete a group should return 204 ok"""
+        self.assert_delete(f'/hostgroups/{self.hostgroup_one.name}')
+
     def test_hostgroups_patch_description_204_ok(self):
         """Rename a group should return 204 ok"""
         self.assert_patch(f'/hostgroups/{self.hostgroup_one.name}',
@@ -256,6 +260,14 @@ class HostGroupNoRights(MregAPITestCase):
         hostgroup_one.owners.add(group_one)
         path = f'/hostgroups/{hostgroup_one.name}/owners/{group_one.name}'
         self.assert_delete_and_403(path)
+
+    def test_client_must_be_logged_in(self):
+        HostGroup.objects.create(name='testgroup1')
+        self.assert_get('/hostgroups/')
+        self.assert_get('/hostgroups/testgroup1')
+        self.client.logout()
+        self.assert_get_and_401('/hostgroups/')
+        self.assert_get_and_401('/hostgroups/testgroup1')
 
 
 class HostGroupOwnerOfIrrelevantGroup(HostGroupNoRights):

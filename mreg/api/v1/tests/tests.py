@@ -2173,6 +2173,11 @@ class NetworksTestCase(MregAPITestCase):
         Ipaddress.objects.create(host=self.host_one, ipaddress='beef:feed::beef')
         self.assert_delete_and_409('/networks/%s' % self.post_ipv6_data['network'])
 
+    def test_client_must_be_logged_in(self):
+        self.assert_get('/networks/')
+        self.client.logout()
+        self.assert_get_and_401('/networks/')
+
 
 class APIModelChangeLogsTestCase(MregAPITestCase):
     """This class defines the test suite for api/history """
