@@ -184,6 +184,17 @@ class APITokenAutheticationTestCase(MregAPITestCase):
         token.save()
         self.assert_get_and_401("/zones/")
 
+    def test_is_active_false(self):
+        self.assert_get("/zones/")
+        self.user.is_active = False
+        self.user.save()
+        self.assert_get_and_401("/zones/")
+
+    def test_is_deleted(self):
+        self.assert_get("/zones/")
+        self.user.delete()
+        self.assert_get_and_401("/zones/")
+
 
 class APIAutoupdateZonesTestCase(MregAPITestCase):
     """This class tests the autoupdate of zones' updated_at whenever
