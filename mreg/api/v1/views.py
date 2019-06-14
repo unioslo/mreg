@@ -162,7 +162,12 @@ class MregRetrieveUpdateDestroyAPIView(ETAGMixin,
         # Currently all APIs on root path. Must adjust if we move to
         # /api/resource or /api/v1/resource etc.
         resource = request.path.split("/")[1]
-        location = '/%s/%s' % (resource, getattr(instance, self.lookup_field))
+        location = f'/{resource}/'
+        # Try to use an updated field value for self.lookup_field
+        if self.lookup_field in serializer.validated_data:
+            location += str(serializer.validated_data[self.lookup_field])
+        else:
+            location += str(getattr(instance, self.lookup_field))
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 

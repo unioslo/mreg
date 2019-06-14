@@ -234,8 +234,9 @@ class APIAutoupdateZonesTestCase(MregAPITestCase):
         old_org_updated_at = self.zone_exampleorg.updated_at
         old_com_updated_at = self.zone_examplecom.updated_at
         old_1010_updated_at = self.zone_1010.updated_at
-        self.assert_patch_and_204('/hosts/host1.example.org',
-                                  {"name": "host1.example.com"})
+        ret = self.assert_patch_and_204('/hosts/host1.example.org',
+                                        {"name": "host1.example.com"})
+        self.assert_get(ret['Location'])
         self.zone_exampleorg.refresh_from_db()
         self.zone_examplecom.refresh_from_db()
         self.zone_1010.refresh_from_db()
