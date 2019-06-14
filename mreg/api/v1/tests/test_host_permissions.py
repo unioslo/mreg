@@ -50,8 +50,8 @@ class Hosts(HostBasePermissions):
     def test_can_not_change_host_without_ip(self):
         data = {'name': 'host1.example.org'}
         self.client_superuser = self.get_token_client()
-        self.client_superuser.post('/hosts/', data)
-        self.assert_patch_and_403('/hosts/host1.example.org', {'ttl': 1000})
+        self.client_superuser.post('/api/v1/hosts/', data)
+        self.assert_patch_and_403('/api/v1/hosts/host1.example.org', {'ttl': 1000})
 
     def test_can_not_rename_out_of_permissions(self):
         data = {'name': 'host1.example.org', 'ipaddress': '10.0.0.1'}
@@ -113,14 +113,16 @@ class Wildcard(MregAPITestCase):
     def test_super_only_create_wildcard(self):
         """Only a super user may do a POST with a wildcard."""
         data = {'name': '*.example.org'}
-        self.assert_post_and_403('/hosts/', data)
-        ret = self.super_client.post('/hosts/', data)
+        path = '/api/v1/hosts/'
+        self.assert_post_and_403(path, data)
+        ret = self.super_client.post(path, data)
         self.assertEqual(ret.status_code, 201)
 
     def test_super_only_rename_to_wildcard(self):
         """Only a super user may rename (patch) a hostname to a wildcard."""
-        self.assert_post('/hosts/', {'name': 'host1.example.org'})
         data = {'name': '*.example.org'}
-        self.assert_patch_and_403('/hosts/host1.example.org', data)
-        ret = self.super_client.patch('/hosts/host1.example.org', data)
+        path = '/api/v1/hosts/'
+        self.assert_post(path,{'name': 'host1.example.org'})
+        self.assert_patch_and_403(f'{path}host1.example.org', data)
+        ret = self.super_client.patch(f'{path}host1.example.org', data)
         self.assertEqual(ret.status_code, 204)

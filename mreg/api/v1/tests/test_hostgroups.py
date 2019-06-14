@@ -35,13 +35,13 @@ class APIHostGroupsTestCase(MregAPITestCase):
         post_data = {'name': 'new-group'}
         response = self.assert_post('/hostgroups/', post_data)
         self.assert_get(response['Location'])
-        self.assertEqual(response['Location'], '/hostgroups/%s' % post_data['name'])
+        self.assertEqual(response['Location'], '/api/v1/hostgroups/%s' % post_data['name'])
 
     def test_hostgroups_rename_204_ok(self):
         """Rename a group should return 204 ok"""
         response = self.assert_patch(f'/hostgroups/{self.hostgroup_one.name}',
                                      {'name': 'newname'})
-        self.assertEqual(response['Location'], '/hostgroups/newname')
+        self.assertEqual(response['Location'], '/api/v1/hostgroups/newname')
 
     def test_hostgroups_delete_204_ok(self):
         """Delete a group should return 204 ok"""
