@@ -159,11 +159,8 @@ class MregRetrieveUpdateDestroyAPIView(ETAGMixin,
             # forcibly invalidate the prefetch cache on the instance.
             instance._prefetched_objects_cache = {}
 
-        # Currently all APIs on root path. Must adjust if we move to
-        # /api/resource or /api/v1/resource etc.
-        resource = request.path.split("/")[1]
-        location = f'/{resource}/'
-        # Try to use an updated field value for self.lookup_field
+        resource = request.path.split("/")[3]
+        location = f'/api/v1/{resource}/'
         if self.lookup_field in serializer.validated_data:
             location += str(serializer.validated_data[self.lookup_field])
         else:
@@ -328,14 +325,14 @@ class HostList(HostPermissionsListCreateAPIView):
                     ipserializer = IpaddressSerializer(ip, data=ipdata)
                     if ipserializer.is_valid(raise_exception=True):
                         self.perform_create(ipserializer)
-                        location = '/hosts/%s' % host.name
+                        location = '/api/v1/hosts/%s' % host.name
                         return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
         else:
             host = Host()
             hostserializer = HostSerializer(host, data=hostdata)
             if hostserializer.is_valid(raise_exception=True):
                 self.perform_create(hostserializer)
-                location = '/hosts/%s' % host.name
+                location = '/api/v1/hosts/%s' % host.name
                 return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
 
 
@@ -628,7 +625,7 @@ class NetworkList(generics.ListCreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
-        location = '/networks/%s' % request.data
+        location = '/api/v1/networks/%s' % request.data
         return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
 
     def get_queryset(self):
@@ -890,7 +887,7 @@ class ZoneList(generics.ListCreateAPIView):
         self.perform_create(zone)
         zone.update_nameservers(nameservers)
         _update_parent_zone(qs, zone.name)
-        location = f"/zones/{zone.name}"
+        location = f"/api/v1/zones/{zone.name}"
         return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
 
 
@@ -943,7 +940,7 @@ class ZoneDelegationList(generics.ListCreateAPIView):
         delegation.update_nameservers(nameservers)
         self.parentzone.updated = True
         self.parentzone.save()
-        location = f"/zones/{self.parentzone.name}/delegations/{delegation.name}"
+        location = f"/api/v1/zones/{self.parentzone.name}/delegations/{delegation.name}"
         return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
 
 
@@ -1016,7 +1013,7 @@ class ZoneDetail(MregRetrieveUpdateDestroyAPIView):
         serializer = self.get_serializer(zone, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer, updated=True)
-        location = f"/zones/{zone.name}"
+        location = f"/api/v1/zones/{zone.name}"
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
     def delete(self, request, *args, **kwargs):
@@ -1030,7 +1027,7 @@ class ZoneDetail(MregRetrieveUpdateDestroyAPIView):
             zone.remove_nameservers()
             zone.delete()
         _update_parent_zone(self.get_queryset(), zone.name)
-        location = f"/zones/{zone.name}"
+        location = f"/api/v1/zones/{zone.name}"
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
@@ -1074,7 +1071,7 @@ class ZoneDelegationDetail(MregRetrieveUpdateDestroyAPIView):
         # Also update the parent zone's updated attribute
         self.parentzone.updated = True
         self.parentzone.save()
-        location = f"/zones/{zone.zone.name}/delegations/{zone.name}"
+        location = f"/api/v1/zones/{zone.zone.name}/delegations/{zone.name}"
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
@@ -1116,7 +1113,7 @@ class ZoneNameServerDetail(MregRetrieveUpdateDestroyAPIView):
         zone.primary_ns = request.data.getlist('primary_ns')[0]
         zone.updated = True
         self.perform_update(zone)
-        location = f"/zones/{zone.name}/nameservers"
+        location = f"/api/v1/zones/{zone.name}/nameservers"
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 

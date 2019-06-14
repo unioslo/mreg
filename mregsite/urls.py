@@ -11,7 +11,6 @@ schema_view = get_swagger_view(title='mreg API')
 
 #
 urlpatterns = [
-    path('', include('mreg.api.v1.urls')),
     path('api/', include('mreg.api.urls')),
     path('admin/', admin.site.urls),
     path('docs/', schema_view),
