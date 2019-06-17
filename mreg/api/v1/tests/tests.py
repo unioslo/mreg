@@ -53,23 +53,31 @@ class MregAPITestCase(APITestCase):
             group, created = Group.objects.get_or_create(name=groupname)
             group.user_set.add(self.user)
 
+    @staticmethod
+    def _create_path(path):
+        if path.startswith('/api/'):
+            return path
+        elif path.startswith('/'):
+            return f'/api/v1/{path[1:]}'
+        return f'/api/v1/{path}'
+
     def _assert_delete_and_status(self, path, status_code):
-        response = self.client.delete(path)
+        response = self.client.delete(self._create_path(path))
         self.assertEqual(response.status_code, status_code)
         return response
 
     def _assert_get_and_status(self, path, status_code):
-        response = self.client.get(path)
+        response = self.client.get(self._create_path(path))
         self.assertEqual(response.status_code, status_code)
         return response
 
     def _assert_patch_and_status(self, path, status_code, data=None):
-        response = self.client.patch(path, data)
+        response = self.client.patch(self._create_path(path), data)
         self.assertEqual(response.status_code, status_code)
         return response
 
     def _assert_post_and_status(self, path, status_code, data=None):
-        response = self.client.post(path, data)
+        response = self.client.post(self._create_path(path), data)
         self.assertEqual(response.status_code, status_code)
         return response
 
@@ -411,14 +419,14 @@ class APIHostsTestCase(MregAPITestCase):
     def test_hosts_post_201_created(self):
         """"Posting a new host should return 201 and location"""
         response = self.assert_post_and_201('/hosts/', self.post_data)
-        self.assertEqual(response['Location'], '/hosts/%s' % self.post_data['name'])
+        self.assertEqual(response['Location'], '/api/v1/hosts/%s' % self.post_data['name'])
 
     def test_hosts_post_case_insenstive_201_created(self):
         """"Posting a new host should return 201 and location"""
         data = self.post_data
         data['name'] = data['name'].upper()
         response = self.assert_post_and_201('/hosts/', data)
-        self.assertEqual(response['Location'], '/hosts/%s' % self.post_data['name'])
+        self.assertEqual(response['Location'], '/api/v1/hosts/%s' % self.post_data['name'])
 
     def test_hosts_post_400_invalid_ip(self):
         """"Posting a new host with an invalid IP should return 400"""
@@ -434,7 +442,7 @@ class APIHostsTestCase(MregAPITestCase):
     def test_hosts_patch_204_no_content(self):
         """Patching an existing and valid entry should return 204 and Location"""
         response = self.assert_patch_and_204('/hosts/%s' % self.host_one.name, self.patch_data)
-        self.assertEqual(response['Location'], '/hosts/%s' % self.patch_data['name'])
+        self.assertEqual(response['Location'], '/api/v1/hosts/%s' % self.patch_data['name'])
 
     def test_hosts_patch_without_name_204_no_content(self):
         """Patching an existing entry without having name in patch should
@@ -993,7 +1001,7 @@ class APIForwardZonesTestCase(MregAPITestCase):
     def test_zones_post_201_created(self):
         """"Posting a new zone should return 201 and location"""
         response = self.assert_post('/zones/', self.post_data_one)
-        self.assertEqual(response['Location'], '/zones/%s' % self.post_data_one['name'])
+        self.assertEqual(response['Location'], '/api/v1/zones/%s' % self.post_data_one['name'])
 
     def test_zones_post_serialno(self):
         """serialno should be based on the current date and a sequential number"""
@@ -1115,7 +1123,7 @@ class APIReverseZonesTestCase(MregAPITestCase):
     def test_zones_post_201_created(self):
         """"Posting a new zone should return 201 and location"""
         response = self.assert_post('/zones/', self.post_data_one)
-        self.assertEqual(response['Location'], '/zones/%s' % self.post_data_one['name'])
+        self.assertEqual(response['Location'], '/api/v1/zones/%s' % self.post_data_one['name'])
 
     def test_zones_post_serialno(self):
         """serialno should be based on the current date and a sequential number"""
@@ -1180,7 +1188,7 @@ class APIZonesForwardDelegationTestCase(MregAPITestCase):
         self.assertEqual(response.data['results'], [])
 
     def test_delegate_forward_201_ok(self):
-        path = "/zones/example.org/delegations/"
+        path = "/api/v1/zones/example.org/delegations/"
         data = {'name': 'delegated.example.org',
                 'nameservers': ['ns1.example.org', 'ns1.delegated.example.org']}
         response = self.assert_post(path, data)
@@ -1246,7 +1254,7 @@ class APIZonesForwardDelegationTestCase(MregAPITestCase):
 
     def test_forward_delete_delegation_204_ok(self):
         self.test_forward_list_delegations_200_ok()
-        path = "/zones/example.org/delegations/delegated.example.org"
+        path = "/api/v1/zones/example.org/delegations/delegated.example.org"
         self.assertEqual(NameServer.objects.count(), 3)
         response = self.assert_delete(path)
         self.assertEqual(response['Location'], path)
@@ -1294,8 +1302,8 @@ class APIZonesReverseDelegationTestCase(MregAPITestCase):
         self.del_2001db810 = {'name': '0.1.0.0.8.b.d.0.1.0.0.2.ip6.arpa',
                               'nameservers': ['ns1.example.org', 'ns2.example.org']}
 
-        self.client.post("/zones/", self.data_rev1010)
-        self.client.post("/zones/", self.data_revdb8)
+        self.assert_post("/zones/", self.data_rev1010)
+        self.assert_post("/zones/", self.data_revdb8)
 
     def test_get_delegation_200_ok(self):
         def assertempty(data):
@@ -1306,7 +1314,7 @@ class APIZonesReverseDelegationTestCase(MregAPITestCase):
             assertempty(getattr(self, f"data_{data}"))
 
     def test_delegate_ipv4_201_ok(self):
-        path = "/zones/10.10.in-addr.arpa/delegations/"
+        path = "/api/v1/zones/10.10.in-addr.arpa/delegations/"
         response = self.assert_post(path, self.del_101010)
         self.assertEqual(response['Location'], f"{path}10.10.10.in-addr.arpa")
         response = self.assert_post(path, self.del_10101010)
@@ -1350,7 +1358,7 @@ class APIZonesReverseDelegationTestCase(MregAPITestCase):
         self.assert_post_and_409(path, self.del_101010)
 
     def test_delegate_ipv6_201_ok(self):
-        path = "/zones/8.b.d.0.1.0.0.2.ip6.arpa/delegations/"
+        path = "/api/v1/zones/8.b.d.0.1.0.0.2.ip6.arpa/delegations/"
         response = self.assert_post(path, self.del_2001db810)
         self.assertEqual(response['Location'], f"{path}{self.del_2001db810['name']}")
         self.assert_get(response['Location'])
@@ -1428,7 +1436,7 @@ class APIZonesNsTestCase(MregAPITestCase):
     def test_zones_ns_delete_204_no_content_zone(self):
         """Deleting a nameserver from an existing zone should return 204"""
         self.assertFalse(NameServer.objects.exists())
-        self.client.post('/zones/', self.post_data)
+        self.assert_post('/zones/', self.post_data)
         self.assert_patch('/zones/%s/nameservers' % self.post_data['name'],
                           {'primary_ns': self.post_data['primary_ns'] + [self.ns_one.name]})
         self.assertEqual(NameServer.objects.count(), 2)
@@ -1454,7 +1462,7 @@ class APIZoneRFC2317(MregAPITestCase):
     def test_create_and_get_rfc_2317_zone(self):
         # Create and get zone for 10.0.0.128/25
         response = self.assert_post("/zones/", self.data)
-        self.assertEqual(response["location"], "/zones/128/25.0.0.10.in-addr.arpa")
+        self.assertEqual(response["location"], "/api/v1/zones/128/25.0.0.10.in-addr.arpa")
         self.assert_get(response["location"])
 
     def test_add_rfc2317_delegation_for_existing_zone(self):
@@ -1729,12 +1737,12 @@ class APICnamesTestCase(MregAPITestCase):
 
         self.post_host_one = {'name': 'host1.example.org',
                               'contact': 'mail@example.org'}
-        self.client.post('/hosts/', self.post_host_one)
-        self.host_one = self.client.get('/hosts/%s' % self.post_host_one['name']).data
+        self.client.post('/api/v1/hosts/', self.post_host_one)
+        self.host_one = self.client.get('/api/v1/hosts/%s' % self.post_host_one['name']).data
         self.post_host_two = {'name': 'host2.example.org',
                               'contact': 'mail@example.org'}
-        self.client.post('/hosts/', self.post_host_two)
-        self.host_two = self.client.get('/hosts/%s' % self.post_host_two['name']).data
+        self.client.post('/api/v1/hosts/', self.post_host_two)
+        self.host_two = self.client.get('/api/v1/hosts/%s' % self.post_host_two['name']).data
 
         self.post_data = {'name': 'host-alias.example.org',
                           'host': self.host_one['id'],
@@ -1946,25 +1954,25 @@ class NetworksTestCase(MregAPITestCase):
         """Patching an existing and valid entry should return 204 and Location"""
         response = self.assert_patch('/networks/%s' % self.network_sample.network,
                                      self.patch_data)
-        self.assertEqual(response['Location'], '/networks/%s' % self.network_sample.network)
+        self.assertEqual(response['Location'], '/api/v1/networks/%s' % self.network_sample.network)
 
     def test_ipv6_networks_patch_204_no_content(self):
         """Patching an existing and valid IPv6 entry should return 204 and Location"""
         response = self.assert_patch('/networks/%s' % self.network_ipv6_sample.network,
                                      self.patch_ipv6_data)
-        self.assertEqual(response['Location'], '/networks/%s' % self.network_ipv6_sample.network)
+        self.assertEqual(response['Location'], '/api/v1/networks/%s' % self.network_ipv6_sample.network)
 
     def test_networks_patch_204_non_overlapping_network(self):
         """Patching an entry with a non-overlapping network should return 204"""
         response = self.assert_patch('/networks/%s' % self.network_sample.network,
                                      self.patch_data_network)
-        self.assertEqual(response['Location'], '/networks/%s' % self.patch_data_network['network'])
+        self.assertEqual(response['Location'], '/api/v1/networks/%s' % self.patch_data_network['network'])
 
     def test_ipv6_networks_patch_204_non_overlapping_network(self):
         """Patching an entry with a non-overlapping IPv6 network should return 204"""
         response = self.assert_patch('/networks/%s' % self.network_ipv6_sample.network,
                                      self.patch_ipv6_data_network)
-        self.assertEqual(response['Location'], '/networks/%s' % self.patch_ipv6_data_network['network'])
+        self.assertEqual(response['Location'], '/api/v1/networks/%s' % self.patch_ipv6_data_network['network'])
 
     def test_networks_patch_400_bad_request(self):
         """Patching with invalid data should return 400"""
