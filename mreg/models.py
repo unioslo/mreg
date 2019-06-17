@@ -432,6 +432,7 @@ class Network(models.Model):
     location = models.TextField(blank=True)
     frozen = models.BooleanField(default=False)
     reserved = models.PositiveIntegerField(default=3)
+    updated_at = models.DateTimeField(auto_now=True)
 
     objects = NetManager()
 
