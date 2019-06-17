@@ -122,7 +122,7 @@ class Wildcard(MregAPITestCase):
         """Only a super user may rename (patch) a hostname to a wildcard."""
         data = {'name': '*.example.org'}
         path = '/api/v1/hosts/'
-        self.assert_post(path,{'name': 'host1.example.org'})
+        self.assert_post(path, {'name': 'host1.example.org'})
         self.assert_patch_and_403(f'{path}host1.example.org', data)
         ret = self.super_client.patch(f'{path}host1.example.org', data)
         self.assertEqual(ret.status_code, 204)
