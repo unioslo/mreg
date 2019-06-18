@@ -3,7 +3,6 @@ from django.conf import settings
 from rest_framework import exceptions
 from rest_framework.permissions import IsAuthenticated, SAFE_METHODS
 
-import mreg.api.v1.views
 from mreg.api.v1.serializers import HostSerializer
 from mreg.models import HostGroup, NetGroupRegexPermission
 
@@ -141,6 +140,7 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
         return self.has_perm(user, *self._get_hostname_and_ips(obj))
 
     def has_create_permission(self, request, view, validated_serializer):
+        import mreg.api.v1.views
         if user_is_superuser(request.user):
             return True
         hostname = None
@@ -168,6 +168,7 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
         return False
 
     def has_destroy_permission(self, request, view, validated_serializer):
+        import mreg.api.v1.views
         if is_super_or_admin(request.user):
             return True
         obj = view.get_object()
@@ -181,6 +182,7 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
         return self.has_obj_perm(request.user, obj)
 
     def has_update_permission(self, request, view, validated_serializer):
+        import mreg.api.v1.views
         if user_is_superuser(request.user):
             return True
         data = validated_serializer.validated_data
