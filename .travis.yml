@@ -26,3 +26,4 @@ before_script:
   - python manage.py migrate
 script:
   - coverage run manage.py test
+  - coverage report
