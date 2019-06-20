@@ -200,6 +200,11 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
                     return False
             return self.has_perm(request.user, hostname, ips)
         elif hasattr(obj, 'host'):
+            # If changing host object, make sure the user has permission the
+            # new one.
+            if 'host' in data and data['host'] != obj.host:
+                if not self.has_obj_perm(request.user, data['host']):
+                    return False
             return self.has_obj_perm(request.user, obj.host)
         raise exceptions.PermissionDenied(f"Unhandled view: {view}")
 
