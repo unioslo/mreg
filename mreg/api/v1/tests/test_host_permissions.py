@@ -58,6 +58,25 @@ class Hosts(HostBasePermissions):
         self.assert_post('/hosts/', data)
         self.assert_patch_and_403('/hosts/host1.example.org', {'name': 'host1.example.com'})
 
+    def test_can_not_change_host_out_of_permissions(self):
+        """Test than one can not change host object without permission
+           to the new host object"""
+        def _post_and_get(name, ipaddress, client=self.client):
+            data = {'name': name, 'ipaddress': ipaddress}
+            ret = client.post('/api/v1/hosts/', data)
+            return self.assert_get(ret['Location'])
+        client_superuser = self.get_token_client()
+        dotorg1 = _post_and_get('host1.example.org', '10.0.0.1')
+        dotorg2 = _post_and_get('host2.example.org', '10.0.0.2')
+        dotcom = _post_and_get('host1.example.com', '10.0.0.3',
+                               client=client_superuser)
+        ip_id = dotorg1.json()['ipaddresses'][0]['id']
+        datafail = {'host': dotcom.json()['id']}
+        dataok = {'host': dotorg2.json()['id']}
+        path = f'/api/v1/ipaddresses/{ip_id}'
+        self.assert_patch_and_403(path, datafail)
+        self.assert_patch(path, dataok)
+
 
 class Ipaddresses(HostBasePermissions):
 
