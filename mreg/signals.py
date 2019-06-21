@@ -53,7 +53,8 @@ def updated_ipaddress_fix_ptroverride(sender, instance, raw, using, update_field
         qs = Ipaddress.objects.filter(ipaddress=instance.ipaddress)
         if qs and qs.count() == 1:
             host = qs.first().host
-            PtrOverride.objects.create(host=host, ipaddress=instance.ipaddress)
+            if not PtrOverride.objects.filter(ipaddress=instance.ipaddress).exists():
+                PtrOverride.objects.create(host=host, ipaddress=instance.ipaddress)
 
 
 def _common_update_zone(signal, sender, instance):
