@@ -207,3 +207,4 @@ if TESTING:
     SUPERUSER_GROUP = "default-super-group"
     ADMINUSER_GROUP = "default-admin-group"
     GROUPADMINUSER_GROUP = "default-groupadmin-group"
+    NETWORK_ADMIN_GROUP = "default-networkadmin-group"
