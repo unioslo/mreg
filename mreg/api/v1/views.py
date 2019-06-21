@@ -22,7 +22,8 @@ from url_filter.filtersets import ModelFilterSet
 import mreg.models
 from mreg.api.permissions import (IsAuthenticatedAndReadOnly,
                                   IsGrantedNetGroupRegexPermission,
-                                  IsSuperGroupMember, )
+                                  IsSuperGroupMember,
+                                  IsSuperGroupOrNetworkAdminMember,)
 from mreg.models import (Cname, ForwardZone, ForwardZoneDelegation,
                          HinfoPreset, Host, HostGroup, Ipaddress,
                          ModelChangeLog, Mx, NameServer, Naptr, Network,
@@ -625,7 +626,7 @@ class NetworkList(generics.ListCreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
-        location = '/api/v1/networks/%s' % request.data
+        location = '/api/v1/networks/%s' % serializer.validated_data['network']
         return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
 
     def get_queryset(self):
@@ -650,7 +651,7 @@ class NetworkDetail(MregRetrieveUpdateDestroyAPIView):
     """
     queryset = Network.objects.all()
     serializer_class = NetworkSerializer
-    permission_classes = (IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
+    permission_classes = (IsSuperGroupOrNetworkAdminMember | IsAuthenticatedAndReadOnly, )
 
     lookup_field = 'network'
 
