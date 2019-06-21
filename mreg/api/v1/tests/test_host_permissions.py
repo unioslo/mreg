@@ -1,6 +1,6 @@
 from django.contrib.auth.models import Group
 
-from mreg.models import Host, Ipaddress, NetGroupRegexPermission
+from mreg.models import Host, Ipaddress, NetGroupRegexPermission, Network, PtrOverride
 
 from .tests import MregAPITestCase
 
@@ -82,16 +82,16 @@ class Ipaddresses(HostBasePermissions):
 
     def setUp(self):
         super().setUp()
-        self.data = {'name': 'host1.example.org', 'ipaddress': '10.0.0.1'}
+        self.data = {'name': 'host1.example.org', 'ipaddress': '10.0.0.10'}
         self.assert_post('/hosts/', self.data)
         self.host_one = Host.objects.get(name=self.data['name'])
         self.ip_one = Ipaddress.objects.get(host__name=self.data['name'])
 
     def test_can_add_change_and_delete_ip(self):
-        data = {'ipaddress': '10.0.0.2', 'host': self.host_one.id}
+        data = {'ipaddress': '10.0.0.11', 'host': self.host_one.id}
         ret = self.assert_post('/ipaddresses/', data).data
         path = f'/ipaddresses/{ret["id"]}'
-        self.assert_patch(path, {'ipaddress': '10.0.0.3'})
+        self.assert_patch(path, {'ipaddress': '10.0.0.12'})
         self.assert_delete(path)
 
     def test_can_change_macaddress(self):
@@ -99,6 +99,99 @@ class Ipaddresses(HostBasePermissions):
                           {'macaddress': 'aa:bb:cc:dd:ee:ff'})
         self.assert_patch(f'/ipaddresses/{self.ip_one.id}',
                           {'macaddress': ''})
+
+    def test_can_not_use_reserved_ipaddress(self):
+        NetGroupRegexPermission.objects.create(group='testgroup',
+                                               range='2001:db8::/64',
+                                               regex=r'.*\.example\.org$')
+        Network.objects.create(network='10.0.0.0/25')
+        Network.objects.create(network='2001:db8::/64')
+        ptr = PtrOverride.objects.create(host=self.host_one, ipaddress='10.0.0.20')
+        super_client = self.get_token_client()
+        admin_client = self.get_token_client(superuser=False, adminuser=True)
+
+        def _assert_host(ip):
+            data = {'name': 'host2.example.org', 'ipaddress': ip}
+            path = '/api/v1/hosts/'
+            self.assert_post_and_403(path, data)
+            ret = admin_client.post(path, data)
+            self.assertEqual(ret.status_code, 403)
+            ret = super_client.post(path, data)
+            self.assertEqual(ret.status_code, 201)
+            ret = super_client.delete(ret['Location'])
+            self.assertEqual(ret.status_code, 204)
+
+        def _assert_ip(ip):
+
+            def __assert_post(path):
+                self.assert_post_and_403(path, data)
+                ret = admin_client.post(path, data)
+                self.assertEqual(ret.status_code, 403)
+                ret = super_client.post(path, data)
+                self.assertEqual(ret.status_code, 201)
+
+            def __assert_patch(path):
+                ret = admin_client.patch(path, data)
+                self.assertEqual(ret.status_code, 403)
+                self.assert_patch_and_403(path, data)
+
+            data = {'host': self.host_one.id, 'ipaddress': ip}
+            __assert_post('/api/v1/ipaddresses/')
+            Ipaddress.objects.filter(ipaddress=ip).delete()
+            __assert_post('/api/v1/ptroverrides/')
+            PtrOverride.objects.filter(ipaddress=ip).delete()
+            data = {'ipaddress': ip}
+            __assert_patch(f'/api/v1/ipaddresses/{self.ip_one.id}')
+            __assert_patch(f'/api/v1/ptroverrides/{ptr.id}')
+
+        def _assert(ip):
+            _assert_ip(ip)
+            _assert_host(ip)
+
+        _assert('10.0.0.0')
+        _assert('10.0.0.1')
+        _assert('10.0.0.2')
+        _assert('10.0.0.127')
+        _assert('2001:db8::')
+        _assert('2001:db8::1')
+        _assert('2001:db8::2')
+
+    def test_network_admin_can_use_reserved_addresses(self):
+        """Members of NETWORK_ADMIN_GROUP can use reserved network addresses"""
+
+        self.client = self.get_token_client(username='networkadmin',
+                                            superuser=False, adminuser=True)
+        self.add_user_to_groups('NETWORK_ADMIN_GROUP')
+        Network.objects.create(network='10.0.0.0/25')
+        Network.objects.create(network='2001:db8::/64')
+
+        def _assert_host(ip):
+            data = {'name': 'host2.example.org', 'ipaddress': ip}
+            path = '/api/v1/hosts/'
+            self.assert_post(path, data)
+            Host.objects.filter(name=data['name']).delete()
+
+        def _assert_ip(ip):
+
+            data = {'host': self.host_one.id, 'ipaddress': ip}
+            self.assert_post('/api/v1/ipaddresses/', data)
+            Ipaddress.objects.filter(ipaddress=ip).delete()
+            self.assert_post('/api/v1/ptroverrides/', data)
+            PtrOverride.objects.filter(ipaddress=ip).delete()
+            data = {'ipaddress': ip}
+            self.assert_patch(f'/api/v1/ipaddresses/{self.ip_one.id}', data)
+
+        def _assert(ip):
+            _assert_ip(ip)
+            _assert_host(ip)
+
+        _assert('10.0.0.0')
+        _assert('10.0.0.1')
+        _assert('10.0.0.2')
+        _assert('10.0.0.127')
+        _assert('2001:db8::0')
+        _assert('2001:db8::1')
+        _assert('2001:db8::2')
 
 
 class Txts(HostBasePermissions):

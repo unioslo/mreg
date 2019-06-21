@@ -4,7 +4,11 @@ from rest_framework import exceptions
 from rest_framework.permissions import IsAuthenticated, SAFE_METHODS
 
 from mreg.api.v1.serializers import HostSerializer
-from mreg.models import HostGroup, NetGroupRegexPermission
+from mreg.models import HostGroup, NetGroupRegexPermission, Network
+
+NETWORK_ADMIN_GROUP = 'NETWORK_ADMIN_GROUP'
+SUPERUSER_GROUP = 'SUPERUSER_GROUP'
+ADMINUSER_GROUP = 'ADMINUSER_GROUP'
 
 
 def get_settings_groups(group_setting_name):
@@ -88,12 +92,28 @@ class IsSuperGroupMember(IsAuthenticated):
     Permit user if in super user group.
     """
 
-    group = 'SUPERUSER_GROUP'
+    def has_permission(self, request, view):
+        if not super().has_permission(request, view):
+            return False
+        return user_in_settings_group(request, SUPERUSER_GROUP)
+
+
+class IsSuperGroupOrNetworkAdminMember(IsAuthenticated):
+    """
+    Permit user if in super user group, also the network admin
+    can patch certain attributes, but otherwise read-only.
+    """
 
     def has_permission(self, request, view):
         if not super().has_permission(request, view):
             return False
-        return user_in_settings_group(request, 'SUPERUSER_GROUP')
+        if user_is_superuser(request.user):
+            return True
+        if request.method == 'PATCH' and user_in_settings_group(request, NETWORK_ADMIN_GROUP):
+            # Only allow update of the reserved field
+            if 'reserved' in request.data and len(request.data) == 1:
+                return True
+        return False
 
 
 class IsSuperOrGroupAdminOrReadOnly(IsAuthenticated):
@@ -141,22 +161,31 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
 
     def has_create_permission(self, request, view, validated_serializer):
         import mreg.api.v1.views
+
         if user_is_superuser(request.user):
             return True
+
         hostname = None
         ips = []
         data = validated_serializer.validated_data
         if '*' in data.get('name', ''):
             return False
+        if 'ipaddress' in data:
+            if self.is_reserved_ip(data['ipaddress']):
+                if user_in_settings_group(request, NETWORK_ADMIN_GROUP):
+                    return True
+                return False
         if user_is_adminuser(request.user):
             return True
         if isinstance(view, (mreg.api.v1.views.HostList,
-                             mreg.api.v1.views.IpaddressList)):
+                             mreg.api.v1.views.IpaddressList,
+                             mreg.api.v1.views.PtrOverrideList)):
             # HostList does not require ipaddress, but if none, the permissions
             # will not match, so just refuse it.
-            if 'ipaddress' not in data:
+            ip = data.get('ipaddress', None)
+            if ip is None:
                 return False
-            ips.append(data['ipaddress'])
+            ips.append(ip)
             hostname = data['host'].name
         elif 'host' in data:
             hostname, ips = self._get_hostname_and_ips(data['host'])
@@ -169,9 +198,16 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
 
     def has_destroy_permission(self, request, view, validated_serializer):
         import mreg.api.v1.views
-        if is_super_or_admin(request.user):
+        if user_is_superuser(request.user):
             return True
         obj = view.get_object()
+        if hasattr(obj, 'ipaddress'):
+            if self.is_reserved_ip(obj.ipaddress):
+                if user_in_settings_group(request, NETWORK_ADMIN_GROUP):
+                    return True
+                return False
+        if user_is_adminuser(request.user):
+            return True
         if isinstance(view, mreg.api.v1.views.HostDetail):
             pass
         elif hasattr(obj, 'host'):
@@ -188,6 +224,11 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
         data = validated_serializer.validated_data
         if '*' in data.get('name', ''):
             return False
+        if 'ipaddress' in data:
+            if self.is_reserved_ip(data['ipaddress']):
+                if user_in_settings_group(request, NETWORK_ADMIN_GROUP):
+                    return True
+                return False
         if user_is_adminuser(request.user):
             return True
         obj = view.get_object()
@@ -214,6 +255,13 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
         for i in host.data['ipaddresses']:
             ips.append(i['ipaddress'])
         return host.data['name'], ips
+
+    @staticmethod
+    def is_reserved_ip(ip):
+        network = Network.objects.filter(network__net_contains=ip).first()
+        if network:
+            return any(ip == str(i) for i in network.get_reserved_ipaddresses())
+        return False
 
 
 class HostGroupPermission(IsAuthenticated):
