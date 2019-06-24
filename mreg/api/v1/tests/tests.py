@@ -442,7 +442,7 @@ class APIHostsTestCase(MregAPITestCase):
     def test_hosts_post_409_conflict_cname(self):
         """"Posting a new host with a name already in use as cname should return 409"""
         cname_data = {'name': 'host3.example.org', "host": self.host_one.id}
-        response = self.assert_post_and_201('/cnames/', cname_data)
+        self.assert_post_and_201('/cnames/', cname_data)
         conflicting_host_data = {'name': 'host3.example.org', "ipaddress": '127.0.0.3',
                                  'contact': 'hostmaster@example.org'}
         self.assert_post_and_409('/hosts/', conflicting_host_data)
@@ -479,7 +479,7 @@ class APIHostsTestCase(MregAPITestCase):
     def test_hosts_patch_409_conflict_cname(self):
         """"Patching an entry host with a name already in use as cname should return 409"""
         cname_data = {'name': 'host3.example.org', "host": self.host_one.id}
-        response = self.assert_post_and_201('/cnames/', cname_data)
+        self.assert_post_and_201('/cnames/', cname_data)
         conflicting_host_data = {'name': 'host3.example.org'}
         self.assert_patch_and_409('/hosts/%s' % self.host_one.name, conflicting_host_data)
 
@@ -692,6 +692,27 @@ class APINaptrTestCase(MregAPITestCase):
         self.assert_delete("/naptrs/{}".format(naptrs[0]['id']))
         self.zone.refresh_from_db()
         self.assertTrue(self.zone.updated)
+
+    def test_naptr_post_409_conflict_cname(self):
+        cname_data = {'name': 'replacement.example.org', "host": self.host.id}
+        self.assert_post_and_201('/cnames/', cname_data)
+        conflicting_naptr_data = {'host': self.host.id,
+                'preference': 10,
+                'order': 20,
+                'flag': 'a',
+                'service': 'SERVICE',
+                'regex': r'1(.*@example.org)',
+                'replacement': 'replacement.example.org'
+                }
+        self.assert_post_and_409('/naptrs/', conflicting_naptr_data)
+
+    def test_naptr_patch_409_conflict_cname(self):
+        cname_data = {'name': 'replacement1.example.org', "host": self.host.id}
+        self.assert_post_and_201('/cnames/', cname_data)
+        self.test_naptr_post()
+        naptrs = self.assert_get("/naptrs/").json()['results']
+        conflicting_naptr_data = {'replacement': 'replacement1.example.org'}
+        self.assert_patch_and_409("/naptrs/{}".format(naptrs[0]['id']), conflicting_naptr_data)
 
 
 class APIPtrOverrideTestcase(MregAPITestCase):

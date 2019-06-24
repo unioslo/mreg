@@ -458,6 +458,14 @@ class NaptrList(HostPermissionsListCreateAPIView):
         qs = super().get_queryset()
         return NaptrFilterSet(data=self.request.GET, queryset=qs).filter()
 
+    def post(self, request, *args, **kwargs):
+        if "replacement" in request.data:
+            if cname_conflict(request.data["replacement"]):
+                content = {'ERROR': 'name already in use as cname'}
+                return Response(content, status=status.HTTP_409_CONFLICT)
+
+        return super().post(request, *args, **kwargs)
+
 
 class NaptrDetail(HostPermissionsUpdateDestroy,
                   MregRetrieveUpdateDestroyAPIView):
@@ -474,6 +482,14 @@ class NaptrDetail(HostPermissionsUpdateDestroy,
 
     queryset = Naptr.objects.all()
     serializer_class = NaptrSerializer
+
+    def patch(self, request, *args, **kwargs):
+        if "replacement" in request.data:
+            if cname_conflict(request.data["replacement"]):
+                content = {'ERROR': 'name already in use as cname'}
+                return Response(content, status=status.HTTP_409_CONFLICT)
+
+        return super().patch(request, *args, **kwargs)
 
 
 class NameServerList(HostPermissionsListCreateAPIView):
