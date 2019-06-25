@@ -45,7 +45,7 @@ from .zonefile import ZoneFile
 
 def cname_conflict(cname):
     try:
-        conflicting_cname = Cname.objects.get(name=cname)
+        Cname.objects.get(name=cname)
         # No exception, means such Cname exists
         return True
     except Cname.DoesNotExist:
