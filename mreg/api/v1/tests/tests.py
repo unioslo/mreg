@@ -441,9 +441,9 @@ class APIHostsTestCase(MregAPITestCase):
 
     def test_hosts_post_409_conflict_cname(self):
         """"Posting a new host with a name already in use as cname should return 409"""
-        cname_data = {'name': 'host3.example.org', "host": self.host_one.id}
+        cname_data = {'name': 'host3.example.org', 'host': self.host_one.id}
         self.assert_post_and_201('/cnames/', cname_data)
-        conflicting_host_data = {'name': 'host3.example.org', "ipaddress": '127.0.0.3',
+        conflicting_host_data = {'name': 'host3.example.org', 'ipaddress': '127.0.0.3',
                                  'contact': 'hostmaster@example.org'}
         self.assert_post_and_409('/hosts/', conflicting_host_data)
 
@@ -478,7 +478,7 @@ class APIHostsTestCase(MregAPITestCase):
 
     def test_hosts_patch_409_conflict_cname(self):
         """"Patching an entry host with a name already in use as cname should return 409"""
-        cname_data = {'name': 'host3.example.org', "host": self.host_one.id}
+        cname_data = {'name': 'host3.example.org', 'host': self.host_one.id}
         self.assert_post_and_201('/cnames/', cname_data)
         conflicting_host_data = {'name': 'host3.example.org'}
         self.assert_patch_and_409('/hosts/%s' % self.host_one.name, conflicting_host_data)
