@@ -45,7 +45,7 @@ from .zonefile import ZoneFile
 
 def cname_conflict(cname):
     try:
-        conflicting_cname = Cname.objects.get(name=cname)
+        Cname.objects.get(name=cname)
         # No exception, means such Cname exists
         return True
     except Cname.DoesNotExist:
@@ -606,6 +606,14 @@ class SrvList(HostPermissionsListCreateAPIView):
         qs = super().get_queryset()
         return SrvFilterSet(data=self.request.GET, queryset=qs).filter()
 
+    def post(self, request, *args, **kwargs):
+        if "name" in request.data:
+            if cname_conflict(request.data["name"]):
+                content = {'ERROR': 'name already in use as cname'}
+                return Response(content, status=status.HTTP_409_CONFLICT)
+
+        return super().post(request, *args, **kwargs)
+
 
 class SrvDetail(HostPermissionsUpdateDestroy,
                 MregRetrieveUpdateDestroyAPIView):
@@ -621,6 +629,14 @@ class SrvDetail(HostPermissionsUpdateDestroy,
     """
     queryset = Srv.objects.all()
     serializer_class = SrvSerializer
+
+    def patch(self, request, *args, **kwargs):
+        if "name" in request.data:
+            if cname_conflict(request.data["name"]):
+                content = {'ERROR': 'name already in use as cname'}
+                return Response(content, status=status.HTTP_409_CONFLICT)
+
+        return super().patch(request, *args, **kwargs)
 
 
 def _overlap_check(range, exclude=None):
