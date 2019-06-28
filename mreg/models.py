@@ -411,9 +411,9 @@ class Txt(models.Model):
 
 
 class Cname(ForwardZoneMember):
-    host = models.ForeignKey(Host, null=True, on_delete=models.CASCADE, db_column='host',
+    host = models.ForeignKey(Host, null=True, blank=True, on_delete=models.CASCADE, db_column='host',
                              related_name='cnames')
-    cname = models.ForeignKey('self', null=True, on_delete=models.CASCADE, db_column='cname',
+    cname = models.ForeignKey('self', null=True, blank=True, on_delete=models.CASCADE, db_column='cname',
                               related_name='cnames')
     name = DnsNameField(unique=True)
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
