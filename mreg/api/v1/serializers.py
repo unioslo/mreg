@@ -71,7 +71,7 @@ class IpaddressSerializer(ValidationMixin, serializers.ModelSerializer):
 
     def validate(self, data):
         """
-        Make sure a macaddress are semi-unique:
+        Make sure a macaddress is semi-unique:
         - Unique if the IP is not in a network.
         - Only in use by one IP per network.
         - If the network has a vlan id, make sure it is only in use by one of
