@@ -4,6 +4,7 @@ from datetime import timedelta
 from functools import reduce
 
 import django.contrib.postgres.fields as pgfields
+from django.core.exceptions import ValidationError
 from django.contrib.auth.models import Group
 from django.db import DatabaseError, models, transaction
 from django.db.models import Q
@@ -410,8 +411,10 @@ class Txt(models.Model):
 
 
 class Cname(ForwardZoneMember):
-    host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host',
+    host = models.ForeignKey(Host, null=True, on_delete=models.CASCADE, db_column='host',
                              related_name='cnames')
+    cname = models.ForeignKey('self', null=True, on_delete=models.CASCADE, db_column='cname',
+                              related_name='cnames')
     name = DnsNameField(unique=True)
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
 
@@ -421,6 +424,14 @@ class Cname(ForwardZoneMember):
 
     def __str__(self):
         return "{} -> {}".format(str(self.name), str(self.host))
+
+    def save(self, *args, **kwargs):
+        if self.host and self.cname:
+            raise ValidationError("cname can point to either a host or another cname, not both")
+        elif (not self.host and not self.cname):
+            raise ValidationError("cname should point to either a host or another cname")
+        else:
+            super().save(*args, **kwargs)
 
 
 class Network(models.Model):
