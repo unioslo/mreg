@@ -622,7 +622,7 @@ class ModelChangeLog(models.Model):
     table_row = models.BigIntegerField()
     data = models.TextField()
     action = models.CharField(max_length=16)  # saved or deleted
-    timestamp = models.DateTimeField()
+    timestamp = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = "model_change_log"
