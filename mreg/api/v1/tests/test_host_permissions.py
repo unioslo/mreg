@@ -166,12 +166,13 @@ class Ipaddresses(HostBasePermissions):
             Host.objects.filter(name=data['name']).delete()
 
         def _assert_ip(ip):
-
+            path = '/api/v1/ipaddresses/'
             data = {'host': self.host_one.id, 'ipaddress': ip}
-            self.assert_post('/api/v1/ipaddresses/', data)
-            Ipaddress.objects.filter(ipaddress=ip).delete()
-            self.assert_post('/api/v1/ptroverrides/', data)
-            PtrOverride.objects.filter(ipaddress=ip).delete()
+            ret = self.assert_post(path, data)
+            self.assert_delete(path + str(ret.data['id']))
+            path = '/api/v1/ptroverrides/'
+            ret = self.assert_post(path, data)
+            self.assert_delete(path + str(ret.data['id']))
             data = {'ipaddress': ip}
             self.assert_patch(f'/api/v1/ipaddresses/{self.ip_one.id}', data)
 
