@@ -61,100 +61,108 @@ class MregAPITestCase(APITestCase):
             return f'/api/v1/{path[1:]}'
         return f'/api/v1/{path}'
 
-    def _assert_delete_and_status(self, path, status_code):
-        response = self.client.delete(self._create_path(path))
+    def _assert_delete_and_status(self, path, status_code, client=None):
+        if client is None:
+            client = self.client
+        response = client.delete(self._create_path(path))
         self.assertEqual(response.status_code, status_code)
         return response
 
-    def _assert_get_and_status(self, path, status_code):
-        response = self.client.get(self._create_path(path))
+    def _assert_get_and_status(self, path, status_code, client=None):
+        if client is None:
+            client = self.client
+        response = client.get(self._create_path(path))
         self.assertEqual(response.status_code, status_code)
         return response
 
-    def _assert_patch_and_status(self, path, status_code, data=None):
-        response = self.client.patch(self._create_path(path), data)
+    def _assert_patch_and_status(self, path, status_code, data=None, client=None):
+        if client is None:
+            client = self.client
+        response = client.patch(self._create_path(path), data)
         self.assertEqual(response.status_code, status_code)
         return response
 
-    def _assert_post_and_status(self, path, status_code, data=None):
-        response = self.client.post(self._create_path(path), data)
+    def _assert_post_and_status(self, path, status_code, data=None, client=None):
+        if client is None:
+            client = self.client
+        response = client.post(self._create_path(path), data)
         self.assertEqual(response.status_code, status_code)
         return response
 
-    def assert_delete(self, path):
-        return self.assert_delete_and_204(path)
+    def assert_delete(self, path, **kwargs):
+        return self.assert_delete_and_204(path, **kwargs)
 
-    def assert_delete_and_204(self, path):
-        return self._assert_delete_and_status(path, 204)
+    def assert_delete_and_204(self, path, **kwargs):
+        return self._assert_delete_and_status(path, 204, **kwargs)
 
-    def assert_delete_and_403(self, path):
-        return self._assert_delete_and_status(path, 403)
+    def assert_delete_and_403(self, path, **kwargs):
+        return self._assert_delete_and_status(path, 403, **kwargs)
 
-    def assert_delete_and_404(self, path):
-        return self._assert_delete_and_status(path, 404)
+    def assert_delete_and_404(self, path, **kwargs):
+        return self._assert_delete_and_status(path, 404, **kwargs)
 
-    def assert_delete_and_409(self, path):
-        return self._assert_delete_and_status(path, 409)
+    def assert_delete_and_409(self, path, **kwargs):
+        return self._assert_delete_and_status(path, 409, **kwargs)
 
-    def assert_get(self, path):
-        return self.assert_get_and_200(path)
+    def assert_get(self, path, **kwargs):
+        return self.assert_get_and_200(path, **kwargs)
 
-    def assert_get_and_200(self, path):
-        return self._assert_get_and_status(path, 200)
+    def assert_get_and_200(self, path, **kwargs):
+        return self._assert_get_and_status(path, 200, **kwargs)
 
-    def assert_get_and_400(self, path):
-        return self._assert_get_and_status(path, 400)
+    def assert_get_and_400(self, path, **kwargs):
+        return self._assert_get_and_status(path, 400, **kwargs)
 
-    def assert_get_and_401(self, path):
-        return self._assert_get_and_status(path, 401)
+    def assert_get_and_401(self, path, **kwargs):
+        return self._assert_get_and_status(path, 401, **kwargs)
 
-    def assert_get_and_404(self, path):
-        return self._assert_get_and_status(path, 404)
+    def assert_get_and_404(self, path, **kwargs):
+        return self._assert_get_and_status(path, 404, **kwargs)
 
-    def assert_patch(self, path, data=None):
-        return self.assert_patch_and_204(path, data)
+    def assert_patch(self, path, *args, **kwargs):
+        return self.assert_patch_and_204(path, *args, **kwargs)
 
-    def assert_patch_and_204(self, path, data=None):
-        return self._assert_patch_and_status(path, 204, data)
+    def assert_patch_and_204(self, path, *args, **kwargs):
+        return self._assert_patch_and_status(path, 204, *args, **kwargs)
 
-    def assert_patch_and_400(self, path, data=None):
-        return self._assert_patch_and_status(path, 400, data)
+    def assert_patch_and_400(self, path, *args, **kwargs):
+        return self._assert_patch_and_status(path, 400, *args, **kwargs)
 
-    def assert_patch_and_403(self, path, data=None):
-        return self._assert_patch_and_status(path, 403, data)
+    def assert_patch_and_403(self, path, *args, **kwargs):
+        return self._assert_patch_and_status(path, 403, *args, **kwargs)
 
-    def assert_patch_and_404(self, path, data=None):
-        return self._assert_patch_and_status(path, 404, data)
+    def assert_patch_and_404(self, path, *args, **kwargs):
+        return self._assert_patch_and_status(path, 404, *args, **kwargs)
 
-    def assert_patch_and_405(self, path, data=None):
-        return self._assert_patch_and_status(path, 405, data)
+    def assert_patch_and_405(self, path, *args, **kwargs):
+        return self._assert_patch_and_status(path, 405, *args, **kwargs)
 
-    def assert_patch_and_409(self, path, data=None):
-        return self._assert_patch_and_status(path, 409, data)
+    def assert_patch_and_409(self, path, *args, **kwargs):
+        return self._assert_patch_and_status(path, 409, *args, **kwargs)
 
-    def assert_post(self, path, data=None):
-        return self.assert_post_and_201(path, data)
+    def assert_post(self, path, *args, **kwargs):
+        return self.assert_post_and_201(path, *args, **kwargs)
 
-    def assert_post_and_200(self, path, data=None):
-        return self._assert_post_and_status(path, 200, data)
+    def assert_post_and_200(self, path, *args, **kwargs):
+        return self._assert_post_and_status(path, 200, *args, **kwargs)
 
-    def assert_post_and_201(self, path, data=None):
-        return self._assert_post_and_status(path, 201, data)
+    def assert_post_and_201(self, path, *args, **kwargs):
+        return self._assert_post_and_status(path, 201, *args, **kwargs)
 
-    def assert_post_and_400(self, path, data=None):
-        return self._assert_post_and_status(path, 400, data)
+    def assert_post_and_400(self, path, *args, **kwargs):
+        return self._assert_post_and_status(path, 400, *args, **kwargs)
 
-    def assert_post_and_401(self, path, data=None):
-        return self._assert_post_and_status(path, 401, data)
+    def assert_post_and_401(self, path, *args, **kwargs):
+        return self._assert_post_and_status(path, 401, *args, **kwargs)
 
-    def assert_post_and_403(self, path, data=None):
-        return self._assert_post_and_status(path, 403, data)
+    def assert_post_and_403(self, path, *args, **kwargs):
+        return self._assert_post_and_status(path, 403, *args, **kwargs)
 
-    def assert_post_and_404(self, path, data=None):
-        return self._assert_post_and_status(path, 404, data)
+    def assert_post_and_404(self, path, *args, **kwargs):
+        return self._assert_post_and_status(path, 404, *args, **kwargs)
 
-    def assert_post_and_409(self, path, data=None):
-        return self._assert_post_and_status(path, 409, data)
+    def assert_post_and_409(self, path, *args, **kwargs):
+        return self._assert_post_and_status(path, 409, *args, **kwargs)
 
 
 def clean_and_save(entity):
