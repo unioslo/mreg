@@ -114,26 +114,20 @@ class Ipaddresses(HostBasePermissions):
             data = {'name': 'host2.example.org', 'ipaddress': ip}
             path = '/api/v1/hosts/'
             self.assert_post_and_403(path, data)
-            ret = admin_client.post(path, data)
-            self.assertEqual(ret.status_code, 403)
-            ret = super_client.post(path, data)
-            self.assertEqual(ret.status_code, 201)
-            ret = super_client.delete(ret['Location'])
-            self.assertEqual(ret.status_code, 204)
+            self.assert_post_and_403(path, data, client=admin_client)
+            ret = self.assert_post(path, data, client=super_client)
+            self.assert_delete(ret['Location'], client=super_client)
 
         def _assert_ip(ip):
 
             def __assert_post(path):
                 self.assert_post_and_403(path, data)
-                ret = admin_client.post(path, data)
-                self.assertEqual(ret.status_code, 403)
-                ret = super_client.post(path, data)
-                self.assertEqual(ret.status_code, 201)
+                self.assert_post_and_403(path, data, client=admin_client)
+                self.assert_post(path, data, client=super_client)
 
             def __assert_patch(path):
-                ret = admin_client.patch(path, data)
-                self.assertEqual(ret.status_code, 403)
                 self.assert_patch_and_403(path, data)
+                self.assert_patch_and_403(path, data, client=admin_client)
 
             data = {'host': self.host_one.id, 'ipaddress': ip}
             __assert_post('/api/v1/ipaddresses/')
@@ -227,8 +221,7 @@ class Wildcard(MregAPITestCase):
         data = {'name': '*.example.org'}
         path = '/api/v1/hosts/'
         self.assert_post_and_403(path, data)
-        ret = self.super_client.post(path, data)
-        self.assertEqual(ret.status_code, 201)
+        self.assert_post_and_201(path, data, self.super_client)
 
     def test_super_only_rename_to_wildcard(self):
         """Only a super user may rename (patch) a hostname to a wildcard."""
@@ -236,5 +229,4 @@ class Wildcard(MregAPITestCase):
         path = '/api/v1/hosts/'
         self.assert_post(path, {'name': 'host1.example.org'})
         self.assert_patch_and_403(f'{path}host1.example.org', data)
-        ret = self.super_client.patch(f'{path}host1.example.org', data)
-        self.assertEqual(ret.status_code, 204)
+        self.assert_patch(f'{path}host1.example.org', data, client=self.super_client)
