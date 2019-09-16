@@ -54,6 +54,13 @@ class HostGroupPermissionsUpdateDestroy(M2MPermissions,
     permission_classes = (HostGroupPermission, )
 
 
+def _hostgroup_prefetcher(qs):
+    return qs.prefetch_related(Prefetch(
+                 'hosts', queryset=Host.objects.order_by('name'))
+                ).prefetch_related(Prefetch(
+                 'owners', queryset=Group.objects.order_by('name')))
+
+
 class HostGroupList(MregMixin, generics.ListCreateAPIView):
     """
     get:
@@ -62,16 +69,13 @@ class HostGroupList(MregMixin, generics.ListCreateAPIView):
     post:
     Creates a new hostgroup object.
     """
-    queryset = HostGroup.objects.get_queryset()
+
+    queryset = HostGroup.objects.all()
     serializer_class = serializers.HostGroupSerializer
     permission_classes = (IsSuperOrGroupAdminOrReadOnly, )
 
     def get_queryset(self):
-        qs = super().get_queryset()
-        qs = qs.prefetch_related(Prefetch(
-               'hosts', queryset=Host.objects.order_by('name'))
-               ).prefetch_related(Prefetch(
-                'owners', queryset=Group.objects.order_by('name')))
+        qs = _hostgroup_prefetcher(super().get_queryset())
         return HostGroupFilterSet(data=self.request.GET, queryset=qs).filter()
 
     def post(self, request, *args, **kwargs):
@@ -99,11 +103,7 @@ class HostGroupDetail(HostGroupPermissionsUpdateDestroy):
     Delete the specified hostgroup.
     """
 
-    queryset = HostGroup.objects.get_queryset(
-                 ).prefetch_related(Prefetch(
-                   'hosts', queryset=Host.objects.order_by('name'))
-                 ).prefetch_related(Prefetch(
-                    'owners', queryset=Group.objects.order_by('name')))
+    queryset = _hostgroup_prefetcher(HostGroup.objects.all())
     serializer_class = serializers.HostGroupSerializer
     lookup_field = 'name'
 
@@ -113,9 +113,9 @@ class HostGroupM2MList(HostGroupPermissionsListCreateAPIView):
     lookup_field = 'name'
 
     def get_queryset(self):
-        self.hostgroup = get_object_or_404(HostGroup,
-                                           name=self.kwargs[self.lookup_field])
-        self.m2mrelation = getattr(self.hostgroup, self.m2m_field)
+        self.object = get_object_or_404(HostGroup,
+                                        name=self.kwargs[self.lookup_field])
+        self.m2mrelation = getattr(self.object, self.m2m_field)
         return self.m2mrelation.all().order_by('name')
 
     def post(self, request, *args, **kwargs):
@@ -131,7 +131,7 @@ class HostGroupM2MList(HostGroupPermissionsListCreateAPIView):
                 content = {'ERROR': f'"{name}" does not exist'}
                 return Response(content, status=status.HTTP_404_NOT_FOUND)
             self.perform_m2m_alteration(self.m2mrelation.add, instance)
-            location = f'/api/v1/hostgroups/{self.hostgroup.name}/{self.m2m_field}/{instance.name}'
+            location = f'/api/v1/hostgroups/{self.object.name}/{self.m2m_field}/{instance.name}'
             return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
         else:
             content = {'ERROR': 'No name provided'}
@@ -156,8 +156,8 @@ class HostGroupM2MDetail(HostGroupPermissionsUpdateDestroy):
         return obj
 
     def get_queryset(self):
-        self.hostgroup = get_object_or_404(HostGroup, name=self.kwargs['name'])
-        self.m2mrelation = getattr(self.hostgroup, self.m2m_field)
+        self.object = get_object_or_404(HostGroup, name=self.kwargs['name'])
+        self.m2mrelation = getattr(self.object, self.m2m_field)
         return self.m2mrelation.all()
 
     # Not sure why this is needed, but GET on a detail bombs out without it, and

@@ -294,7 +294,7 @@ class HostGroupPermission(IsAuthenticated):
     def has_m2m_change_permission(self, request, view):
         if is_super_or_group_admin(request.user):
             return True
-        return self._request_user_is_owner(view.hostgroup, request)
+        return self._request_user_is_owner(view.object, request)
 
     # patch will only happen on HostGroupDetail
     def has_update_permission(self, request, view, validated_serializer):
