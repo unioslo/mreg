@@ -20,9 +20,13 @@ def get_settings_groups(group_setting_name):
     return groupnames
 
 
-def user_in_settings_group(request, group_setting_name):
+def request_in_settings_group(request, group_setting_name):
+    return user_in_settings_group(request.user, group_setting_name)
+
+
+def user_in_settings_group(user, group_setting_name):
     groupnames = get_settings_groups(group_setting_name)
-    return request.user.groups.filter(name__in=groupnames).exists()
+    return _list_in_list(groupnames, user.group_list)
 
 
 def _list_in_list(list_a, list_b):
@@ -36,18 +40,15 @@ def user_in_required_group(user):
 
 
 def user_is_superuser(user):
-    groups = get_settings_groups('SUPERUSER_GROUP')
-    return _list_in_list(groups, user.group_list)
+    return user_in_settings_group(user, 'SUPERUSER_GROUP')
 
 
 def user_is_adminuser(user):
-    groups = get_settings_groups('ADMINUSER_GROUP')
-    return _list_in_list(groups, user.group_list)
+    return user_in_settings_group(user, 'ADMINUSER_GROUP')
 
 
 def user_is_group_adminuser(user):
-    groups = get_settings_groups('GROUPADMINUSER_GROUP')
-    return _list_in_list(groups, user.group_list)
+    return user_in_settings_group(user, 'GROUPADMINUSER_GROUP')
 
 
 def is_super_or_admin(user):
@@ -73,7 +74,7 @@ class IsInRequiredGroup(IsAuthenticated):
     def has_permission(self, request, view):
         if not super().has_permission(request, view):
             return False
-        return user_in_settings_group(request, 'REQUIRED_USER_GROUPS')
+        return request_in_settings_group(request, 'REQUIRED_USER_GROUPS')
 
 
 class ReadOnlyForRequiredGroup(IsInRequiredGroup):
@@ -95,7 +96,7 @@ class IsSuperGroupMember(IsAuthenticated):
     def has_permission(self, request, view):
         if not super().has_permission(request, view):
             return False
-        return user_in_settings_group(request, SUPERUSER_GROUP)
+        return request_in_settings_group(request, SUPERUSER_GROUP)
 
 
 class IsSuperGroupOrNetworkAdminMember(IsAuthenticated):
@@ -109,7 +110,7 @@ class IsSuperGroupOrNetworkAdminMember(IsAuthenticated):
             return False
         if user_is_superuser(request.user):
             return True
-        if request.method == 'PATCH' and user_in_settings_group(request, NETWORK_ADMIN_GROUP):
+        if request.method == 'PATCH' and request_in_settings_group(request, NETWORK_ADMIN_GROUP):
             # Only allow update of the reserved field
             if 'reserved' in request.data and len(request.data) == 1:
                 return True
@@ -172,7 +173,7 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
             return False
         if 'ipaddress' in data:
             if self.is_reserved_ip(data['ipaddress']):
-                if user_in_settings_group(request, NETWORK_ADMIN_GROUP):
+                if request_in_settings_group(request, NETWORK_ADMIN_GROUP):
                     return True
                 return False
         if user_is_adminuser(request.user):
@@ -203,7 +204,7 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
         obj = view.get_object()
         if hasattr(obj, 'ipaddress'):
             if self.is_reserved_ip(obj.ipaddress):
-                if user_in_settings_group(request, NETWORK_ADMIN_GROUP):
+                if request_in_settings_group(request, NETWORK_ADMIN_GROUP):
                     return True
                 return False
         if user_is_adminuser(request.user):
@@ -226,7 +227,7 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
             return False
         if 'ipaddress' in data:
             if self.is_reserved_ip(data['ipaddress']):
-                if user_in_settings_group(request, NETWORK_ADMIN_GROUP):
+                if request_in_settings_group(request, NETWORK_ADMIN_GROUP):
                     return True
                 return False
         if user_is_adminuser(request.user):
