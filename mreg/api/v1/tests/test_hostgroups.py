@@ -61,9 +61,9 @@ class APIHostGroupsTestCase(MregAPITestCase):
         self.assert_post_and_409('/hostgroups/', post_data)
 
     def test_hostgroups_rename_to_name_in_use_400_bad_request(self):
-        """Rename a group should return 204 ok"""
+        """Rename to a name in use should return 400"""
         self.assert_patch_and_400(f'/hostgroups/{self.hostgroup_one.name}',
-                                  {'name': self.hostgroup_two})
+                                  {'name': self.hostgroup_two.name})
 
 
 class APIHostGroupGroupsTestCase(MregAPITestCase):
