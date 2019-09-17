@@ -13,7 +13,7 @@ from mreg.api.permissions import (HostGroupPermission,
 from mreg.models import Host, HostGroup
 
 from . import serializers
-from .views import (MregMixin,
+from .views import (MregListCreateAPIView,
                     MregPermissionsListCreateAPIView,
                     MregPermissionsUpdateDestroy,
                     MregRetrieveUpdateDestroyAPIView,
@@ -61,7 +61,7 @@ def _hostgroup_prefetcher(qs):
                  'owners', queryset=Group.objects.order_by('name')))
 
 
-class HostGroupList(MregMixin, generics.ListCreateAPIView):
+class HostGroupList(MregListCreateAPIView):
     """
     get:
     Lists all hostgroups in use.
@@ -83,12 +83,8 @@ class HostGroupList(MregMixin, generics.ListCreateAPIView):
             if self.get_queryset().filter(name=request.data['name']).exists():
                 content = {'ERROR': 'hostgroup name already in use'}
                 return Response(content, status=status.HTTP_409_CONFLICT)
-
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        location = request.path + serializer.validated_data['name']
-        return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
+        self.lookup_field = 'name'
+        return super().post(request, *args, **kwargs)
 
 
 class HostGroupDetail(HostGroupPermissionsUpdateDestroy):

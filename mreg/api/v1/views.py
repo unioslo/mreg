@@ -173,6 +173,17 @@ class MregRetrieveUpdateDestroyAPIView(ETAGMixin,
         raise MethodNotAllowed()
 
 
+class MregListCreateAPIView(MregMixin, generics.ListCreateAPIView):
+
+    def post(self, request, *args, **kwargs):
+        # Add a location header for all POSTs
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        location = request.path + str(serializer.validated_data[self.lookup_field])
+        return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
+
+
 class MregPermissionsUpdateDestroy:
 
     def perform_destroy(self, instance):
@@ -611,7 +622,7 @@ def _overlap_check(range, exclude=None):
                         status=status.HTTP_409_CONFLICT)
 
 
-class NetworkList(generics.ListCreateAPIView):
+class NetworkList(MregListCreateAPIView):
     """
     list:
     Returns a list of networks
@@ -622,16 +633,7 @@ class NetworkList(generics.ListCreateAPIView):
     queryset = Network.objects.all()
     serializer_class = NetworkSerializer
     permission_classes = (IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
-
-    def post(self, request, *args, **kwargs):
-        error = _overlap_check(request.data['network'])
-        if error:
-            return error
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        location = request.path + str(serializer.validated_data['network'])
-        return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
+    lookup_field = 'network'
 
     def get_queryset(self):
         """
@@ -640,6 +642,12 @@ class NetworkList(generics.ListCreateAPIView):
         """
         qs = super().get_queryset()
         return NetworkFilterSet(data=self.request.GET, queryset=qs).filter()
+
+    def post(self, request, *args, **kwargs):
+        error = _overlap_check(request.data['network'])
+        if error:
+            return error
+        return super().post(request, *args, **kwargs)
 
 
 class NetworkDetail(MregRetrieveUpdateDestroyAPIView):
