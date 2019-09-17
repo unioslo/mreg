@@ -330,14 +330,14 @@ class HostList(HostPermissionsListCreateAPIView):
                     ipserializer = IpaddressSerializer(ip, data=ipdata)
                     if ipserializer.is_valid(raise_exception=True):
                         self.perform_create(ipserializer)
-                        location = '/api/v1/hosts/%s' % host.name
+                        location = request.path + host.name
                         return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
         else:
             host = Host()
             hostserializer = HostSerializer(host, data=hostdata)
             if hostserializer.is_valid(raise_exception=True):
                 self.perform_create(hostserializer)
-                location = '/api/v1/hosts/%s' % host.name
+                location = request.path + host.name
                 return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
 
 
@@ -630,7 +630,7 @@ class NetworkList(generics.ListCreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
-        location = '/api/v1/networks/%s' % serializer.validated_data['network']
+        location = request.path + str(serializer.validated_data['network'])
         return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
 
     def get_queryset(self):
@@ -892,7 +892,7 @@ class ZoneList(generics.ListCreateAPIView):
         self.perform_create(zone)
         zone.update_nameservers(nameservers)
         _update_parent_zone(qs, zone.name)
-        location = f"/api/v1/zones/{zone.name}"
+        location = request.path + zone.name
         return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
 
 
@@ -945,7 +945,7 @@ class ZoneDelegationList(generics.ListCreateAPIView):
         delegation.update_nameservers(nameservers)
         self.parentzone.updated = True
         self.parentzone.save()
-        location = f"/api/v1/zones/{self.parentzone.name}/delegations/{delegation.name}"
+        location = request.path + delegation.name
         return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
 
 
@@ -1018,7 +1018,7 @@ class ZoneDetail(MregRetrieveUpdateDestroyAPIView):
         serializer = self.get_serializer(zone, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer, updated=True)
-        location = f"/api/v1/zones/{zone.name}"
+        location = request.path + zone.name
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
     def delete(self, request, *args, **kwargs):
@@ -1032,7 +1032,7 @@ class ZoneDetail(MregRetrieveUpdateDestroyAPIView):
             zone.remove_nameservers()
             zone.delete()
         _update_parent_zone(self.get_queryset(), zone.name)
-        location = f"/api/v1/zones/{zone.name}"
+        location = request.path + zone.name
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
@@ -1076,8 +1076,7 @@ class ZoneDelegationDetail(MregRetrieveUpdateDestroyAPIView):
         # Also update the parent zone's updated attribute
         self.parentzone.updated = True
         self.parentzone.save()
-        location = f"/api/v1/zones/{zone.zone.name}/delegations/{zone.name}"
-        return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
+        return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': request.path})
 
 
 class ZoneNameServerDetail(MregRetrieveUpdateDestroyAPIView):
@@ -1118,8 +1117,7 @@ class ZoneNameServerDetail(MregRetrieveUpdateDestroyAPIView):
         zone.primary_ns = request.data.getlist('primary_ns')[0]
         zone.updated = True
         self.perform_update(zone)
-        location = f"/api/v1/zones/{zone.name}/nameservers"
-        return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
+        return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': request.path})
 
 
 class NetGroupRegexPermissionList(MregMixin, generics.ListCreateAPIView):

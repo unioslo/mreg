@@ -86,8 +86,8 @@ class HostGroupList(MregMixin, generics.ListCreateAPIView):
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
-        location = '/api/v1/hostgroups/%s' % serializer.validated_data['name']
+        self.perform_create(serializer)
+        location = request.path + serializer.validated_data['name']
         return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
 
 
@@ -131,7 +131,7 @@ class HostGroupM2MList(HostGroupPermissionsListCreateAPIView):
                 content = {'ERROR': f'"{name}" does not exist'}
                 return Response(content, status=status.HTTP_404_NOT_FOUND)
             self.perform_m2m_alteration(self.m2mrelation.add, instance)
-            location = f'/api/v1/hostgroups/{self.object.name}/{self.m2m_field}/{instance.name}'
+            location = request.path + instance.name
             return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
         else:
             content = {'ERROR': 'No name provided'}
