@@ -160,13 +160,17 @@ class MregRetrieveUpdateDestroyAPIView(ETAGMixin,
             # forcibly invalidate the prefetch cache on the instance.
             instance._prefetched_objects_cache = {}
 
-        resource = request.path.split("/")[3]
-        location = f'/api/v1/{resource}/'
         if self.lookup_field in serializer.validated_data:
+            # Remove the value of self.lookup_field from end of path
+            location = request.path[:-len(kwargs[self.lookup_field])]
+            # and replace with updated one
             location += str(serializer.validated_data[self.lookup_field])
         else:
-            location += str(getattr(instance, self.lookup_field))
+            location = request.path
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
+
+    def put(self, request, *args, **kwargs):
+        raise MethodNotAllowed()
 
 
 class MregPermissionsUpdateDestroy:
