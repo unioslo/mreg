@@ -8,18 +8,32 @@ from django.contrib.auth.models import Group
 from django.db import DatabaseError, models, transaction
 from django.db.models import Q
 from django.utils import timezone
-
 from netfields import CidrAddressField, NetManager
 
 from .fields import DnsNameField, LCICharField
 from .models_auth import User  # noqa: F401, needed by mreg.settings for now
-from .utils import (clear_none, create_serialno, encode_mail,
-                    get_network_from_zonename, idna_encode, qualify, quote_if_space)
-from .validators import (validate_16bit_uint, validate_32bit_uint, validate_hexadecimal,
-                         validate_hostname, validate_loc, validate_mac_address,
-                         validate_naptr_flag, validate_regex,
-                         validate_reverse_zone_name, validate_srv_service_text,
-                         validate_ttl)
+from .utils import (
+    clear_none,
+    create_serialno,
+    encode_mail,
+    get_network_from_zonename,
+    idna_encode,
+    qualify,
+    quote_if_space,
+)
+from .validators import (
+    validate_16bit_uint,
+    validate_32bit_uint,
+    validate_hexadecimal,
+    validate_hostname,
+    validate_loc,
+    validate_mac_address,
+    validate_naptr_flag,
+    validate_regex,
+    validate_reverse_zone_name,
+    validate_srv_service_text,
+    validate_ttl,
+)
 
 
 class NameServer(models.Model):
