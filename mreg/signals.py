@@ -5,7 +5,6 @@ from django.conf import settings
 from django.contrib.auth.models import Group
 from django.db.models.signals import m2m_changed, post_delete, post_save, pre_delete, pre_save
 from django.dispatch import receiver
-from django.utils import timezone
 
 from django_auth_ldap.backend import populate_user
 
@@ -184,10 +183,17 @@ def save_host_history_on_delete(sender, instance, **kwargs):
     new_log_entry.save()
 
 
+def _host_update_m2m_relations(instance):
+    for hostgroup in instance.hostgroups.all():
+        hostgroup.save()
+    for role in instance.hostpolicyroles.all():
+        role.save()
+
+
 @receiver(pre_save, sender=Host)
-def hostgroups_update_update_at_on_host_rename(sender, instance, raw, using, update_fields, **kwargs):
+def host_update_m2m_relations_on_rename(sender, instance, raw, using, update_fields, **kwargs):
     """
-    Update hostgroup on host rename
+    Update hostgroup and hostpolicy on host rename
     """
     # Ignore newly created hosts
     if not instance.id:
@@ -195,18 +201,16 @@ def hostgroups_update_update_at_on_host_rename(sender, instance, raw, using, upd
 
     oldname = Host.objects.get(id=instance.id).name
     if oldname != instance.name:
-        for hostgroup in instance.hostgroups.all():
-            hostgroup.save()
+        _host_update_m2m_relations(instance)
 
 
 @receiver(pre_delete, sender=Host)
-def hostgroup_update_updated_at_on_host_delete(sender, instance, using, **kwargs):
+def host_update_m2m_relations_on_delete(sender, instance, using, **kwargs):
     """
     No signal is sent for m2m relations on delete, so use a pre_delete on Host
     instead.
     """
-    for hostgroup in instance.hostgroups.all():
-        hostgroup.save()
+    _host_update_m2m_relations(instance)
 
 
 @receiver(m2m_changed, sender=HostGroup.hosts.through)
@@ -236,14 +240,11 @@ def prevent_hostgroup_parent_recursion(sender, instance, action, model,
     if instance.id in pk_set:
         raise PermissionDenied(detail='A group can not be its own child')
 
-    child_id = list(pk_set)[0]
-
     for parent in instance.parent.all():
-        if child_id == parent.id:
+        if parent.id in pk_set:
             raise PermissionDenied(detail='Recursive memberships are not allowed.'
                                           ' This group is a member of %s' % parent.name)
         elif parent.parent.exists():
-            pk_set = {child_id}
             prevent_hostgroup_parent_recursion(sender, parent, action, model,
                                                reverse, pk_set, **kwargs)
 
