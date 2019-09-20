@@ -1,9 +1,7 @@
 from django.contrib.auth.models import Group
 from django.db.models import Prefetch
-from django.shortcuts import get_object_or_404
 
-from rest_framework import generics, status
-from rest_framework.exceptions import MethodNotAllowed
+from rest_framework import status
 from rest_framework.response import Response
 
 from url_filter.filtersets import ModelFilterSet
@@ -18,6 +16,7 @@ from .views import (MregListCreateAPIView,
                     MregPermissionsUpdateDestroy,
                     MregRetrieveUpdateDestroyAPIView,
                     )
+from .views_m2m import M2MDetail, M2MList, M2MPermissions
 
 
 class HostGroupFilterSet(ModelFilterSet):
@@ -25,11 +24,7 @@ class HostGroupFilterSet(ModelFilterSet):
         model = HostGroup
 
 
-class M2MPermissions:
-
-    def perform_m2m_alteration(self, method, instance):
-        self.check_m2m_update_permission(self.request)
-        method(instance)
+class HostGroupM2MPermissions(M2MPermissions):
 
     def check_m2m_update_permission(self, request):
         for permission in self.get_permissions():
@@ -41,13 +36,13 @@ class M2MPermissions:
                     self.permission_denied(request)
 
 
-class HostGroupPermissionsListCreateAPIView(M2MPermissions,
+class HostGroupPermissionsListCreateAPIView(HostGroupM2MPermissions,
                                             MregPermissionsListCreateAPIView):
 
     permission_classes = (HostGroupPermission, )
 
 
-class HostGroupPermissionsUpdateDestroy(M2MPermissions,
+class HostGroupPermissionsUpdateDestroy(HostGroupM2MPermissions,
                                         MregPermissionsUpdateDestroy,
                                         MregRetrieveUpdateDestroyAPIView):
 
@@ -104,72 +99,15 @@ class HostGroupDetail(HostGroupPermissionsUpdateDestroy):
     lookup_field = 'name'
 
 
-class HostGroupM2MList(HostGroupPermissionsListCreateAPIView):
+class HostGroupM2MList(M2MList, HostGroupPermissionsListCreateAPIView):
 
     lookup_field = 'name'
-
-    def get_queryset(self):
-        self.object = get_object_or_404(HostGroup,
-                                        name=self.kwargs[self.lookup_field])
-        self.m2mrelation = getattr(self.object, self.m2m_field)
-        return self.m2mrelation.all().order_by('name')
-
-    def post(self, request, *args, **kwargs):
-        qs = self.get_queryset()
-        if "name" in request.data:
-            name = request.data['name']
-            if qs.filter(name=name).exists():
-                content = {'ERROR': f'{name} already in {self.m2m_field}'}
-                return Response(content, status=status.HTTP_409_CONFLICT)
-            try:
-                instance = self.m2m_object.objects.get(name=name)
-            except self.m2m_object.DoesNotExist:
-                content = {'ERROR': f'"{name}" does not exist'}
-                return Response(content, status=status.HTTP_404_NOT_FOUND)
-            self.perform_m2m_alteration(self.m2mrelation.add, instance)
-            location = request.path + instance.name
-            return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
-        else:
-            content = {'ERROR': 'No name provided'}
-            return Response(content, status=status.HTTP_400_BAD_REQUEST)
+    cls = HostGroup
 
 
-class HostGroupM2MDetail(HostGroupPermissionsUpdateDestroy):
-    """
-    get:
-    Returns details for the specified m2mrelation member.
+class HostGroupM2MDetail(M2MDetail, HostGroupPermissionsUpdateDestroy):
 
-    patch:
-    Not allowed.
-
-    delete:
-    Delete the specified m2mrelation member.
-    """
-
-    def get_object(self):
-        queryset = self.filter_queryset(self.get_queryset())
-        obj = get_object_or_404(queryset, name=self.kwargs[self.lookup_field])
-        return obj
-
-    def get_queryset(self):
-        self.object = get_object_or_404(HostGroup, name=self.kwargs['name'])
-        self.m2mrelation = getattr(self.object, self.m2m_field)
-        return self.m2mrelation.all()
-
-    # Not sure why this is needed, but GET on a detail bombs out without it, and
-    # it is exactly the same function as in DRF's mixins.py.
-    def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = self.get_serializer(instance)
-        return Response(serializer.data)
-
-    def patch(self, request, *args, **kwargs):
-        raise MethodNotAllowed(request.method)
-
-    def delete(self, request, *args, **kwargs):
-        instance = self.get_object()
-        self.perform_m2m_alteration(self.m2mrelation.remove, instance)
-        return Response(status=status.HTTP_204_NO_CONTENT)
+    cls = HostGroup
 
 
 class HostGroupGroupsList(HostGroupM2MList):
@@ -243,7 +181,7 @@ class HostGroupOwnersList(HostGroupM2MList):
     Adds a new owner to a hostgroup.
     """
 
-    serializer_class = serializers.HostNameSerializer
+    serializer_class = serializers.GroupSerializer
     m2m_field = 'owners'
     m2m_object = Group
 

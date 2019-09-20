@@ -2,6 +2,7 @@ from mreg.models import Host, Ipaddress, Network, PtrOverride
 
 from .tests import clean_and_save, MregAPITestCase
 
+
 class NetworksTestCase(MregAPITestCase):
     """"This class defines the test suite for api/networks """
     def setUp(self):
