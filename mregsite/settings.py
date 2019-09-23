@@ -61,7 +61,8 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',
     'django_logging',
     'netfields',
-    'mreg'
+    'mreg',
+    'hostpolicy',
 ]
 
 MIDDLEWARE = [
@@ -168,6 +169,11 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'mreg.api.permissions.IsAuthenticatedAndReadOnly',
     ),
+    'DEFAULT_SCHEMA_CLASS': 'rest_framework.schemas.coreapi.AutoSchema',
+}
+
+SWAGGER_SETTINGS = {
+    'USE_SESSION_AUTH': False,
 }
 
 # This setting must be defined for mreg.api.permissions.IsInRequiredGroup
@@ -188,10 +194,6 @@ DJANGO_LOGGING = {
     'IGNORED_PATHS': ['/admin', '/static', '/favicon.ico', '/api/token-auth']
 }
 
-SWAGGER_SETTINGS = {
-    'USE_SESSION_AUTH': False,
-}
-
 # TXT record(s) automatically added to a host when added to a ForwardZone.
 TXT_AUTO_RECORDS = {
         'example.org': ('v=spf1 -all', ),
@@ -208,3 +210,4 @@ if TESTING:
     ADMINUSER_GROUP = "default-admin-group"
     GROUPADMINUSER_GROUP = "default-groupadmin-group"
     NETWORK_ADMIN_GROUP = "default-networkadmin-group"
+    HOSTPOLICYADMIN_GROUP = "default-hostpolicyadmin-group"
