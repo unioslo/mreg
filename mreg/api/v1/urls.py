@@ -1,6 +1,6 @@
 from django.urls import path, re_path
 
-from . import views, views_hostgroups
+from . import views, views_hostgroups, views_zones
 
 urlpatterns = [
     path('cnames/', views.CnameList.as_view()),
@@ -50,13 +50,13 @@ urlpatterns = [
     re_path(r'^networks/(?P<network>[^/]+/\d+)/unused_list', views.network_unused_list),
     path('txts/', views.TxtList.as_view()),
     path('txts/<pk>', views.TxtDetail.as_view()),
-    path('zones/', views.ZoneList.as_view()),
-    path('zones/hostname/<hostname>', views.zone_by_hostname),
-    re_path(r'^zones/(?P<name>(\d+/)?[^/]+)$', views.ZoneDetail.as_view()),
-    re_path(r'^zones/(?P<name>(\d+/)?[^/]+)/delegations/$', views.ZoneDelegationList.as_view()),
-    re_path(r'^zones/(?P<name>(\d+/)?[^/]+)/delegations/(?P<delegation>(.*))', views.ZoneDelegationDetail.as_view()),
-    re_path(r'^zones/(?P<name>(\d+/)?[^/]+)/nameservers$', views.ZoneNameServerDetail.as_view()),
-    re_path(r'^zonefiles/(?P<name>(\d+/)?[^/]+)', views.ZoneFileDetail.as_view()),
+    path('zones/', views_zones.ZoneList.as_view()),
+    path('zones/hostname/<hostname>', views_zones.zone_by_hostname),
+    re_path(r'^zones/(?P<name>(\d+/)?[^/]+)$', views_zones.ZoneDetail.as_view()),
+    re_path(r'^zones/(?P<name>(\d+/)?[^/]+)/delegations/$', views_zones.ZoneDelegationList.as_view()),
+    re_path(r'^zones/(?P<name>(\d+/)?[^/]+)/delegations/(?P<delegation>(.*))', views_zones.ZoneDelegationDetail.as_view()),
+    re_path(r'^zones/(?P<name>(\d+/)?[^/]+)/nameservers$', views_zones.ZoneNameServerDetail.as_view()),
+    re_path(r'^zonefiles/(?P<name>(\d+/)?[^/]+)', views_zones.ZoneFileDetail.as_view()),
     path('permissions/netgroupregex/', views.NetGroupRegexPermissionList.as_view()),
     path('permissions/netgroupregex/<pk>', views.NetGroupRegexPermissionDetail.as_view()),
     path('history/', views.ModelChangeLogList.as_view()),
