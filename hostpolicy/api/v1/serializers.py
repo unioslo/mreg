@@ -12,18 +12,20 @@ class HostPolicyAtomNameSerializer(serializers.ModelSerializer):
         fields = ('name', )
 
 
-class HostPolicyAtomSerializer(serializers.ModelSerializer):
-
-    class Meta:
-        model = HostPolicyAtom
-        fields = '__all__'
-
-
 class HostPolicyRoleNameSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = HostPolicyRole
         fields = ('name', )
+
+
+class HostPolicyAtomSerializer(serializers.ModelSerializer):
+
+    roles = HostPolicyRoleNameSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = HostPolicyAtom
+        fields = '__all__'
 
 
 class HostPolicyRoleSerializer(serializers.ModelSerializer):
