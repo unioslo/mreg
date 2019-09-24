@@ -83,42 +83,14 @@ class ZoneList(generics.ListCreateAPIView):
     """
 
     lookup_field = 'name'
-    serializer_class = ForwardZoneSerializer
     permission_classes = (IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
 
-    def _get_forward(self):
-        self.queryset = ForwardZone.objects.all().order_by('id')
-        qs = super(ZoneList, self).get_queryset()
-        return ForwardZoneFilterSet(data=self.request.GET, queryset=qs).filter()
-
-    def _get_reverse(self):
-        self.queryset = ReverseZone.objects.all().order_by('id')
-        qs = super(ZoneList, self).get_queryset()
-        self.serializer_class = ReverseZoneSerializer
-        return ReverseZoneFilterSet(data=self.request.GET, queryset=qs).filter()
-
-    def get_queryset(self, name=None):
-        """
-        #Applies filtering to the queryset
-        #:return: filtered list of zones
-        """
-
-        if name:
-            if name.endswith(".arpa"):
-                return self._get_reverse()
-            else:
-                return self._get_forward()
-
-    def list(self, request):
-        # TODO: non paginated response.
-        ret = []
-        for qs in (self._get_forward(), self._get_reverse()):
-            serializer = self.serializer_class(qs, many=True)
-            ret.extend(serializer.data)
-        return Response(ret)
+    def get_queryset(self):
+        qs = super().get_queryset()
+        return self.filterset(data=self.request.GET, queryset=qs).filter()
 
     def post(self, request, *args, **kwargs):
-        qs = self.get_queryset(name=request.data[self.lookup_field])
+        qs = self.get_queryset()
         if qs.filter(name=request.data["name"]).exists():
             content = {'ERROR': 'Zone name already in use'}
             return Response(content, status=status.HTTP_409_CONFLICT)
@@ -137,6 +109,18 @@ class ZoneList(generics.ListCreateAPIView):
         return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
 
 
+class ForwardZoneList(ZoneList):
+    filterset = ForwardZoneFilterSet
+    serializer_class = ForwardZoneSerializer
+    queryset = ForwardZone.objects.all().order_by('name')
+
+
+class ReverseZoneList(ZoneList):
+    filterset = ReverseZoneFilterSet
+    serializer_class = ReverseZoneSerializer
+    queryset = ReverseZone.objects.all().order_by('name')
+
+
 class ZoneDelegationList(generics.ListCreateAPIView):
     """
     get:
@@ -147,27 +131,12 @@ class ZoneDelegationList(generics.ListCreateAPIView):
     """
 
     lookup_field = 'name'
-    serializer_class = ForwardZoneDelegationSerializer
     permission_classes = (IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
 
     def get_queryset(self):
-        """
-        #Applies filtering to the queryset
-        #:return: filtered list of zones delegation for the parent zone
-        """
-
-        zonename = self.kwargs[self.lookup_field]
-        if zonename.endswith(".arpa"):
-            self.parentzone = get_object_or_404(ReverseZone, name=zonename)
-            self.queryset = self.parentzone.delegations.all().order_by('id')
-            self.serializer_class = ReverseZoneDelegationSerializer
-            qs = super().get_queryset()
-            return ReverseZoneFilterSet(data=self.request.query_params, queryset=qs).filter()
-        else:
-            self.parentzone = get_object_or_404(ForwardZone, name=zonename)
-            self.queryset = self.parentzone.delegations.all().order_by('id')
-            qs = super().get_queryset()
-            return ForwardZoneFilterSet(data=self.request.query_params, queryset=qs).filter()
+        self.parentzone = get_object_or_404(self.model, name=self.kwargs[self.lookup_field])
+        self.queryset = self.parentzone.delegations.all().order_by('id')
+        return self.filterset(data=self.request.GET, queryset=self.queryset).filter()
 
     def post(self, request, *args, **kwargs):
         qs = self.get_queryset()
@@ -190,26 +159,16 @@ class ZoneDelegationList(generics.ListCreateAPIView):
         return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
 
 
-@api_view()
-def zone_by_hostname(request, *args, **kwargs):
-    """
-    Get which zone would match a hostname.
+class ForwardZoneDelegationList(ZoneDelegationList):
+    filterset = ForwardZoneFilterSet
+    serializer_class = ForwardZoneDelegationSerializer
+    model = ForwardZone
 
-    Note the hostname does not need to exist as a Host.
-    """
-    hostname = kwargs['hostname'].lower()
-    zone = ForwardZone.get_zone_by_hostname(hostname)
-    if zone is None:
-        raise Http404
-    if zone.name != hostname and zone.delegations.exists():
-        for delegation in zone.delegations.all():
-            if hostname == delegation.name or hostname.endswith(f".{delegation.name}"):
-                serializer = ForwardZoneDelegationSerializer(delegation)
-                ret = {"delegation": serializer.data}
-                return Response(ret, status=status.HTTP_200_OK)
-    serializer = ForwardZoneSerializer(zone)
-    ret = {"zone": serializer.data}
-    return Response(ret, status=status.HTTP_200_OK)
+
+class ReverseZoneDelegationList(ZoneDelegationList):
+    filterset = ReverseZoneFilterSet
+    serializer_class = ReverseZoneDelegationSerializer
+    model = ReverseZone
 
 
 class ZoneDetail(MregRetrieveUpdateDestroyAPIView):
@@ -219,25 +178,15 @@ class ZoneDetail(MregRetrieveUpdateDestroyAPIView):
 
     patch:
     Update parts of a zone.
-    Nameservers need to be patched through /zones/<name>/nameservers. primary_ns needs to be a nameserver of the zone
+    Nameservers need to be patched through /zones/<type>/<name>/nameservers.
+    primary_ns needs to be a nameserver of the zone
 
     delete:
     Delete a zone.
     """
 
     lookup_field = 'name'
-    serializer_class = ForwardZoneSerializer
     permission_classes = (IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
-
-    def get_queryset(self):
-        zonename = self.kwargs[self.lookup_field]
-
-        if zonename.endswith(".arpa"):
-            self.queryset = ReverseZone.objects.all()
-            self.serializer_class = ReverseZoneSerializer
-        else:
-            self.queryset = ForwardZone.objects.all()
-        return super().get_queryset()
 
     def patch(self, request, *args, **kwargs):
         query = self.kwargs[self.lookup_field]
@@ -277,23 +226,26 @@ class ZoneDetail(MregRetrieveUpdateDestroyAPIView):
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
+class ForwardZoneDetail(ZoneDetail):
+
+    serializer_class = ForwardZoneSerializer
+    queryset = ForwardZone.objects.all()
+
+
+class ReverseZoneDetail(ZoneDetail):
+
+    serializer_class = ReverseZoneSerializer
+    queryset = ReverseZone.objects.all()
+
+
 class ZoneDelegationDetail(MregRetrieveUpdateDestroyAPIView):
 
     lookup_field = 'delegation'
-    serializer_class = ForwardZoneDelegationSerializer
     permission_classes = (IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
 
     def get_queryset(self):
-        zonename = self.kwargs[self.lookup_field]
         parentname = self.kwargs['name']
-
-        if zonename.endswith(".arpa"):
-            self.parentzone = get_object_or_404(ReverseZone, name=parentname)
-            self.queryset = ReverseZoneDelegation.objects.all()
-            self.serializer_class = ReverseZoneDelegationSerializer
-        else:
-            self.parentzone = get_object_or_404(ForwardZone, name=parentname)
-            self.queryset = ForwardZoneDelegation.objects.all()
+        self.parentzone = get_object_or_404(self.model, name=parentname)
         return super().get_queryset()
 
     def get_object(self):
@@ -320,6 +272,18 @@ class ZoneDelegationDetail(MregRetrieveUpdateDestroyAPIView):
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': request.path})
 
 
+class ForwardZoneDelegationDetail(ZoneDelegationDetail):
+    model = ForwardZone
+    queryset = ForwardZoneDelegation.objects.all()
+    serializer_class = ForwardZoneDelegationSerializer
+
+
+class ReverseZoneDelegationDetail(ZoneDelegationDetail):
+    model = ReverseZone
+    queryset = ReverseZoneDelegation.objects.all()
+    serializer_class = ReverseZoneDelegationSerializer
+
+
 class ZoneNameServerDetail(MregRetrieveUpdateDestroyAPIView):
     """
     get:
@@ -331,18 +295,7 @@ class ZoneNameServerDetail(MregRetrieveUpdateDestroyAPIView):
     """
 
     lookup_field = 'name'
-    serializer_class = ForwardZoneSerializer
     permission_classes = (IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
-
-    def get_queryset(self):
-        zonename = self.kwargs[self.lookup_field]
-
-        if zonename.endswith(".arpa"):
-            self.queryset = ReverseZone.objects.all()
-            self.serializer_class = ReverseZoneSerializer
-        else:
-            self.queryset = ForwardZone.objects.all()
-        return super().get_queryset()
 
     def get(self, request, *args, **kwargs):
         zone = self.get_object()
@@ -359,6 +312,38 @@ class ZoneNameServerDetail(MregRetrieveUpdateDestroyAPIView):
         zone.updated = True
         self.perform_update(zone)
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': request.path})
+
+
+class ForwardZoneNameServerDetail(ZoneNameServerDetail):
+    queryset = ForwardZone.objects.all()
+    serializer_class = ForwardZoneSerializer
+
+
+class ReverseZoneNameServerDetail(ZoneNameServerDetail):
+    queryset = ReverseZone.objects.all()
+    serializer_class = ReverseZoneSerializer
+
+
+@api_view()
+def forward_zone_by_hostname(request, *args, **kwargs):
+    """
+    Get which zone would match a hostname.
+
+    Note the hostname does not need to exist as a Host.
+    """
+    hostname = kwargs['hostname'].lower()
+    zone = ForwardZone.get_zone_by_hostname(hostname)
+    if zone is None:
+        raise Http404
+    if zone.name != hostname and zone.delegations.exists():
+        for delegation in zone.delegations.all():
+            if hostname == delegation.name or hostname.endswith(f".{delegation.name}"):
+                serializer = ForwardZoneDelegationSerializer(delegation)
+                ret = {"delegation": serializer.data}
+                return Response(ret, status=status.HTTP_200_OK)
+    serializer = ForwardZoneSerializer(zone)
+    ret = {"zone": serializer.data}
+    return Response(ret, status=status.HTTP_200_OK)
 
 
 class PlainTextRenderer(renderers.TemplateHTMLRenderer):
