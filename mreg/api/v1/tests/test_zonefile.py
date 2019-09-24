@@ -24,19 +24,20 @@ class APIZonefileTestCase(MregAPITestCase):
         data = {'name': name, 'ipaddress': ip}
         return self.assert_post('/hosts/', data)
 
-    def _create_zone(self, name,
+    def _create_zone(self, name, zonetype,
                      primary_ns=['ns1.example.org', 'ns2.example.org'],
                      email='hostmaster@example.org'):
         data = locals().copy()
         del data['self']
-        self.assert_post('/zones/', data)
+        del data['zonetype']
+        self.assert_post(f'/zones/{zonetype}/', data)
 
     def create_forward_zone(self, name, **kwargs):
-        self._create_zone(name, **kwargs)
+        self._create_zone(name, 'forward', **kwargs)
         return ForwardZone.objects.get(name=name)
 
     def create_reverse_zone(self, name, **kwargs):
-        self._create_zone(name, **kwargs)
+        self._create_zone(name, 'reverse', **kwargs)
         return ReverseZone.objects.get(name=name)
 
     def _get_zone(self, zone):
