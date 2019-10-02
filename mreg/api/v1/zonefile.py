@@ -1,7 +1,7 @@
 import ipaddress
 from collections import defaultdict
 
-from mreg.models import Cname, ForwardZone, Host, Ipaddress, Mx, Naptr, Srv, Sshfp, Txt
+from mreg.models import Cname, ForwardZone, Hinfo, Host, Ipaddress, Loc, Mx, Naptr, Srv, Sshfp, Txt
 from mreg.utils import idna_encode, qualify
 
 
@@ -80,6 +80,10 @@ class ForwardFile(Common):
     def ip_zf_string(self, name, ttl, record_type, record_data):
         return f'{name} {ttl} IN {record_type} {record_data}\n'
 
+    def loc_zf_string(self, name, ttl, loc):
+        record_type = 'LOC   '
+        return f'{name} {ttl} IN {record_type} {loc}\n'
+
     def mx_zf_string(self, name, ttl, priority, mx):
         data = {
             'name': name,
@@ -104,7 +108,7 @@ class ForwardFile(Common):
 
     def txt_zf_string(self, name, ttl, txt):
         record_type = 'TXT   '
-        record_data = f'"{txt}"'
+        record_data = quote_if_space(txt)
         return f'{name} {ttl} IN {record_type} {record_data}\n'
 
     def naptr_zf_string(self, name, ttl, preference, order, flag, service, regex, replacement):
@@ -149,6 +153,13 @@ class ForwardFile(Common):
         }
         return '{alias:24} {ttl} IN {record_type} {record_data}\n'.format_map(data)
 
+    def hinfo_zf_string(self, name, ttl, cpu, os):
+        """String representation for zonefile export."""
+        record_type = 'HINFO '
+        cpu = quote_if_space(cpu)
+        os = quote_if_space(os)
+        return f'{name} {ttl} IN {record_type} {cpu} {os}\n'
+
     def host_data(self, host):
         data = ""
         idna_name = idna_encode(qualify(host.name, self.zone.name))
@@ -166,11 +177,15 @@ class ForwardFile(Common):
                     if data:
                         name = f'{" ":24}'
 
-        # XXX: add caching for this one, if we populate it..
-        if host.hinfo is not None:
-            data += host.hinfo.zf_string
-        if host.loc:
-            data += host.loc_string(self.zone.name)
+        # Values only in use once by each host
+        for values, func in ((self.hinfos, self.hinfo_zf_string),
+                             (self.locs, self.loc_zf_string)
+                             ):
+            if host.name in values:
+                data += func(name, ttl, *values[host.name])
+                if data:
+                    name = f'{" ":24}'
+
         # For entries where the host is the resource record
         for values, func in ((self.host_cnames, self.cname_zf_string),
                              (self.srvs, self.srv_zf_string),
@@ -183,6 +198,8 @@ class ForwardFile(Common):
     def cache_hostdata(self):
         self.host_cnames = defaultdict(list)
         self.ipaddresses = defaultdict(list)
+        self.hinfos = dict()
+        self.locs = dict()
         self.mxs = defaultdict(list)
         self.naptrs = defaultdict(list)
         self.srvs = defaultdict(list)
@@ -193,12 +210,20 @@ class ForwardFile(Common):
         for hostname, alias, ttl, in cnames.values_list('host__name', 'name', 'ttl'):
             self.host_cnames[hostname].append((alias, ttl))
 
+        hinfos = Hinfo.objects.filter(host__zone=self.zone)
+        for i in hinfos.values_list('host__name', 'cpu', 'os'):
+            self.hinfos[i[0]] = i[1:]
+
         ips = Ipaddress.objects.filter(host__zone=self.zone)
         for network, record_type in (('0.0.0.0/0', 'A     '),
                                      ('::/0', 'AAAA  '),):
             ipfilter = ips.extra(where=["ipaddress << %s"], params=[network])
             for hostname, ip in ipfilter.values_list("host__name", "ipaddress"):
                 self.ipaddresses[hostname].append((record_type, ip,))
+
+        locs = Loc.objects.filter(host__zone=self.zone)
+        for i in locs.values_list('host__name', 'loc'):
+            self.locs[i[0]] = i[1:]
 
         mxs = Mx.objects.filter(host__zone=self.zone)
         for hostname, priority, mx in mxs.values_list("host__name", "priority", "mx"):
@@ -317,3 +342,9 @@ def prep_ttl(ttl):
     if ttl is None:
         return '     '
     return f'{ttl:5}'
+
+
+def quote_if_space(value):
+    if ' ' in value:
+        return f'"{value}"'
+    return value

@@ -1,4 +1,4 @@
-from mreg.models import ForwardZone, HinfoPreset, Host, Ipaddress, ReverseZone
+from mreg.models import ForwardZone, Hinfo, Host, Ipaddress, ReverseZone
 
 from .tests import MregAPITestCase, clean_and_save
 
@@ -57,9 +57,6 @@ class APIZonefileTestCase(MregAPITestCase):
 
         # Finally add lots of entries to make sure we test everything when getting the zonefile.
         host1 = Host.objects.get(name='host1.example.org')
-        host1.loc = '23 58 23 N 10 43 50 E 80m'
-        hinfo = HinfoPreset.objects.create(cpu='supercpu', os='operative system')
-        host1.hinfo = hinfo
         clean_and_save(host1)
         host2 = Host.objects.create(name='hostæøå1.example.com')
         data = {'name': 'host-alias.example.org',
@@ -72,7 +69,13 @@ class APIZonefileTestCase(MregAPITestCase):
         data = {'host': host1.id,
                 'priority': 10,
                 'mx': 'smtp.example.org'}
-        self.assert_post("/mxs/", data)
+        data = {'host': host1.id,
+                'cpu': 'supercpu',
+                'os': 'operating system'}
+        self.assert_post("/hinfos/", data)
+        data = {'host': host1.id,
+                'loc': '23 58 23 N 10 43 50 E 80m'}
+        self.assert_post("/locs/", data)
         data = {'host': host1.id,
                 'preference': 10,
                 'order': 20,

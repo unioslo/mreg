@@ -19,7 +19,6 @@ from .utils import (
     get_network_from_zonename,
     idna_encode,
     qualify,
-    quote_if_space,
 )
 from .validators import (
     validate_16bit_uint,
@@ -300,35 +299,10 @@ class ForwardZoneMember(models.Model):
         abstract = True
 
 
-class HinfoPreset(models.Model):
-    cpu = models.TextField()
-    os = models.TextField()
-
-    class Meta:
-        db_table = 'hinfo_preset'
-        unique_together = ('cpu', 'os')
-
-    def __str__(self):
-        return f"cpu: {self.cpu} os: {self.os}"
-
-    @property
-    def zf_string(self):
-        """String representation for zonefile export."""
-        data = {
-            'record_type': 'HINFO',
-            'cpu': quote_if_space(self.cpu),
-            'os': quote_if_space(self.os)
-        }
-        return '                               IN {record_type:6} {cpu} {os}\n'.format_map(data)
-
-
 class Host(ForwardZoneMember):
     name = DnsNameField(unique=True)
     contact = pgfields.CIEmailField(blank=True)
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
-    hinfo = models.ForeignKey(HinfoPreset, models.DO_NOTHING, db_column='hinfo',
-                              blank=True, null=True)
-    loc = models.TextField(blank=True, validators=[validate_loc])
     comment = models.TextField(blank=True)
 
     class Meta:
@@ -337,14 +311,16 @@ class Host(ForwardZoneMember):
     def __str__(self):
         return str(self.name)
 
-    def loc_string(self, zone):
-        """String representation for zonefile export."""
-        data = {
-            'name': idna_encode(qualify(self.name, zone)),
-            'record_type': 'LOC',
-            'record_data': self.loc
-        }
-        return '{name:30} IN {record_type:6} {record_data}\n'.format_map(data)
+
+class Loc(models.Model):
+    host = models.OneToOneField(Host, on_delete=models.CASCADE, primary_key=True)
+    loc = models.TextField(validators=[validate_loc])
+
+    class Meta:
+        db_table = 'loc'
+
+    def __str__(self):
+        return f"{self.host.name} -> {loc}"
 
 
 class Sshfp(models.Model):
@@ -382,6 +358,18 @@ class Ipaddress(models.Model):
     def delete(self, using=None, keep_parents=False):
         PtrOverride.objects.filter(host=self.host, ipaddress=self.ipaddress).delete()
         return super().delete(using=using, keep_parents=keep_parents)
+
+
+class Hinfo(models.Model):
+    host = models.OneToOneField(Host, on_delete=models.CASCADE, primary_key=True)
+    cpu = models.TextField()
+    os = models.TextField()
+
+    class Meta:
+        db_table = 'hinfo'
+
+    def __str__(self):
+        return f"cpu: {self.cpu} os: {self.os}"
 
 
 class Mx(models.Model):

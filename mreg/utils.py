@@ -16,12 +16,6 @@ def clear_none(value):
     return value
 
 
-def quote_if_space(value):
-    if ' ' in value:
-        return f'"{value}"'
-    return value
-
-
 def qualify(name, zone, shortform=True):
     """
     Appends a punctuation mark to fully qualified names within a given zone.

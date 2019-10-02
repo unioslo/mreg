@@ -6,7 +6,7 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from mreg.models import (Cname, ForwardZone, ForwardZoneDelegation,
-                         HinfoPreset, Host, HostGroup, Ipaddress,
+                         Hinfo, Host, HostGroup, Ipaddress, Loc,
                          ModelChangeLog, Mx, NameServer, Naptr,
                          NetGroupRegexPermission, Network, PtrOverride,
                          ReverseZone, ReverseZoneDelegation, Srv, Sshfp, Txt)
@@ -58,9 +58,9 @@ class SshfpSerializer(ValidationMixin, serializers.ModelSerializer):
         fields = '__all__'
 
 
-class HinfoPresetSerializer(ValidationMixin, serializers.ModelSerializer):
+class HinfoSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
-        model = HinfoPreset
+        model = Hinfo
         fields = '__all__'
 
 
@@ -113,6 +113,12 @@ class IpaddressSerializer(ValidationMixin, serializers.ModelSerializer):
         return data
 
 
+class LocSerializer(ValidationMixin, serializers.ModelSerializer):
+    class Meta:
+        model = Loc
+        fields = '__all__'
+
+
 class MxSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
         model = Mx
@@ -140,7 +146,8 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
     mxs = MxSerializer(many=True, read_only=True)
     txts = TxtSerializer(many=True, read_only=True)
     ptr_overrides = PtrOverrideSerializer(many=True, read_only=True)
-    hinfo = HinfoPresetSerializer(required=False)['id']
+    hinfo = HinfoSerializer(read_only=True)
+    loc = LocSerializer(read_only=True)
 
     class Meta:
         model = Host

@@ -7,7 +7,7 @@ from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
 
 from .models import (Cname, ForwardZone, Host, HostGroup, Ipaddress,
-                     ModelChangeLog, NameServer, Naptr,
+                     Loc, ModelChangeLog, NameServer, Naptr,
                      NetGroupRegexPermission, Network, PtrOverride,
                      ReverseZone, Srv, Sshfp, Txt)
 
@@ -25,7 +25,6 @@ class ModelChangeLogTestCase(TestCase):
         self.host_one = Host(name='some-host.example.org',
                              contact='mail@example.org',
                              ttl=300,
-                             loc='23 58 23 N 10 43 50 E 80m',
                              comment='some comment')
         clean_and_save(self.host_one)
 
@@ -33,7 +32,6 @@ class ModelChangeLogTestCase(TestCase):
                          'name': self.host_one.name,
                          'contact': self.host_one.contact,
                          'ttl': self.host_one.ttl,
-                         'loc': self.host_one.loc,
                          'comment': self.host_one.comment}
 
         self.log_entry_one = ModelChangeLog(table_name='Hosts',
@@ -208,7 +206,6 @@ class ModelHostsTestCase(TestCase):
         self.host_one = Host(name='host.example.org',
                              contact='mail@example.org',
                              ttl=300,
-                             loc='23 58 23 N 10 43 50 E 80m',
                              comment='some comment')
 
     def assert_validation_error(self, obj):
@@ -280,19 +277,24 @@ class ModelHostsTestCase(TestCase):
         new_count = Host.objects.count()
         self.assertNotEqual(old_count, new_count)
 
-    def test_model_host_can_alter_loc(self):
+
+class LocTestCase(TestCase):
+
+
+    def test_validate_loc(self):
         """
         Test that the model can validate and store all examples
         from RFC1876, section 4 "Example data".
         """
-        clean_and_save(self.host_one)
+        host = Host.objects.create(name='host.example.org')
         for loc in ('42 21 54 N 71 06 18 W -24m 30m',
                     '42 21 43.952 N 71 5 6.344 W -24m 1m 200m',
                     '52 14 05 N 00 08 50 E 10m',
                     '32 7 19 S 116 2 25 E 10m',
                     '42 21 28.764 N 71 00 51.617 W -44m 2000m'):
-            self.host_one.loc = loc
-            clean_and_save(self.host_one)
+            l = Loc(host=host, loc=loc)
+            clean_and_save(l)
+            l.delete()
 
 
 class ModelNameServerTestCase(TestCase):

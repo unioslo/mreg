@@ -22,12 +22,13 @@ from mreg.api.permissions import (IsAuthenticatedAndReadOnly,
                                   IsGrantedNetGroupRegexPermission,
                                   IsSuperGroupMember,
                                   IsSuperGroupOrNetworkAdminMember,)
-from mreg.models import (Cname, HinfoPreset, Host, HostGroup, Ipaddress,
+from mreg.models import (Cname, Hinfo, Host, HostGroup, Ipaddress, Loc,
                          ModelChangeLog, Mx, NameServer, Naptr, Network,
                          PtrOverride, Srv, Sshfp, Txt)
 
-from .serializers import (CnameSerializer, HinfoPresetSerializer,
+from .serializers import (CnameSerializer, HinfoSerializer,
                           HostSerializer, IpaddressSerializer,
+                          LocSerializer,
                           ModelChangeLogSerializer, MxSerializer,
                           NameServerSerializer, NaptrSerializer,
                           NetGroupRegexPermissionSerializer, NetworkSerializer,
@@ -43,7 +44,7 @@ class CnameFilterSet(ModelFilterSet):
 
 class HinfoFilterSet(ModelFilterSet):
     class Meta:
-        model = HinfoPreset
+        model = Hinfo
 
 
 class HostFilterSet(ModelFilterSet):
@@ -60,6 +61,9 @@ class IpaddressFilterSet(ModelFilterSet):
     class Meta:
         model = Ipaddress
 
+class LocFilterSet(ModelFilterSet):
+    class Meta:
+        model = Loc
 
 class NaptrFilterSet(ModelFilterSet):
     class Meta:
@@ -244,36 +248,36 @@ class CnameDetail(HostPermissionsUpdateDestroy,
     lookup_field = 'name'
 
 
-class HinfoPresetList(HostPermissionsListCreateAPIView):
+class HinfoList(HostPermissionsListCreateAPIView):
     """
     get:
-    Lists all hinfo presets.
+    Lists all hinfos.
 
     post:
-    Creates a new hinfo preset.
+    Creates a new hinfo.
     """
-    queryset = HinfoPreset.objects.order_by('cpu', 'os')
-    serializer_class = HinfoPresetSerializer
+    queryset = Hinfo.objects.all().order_by('host')
+    serializer_class = HinfoSerializer
 
     def get_queryset(self):
         qs = super().get_queryset()
         return HinfoFilterSet(data=self.request.GET, queryset=qs).filter()
 
 
-class HinfoPresetDetail(HostPermissionsUpdateDestroy,
-                        MregRetrieveUpdateDestroyAPIView):
+class HinfoDetail(HostPermissionsUpdateDestroy,
+                  MregRetrieveUpdateDestroyAPIView):
     """
     get:
-    Returns details for a hinfo preset.
+    Returns details for a hinfo.
 
     patch:
-    Update parts of a hinfo preset.
+    Update parts of a hinfo.
 
     delete:
-    Delete a hinfo preset.
+    Delete a hinfo.
     """
-    queryset = HinfoPreset.objects.all()
-    serializer_class = HinfoPresetSerializer
+    queryset = Hinfo.objects.all()
+    serializer_class = HinfoSerializer
 
 
 class HostList(HostPermissionsListCreateAPIView):
@@ -380,6 +384,38 @@ class IpaddressDetail(HostPermissionsUpdateDestroy,
 
     queryset = Ipaddress.objects.all()
     serializer_class = IpaddressSerializer
+
+
+class LocList(HostPermissionsListCreateAPIView):
+    """
+    get:
+    Lists all LOCs.
+
+    post:
+    Creates a new LOC.
+    """
+    queryset = Loc.objects.all().order_by('host')
+    serializer_class = LocSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        return LocFilterSet(data=self.request.GET, queryset=qs).filter()
+
+
+class LocDetail(HostPermissionsUpdateDestroy,
+                MregRetrieveUpdateDestroyAPIView):
+    """
+    get:
+    Returns details for a LOC.
+
+    patch:
+    Update parts of a LOC.
+
+    delete:
+    Delete a LOC.
+    """
+    queryset = Loc.objects.all()
+    serializer_class = LocSerializer
 
 
 class MxList(HostPermissionsListCreateAPIView):

@@ -533,8 +533,8 @@ class APIHostsIdna(MregAPITestCase):
         self.assertTrue('xn--5cab8c.example.org.' in response.data)
 
 
-class APIHinfoTestCase(MregAPITestCase):
-    """Test HinfoPresets and hinfo field on Host"""
+class HinfoTestCase(MregAPITestCase):
+    """Test Hinfo"""
 
     def setUp(self):
         super().setUp()
@@ -544,35 +544,65 @@ class APIHinfoTestCase(MregAPITestCase):
         self.assert_post_and_201('/hosts/', self.host_data)
         self.host = Host.objects.get(name=self.host_data['name'])
 
-    def test_hinfopresets_post_201_ok(self):
-        data = {'cpu': 'cpuname', 'os': 'superos'}
-        self.assert_post_and_201('/hinfopresets/', data)
+    def test_post_201_ok(self):
+        data = {'host': self.host.id, 'cpu': 'cpuname', 'os': 'superos'}
+        self.assert_post_and_201('/hinfos/', data)
 
-    def test_hinfopresets_list(self):
-        self.test_hinfopresets_post_201_ok()
-        ret = self.assert_get('/hinfopresets/')
+    def test_list(self):
+        self.test_post_201_ok()
+        ret = self.assert_get('/hinfos/')
         self.assertEqual(ret.data['count'], 1)
 
-    def test_hinfopresets_post_must_have_both_fields_400_bad_request(self):
-        ret = self.assert_post_and_400('/hinfopresets/', {'cpu': 'cpuname'})
+    def test_post_must_have_both_fields_400_bad_request(self):
+        ret = self.assert_post_and_400('/hinfos/', {'host': self.host.id, 'cpu': 'cpuname'})
         self.assertEqual(ret.json(), {'os': ['This field is required.']})
-        self.assert_post_and_400('/hinfopresets/', {'os': 'superos'})
+        self.assert_post_and_400('/hinfos/', {'host': self.host.id, 'os': 'superos'})
 
-    def test_patch_add_hinfo_to_host_204_ok(self):
-        data = {'cpu': 'cpuname', 'os': 'superos'}
-        ret = self.assert_post_and_201('/hinfopresets/', data)
-        hinfoid = ret.json()['id']
-        self.assert_patch_and_204(f'/hosts/{self.host.name}', {'hinfo': hinfoid})
+    def test_patch_204_ok(self):
+        data = {'host': self.host.id, 'cpu': 'cpuname', 'os': 'superos'}
+        self.assert_post_and_201('/hinfos/', data)
+        self.assert_patch_and_204(f'/hinfos/{self.host.id}', {'cpu': 'new name'})
         self.host.refresh_from_db()
-        self.assertEqual(self.host.hinfo.id, hinfoid)
+        self.assertEqual(self.host.hinfo.pk, self.host.id)
 
-    def test_patch_remove_hinfo_to_host_204_ok(self):
-        self.assert_patch_and_204(f'/hosts/{self.host.name}', {'hinfo': ''})
-        self.host.refresh_from_db()
-        self.assertEqual(self.host.hinfo, None)
+    def test_hinfo_is_once_per_host(self):
+        """Only one hinfo can be added to a host"""
+        data = {'host': self.host.id, 'cpu': 'cpuname', 'os': 'superos'}
+        self.assert_post_and_201('/hinfos/', data)
+        self.assert_post_and_400('/hinfos/', data)
 
-    def test_patch_add_invalid_hinfo_to_host_400_bad_request(self):
-        self.assert_patch_and_400(f'/hosts/{self.host.name}', {'hinfo': 12345788})
+
+class LocTTestCase(MregAPITestCase):
+    """Test Loc"""
+
+    def setUp(self):
+        super().setUp()
+        self.zone = create_forward_zone()
+        self.host_data = {'name': 'host.example.org',
+                          'contact': 'mail@example.org'}
+        self.assert_post_and_201('/hosts/', self.host_data)
+        self.host = Host.objects.get(name=self.host_data['name'])
+        self.post_data = {'host': self.host.id, 'loc': '52 14 05 N 00 08 50 E 10m'}
+
+    def test_post_201_ok(self):
+        self.assert_post_and_201('/locs/', self.post_data)
+
+    def test_list(self):
+        self.test_post_201_ok()
+        ret = self.assert_get('/locs/')
+        self.assertEqual(ret.data['count'], 1)
+
+    def test_hinfo_is_once_per_host(self):
+        """Only one hinfo can be added to a host"""
+        self.assert_post_and_201('/locs/', self.post_data)
+        self.assert_post_and_400('/locs/', self.post_data)
+
+    def test_loc_removed_on_host_delete(self):
+        self.test_post_201_ok()
+        self.host.delete()
+        ret = self.assert_get('/locs/')
+        self.assertEqual(ret.data['count'], 0)
+
 
 
 class APIMxTestcase(MregAPITestCase):
@@ -1281,7 +1311,6 @@ class APIModelChangeLogsTestCase(MregAPITestCase):
         self.host_one = Host(name='some-host.example.org',
                              contact='mail@example.org',
                              ttl=300,
-                             loc='23 58 23 N 10 43 50 E 80m',
                              comment='some comment')
         clean_and_save(self.host_one)
 
@@ -1289,7 +1318,6 @@ class APIModelChangeLogsTestCase(MregAPITestCase):
                          'name': self.host_one.name,
                          'contact': self.host_one.contact,
                          'ttl': self.host_one.ttl,
-                         'loc': self.host_one.loc,
                          'comment': self.host_one.comment}
 
         self.log_entry_one = ModelChangeLog(table_name='hosts',
