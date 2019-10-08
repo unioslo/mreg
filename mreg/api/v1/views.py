@@ -700,7 +700,7 @@ def network_by_ip(request, *args, **kwargs):
         ip = ipaddress.ip_address(kwargs['ip'])
     except ValueError as error:
         raise ParseError(detail=str(error))
-    network = get_object_or_404(Network, network__net_contains=ip)
+    network = get_object_or_404(Network, network__net_contains_or_equals=ip)
     serializer = NetworkSerializer(network)
     return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -773,8 +773,7 @@ def network_used_host_list(request, *args, **kwargs):
 @api_view()
 def network_unused_count(request, *args, **kwargs):
     network = get_object_or_404(Network, network=kwargs['network'])
-    unused_ipaddresses = network.get_unused_ipaddresses()
-    return Response(len(unused_ipaddresses), status=status.HTTP_200_OK)
+    return Response(network.get_unused_ipaddress_count(), status=status.HTTP_200_OK)
 
 
 @api_view()

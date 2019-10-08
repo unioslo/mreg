@@ -504,6 +504,14 @@ class Network(models.Model):
         used = self.get_used_ipaddresses()
         return set(network_ips) - reserved - used
 
+    def get_unused_ipaddress_count(self):
+        """
+        Returns the number of unused ipaddreses on the network.
+        """
+        reserved = self.get_reserved_ipaddresses()
+        used = self.get_used_ipaddresses()
+        return self.network.num_addresses - len(reserved | used)
+
     def get_first_unused(self):
         """
         Return the first unused IP found, if any.

@@ -219,6 +219,13 @@ class NetworksTestCase(MregAPITestCase):
         response = self.assert_get('/networks/ip/10.0.0.5')
         self.assertEqual(response.data['network'], str(self.network_sample.network))
 
+
+    def test_networks_get_one_ip_network_200_ok(self):
+        """GET on an ip in a known network should return 200 OK."""
+        obj = Network.objects.create(network='10.2.0.0/32')
+        response = self.assert_get('/networks/ip/10.2.0.0')
+        self.assertEqual(response.data['network'], str(obj.network))
+
     def test_ipv6_networks_get_network_by_ip_200_ok(self):
         """GET on an IPv6 in a known network should return 200 OK."""
         response = self.assert_get('/networks/ip/2001:db8::12')
@@ -280,8 +287,8 @@ class NetworksTestCase(MregAPITestCase):
         """GET on /networks/<ipv6/mask>/unused_count should return 200 ok and data."""
         Ipaddress.objects.create(host=self.host_one, ipaddress='2001:db8::beef')
         response = self.assert_get('/networks/%s/unused_count' % self.network_ipv6_sample.network)
-        # Only the first 4000 addresses for IPv6 are returned, :1 and :2 and :3 are reserved
-        self.assertEqual(response.data, 3997)
+        # :1 and :2 and :3 are reserved
+        self.assertEqual(response.data, 4722366482869645213691)
 
     def test_networks_get_unusedlist_200_ok(self):
         """GET on /networks/<ip/mask>/unused_list should return 200 ok and data."""
