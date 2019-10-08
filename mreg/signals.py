@@ -12,7 +12,7 @@ from rest_framework.exceptions import PermissionDenied
 
 from mreg.api.v1.serializers import HostSerializer
 
-from .models import (Cname, ForwardZoneMember, Host, HostGroup, Ipaddress,
+from .models import (Cname, ForwardZoneMember, Hinfo, Host, HostGroup, Ipaddress, Loc,
                      ModelChangeLog, Mx, NameServer, Naptr,
                      NetGroupRegexPermission, Network, PtrOverride,
                      ReverseZone, Srv, Sshfp, Txt)
@@ -100,8 +100,10 @@ def _common_update_zone(signal, sender, instance):
 
 @receiver(pre_save, sender=Cname)
 @receiver(pre_save, sender=Ipaddress)
+@receiver(pre_save, sender=Hinfo)
 @receiver(pre_save, sender=Host)
 @receiver(pre_save, sender=Mx)
+@receiver(pre_save, sender=Loc)
 @receiver(pre_save, sender=Naptr)
 @receiver(pre_save, sender=PtrOverride)
 @receiver(pre_save, sender=Srv)
@@ -114,8 +116,10 @@ def updated_objects_update_zone_serial(sender, instance, raw, using, update_fiel
 # Update zone serial when objects are gone
 @receiver(post_delete, sender=Cname)
 @receiver(post_delete, sender=Ipaddress)
+@receiver(post_delete, sender=Hinfo)
 @receiver(post_delete, sender=Host)
 @receiver(post_delete, sender=Mx)
+@receiver(post_delete, sender=Loc)
 @receiver(post_delete, sender=Naptr)
 @receiver(post_delete, sender=PtrOverride)
 @receiver(post_delete, sender=Sshfp)
