@@ -86,8 +86,11 @@ class IpaddressSerializer(ValidationMixin, serializers.ModelSerializer):
                     "macaddress already in use by {}".format(inuse_ip))
 
         data = super().validate(data)
-        if data.get('macaddress'):
-            mac = data['macaddress']
+        mac = data.get('macaddress')
+        if mac is None and self.instance and self.instance.macaddress:
+            mac = self.instance.macaddress
+
+        if mac:
             macip = data.get('ipaddress') or self.instance.ipaddress
             # If MAC and IP unchanged, nothing to validate.
             if self.instance:

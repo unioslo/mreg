@@ -1169,6 +1169,15 @@ class APIMACaddressTestCase(MregAPITestCase):
         _assert('00:00:00:00:00')
         _assert('AA:BB:cc:dd:ee:ff')
 
+    def test_mac_patch_to_ip_to_network_with_mac_in_use(self):
+        """Test that it is not allowed to patch an Ipaddress with a new ipaddress
+           to a network where the mac address is already in use."""
+        Network.objects.create(network='10.0.0.0/24')
+        ip_two = Ipaddress.objects.create(host=self.host_one,
+                                          ipaddress='10.1.0.10',
+                                          macaddress=self.ipaddress_one.macaddress)
+        self.assert_patch_and_400(f'/ipaddresses/{ip_two.id}', {'ipaddress': '10.0.0.255'})
+
     def test_mac_patch_ip_and_mac_204_ok(self):
         """Patch an IP with a new IP and MAC should return 204 ok."""
         patch_ip_and_mac = {'ipaddress': '10.0.0.13',
