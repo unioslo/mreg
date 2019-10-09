@@ -320,7 +320,7 @@ class Loc(models.Model):
         db_table = 'loc'
 
     def __str__(self):
-        return f"{self.host.name} -> {loc}"
+        return f"{self.host.name} -> {self.loc}"
 
 
 class Sshfp(models.Model):
@@ -333,6 +333,7 @@ class Sshfp(models.Model):
 
     class Meta:
         db_table = 'sshfp'
+        unique_together = (('host', 'algorithm', 'hash_type', 'fingerprint'), )
 
     def __str__(self):
         return (
