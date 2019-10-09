@@ -99,7 +99,20 @@ class IsSuperGroupMember(IsAuthenticated):
         return request_in_settings_group(request, SUPERUSER_GROUP)
 
 
-class IsSuperGroupOrNetworkAdminMember(IsAuthenticated):
+class IsSuperOrAdminOrReadOnly(IsAuthenticated):
+    """
+    Permit user if in super or admin group, else read only.
+    """
+
+    def has_permission(self, request, view):
+        if not super().has_permission(request, view):
+            return False
+        if request.method in SAFE_METHODS:
+            return True
+        return is_super_or_admin(request.user)
+
+
+class IsSuperOrNetworkAdminMember(IsAuthenticated):
     """
     Permit user if in super user group, also the network admin
     can patch certain attributes, but otherwise read-only.

@@ -1,7 +1,7 @@
 from .tests import MregAPITestCase
 
 
-class APINetGroupRegexPermissionTestCase(MregAPITestCase):
+class NetGroupRegexPermissionTestCase(MregAPITestCase):
 
     data = {'group': 'testgroup', 'range': '10.0.0.0/24',
             'regex': r'.*\.example\.org$'}
@@ -34,3 +34,8 @@ class APINetGroupRegexPermissionTestCase(MregAPITestCase):
         self.assert_delete('/permissions/netgroupregex/{}'.format(ret1.json()['id']))
         data = self.assert_get('/permissions/netgroupregex/').json()
         self.assertEqual(data['count'], 0)
+
+class NetGroupRegexPermissionTestCaseAsAdmin(NetGroupRegexPermissionTestCase):
+
+    def setUp(self):
+        self.client = self.get_token_client(superuser=False, adminuser=True)

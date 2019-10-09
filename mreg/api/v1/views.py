@@ -21,7 +21,9 @@ import mreg.models
 from mreg.api.permissions import (IsAuthenticatedAndReadOnly,
                                   IsGrantedNetGroupRegexPermission,
                                   IsSuperGroupMember,
-                                  IsSuperGroupOrNetworkAdminMember,)
+                                  IsSuperOrAdminOrReadOnly,
+                                  IsSuperOrGroupAdminOrReadOnly,
+                                  IsSuperOrNetworkAdminMember,)
 from mreg.models import (Cname, Hinfo, Host, HostGroup, Ipaddress, Loc,
                          ModelChangeLog, Mx, NameServer, Naptr, Network,
                          PtrOverride, Srv, Sshfp, Txt)
@@ -671,7 +673,7 @@ class NetworkDetail(MregRetrieveUpdateDestroyAPIView):
     """
     queryset = Network.objects.all()
     serializer_class = NetworkSerializer
-    permission_classes = (IsSuperGroupOrNetworkAdminMember | IsAuthenticatedAndReadOnly, )
+    permission_classes = (IsSuperOrNetworkAdminMember | IsAuthenticatedAndReadOnly, )
 
     lookup_field = 'network'
 
@@ -822,7 +824,7 @@ class NetGroupRegexPermissionList(MregMixin, generics.ListCreateAPIView):
 
     queryset = mreg.models.NetGroupRegexPermission.objects.all().order_by('id')
     serializer_class = NetGroupRegexPermissionSerializer
-    permission_classes = (IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
+    permission_classes = (IsSuperOrAdminOrReadOnly, )
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -835,7 +837,7 @@ class NetGroupRegexPermissionDetail(MregRetrieveUpdateDestroyAPIView):
 
     queryset = mreg.models.NetGroupRegexPermission.objects.all().order_by('id')
     serializer_class = NetGroupRegexPermissionSerializer
-    permission_classes = (IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
+    permission_classes = (IsSuperOrAdminOrReadOnly, )
 
 
 class ModelChangeLogList(generics.ListAPIView):
