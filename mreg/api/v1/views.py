@@ -282,6 +282,11 @@ class HinfoDetail(HostPermissionsUpdateDestroy,
     serializer_class = HinfoSerializer
 
 
+def _host_prefetcher(qs):
+    return qs.prefetch_related('cnames', 'hinfo', 'ipaddresses', 'loc', 'mxs',
+                               'ptr_overrides', 'txts')
+
+
 class HostList(HostPermissionsListCreateAPIView):
     """
     get:
@@ -294,7 +299,7 @@ class HostList(HostPermissionsListCreateAPIView):
     serializer_class = HostSerializer
 
     def get_queryset(self):
-        qs = super().get_queryset()
+        qs = _host_prefetcher(super().get_queryset())
         return HostFilterSet(data=self.request.GET, queryset=qs).filter()
 
     def post(self, request, *args, **kwargs):
@@ -342,7 +347,7 @@ class HostDetail(HostPermissionsUpdateDestroy,
     delete:
     Delete the specified host.
     """
-    queryset = Host.objects.all()
+    queryset = _host_prefetcher(Host.objects.all())
     serializer_class = HostSerializer
     lookup_field = 'name'
 
