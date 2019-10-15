@@ -35,7 +35,15 @@ from .validators import (
 )
 
 
-class NameServer(models.Model):
+class BaseModel(models.Model):
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
+
+
+class NameServer(BaseModel):
     name = DnsNameField(unique=True)
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
 
@@ -96,8 +104,7 @@ class ZoneHelpers:
         self.update_nameservers([])
 
 
-class BaseZone(models.Model, ZoneHelpers):
-    updated_at = models.DateTimeField(auto_now=True)
+class BaseZone(BaseModel, ZoneHelpers):
     updated = models.BooleanField(default=True)
     primary_ns = DnsNameField()
     nameservers = models.ManyToManyField(NameServer, db_column='ns')
@@ -265,7 +272,7 @@ class ReverseZone(BaseZone):
         return sorted(result, key=lambda i: i[0])
 
 
-class ForwardZoneDelegation(models.Model, ZoneHelpers):
+class ForwardZoneDelegation(BaseModel, ZoneHelpers):
     zone = models.ForeignKey(ForwardZone, on_delete=models.CASCADE, db_column='zone',
                              related_name='delegations')
     name = DnsNameField(unique=True)
@@ -278,7 +285,7 @@ class ForwardZoneDelegation(models.Model, ZoneHelpers):
         return f"{self.zone.name} {self.name}"
 
 
-class ReverseZoneDelegation(models.Model, ZoneHelpers):
+class ReverseZoneDelegation(BaseModel, ZoneHelpers):
     zone = models.ForeignKey(ReverseZone, on_delete=models.CASCADE, db_column='zone',
                              related_name='delegations')
     name = DnsNameField(unique=True, validators=[validate_reverse_zone_name])
@@ -291,7 +298,7 @@ class ReverseZoneDelegation(models.Model, ZoneHelpers):
         return f"{self.zone.name} {self.name}"
 
 
-class ForwardZoneMember(models.Model):
+class ForwardZoneMember(BaseModel):
     zone = models.ForeignKey(ForwardZone, models.DO_NOTHING, db_column='zone',
                              blank=True, null=True)
 
@@ -312,7 +319,7 @@ class Host(ForwardZoneMember):
         return str(self.name)
 
 
-class Loc(models.Model):
+class Loc(BaseModel):
     host = models.OneToOneField(Host, on_delete=models.CASCADE, primary_key=True)
     loc = models.TextField(validators=[validate_loc])
 
@@ -323,7 +330,7 @@ class Loc(models.Model):
         return f"{self.host.name} -> {self.loc}"
 
 
-class Sshfp(models.Model):
+class Sshfp(BaseModel):
     host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host')
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
     algorithm = models.IntegerField(choices=((1, 'RSA'), (2, 'DSS'), (3, 'ECDSA'),
@@ -342,12 +349,11 @@ class Sshfp(models.Model):
         )
 
 
-class Ipaddress(models.Model):
+class Ipaddress(BaseModel):
     host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host',
                              related_name='ipaddresses')
     ipaddress = models.GenericIPAddressField()
     macaddress = models.CharField(max_length=17, blank=True, validators=[validate_mac_address])
-    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = 'ipaddress'
@@ -361,7 +367,7 @@ class Ipaddress(models.Model):
         return super().delete(using=using, keep_parents=keep_parents)
 
 
-class Hinfo(models.Model):
+class Hinfo(BaseModel):
     host = models.OneToOneField(Host, on_delete=models.CASCADE, primary_key=True)
     cpu = models.TextField()
     os = models.TextField()
@@ -373,7 +379,7 @@ class Hinfo(models.Model):
         return f"cpu: {self.cpu} os: {self.os}"
 
 
-class Mx(models.Model):
+class Mx(BaseModel):
     host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host',
                              related_name='mxs')
     priority = models.PositiveIntegerField(validators=[validate_16bit_uint])
@@ -387,7 +393,7 @@ class Mx(models.Model):
         return f"{self.priority} {self.mx}"
 
 
-class PtrOverride(models.Model):
+class PtrOverride(BaseModel):
     host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host',
                              related_name='ptr_overrides')
     ipaddress = models.GenericIPAddressField(unique=True)
@@ -399,7 +405,7 @@ class PtrOverride(models.Model):
         return "{} -> {}".format(str(self.ipaddress), str(self.host.name))
 
 
-class Txt(models.Model):
+class Txt(BaseModel):
     host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host',
                              related_name='txts')
     txt = models.TextField(max_length=255)
@@ -426,7 +432,7 @@ class Cname(ForwardZoneMember):
         return "{} -> {}".format(str(self.name), str(self.host))
 
 
-class Network(models.Model):
+class Network(BaseModel):
     network = CidrAddressField(unique=True)
     description = models.TextField(blank=True)
     vlan = models.IntegerField(blank=True, null=True)
@@ -435,7 +441,6 @@ class Network(models.Model):
     location = models.TextField(blank=True)
     frozen = models.BooleanField(default=False)
     reserved = models.PositiveIntegerField(default=3)
-    updated_at = models.DateTimeField(auto_now=True)
 
     objects = NetManager()
 
@@ -528,7 +533,7 @@ class Network(models.Model):
         return None
 
 
-class Naptr(models.Model):
+class Naptr(BaseModel):
     host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host',
                              related_name='naptrs')
     preference = models.IntegerField(validators=[validate_16bit_uint])
@@ -571,10 +576,9 @@ class Srv(ForwardZoneMember):
         return str(self.name)
 
 
-class HostGroup(models.Model):
+class HostGroup(BaseModel):
     name = LCICharField(max_length=50, unique=True)
     description = models.CharField(max_length=200, blank=True)
-    updated_at = models.DateTimeField(auto_now=True)
     owners = models.ManyToManyField(Group, blank=True)
     parent = models.ManyToManyField('self', symmetrical=False, blank=True,
                                     related_name='groups')
@@ -588,7 +592,7 @@ class HostGroup(models.Model):
         return "%s" % self.name
 
 
-class NetGroupRegexPermission(models.Model):
+class NetGroupRegexPermission(BaseModel):
     group = models.CharField(max_length=80)
     range = CidrAddressField()
     regex = models.CharField(max_length=250, validators=[validate_regex])
