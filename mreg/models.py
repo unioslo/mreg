@@ -471,6 +471,20 @@ class Network(BaseModel):
             ret.add(network.broadcast_address)
         return ret
 
+    def get_unusable_ipaddresses(self):
+        """ Returns a set with all ips which can not be used:
+            - reserved addresses
+            - ips in excluded ranges
+        """
+        unusable = self.get_reserved_ipaddresses()
+        for i in self.excluded_ranges.all():
+            ip = ipaddress.ip_address(i.start_ip)
+            end_ip = ipaddress.ip_address(i.end_ip)
+            while ip <= end_ip:
+                unusable.add(ip)
+                ip += 1
+        return unusable
+
     def _get_used_ipaddresses(self):
         from_ip = str(self.network.network_address)
         to_ip = str(self.network.broadcast_address)
@@ -506,27 +520,27 @@ class Network(BaseModel):
         else:
             network_ips = self.network.hosts()
 
-        reserved = self.get_reserved_ipaddresses()
+        unusable = self.get_unusable_ipaddresses()
         used = self.get_used_ipaddresses()
-        return set(network_ips) - reserved - used
+        return set(network_ips) - unusable - used
 
     def get_unused_ipaddress_count(self):
         """
         Returns the number of unused ipaddreses on the network.
         """
-        reserved = self.get_reserved_ipaddresses()
+        unusable = self.get_unusable_ipaddresses()
         used = self.get_used_ipaddresses()
-        return self.network.num_addresses - len(reserved | used)
+        return self.network.num_addresses - len(unusable | used)
 
     def get_first_unused(self):
         """
         Return the first unused IP found, if any.
         """
 
-        reserved = self.get_reserved_ipaddresses()
+        unusable = self.get_unusable_ipaddresses()
         used = self.get_used_ipaddresses()
         for ip in self.network.hosts():
-            if ip in reserved:
+            if ip in unusable:
                 continue
             if ip not in used:
                 return str(ip)
