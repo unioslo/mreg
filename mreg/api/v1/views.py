@@ -34,6 +34,7 @@ from .serializers import (CnameSerializer, HinfoSerializer,
                           ModelChangeLogSerializer, MxSerializer,
                           NameServerSerializer, NaptrSerializer,
                           NetGroupRegexPermissionSerializer, NetworkSerializer,
+                          NetworkExcludedRangeSerializer,
                           PtrOverrideSerializer, SrvSerializer,
                           SshfpSerializer, TxtSerializer)
 
@@ -102,6 +103,11 @@ class NetworkFilterSet(ModelFilterSet):
         model = Network
 
 
+class NetworkExcludedRangeFilterSet(ModelFilterSet):
+    class Meta:
+        model = mreg.models.NetworkExcludedRange
+
+
 class TxtFilterSet(ModelFilterSet):
     class Meta:
         model = Txt
@@ -153,12 +159,15 @@ class MregRetrieveUpdateDestroyAPIView(ETAGMixin,
 
 class MregListCreateAPIView(MregMixin, generics.ListCreateAPIView):
 
+    def _get_location(self, request, serializer):
+        return request.path + str(serializer.validated_data[self.lookup_field])
+
     def post(self, request, *args, **kwargs):
         # Add a location header for all POSTs
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
-        location = request.path + str(serializer.validated_data[self.lookup_field])
+        location = self._get_location(request, serializer)
         return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
 
 
@@ -671,7 +680,7 @@ class NetworkDetail(MregRetrieveUpdateDestroyAPIView):
     List details for a network.
 
     patch:
-    Partially update a network. Updating a zone's range is not allowed
+    Partially update a network.
 
     delete:
     Deletes a network unless it has IP addresses that are still in use
@@ -699,6 +708,52 @@ class NetworkDetail(MregRetrieveUpdateDestroyAPIView):
 
         self.perform_destroy(network)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class NetworkExcludedRangeList(MregListCreateAPIView):
+    """
+    list:
+    Returns a list of excluded ipaddress ranges
+
+    post:
+    Create a new excluded range for a network.
+    """
+    serializer_class = NetworkExcludedRangeSerializer
+    permission_classes = (IsSuperOrNetworkAdminMember | IsAuthenticatedAndReadOnly, )
+
+    def _get_location(self, request, serializer):
+        # Can not get Location if the attribute is not set in the serializer
+        obj = self.get_queryset().get(**serializer.validated_data)
+        return request.path + str(obj.pk)
+
+    def get_queryset(self):
+        """
+        Applies filtering to the queryset
+        :return: filtered list of network excludes
+        """
+        qs = get_object_or_404(Network, network=self.kwargs['network']).excluded_ranges.all()
+        return NetworkExcludedRangeFilterSet(data=self.request.GET, queryset=qs).filter()
+
+
+class NetworkExcludedRangeDetail(MregRetrieveUpdateDestroyAPIView):
+    """
+    get:
+    List details for an excluded range.
+
+    patch:
+    Partially update an excluded range.
+
+    delete:
+    Deletes an excluded range.
+    """
+
+    serializer_class = NetworkExcludedRangeSerializer
+    permission_classes = (IsSuperOrNetworkAdminMember | IsAuthenticatedAndReadOnly, )
+    lookup_field = 'pk'
+
+    def get_queryset(self):
+        network = get_object_or_404(Network, network=self.kwargs['network'])
+        return network.excluded_ranges.all()
 
 
 @api_view()

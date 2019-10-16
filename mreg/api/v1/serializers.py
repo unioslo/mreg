@@ -5,6 +5,7 @@ from django.utils import timezone
 
 from rest_framework import serializers
 
+import mreg.models
 from mreg.models import (Cname, ForwardZone, ForwardZoneDelegation,
                          Hinfo, Host, HostGroup, Ipaddress, Loc,
                          ModelChangeLog, Mx, NameServer, Naptr,
@@ -86,6 +87,7 @@ class IpaddressSerializer(ValidationMixin, serializers.ModelSerializer):
                     "macaddress already in use by {}".format(inuse_ip))
 
         data = super().validate(data)
+        _validate_ip_not_in_network_excluded_range(data.get('ipaddress'))
         mac = data.get('macaddress')
         if mac is None and self.instance and self.instance.macaddress:
             mac = self.instance.macaddress
@@ -139,6 +141,10 @@ class PtrOverrideSerializer(ValidationMixin, serializers.ModelSerializer):
         model = PtrOverride
         fields = '__all__'
 
+    def validate_ipaddress(self, value):
+        _validate_ip_not_in_network_excluded_range(value)
+        return value
+
 
 class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
     """
@@ -189,6 +195,43 @@ class NetworkSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
         model = Network
         fields = '__all__'
+
+
+class NetworkExcludedRangeSerializer(ValidationMixin, serializers.ModelSerializer):
+    class Meta:
+        model = mreg.models.NetworkExcludedRange
+        fields = '__all__'
+
+    def validate(self, data):
+        data = super().validate(data)
+
+        def _get_ip(attr):
+            ip = data.get(attr) or getattr(self.instance, attr)
+            if isinstance(ip, str):
+                return ipaddress.ip_address(ip)
+            return ip
+        start_ip = _get_ip('start_ip')
+        end_ip = _get_ip('end_ip')
+        network = data.get('network') or self.instance.network.network
+        if isinstance(network, Network):
+            network = network.network
+        if start_ip > end_ip:
+            raise serializers.ValidationError(
+                f"start_ip {start_ip} larger than end_ip {end_ip}")
+        for ip in (start_ip, end_ip):
+            if ip not in network:
+                raise serializers.ValidationError(
+                    f"IP {ip} is not contained in {network}")
+        qs = mreg.models.NetworkExcludedRange.objects.filter(network__network=network)
+        for existing in qs:
+            if start_ip <= ipaddress.ip_address(existing.start_ip) <= end_ip or \
+              start_ip <= ipaddress.ip_address(existing.end_ip) <= end_ip:
+                if hasattr(self.instance, 'pk'):
+                    if existing == self.instance:
+                        continue
+                raise serializers.ValidationError(
+                        f"Request overlaps with existing: {existing}")
+        return data
 
 
 class NetGroupRegexPermissionSerializer(ValidationMixin, serializers.ModelSerializer):
@@ -283,3 +326,13 @@ class HostGroupSerializer(serializers.ModelSerializer):
     class Meta:
         model = HostGroup
         fields = '__all__'
+
+
+def _validate_ip_not_in_network_excluded_range(ip):
+    if ip is None:
+        return
+    qs = mreg.models.NetworkExcludedRange.objects.filter(start_ip__lte=ip,
+                                                         end_ip__gte=ip)
+    if qs.exists():
+        raise serializers.ValidationError(
+                f"IP {ip} in an excluded range: {qs.first()}")
