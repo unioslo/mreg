@@ -191,12 +191,6 @@ class SrvSerializer(ForwardZoneMixin, serializers.ModelSerializer):
         fields = '__all__'
 
 
-class NetworkSerializer(ValidationMixin, serializers.ModelSerializer):
-    class Meta:
-        model = Network
-        fields = '__all__'
-
-
 class NetworkExcludedRangeSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
         model = mreg.models.NetworkExcludedRange
@@ -232,6 +226,14 @@ class NetworkExcludedRangeSerializer(ValidationMixin, serializers.ModelSerialize
                 raise serializers.ValidationError(
                         f"Request overlaps with existing: {existing}")
         return data
+
+
+class NetworkSerializer(ValidationMixin, serializers.ModelSerializer):
+    excluded_ranges = NetworkExcludedRangeSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Network
+        fields = '__all__'
 
 
 class NetGroupRegexPermissionSerializer(ValidationMixin, serializers.ModelSerializer):

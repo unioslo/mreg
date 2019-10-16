@@ -654,7 +654,7 @@ class NetworkList(MregListCreateAPIView):
     post:
     Create a new network. The new network can't overlap with any existing networks.
     """
-    queryset = Network.objects.all()
+    queryset = Network.objects.all().prefetch_related('excluded_ranges')
     serializer_class = NetworkSerializer
     permission_classes = (IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
     lookup_field = 'network'
