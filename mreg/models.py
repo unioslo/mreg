@@ -533,6 +533,23 @@ class Network(BaseModel):
         return None
 
 
+class NetworkExcludedRange(BaseModel):
+    """
+    Exclude all usage ip adresses between start and end IP address for a network.
+    """
+    network = models.ForeignKey(Network, on_delete=models.CASCADE, db_column='excluded_range',
+                                related_name='excluded_ranges')
+    start_ip = models.GenericIPAddressField(unique=True)
+    end_ip = models.GenericIPAddressField(unique=True)
+
+    class Meta:
+        db_table = 'network_exluded_range'
+        ordering = ('start_ip', )
+
+    def __str__(self):
+        return f'{self.network.network} -> [{self.start_ip} -> [{self.end_ip}]'
+
+
 class Naptr(BaseModel):
     host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host',
                              related_name='naptrs')

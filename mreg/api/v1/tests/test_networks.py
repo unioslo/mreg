@@ -443,3 +443,73 @@ class NetworkAdminPermissions(MregAPITestCase):
         self.assert_patch_and_403(path, {'description': 'test2'})
         # Only allowed to do a patch with reserved. Not other fields at the same time.
         self.assert_patch_and_403(path, {'reserved': 2, 'description': 'test2'})
+
+
+class NetworkExcludedRanges(MregAPITestCase):
+    """Tests for NetworkExcludedRange objects and that they are enforced
+       for Ipaddress and PtrOverride"""
+
+    def setUp(self):
+        super().setUp()
+        self.network4 = Network.objects.create(network='10.0.0.0/24', description='ipv4 network')
+        self.network6 = Network.objects.create(network='2001:db8::/64', description='ipv6 network')
+
+    def test_create(self):
+        def _test(network, start_ip, end_ip):
+            data = {'network': network.pk, 'start_ip': start_ip, 'end_ip': end_ip}
+            path = f'/api/v1/networks/{network}/excluded_ranges/'
+            return self.assert_post(path, data)
+
+        self.range4_1 = _test(self.network4, '10.0.0.10', '10.0.0.200')
+        self.range4_2 = _test(self.network4, '10.0.0.201', '10.0.0.201')
+        self.range6_1 = _test(self.network6, '2001:db8::10', '2001:db8::200')
+        self.range6_2 = _test(self.network6, '2001:db8::201', '2001:db8::201')
+
+    def test_create_invalid_entries(self):
+        def _test(network, start_ip, end_ip):
+            data = {'network': network.pk, 'start_ip': start_ip, 'end_ip': end_ip}
+            path = f'/api/v1/networks/{network}/excluded_ranges/'
+            self.assert_post_and_400(path, data)
+
+        self.test_create()
+        # start_ip > end_ip
+        _test(self.network4, '10.0.0.200', '10.0.0.100')
+        _test(self.network6, '2001:db8::2000', '2001:db8::1000')
+        # start_ip or end_ip already in use
+        _test(self.network4, '10.0.0.8', '10.0.0.10')
+        _test(self.network4, '10.0.0.201', '10.0.0.202')
+        _test(self.network6, '2001:db8::8', '2001:db8::10')
+        _test(self.network6, '2001:db8::201', '2001:db8::202')
+        # Overlapping
+        _test(self.network4, '10.0.0.8', '10.0.0.250')
+        _test(self.network6, '2001:db8::8', '2001:db8::250')
+
+        # Not on the network
+        _test(self.network4, '10.1.0.210', '10.1.0.250')
+        _test(self.network4, '10.0.0.210', '10.1.0.250')
+        _test(self.network6, '2001:db8:1::210', '2001:db8:1::250')
+        _test(self.network6, '2001:db8::210', '2001:db8:1::250')
+
+    def test_patch(self):
+        self.test_create()
+        self.assert_patch(self.range4_1['Location'], {'start_ip': '10.0.0.11'})
+        self.assert_patch(self.range6_1['Location'], {'start_ip': '2001:db8::11'})
+
+    def test_patch_invalid(self):
+        def _test(info, data):
+            self.assert_patch_and_400(info['Location'], data)
+
+        self.test_create()
+        _test(self.range4_1, {'start_ip': '10.0.0.201'})
+        _test(self.range4_1, {'end_ip': '10.0.0.202'})
+        _test(self.range4_2, {'end_ip': '10.0.1.202'})
+
+    def test_reject_ip_usage(self):
+        self.test_create()
+        host = Host.objects.create(name='host1.example.org')
+        path = '/api/v1/ipaddresses/'
+        self.assert_post_and_400(path, {'host': host.id, 'ipaddress': '10.0.0.10'})
+        self.assert_post_and_400(path, {'host': host.id, 'ipaddress': '10.0.0.201'})
+        self.assert_post(path, {'host': host.id, 'ipaddress': '10.0.0.8'})
+        self.assert_post_and_400('/api/v1/hosts/', {'name': 'host2.example.org',
+                                                    'ipaddress': '10.0.0.20'})
