@@ -206,18 +206,15 @@ class NetworkExcludedRangeSerializer(ValidationMixin, serializers.ModelSerialize
             return ip
         start_ip = _get_ip('start_ip')
         end_ip = _get_ip('end_ip')
-        network = data.get('network') or self.instance.network.network
-        if isinstance(network, Network):
-            network = network.network
+        network_obj = data.get('network') or self.instance.network
         if start_ip > end_ip:
             raise serializers.ValidationError(
                 f"start_ip {start_ip} larger than end_ip {end_ip}")
         for ip in (start_ip, end_ip):
-            if ip not in network:
+            if ip not in network_obj.network:
                 raise serializers.ValidationError(
-                    f"IP {ip} is not contained in {network}")
-        qs = mreg.models.NetworkExcludedRange.objects.filter(network__network=network)
-        for existing in qs:
+                    f"IP {ip} is not contained in {network_obj.network}")
+        for existing in network_obj.excluded_ranges.all():
             if start_ip <= ipaddress.ip_address(existing.start_ip) <= end_ip or \
               start_ip <= ipaddress.ip_address(existing.end_ip) <= end_ip:
                 if hasattr(self.instance, 'pk'):
