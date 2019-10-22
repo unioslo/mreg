@@ -28,6 +28,7 @@ class TokenLogout(APIView):
     permission_classes = (IsAuthenticated, )
 
     def post(self, request):
-        # simply delete the token to force a login
-        request.user.auth_token.delete()
+        # delete the user on logout to clean up the local user database and
+        # group memberships. As the user owns the token, it will also be deleted.
+        request.user.delete()
         return Response(status=status.HTTP_200_OK)
