@@ -36,7 +36,7 @@ def populate_user_from_ldap(sender, signal, user=None, ldap_user=None, **kwargs)
         if res:
             group_name = res.group('group_name')
             group, created = Group.objects.get_or_create(name=group_name)
-            group.user_set.add(user)
+            user.groups.add(group)
 
 
 # Update PtrOverride whenever a Ipaddress is created or changed
