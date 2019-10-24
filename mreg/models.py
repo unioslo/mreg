@@ -277,6 +277,7 @@ class ForwardZoneDelegation(BaseModel, ZoneHelpers):
                              related_name='delegations')
     name = DnsNameField(unique=True)
     nameservers = models.ManyToManyField(NameServer, db_column='ns')
+    comment = models.CharField(blank=True, max_length=200)
 
     class Meta:
         db_table = 'forward_zone_delegation'
@@ -290,6 +291,7 @@ class ReverseZoneDelegation(BaseModel, ZoneHelpers):
                              related_name='delegations')
     name = DnsNameField(unique=True, validators=[validate_reverse_zone_name])
     nameservers = models.ManyToManyField(NameServer, db_column='ns')
+    comment = models.CharField(blank=True, max_length=200)
 
     class Meta:
         db_table = 'reverse_zone_delegation'

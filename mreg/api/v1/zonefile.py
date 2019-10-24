@@ -57,6 +57,10 @@ class Common:
         data = ""
         qs = qs.prefetch_related("nameservers")
         for sub in qs:
+            # Only delegations have comments
+            if hasattr(sub, 'comment'):
+                if sub.comment:
+                    data += f'; {sub.comment}\n'
             nameservers = sub.nameservers.all()
             if not nameservers.exists():
                 # XXX What to do?

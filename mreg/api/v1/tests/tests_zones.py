@@ -255,7 +255,8 @@ class ZonesForwardDelegationTestCase(MregAPITestCase):
     def test_delegate_forward_201_ok(self):
         path = self.del_path('example.org')
         data = {'name': 'delegated.example.org',
-                'nameservers': ['ns1.example.org', 'ns1.delegated.example.org']}
+                'nameservers': ['ns1.example.org', 'ns1.delegated.example.org'],
+                'comment': 'delegated to Mr. Anderson'}
         response = self.assert_post(path, data)
         self.assertEqual(response['Location'], f"{path}delegated.example.org")
 
