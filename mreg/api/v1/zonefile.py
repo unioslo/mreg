@@ -70,8 +70,8 @@ class Common:
         data = ""
         delegations = self.zone.delegations.all().order_by("name")
         if delegations:
+            data = ';\n; Delegations\n;\n'
             data += self.get_ns_data(delegations)
-            data = ';\n; Delegations\n;\n' + data
         return data
 
 
