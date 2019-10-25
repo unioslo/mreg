@@ -260,7 +260,11 @@ class ZoneDelegationDetail(MregRetrieveUpdateDestroyAPIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def patch(self, request, *args, **kwargs):
-        raise MethodNotAllowed(request.method)
+        if "comment" in request.data and len(request.data) == 1:
+            return super().patch(request, *args, **kwargs)
+        else:
+            content = {'ERROR': 'Only allowed to change comment'}
+            return Response(content, status=status.HTTP_403_FORBIDDEN)
 
     def delete(self, request, *args, **kwargs):
         zone = self.get_object()

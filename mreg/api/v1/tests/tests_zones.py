@@ -264,12 +264,13 @@ class ZonesForwardDelegationTestCase(MregAPITestCase):
         self.test_delegate_forward_201_ok()
         self.assert_get('/zonefiles/example.org')
 
-    def test_delegate_forward_patch_403_method_not_allowed(self):
+    def test_delegate_forward_patch_403_only_path_comment(self):
         path = self.del_path('example.org')
         data = {'name': 'delegated.example.org',
                 'nameservers': ['ns1.example.org', 'ns1.delegated.example.org']}
         response = self.assert_post(path, data)
-        self.assert_patch_and_405(response['Location'], {'name': 'notallowed.example.org'})
+        self.assert_patch(response['Location'], {'comment': 'new comment'})
+        self.assert_patch_and_403(response['Location'], {'name': 'notallowed.example.org'})
 
     def test_delegate_forward_badname_400_bad_request(self):
         path = self.del_path('example.org')
