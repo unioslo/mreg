@@ -88,6 +88,7 @@ DATABASES = {
 ## Authors
 
 * **Øyvind Hagberg**
+* **Øyvind Kolbu**
 * **Geir Ulvik**
 * **Nils Hiorth**
 * **Nicolay Mohebi**
