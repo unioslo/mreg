@@ -47,6 +47,15 @@ class Hosts(HostBasePermissions):
         data = {'name': 'host1.example.org'}
         self.assert_post_and_403('/hosts/', data)
 
+    def test_can_not_create_host_outside_ip_range(self):
+        # Make sure no history entires are created during a rejected post
+        old_history = self.assert_get('/history/').json()
+        data = {'name': 'host1.example.org', 'ipaddress': '11.0.0.1'}
+        self.assert_post_and_403('/hosts/', data)
+        self.assert_get_and_404('/hosts/' + data['name'])
+        new_history = self.assert_get('/history/').json()
+        self.assertEqual(old_history, new_history)
+
     def test_can_not_change_host_without_ip(self):
         data = {'name': 'host1.example.org'}
         self.client_superuser = self.get_token_client()
