@@ -1336,11 +1336,13 @@ class APIModelChangeLogsTestCase(MregAPITestCase):
                                             timestamp=timezone.now())
         clean_and_save(self.log_entry_one)
 
+    @skip("This code will die soon")
     def test_history_get_200_OK(self):
         """Get on /history/ should return a list of table names that have entries, and 200 OK."""
         response = self.assert_get('/history/')
         self.assertIn('hosts', response.data)
 
+    @skip("This code will die soon")
     def test_history_host_get_200_OK(self):
         """Get on /history/hosts/<pk> should return a list of dicts containing entries for that host"""
         response = self.assert_get('/history/hosts/{}'.format(self.host_one.id))
