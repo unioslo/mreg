@@ -12,6 +12,8 @@ urlpatterns = [
     path('dhcphosts/<ip>/<range>', views.DhcpHostsByRange.as_view()),
     path('hinfos/', views.HinfoList.as_view()),
     path('hinfos/<pk>', views.HinfoDetail.as_view()),
+    path('history/', views.HistoryList.as_view()),
+    path('history/<pk>', views.HistoryDetail.as_view()),
     path('hosts/', views.HostList.as_view()),
     path('hosts/<name>', views.HostDetail.as_view()),
     path('hostgroups/', views_hostgroups.HostGroupList.as_view()),
@@ -68,6 +70,4 @@ urlpatterns = [
     re_path(r'^zonefiles/(?P<name>(\d+/)?[^/]+)', views_zones.ZoneFileDetail.as_view()),
     path('permissions/netgroupregex/', views.NetGroupRegexPermissionList.as_view()),
     path('permissions/netgroupregex/<pk>', views.NetGroupRegexPermissionDetail.as_view()),
-    path('history/', views.ModelChangeLogList.as_view()),
-    path('history/<table>/<pk>', views.ModelChangeLogDetail.as_view()),
 ]
