@@ -150,7 +150,7 @@ class HostLogMixin(HistoryLog):
         # Add current data when storing an update
         if change_type == 'update':
             data = {'current_data': orig_data, 'update': data}
-        change_type = f'{serializer.Meta.model.__name__}_{change_type}'
+        change_type = f'{serializer.Meta.model.__name__}¤{change_type}'
         json_data = self.get_jsondata(data)
         history = mreg.models.History(user=self.request.user,
                                       resource="host",

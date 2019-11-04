@@ -1,8 +1,11 @@
 import json
 
-from django.forms import model_to_dict
+from django.core.exceptions import ValidationError
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db.models import Model
+from django.forms import model_to_dict
+
+from mreg.models import History
 
 
 class DjangoJSONModelEncoder(DjangoJSONEncoder):
@@ -32,6 +35,23 @@ class HistoryLog:
     def save_log_update(self, serializer):
         self.save_log("update", serializer, serializer.validated_data, orig_data=self.orig_data)
 
+    def save_log_m2m_alteration(self, method, instance):
+        data = {"relation": self.m2m_field,
+                "name": instance.name}
+        change_type = f'{instance.__class__.__name__}¤{method.__name__}'
+        history = History(user=self.request.user,
+                          resource=self.resource,
+                          change_type=change_type,
+                          name=self.object.name,
+                          model_id=self.object.id,
+                          data=data)
+        try:
+            history.full_clean()
+        except ValidationError as e:
+            print(e)
+            return
+        history.save()
+
     def perform_create(self, serializer, **kwargs):
         super().perform_create(serializer)
         self.save_log_create(serializer)
@@ -49,3 +69,7 @@ class HistoryLog:
         data = serializer.data.copy()
         super().perform_destroy(instance)
         self.save_log("destroy", serializer, data)
+
+    def perform_m2m_alteration(self, method, instance):
+        super().perform_m2m_alteration(method, instance)
+        self.save_log_m2m_alteration(method, instance)

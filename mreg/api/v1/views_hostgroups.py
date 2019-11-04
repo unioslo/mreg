@@ -1,4 +1,5 @@
 from django.contrib.auth.models import Group
+from django.core.exceptions import ValidationError
 from django.db.models import Prefetch
 
 from rest_framework import status
@@ -8,9 +9,10 @@ from url_filter.filtersets import ModelFilterSet
 
 from mreg.api.permissions import (HostGroupPermission,
                                   IsSuperOrGroupAdminOrReadOnly)
-from mreg.models import Host, HostGroup
+from mreg.models import History, Host, HostGroup
 
 from . import serializers
+from .history import HistoryLog
 from .views import (MregListCreateAPIView,
                     MregPermissionsListCreateAPIView,
                     MregPermissionsUpdateDestroy,
@@ -36,13 +38,50 @@ class HostGroupM2MPermissions(M2MPermissions):
                     self.permission_denied(request)
 
 
-class HostGroupPermissionsListCreateAPIView(HostGroupM2MPermissions,
+class HostGroupLogMixin(HistoryLog):
+
+    resource = 'group'
+
+    def save_log(self, change_type, serializer, data, orig_data=None):
+        if isinstance(serializer, serializers.HostGroupSerializer):
+            group_id = serializer.data['id']
+            group_name = serializer.data['name']
+        else:
+            group = data.get('group', serializer.data.get('group', None))
+            if isinstance(group, HostGroup):
+                pass
+            elif isinstance(group, int):
+                group = HostGroup.objects.get(id=group)
+            group_id = group.id
+            group_name = group.name
+
+        if change_type == 'update':
+            data = {'current_data': orig_data, 'update': data}
+        change_type = f'{serializer.Meta.model.__name__}¤{change_type}'
+        json_data = self.get_jsondata(data)
+        history = History(user=self.request.user,
+                          resource="group",
+                          change_type=change_type,
+                          name=group_name,
+                          model_id=group_id,
+                          data=json_data)
+        try:
+            history.full_clean()
+        except ValidationError as e:
+            print(e)
+            return
+        history.save()
+
+
+class HostGroupPermissionsListCreateAPIView(HostGroupLogMixin,
+                                            HostGroupM2MPermissions,
                                             MregPermissionsListCreateAPIView):
 
     permission_classes = (HostGroupPermission, )
 
 
-class HostGroupPermissionsUpdateDestroy(HostGroupM2MPermissions,
+class HostGroupPermissionsUpdateDestroy(HostGroupLogMixin,
+                                        HostGroupM2MPermissions,
                                         MregPermissionsUpdateDestroy,
                                         MregRetrieveUpdateDestroyAPIView):
 
@@ -56,7 +95,7 @@ def _hostgroup_prefetcher(qs):
                  'owners', queryset=Group.objects.order_by('name')))
 
 
-class HostGroupList(MregListCreateAPIView):
+class HostGroupList(HostGroupLogMixin, MregListCreateAPIView):
     """
     get:
     Lists all hostgroups in use.
