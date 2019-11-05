@@ -22,7 +22,7 @@ class HistoryLog:
 
     @staticmethod
     # Must implement in own inherited class
-    def save_log(change_type, serializer, data, orig_data=None):
+    def save_log(action, serializer, data, orig_data=None):
         pass
 
     @staticmethod
@@ -38,12 +38,14 @@ class HistoryLog:
     def save_log_m2m_alteration(self, method, instance):
         data = {"relation": self.m2m_field,
                 "name": instance.name}
-        change_type = f'{instance.__class__.__name__}¤{method.__name__}'
+        model = instance.__class__.__name__
+        action = method.__name__
         history = History(user=self.request.user,
                           resource=self.resource,
-                          change_type=change_type,
                           name=self.object.name,
                           model_id=self.object.id,
+                          model=model,
+                          action=action,
                           data=data)
         try:
             history.full_clean()

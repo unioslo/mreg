@@ -42,7 +42,7 @@ class HostGroupLogMixin(HistoryLog):
 
     resource = 'group'
 
-    def save_log(self, change_type, serializer, data, orig_data=None):
+    def save_log(self, action, serializer, data, orig_data=None):
         if isinstance(serializer, serializers.HostGroupSerializer):
             group_id = serializer.data['id']
             group_name = serializer.data['name']
@@ -55,15 +55,16 @@ class HostGroupLogMixin(HistoryLog):
             group_id = group.id
             group_name = group.name
 
-        if change_type == 'update':
+        if action == 'update':
             data = {'current_data': orig_data, 'update': data}
-        change_type = f'{serializer.Meta.model.__name__}¤{change_type}'
+        model = serializer.Meta.model.__name__
         json_data = self.get_jsondata(data)
         history = History(user=self.request.user,
                           resource="group",
-                          change_type=change_type,
                           name=group_name,
                           model_id=group_id,
+                          model=model,
+                          action=action,
                           data=json_data)
         try:
             history.full_clean()
