@@ -145,8 +145,12 @@ class HostLogMixin(HistoryLog):
             host_name = host.name
         # No need to store zone, as it is automatically set by name
         data.pop('zone', None)
-        # No need to store host, as changes to a host will also log.
-        data.pop('host', None)
+        # No need to store host, as changes to a host will also log, unless the
+        # host itself has changed
+        if change_type == 'update' and 'host' in data and data['host'].id == orig_data.id:
+            pass
+        else:
+            data.pop('host', None)
         # Add current data when storing an update
         if change_type == 'update':
             data = {'current_data': orig_data, 'update': data}
