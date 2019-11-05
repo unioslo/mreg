@@ -679,4 +679,17 @@ class History(models.Model):
     data = pgfields.JSONField()
 
     def __str__(self):
-        return f'{self.host_name}, {self.model}, {self.action}, {self.timestamp}'
+        return f'{self.name}, {self.model}, {self.action}, {self.timestamp}'
+
+
+# TODO: Add user_id functionality when auth is implemented
+class ModelChangeLog(models.Model):
+    # user_id = models.BigIntegerField(db_index=True)
+    table_name = models.CharField(max_length=132)
+    table_row = models.BigIntegerField()
+    data = models.TextField()
+    action = models.CharField(max_length=16)  # saved or deleted
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "model_change_log"
