@@ -2,6 +2,7 @@ import bisect
 import ipaddress
 from collections import defaultdict
 
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 
@@ -14,6 +15,7 @@ from rest_framework.views import APIView
 
 from rest_framework_extensions.etag.mixins import ETAGMixin
 
+from url_filter.integrations.drf import DjangoFilterBackend
 from url_filter.filtersets import ModelFilterSet
 
 
@@ -22,14 +24,14 @@ from mreg.api.permissions import (IsAuthenticatedAndReadOnly,
                                   IsGrantedNetGroupRegexPermission,
                                   IsSuperGroupMember,
                                   IsSuperOrAdminOrReadOnly,
-                                  IsSuperOrGroupAdminOrReadOnly,
                                   IsSuperOrNetworkAdminMember,)
 from mreg.models import (Cname, Hinfo, Host, HostGroup, Ipaddress, Loc,
                          ModelChangeLog, Mx, NameServer, Naptr, Network,
                          PtrOverride, Srv, Sshfp, Txt)
 
+from .history import HistoryLog
 from .serializers import (CnameSerializer, HinfoSerializer,
-                          HostSerializer, IpaddressSerializer,
+                          HistorySerializer, HostSerializer, IpaddressSerializer,
                           LocSerializer,
                           ModelChangeLogSerializer, MxSerializer,
                           NameServerSerializer, NaptrSerializer,
@@ -124,6 +126,50 @@ class MregMixin:
     ordering_fields = '__all__'
 
 
+class HostLogMixin(HistoryLog):
+
+    def save_log(self, action, serializer, data, orig_data=None):
+        if isinstance(serializer, HostSerializer):
+            host_id = serializer.data['id']
+            host_name = serializer.data['name']
+        else:
+            host = data.get('host', serializer.data.get('host', None))
+            if isinstance(host, Host):
+                pass
+            elif isinstance(host, int):
+                host = Host.objects.get(id=host)
+            elif host is None:
+                return
+            host_id = host.id
+            host_name = host.name
+        # No need to store zone, as it is automatically set by name
+        data.pop('zone', None)
+        # No need to store host, as changes to a host will also log, unless the
+        # host itself has changed
+        if action == 'update' and 'host' in data and data['host'].id == orig_data['host']:
+            pass
+        else:
+            data.pop('host', None)
+        # Add current data when storing an update
+        if action == 'update':
+            data = {'current_data': orig_data, 'update': data}
+        model = serializer.Meta.model.__name__
+        json_data = self.get_jsondata(data)
+        history = mreg.models.History(user=self.request.user,
+                                      resource="host",
+                                      name=host_name,
+                                      model_id=host_id,
+                                      model=model,
+                                      action=action,
+                                      data=json_data)
+        try:
+            history.full_clean()
+        except ValidationError as e:
+            print(e)
+            return
+        history.save()
+
+
 class MregRetrieveUpdateDestroyAPIView(ETAGMixin,
                                        generics.RetrieveUpdateDestroyAPIView):
     """
@@ -131,10 +177,11 @@ class MregRetrieveUpdateDestroyAPIView(ETAGMixin,
     """
 
     def perform_update(self, serializer, **kwargs):
+        super().perform_update(serializer)
         serializer.save(**kwargs)
 
     def patch(self, request, *args, **kwargs):
-        instance = self.get_object()
+        self.instance = instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
@@ -176,12 +223,14 @@ class MregPermissionsUpdateDestroy:
     def perform_destroy(self, instance):
         # Custom check destroy permissions
         self.check_destroy_permissions(self.request, instance)
-        instance.delete()
+        super().perform_destroy(instance)
 
     def perform_update(self, serializer, **kwargs):
         # Custom check update permissions
         self.check_update_permissions(self.request, serializer)
+        self.orig_data = self.get_serializer(self.get_object()).data
         serializer.save(**kwargs)
+        super().perform_update(serializer)
 
     def check_destroy_permissions(self, request, validated_serializer):
         for permission in self.get_permissions():
@@ -203,7 +252,7 @@ class MregPermissionsListCreateAPIView(MregMixin, generics.ListCreateAPIView):
     def perform_create(self, serializer):
         # Custom check create permissions
         self.check_create_permissions(self.request, serializer)
-        serializer.save()
+        super().perform_create(serializer)
 
     def check_create_permissions(self, request, validated_serializer):
         for permission in self.get_permissions():
@@ -213,13 +262,15 @@ class MregPermissionsListCreateAPIView(MregMixin, generics.ListCreateAPIView):
                 self.permission_denied(request)
 
 
-class HostPermissionsUpdateDestroy(MregPermissionsUpdateDestroy):
+class HostPermissionsUpdateDestroy(HostLogMixin,
+                                   MregPermissionsUpdateDestroy):
 
     # permission_classes = settings.MREG_PERMISSION_CLASSES
     permission_classes = (IsGrantedNetGroupRegexPermission, )
 
 
-class HostPermissionsListCreateAPIView(MregPermissionsListCreateAPIView):
+class HostPermissionsListCreateAPIView(HostLogMixin,
+                                       MregPermissionsListCreateAPIView):
 
     # permission_classes = settings.MREG_PERMISSION_CLASSES
     permission_classes = (IsGrantedNetGroupRegexPermission, )
@@ -327,7 +378,11 @@ class HostList(HostPermissionsListCreateAPIView):
 
             if hostserializer.is_valid(raise_exception=True):
                 with transaction.atomic():
+                    # XXX: must fix. perform_creates failes as it has no ipaddress and the
+                    # the permissions fails for most users. Maybe a nested serializer should fix it?
+                    #self.perform_create(hostserializer)
                     hostserializer.save()
+                    self.save_log_create(hostserializer)
                     ipdata = {'host': host.pk, 'ipaddress': ipkey}
                     ip = Ipaddress()
                     ipserializer = IpaddressSerializer(ip, data=ipdata)
@@ -367,6 +422,20 @@ class HostDetail(HostPermissionsUpdateDestroy,
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
         return super().patch(request, *args, **kwargs)
+
+
+class HistoryList(MregMixin, generics.ListAPIView):
+
+    queryset = mreg.models.History.objects.all().order_by('id')
+    serializer_class = HistorySerializer
+    filter_backends = (DjangoFilterBackend, filters.OrderingFilter)
+    filter_fields = '__all__'
+
+
+class HistoryDetail(MregMixin, generics.RetrieveAPIView):
+
+    queryset = mreg.models.History.objects.all()
+    serializer_class = HistorySerializer
 
 
 class IpaddressList(HostPermissionsListCreateAPIView):

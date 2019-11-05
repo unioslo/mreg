@@ -663,6 +663,25 @@ class NetGroupRegexPermission(BaseModel):
         return qs
 
 
+class History(models.Model):
+    """
+    Store history for various models.
+
+    Use the resource field to set the scope for each group of events.
+    """
+    timestamp = models.DateTimeField(auto_now_add=True)
+    user = models.CharField(max_length=64)
+    resource = models.CharField(max_length=64)
+    name = models.CharField(max_length=255)
+    model_id = models.PositiveIntegerField()
+    model = models.CharField(max_length=64)
+    action = models.CharField(max_length=64)
+    data = pgfields.JSONField()
+
+    def __str__(self):
+        return f'{self.host_name}, {self.model}, {self.action}, {self.timestamp}'
+
+
 # TODO: Add user_id functionality when auth is implemented
 class ModelChangeLog(models.Model):
     # user_id = models.BigIntegerField(db_index=True)

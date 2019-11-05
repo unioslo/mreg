@@ -146,6 +146,13 @@ class PtrOverrideSerializer(ValidationMixin, serializers.ModelSerializer):
         return value
 
 
+class HistorySerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = mreg.models.History
+        fields = '__all__'
+
+
 class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
     """
     To properly represent a host we include its related objects.

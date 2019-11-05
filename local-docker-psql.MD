@@ -6,6 +6,7 @@ docker run -p 127.0.0.1:5432:5432 --name postgres -e POSTGRES_PASSWORD=secret -d
 Then add a mreg user and db:
 ```
 psql -h localhost -U postgres << EOF
+CREATE EXTENSION citext;
 CREATE DATABASE mreg;
 CREATE USER mreg WITH ENCRYPTED PASSWORD 'mregpass';
 GRANT ALL PRIVILEGES ON DATABASE mreg to mreg;
