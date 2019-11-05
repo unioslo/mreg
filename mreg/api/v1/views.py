@@ -26,14 +26,13 @@ from mreg.api.permissions import (IsAuthenticatedAndReadOnly,
                                   IsSuperOrAdminOrReadOnly,
                                   IsSuperOrNetworkAdminMember,)
 from mreg.models import (Cname, Hinfo, Host, HostGroup, Ipaddress, Loc,
-                         ModelChangeLog, Mx, NameServer, Naptr, Network,
+                         Mx, NameServer, Naptr, Network,
                          PtrOverride, Srv, Sshfp, Txt)
 
 from .history import HistoryLog
 from .serializers import (CnameSerializer, HinfoSerializer,
                           HistorySerializer, HostSerializer, IpaddressSerializer,
-                          LocSerializer,
-                          ModelChangeLogSerializer, MxSerializer,
+                          LocSerializer, MxSerializer,
                           NameServerSerializer, NaptrSerializer,
                           NetGroupRegexPermissionSerializer, NetworkSerializer,
                           NetworkExcludedRangeSerializer,
@@ -967,43 +966,6 @@ class NetGroupRegexPermissionDetail(MregRetrieveUpdateDestroyAPIView):
     queryset = mreg.models.NetGroupRegexPermission.objects.all().order_by('id')
     serializer_class = NetGroupRegexPermissionSerializer
     permission_classes = (IsSuperOrAdminOrReadOnly, )
-
-
-class ModelChangeLogList(generics.ListAPIView):
-    """
-    get:
-    Lists the models/tables with registered entries. To access the history of an object, GET /{tablename}/{object-id}
-
-    post:
-    Not used. Saving objects to history is handled by signals internally.
-    """
-    queryset = ModelChangeLog.objects.all()
-    serializer_class = ModelChangeLogSerializer
-
-    def get(self, request, *args, **kwargs):
-        # Return a list of available tables there are logged histories for.
-        tables = list({value['table_name'] for value in self.queryset.values('table_name')})
-        return Response(data=tables, status=status.HTTP_200_OK)
-
-
-class ModelChangeLogDetail(generics.RetrieveAPIView):
-    """
-    get:
-    Retrieve all log entries for an object in a table.
-
-    patch:
-    Not implemented. Changing a log entry doesn't really make sense, and log entries are handles internally.
-    """
-    queryset = ModelChangeLog.objects.all()
-    serializer_class = ModelChangeLogSerializer
-
-    def get(self, request, *args, **kwargs):
-        query_table = self.kwargs['table']
-        query_row = self.kwargs['pk']
-        logs_by_date = [vals for vals in self.queryset.filter(table_name=query_table,
-                                                              table_row=query_row).order_by('timestamp').values()]
-
-        return Response(logs_by_date, status=status.HTTP_200_OK)
 
 
 def _get_iprange(kwargs):

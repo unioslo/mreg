@@ -10,7 +10,7 @@ from django.utils import timezone
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient, APITestCase
 
-from mreg.models import (ForwardZone, Host, Ipaddress, ModelChangeLog,
+from mreg.models import (ForwardZone, Host, Ipaddress,
                          Network, PtrOverride, ReverseZone, Txt)
 
 
@@ -1309,41 +1309,3 @@ class APICnamesTestCase(MregAPITestCase):
         self.assert_patch('/cnames/%s' % self.post_data['name'],
                           {'ttl': '500',
                            'name': 'new-alias.example.org'})
-
-
-class APIModelChangeLogsTestCase(MregAPITestCase):
-    """This class defines the test suite for api/history """
-
-    def setUp(self):
-        """Define the test client and other variables."""
-        super().setUp()
-        self.host_one = Host(name='some-host.example.org',
-                             contact='mail@example.org',
-                             ttl=300,
-                             comment='some comment')
-        clean_and_save(self.host_one)
-
-        self.log_data = {'host': self.host_one.id,
-                         'name': self.host_one.name,
-                         'contact': self.host_one.contact,
-                         'ttl': self.host_one.ttl,
-                         'comment': self.host_one.comment}
-
-        self.log_entry_one = ModelChangeLog(table_name='hosts',
-                                            table_row=self.host_one.id,
-                                            data=self.log_data,
-                                            action='saved',
-                                            timestamp=timezone.now())
-        clean_and_save(self.log_entry_one)
-
-    @skip("This code will die soon")
-    def test_history_get_200_OK(self):
-        """Get on /history/ should return a list of table names that have entries, and 200 OK."""
-        response = self.assert_get('/history/')
-        self.assertIn('hosts', response.data)
-
-    @skip("This code will die soon")
-    def test_history_host_get_200_OK(self):
-        """Get on /history/hosts/<pk> should return a list of dicts containing entries for that host"""
-        response = self.assert_get('/history/hosts/{}'.format(self.host_one.id))
-        self.assertIsInstance(response.data, list)

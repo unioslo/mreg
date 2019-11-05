@@ -8,7 +8,7 @@ from rest_framework import serializers
 import mreg.models
 from mreg.models import (Cname, ForwardZone, ForwardZoneDelegation,
                          Hinfo, Host, HostGroup, Ipaddress, Loc,
-                         ModelChangeLog, Mx, NameServer, Naptr,
+                         Mx, NameServer, Naptr,
                          NetGroupRegexPermission, Network, PtrOverride,
                          ReverseZone, ReverseZoneDelegation, Srv, Sshfp, Txt)
 from mreg.utils import nonify
@@ -301,12 +301,6 @@ class ReverseZoneDelegationSerializer(BaseZoneDelegationSerializer):
 
     class Meta(BaseZoneSerializer.Meta):
         model = ReverseZoneDelegation
-
-
-class ModelChangeLogSerializer(ValidationMixin, serializers.ModelSerializer):
-    class Meta:
-        model = ModelChangeLog
-        fields = '__all__'
 
 
 class GroupSerializer(serializers.ModelSerializer):
