@@ -679,4 +679,4 @@ class History(models.Model):
     data = pgfields.JSONField()
 
     def __str__(self):
-        return f'{self.host_name}, {self.model}, {self.action}, {self.timestamp}'
+        return f'{self.name}, {self.model}, {self.action}, {self.timestamp}'
