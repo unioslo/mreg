@@ -7,7 +7,7 @@ from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
 
 from .models import (Cname, ForwardZone, Host, HostGroup, Ipaddress,
-                     Loc, ModelChangeLog, NameServer, Naptr,
+                     Loc, NameServer, Naptr,
                      NetGroupRegexPermission, Network, PtrOverride,
                      ReverseZone, Srv, Sshfp, Txt)
 
@@ -15,37 +15,6 @@ from .models import (Cname, ForwardZone, Host, HostGroup, Ipaddress,
 def clean_and_save(entity):
     entity.full_clean()
     entity.save()
-
-
-class ModelChangeLogTestCase(TestCase):
-    """This class defines the test suite for the ModelChangeLog model."""
-
-    def setUp(self):
-        """Define the test client and other test variables."""
-        self.host_one = Host(name='some-host.example.org',
-                             contact='mail@example.org',
-                             ttl=300,
-                             comment='some comment')
-        clean_and_save(self.host_one)
-
-        self.log_data = {'id': self.host_one.id,
-                         'name': self.host_one.name,
-                         'contact': self.host_one.contact,
-                         'ttl': self.host_one.ttl,
-                         'comment': self.host_one.comment}
-
-        self.log_entry_one = ModelChangeLog(table_name='Hosts',
-                                            table_row=self.host_one.id,
-                                            data=self.log_data,
-                                            action='saved',
-                                            timestamp=timezone.now())
-
-    def test_model_can_create_a_log_entry(self):
-        """Test that the model is able to create a host."""
-        old_count = ModelChangeLog.objects.count()
-        clean_and_save(self.log_entry_one)
-        new_count = ModelChangeLog.objects.count()
-        self.assertNotEqual(old_count, new_count)
 
 
 class ModelSrvTestCase(TestCase):
