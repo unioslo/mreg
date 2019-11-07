@@ -2,7 +2,9 @@ import functools
 import re
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
+from django.db import transaction
 from django.db.models.signals import m2m_changed, post_delete, post_save, pre_delete, pre_save
 from django.dispatch import receiver
 
@@ -27,16 +29,18 @@ def populate_user_from_ldap(sender, signal, user=None, ldap_user=None, **kwargs)
     LDAP_GROUP_RE = getattr(settings, 'LDAP_GROUP_RE', None)
     if LDAP_GROUP_ATTR is None or LDAP_GROUP_RE is None:
         return
-    user.save()
-    user.groups.clear()
-    ldap_groups = ldap_user.attrs.get(LDAP_GROUP_ATTR, [])
-    group_re = re.compile(LDAP_GROUP_RE)
-    for group_str in ldap_groups:
-        res = group_re.match(group_str)
-        if res:
-            group_name = res.group('group_name')
-            group, created = Group.objects.get_or_create(name=group_name)
-            user.groups.add(group)
+    with transaction.atomic():
+        user.save()
+        user = get_user_model().objects.filter(id=user.id).select_for_update().first()
+        user.groups.clear()
+        ldap_groups = ldap_user.attrs.get(LDAP_GROUP_ATTR, [])
+        group_re = re.compile(LDAP_GROUP_RE)
+        for group_str in ldap_groups:
+            res = group_re.match(group_str)
+            if res:
+                group_name = res.group('group_name')
+                group, created = Group.objects.get_or_create(name=group_name)
+                user.groups.add(group)
 
 
 # Update PtrOverride whenever a Ipaddress is created or changed
