@@ -56,6 +56,8 @@ def validate_hostname(name):
             raise ValidationError("Too many punctation marks")
         if label[0] == "-" or label[-1] == "-":
             raise ValidationError("Can not start or end a label with a hyphen '{}'".format(label))
+        if "--" in label:
+            raise ValidationError("Label can not contain double hyphen '{}'".format(label))
         if len(label) > 63:
             raise ValidationError("Label '{}' is {} characters long, maximum is 63".format(label, len(label)))
         # convert to .isascii in python 3.7
@@ -64,10 +66,10 @@ def validate_hostname(name):
                 if len(label) > 1:
                     raise ValidationError("Wildcard must be standalone")
                 continue
-            label_regex = r"^([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])$"
+            label_regex = r"^_?[a-zA-Z0-9\-]+$"
             validator = RegexValidator(label_regex,
                                        message="Label '{}' is not valid. "
-                                               "Must be within [a-zA-Z0-9-].".format(label))
+                                               "Must be within '{}'.".format(label, label_regex))
             validator(label)
         else:
             try:

@@ -1,4 +1,5 @@
 from django.contrib.auth.models import Group
+from unittest import skip
 
 from mreg.models import Host, Ipaddress, NetGroupRegexPermission, Network, PtrOverride
 
@@ -56,6 +57,13 @@ class Hosts(HostBasePermissions):
         new_history = self.assert_get('/history/').json()
         self.assertEqual(old_history, new_history)
 
+    @skip("https://github.com/unioslo/mreg/issues/355")
+    def test_can_not_create_hostname_with_underscore(self):
+        data1 = {'name': '_host1.example.org', 'ipaddress': '10.0.0.1'}
+        data2 = {'name': 'host2._sub.example.org', 'ipaddress': '10.0.0.2'}
+        self.assert_post_and_403('/hosts/', data1)
+        self.assert_post_and_403('/hosts/', data2)
+
     def test_can_not_change_host_without_ip(self):
         data = {'name': 'host1.example.org'}
         self.client_superuser = self.get_token_client()
@@ -85,6 +93,15 @@ class Hosts(HostBasePermissions):
         path = f'/api/v1/ipaddresses/{ip_id}'
         self.assert_patch_and_403(path, datafail)
         self.assert_patch(path, dataok)
+
+
+class HostsSuperuser(MregAPITestCase):
+
+    def test_can_create_hostname_with_prefix_underscore(self):
+        data1 = {'name': '_host1.example.org', 'ipaddress': '10.0.0.1'}
+        data2 = {'name': 'host2._sub.example.org', 'ipaddress': '10.0.0.2'}
+        self.assert_post('/hosts/', data1)
+        self.assert_post('/hosts/', data2)
 
 
 class Ipaddresses(HostBasePermissions):
@@ -226,12 +243,16 @@ class Wildcard(MregAPITestCase):
         self.client = self.get_token_client(superuser=False, adminuser=True)
         self.super_client = self.get_token_client()
 
+    @skip("https://github.com/unioslo/mreg/issues/355")
     def test_super_only_create_wildcard(self):
         """Only a super user may do a POST with a wildcard."""
-        data = {'name': '*.example.org'}
+        data1 = {'name': '*.example.org'}
+        data2 = {'name': '*.sub.example.org', 'ipaddress': '10.0.0.1'}
         path = '/api/v1/hosts/'
-        self.assert_post_and_403(path, data)
-        self.assert_post_and_201(path, data, self.super_client)
+        self.assert_post_and_403(path, data1)
+        self.assert_post_and_201(path, data1, self.super_client)
+        self.assert_post_and_403(path, data2)
+        self.assert_post_and_201(path, data2, self.super_client)
 
     def test_super_only_rename_to_wildcard(self):
         """Only a super user may rename (patch) a hostname to a wildcard."""
