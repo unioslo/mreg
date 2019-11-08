@@ -12,6 +12,8 @@ from mreg.api.v1.views import (MregListCreateAPIView,
                                MregPermissionsUpdateDestroy,
                                MregRetrieveUpdateDestroyAPIView,
                                )
+
+from mreg.api.v1.history import HistoryLog
 from mreg.api.v1.views_m2m import M2MDetail, M2MList, M2MPermissions
 from mreg.models import Host
 
@@ -28,6 +30,18 @@ class HostPolicyRoleFilterSet(ModelFilterSet):
         model = HostPolicyRole
 
 
+class HostPolicyAtomLogMixin(HistoryLog):
+
+    log_resource = 'hostpolicy_atom'
+    model = HostPolicyAtom
+
+
+class HostPolicyRoleLogMixin(HistoryLog):
+
+    log_resource = 'hostpolicy_role'
+    model = HostPolicyRole
+
+
 class HostPolicyPermissionsListCreateAPIView(M2MPermissions,
                                              MregPermissionsListCreateAPIView):
 
@@ -41,7 +55,7 @@ class HostPolicyPermissionsUpdateDestroy(M2MPermissions,
     permission_classes = (IsSuperOrHostPolicyAdminOrReadOnly, )
 
 
-class HostPolicyAtomList(MregListCreateAPIView):
+class HostPolicyAtomList(HostPolicyAtomLogMixin, MregListCreateAPIView):
 
     queryset = HostPolicyAtom.objects.all()
     serializer_class = serializers.HostPolicyAtomSerializer
@@ -61,7 +75,7 @@ class HostPolicyAtomList(MregListCreateAPIView):
         return super().post(request, *args, **kwargs)
 
 
-class HostPolicyAtomDetail(MregRetrieveUpdateDestroyAPIView):
+class HostPolicyAtomDetail(HostPolicyAtomLogMixin, MregRetrieveUpdateDestroyAPIView):
 
     queryset = HostPolicyAtom.objects.all()
     serializer_class = serializers.HostPolicyAtomSerializer
@@ -76,7 +90,7 @@ def _role_prefetcher(qs):
                 'atoms', queryset=HostPolicyAtom.objects.order_by('name')))
 
 
-class HostPolicyRoleList(MregListCreateAPIView):
+class HostPolicyRoleList(HostPolicyRoleLogMixin, MregListCreateAPIView):
 
     queryset = HostPolicyRole.objects.all()
     serializer_class = serializers.HostPolicyRoleSerializer
@@ -96,7 +110,7 @@ class HostPolicyRoleList(MregListCreateAPIView):
         return super().post(request, *args, **kwargs)
 
 
-class HostPolicyRoleDetail(MregRetrieveUpdateDestroyAPIView):
+class HostPolicyRoleDetail(HostPolicyRoleLogMixin, MregRetrieveUpdateDestroyAPIView):
 
     queryset = HostPolicyRole.objects.all()
     serializer_class = serializers.HostPolicyRoleSerializer
@@ -107,13 +121,15 @@ class HostPolicyRoleDetail(MregRetrieveUpdateDestroyAPIView):
         return _role_prefetcher(super().get_queryset())
 
 
-class HostPolicyM2MList(M2MList, HostPolicyPermissionsListCreateAPIView):
+class HostPolicyM2MList(HostPolicyRoleLogMixin, M2MList,
+                        HostPolicyPermissionsListCreateAPIView):
 
     lookup_field = 'name'
     cls = HostPolicyRole
 
 
-class HostPolicyM2MDetail(M2MDetail, HostPolicyPermissionsUpdateDestroy):
+class HostPolicyM2MDetail(HostPolicyRoleLogMixin, M2MDetail,
+                          HostPolicyPermissionsUpdateDestroy):
 
     cls = HostPolicyRole
 
