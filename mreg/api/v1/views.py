@@ -134,20 +134,12 @@ class MregMixin:
 
 class HostLogMixin(HistoryLog):
 
-    def save_log(self, action, serializer, data, orig_data=None):
-        if isinstance(serializer, HostSerializer):
-            host_id = serializer.data['id']
-            host_name = serializer.data['name']
-        else:
-            host = data.get('host', serializer.data.get('host', None))
-            if isinstance(host, Host):
-                pass
-            elif isinstance(host, int):
-                host = Host.objects.get(id=host)
-            elif host is None:
-                return
-            host_id = host.id
-            host_name = host.name
+    log_resource = 'host'
+    model = Host
+    foreign_key_name = 'host'
+
+    @staticmethod
+    def manipulate_data(action, serializer, data, orig_data):
         # No need to store zone, as it is automatically set by name
         data.pop('zone', None)
         # No need to store host, as changes to a host will also log, unless the
@@ -156,24 +148,6 @@ class HostLogMixin(HistoryLog):
             pass
         else:
             data.pop('host', None)
-        # Add current data when storing an update
-        if action == 'update':
-            data = {'current_data': orig_data, 'update': data}
-        model = serializer.Meta.model.__name__
-        json_data = self.get_jsondata(data)
-        history = mreg.models.History(user=self.request.user,
-                                      resource="host",
-                                      name=host_name,
-                                      model_id=host_id,
-                                      model=model,
-                                      action=action,
-                                      data=json_data)
-        try:
-            history.full_clean()
-        except ValidationError as e:
-            print(e)
-            return
-        history.save()
 
 
 class MregRetrieveUpdateDestroyAPIView(ETAGMixin,

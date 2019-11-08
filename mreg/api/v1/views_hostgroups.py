@@ -40,38 +40,9 @@ class HostGroupM2MPermissions(M2MPermissions):
 
 class HostGroupLogMixin(HistoryLog):
 
-    resource = 'group'
-
-    def save_log(self, action, serializer, data, orig_data=None):
-        if isinstance(serializer, serializers.HostGroupSerializer):
-            group_id = serializer.data['id']
-            group_name = serializer.data['name']
-        else:
-            group = data.get('group', serializer.data.get('group', None))
-            if isinstance(group, HostGroup):
-                pass
-            elif isinstance(group, int):
-                group = HostGroup.objects.get(id=group)
-            group_id = group.id
-            group_name = group.name
-
-        if action == 'update':
-            data = {'current_data': orig_data, 'update': data}
-        model = serializer.Meta.model.__name__
-        json_data = self.get_jsondata(data)
-        history = History(user=self.request.user,
-                          resource="group",
-                          name=group_name,
-                          model_id=group_id,
-                          model=model,
-                          action=action,
-                          data=json_data)
-        try:
-            history.full_clean()
-        except ValidationError as e:
-            print(e)
-            return
-        history.save()
+    log_resource = 'group'
+    model = HostGroup
+    foreign_key_name = 'group'
 
 
 class HostGroupPermissionsListCreateAPIView(HostGroupLogMixin,
