@@ -184,6 +184,8 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
         data = validated_serializer.validated_data
         if '*' in data.get('name', ''):
             return False
+        if '_' in data.get('name', ''):
+            return False
         if 'ipaddress' in data:
             if self.is_reserved_ip(data['ipaddress']):
                 if request_in_settings_group(request, NETWORK_ADMIN_GROUP):
