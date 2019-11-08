@@ -51,6 +51,11 @@ class HinfoFilterSet(ModelFilterSet):
         model = Hinfo
 
 
+class HistoryFilterSet(ModelFilterSet):
+    class Meta:
+        model = mreg.models.History
+
+
 class HostFilterSet(ModelFilterSet):
     class Meta:
         model = Host
@@ -65,9 +70,11 @@ class IpaddressFilterSet(ModelFilterSet):
     class Meta:
         model = Ipaddress
 
+
 class LocFilterSet(ModelFilterSet):
     class Meta:
         model = Loc
+
 
 class NaptrFilterSet(ModelFilterSet):
     class Meta:
@@ -427,8 +434,19 @@ class HistoryList(MregMixin, generics.ListAPIView):
 
     queryset = mreg.models.History.objects.all().order_by('id')
     serializer_class = HistorySerializer
-    filter_backends = (DjangoFilterBackend, filters.OrderingFilter)
-    filter_fields = '__all__'
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        query_parms = self.request.GET.copy()
+        for key, value in self.request.GET.items():
+            # JSONField is not supported by django-url-filter
+            if key.startswith('data__'):
+                del query_parms[key]
+                # Make sure to make an array before filtering on '__in'
+                if key.endswith('__in'):
+                    value = value.split(',')
+                qs = qs.filter(**{key: value})
+        return HistoryFilterSet(data=query_parms, queryset=qs).filter()
 
 
 class HistoryDetail(MregMixin, generics.RetrieveAPIView):
