@@ -37,6 +37,7 @@ class HistoryLog:
 
     def save_log_m2m_alteration(self, method, instance):
         data = {"relation": self.m2m_field,
+                "id": str(instance.id),
                 "name": instance.name}
         model = instance.__class__.__name__
         action = method.__name__
