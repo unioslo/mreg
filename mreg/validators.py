@@ -56,6 +56,8 @@ def validate_hostname(name):
             raise ValidationError("Too many punctation marks")
         if label[0] == "-" or label[-1] == "-":
             raise ValidationError("Can not start or end a label with a hyphen '{}'".format(label))
+        if "--" in label:
+            raise ValidationError("Label can not contain double hyphen '{}'".format(label))
         if len(label) > 63:
             raise ValidationError("Label '{}' is {} characters long, maximum is 63".format(label, len(label)))
         # convert to .isascii in python 3.7

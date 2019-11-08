@@ -226,6 +226,7 @@ class ModelHostsTestCase(TestCase):
         _assert('host-.example.org')
         _assert('looooooooooooooooooooooooooooooooooooooooooooooooooooooooooooong.example.org')
         _assert('host*.example.org')
+        _assert('host--1.example.org')
 
     def test_model_can_change_a_host(self):
         """Test that the model is able to change a host."""
