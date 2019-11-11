@@ -4,6 +4,7 @@ import re
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models.signals import m2m_changed, post_delete, post_save, pre_delete, pre_save
 from django.dispatch import receiver
@@ -12,10 +13,8 @@ from django_auth_ldap.backend import populate_user
 
 from rest_framework.exceptions import PermissionDenied
 
-from mreg.api.v1.serializers import HostSerializer
-
-from .models import (Cname, ForwardZoneMember, Hinfo, Host, HostGroup, Ipaddress, Loc,
-                     Mx, NameServer, Naptr,
+from .models import (Cname, ForwardZoneMember, Hinfo, History, Host, HostGroup,
+                     Ipaddress, Loc, Mx, NameServer, Naptr,
                      NetGroupRegexPermission, Network, PtrOverride,
                      ReverseZone, Srv, Sshfp, Txt)
 
@@ -43,13 +42,36 @@ def populate_user_from_ldap(sender, signal, user=None, ldap_user=None, **kwargs)
                 user.groups.add(group)
 
 
+def _signal_history(resource, name, action, model, model_id, data):
+    user = 'system-signals'
+    history = History(user=user,
+                      resource=resource,
+                      name=name,
+                      model_id=model_id,
+                      model=model,
+                      action=action,
+                      data=data)
+    try:
+        history.full_clean()
+    except ValidationError:
+        return
+    history.save()
+
+def _signal_host_history(host, action, model, data):
+    _signal_history('host', host.name, action, model, host.id, data)
+
+
 # Update PtrOverride whenever a Ipaddress is created or changed
 @receiver(pre_save, sender=Ipaddress)
 def updated_ipaddress_fix_ptroverride(sender, instance, raw, using, update_fields, **kwargs):
     if instance.id:
         oldinstance = Ipaddress.objects.get(id=instance.id)
         if oldinstance.ipaddress != instance.ipaddress:
-            PtrOverride.objects.filter(host=instance.host, ipaddress=oldinstance.ipaddress).delete()
+            data = {'ipaddress': oldinstance.ipaddress}
+            qs = PtrOverride.objects.filter(host=instance.host, **data)
+            if qs.exists():
+                qs.delete()
+                _signal_host_history(instance.host, 'destroy', 'PtrOverride', data)
     else:
         # Can only add a PtrOverride if count == 1, otherwise we can not guess which
         # one should get it.
@@ -57,7 +79,9 @@ def updated_ipaddress_fix_ptroverride(sender, instance, raw, using, update_field
         if qs and qs.count() == 1:
             host = qs.first().host
             if not PtrOverride.objects.filter(ipaddress=instance.ipaddress).exists():
-                PtrOverride.objects.create(host=host, ipaddress=instance.ipaddress)
+                data = {'ipaddress': instance.ipaddress}
+                PtrOverride.objects.create(host=host, **data)
+                _signal_host_history(host, 'create', 'PtrOverride', data)
 
 
 def _common_update_zone(signal, sender, instance):
@@ -253,3 +277,4 @@ def add_auto_txt_records_on_new_host(sender, instance, created, **kwargs):
             return
         for data in autozones.get(instance.zone.name, []):
             Txt.objects.create(host=instance, txt=data)
+            _signal_host_history(instance, 'create', 'Txt', {'txt': data})

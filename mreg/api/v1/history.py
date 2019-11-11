@@ -20,9 +20,43 @@ class DjangoJSONModelEncoder(DjangoJSONEncoder):
 
 class HistoryLog:
 
+    def save_log(self, action, serializer, data, orig_data=None):
+        if serializer.Meta.model == self.model:
+            model_id = serializer.data['id']
+            name = serializer.data['name']
+        else:
+            obj = data.get(self.foreign_key_name,
+                           serializer.data.get(self.foreign_key_name, None))
+            if isinstance(obj, self.model):
+                pass
+            elif isinstance(obj, int):
+                obj = self.model.objects.get(id=obj)
+            elif obj is None:
+                return
+            model_id = obj.id
+            name = obj.name
+        self.manipulate_data(action, serializer, data, orig_data)
+        if action == 'update':
+            data = {'current_data': orig_data, 'update': data}
+        model = serializer.Meta.model.__name__
+        json_data = self.get_jsondata(data)
+        history = History(user=self.request.user,
+                          resource=self.log_resource,
+                          name=name,
+                          model_id=model_id,
+                          model=model,
+                          action=action,
+                          data=json_data)
+        try:
+            history.full_clean()
+        except ValidationError as e:
+            print(e)
+            return
+        history.save()
+
     @staticmethod
     # Must implement in own inherited class
-    def save_log(action, serializer, data, orig_data=None):
+    def manipulate_data(action, serializer, data, orig_data):
         pass
 
     @staticmethod
@@ -37,11 +71,12 @@ class HistoryLog:
 
     def save_log_m2m_alteration(self, method, instance):
         data = {"relation": self.m2m_field,
+                "id": str(instance.id),
                 "name": instance.name}
         model = instance.__class__.__name__
         action = method.__name__
         history = History(user=self.request.user,
-                          resource=self.resource,
+                          resource=self.log_resource,
                           name=self.object.name,
                           model_id=self.object.id,
                           model=model,

@@ -51,6 +51,11 @@ class HinfoFilterSet(ModelFilterSet):
         model = Hinfo
 
 
+class HistoryFilterSet(ModelFilterSet):
+    class Meta:
+        model = mreg.models.History
+
+
 class HostFilterSet(ModelFilterSet):
     class Meta:
         model = Host
@@ -65,9 +70,11 @@ class IpaddressFilterSet(ModelFilterSet):
     class Meta:
         model = Ipaddress
 
+
 class LocFilterSet(ModelFilterSet):
     class Meta:
         model = Loc
+
 
 class NaptrFilterSet(ModelFilterSet):
     class Meta:
@@ -127,20 +134,12 @@ class MregMixin:
 
 class HostLogMixin(HistoryLog):
 
-    def save_log(self, action, serializer, data, orig_data=None):
-        if isinstance(serializer, HostSerializer):
-            host_id = serializer.data['id']
-            host_name = serializer.data['name']
-        else:
-            host = data.get('host', serializer.data.get('host', None))
-            if isinstance(host, Host):
-                pass
-            elif isinstance(host, int):
-                host = Host.objects.get(id=host)
-            elif host is None:
-                return
-            host_id = host.id
-            host_name = host.name
+    log_resource = 'host'
+    model = Host
+    foreign_key_name = 'host'
+
+    @staticmethod
+    def manipulate_data(action, serializer, data, orig_data):
         # No need to store zone, as it is automatically set by name
         data.pop('zone', None)
         # No need to store host, as changes to a host will also log, unless the
@@ -149,24 +148,6 @@ class HostLogMixin(HistoryLog):
             pass
         else:
             data.pop('host', None)
-        # Add current data when storing an update
-        if action == 'update':
-            data = {'current_data': orig_data, 'update': data}
-        model = serializer.Meta.model.__name__
-        json_data = self.get_jsondata(data)
-        history = mreg.models.History(user=self.request.user,
-                                      resource="host",
-                                      name=host_name,
-                                      model_id=host_id,
-                                      model=model,
-                                      action=action,
-                                      data=json_data)
-        try:
-            history.full_clean()
-        except ValidationError as e:
-            print(e)
-            return
-        history.save()
 
 
 class MregRetrieveUpdateDestroyAPIView(ETAGMixin,
@@ -427,8 +408,19 @@ class HistoryList(MregMixin, generics.ListAPIView):
 
     queryset = mreg.models.History.objects.all().order_by('id')
     serializer_class = HistorySerializer
-    filter_backends = (DjangoFilterBackend, filters.OrderingFilter)
-    filter_fields = '__all__'
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        query_parms = self.request.GET.copy()
+        for key, value in self.request.GET.items():
+            # JSONField is not supported by django-url-filter
+            if key.startswith('data__'):
+                del query_parms[key]
+                # Make sure to make an array before filtering on '__in'
+                if key.endswith('__in'):
+                    value = value.split(',')
+                qs = qs.filter(**{key: value})
+        return HistoryFilterSet(data=query_parms, queryset=qs).filter()
 
 
 class HistoryDetail(MregMixin, generics.RetrieveAPIView):
