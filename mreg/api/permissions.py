@@ -143,6 +143,36 @@ class IsSuperOrGroupAdminOrReadOnly(IsAuthenticated):
         return is_super_or_group_admin(request.user)
 
 
+def _limit_superuser_only_names(data=None, name=None):
+    if data is not None:
+        name = data.get('name', '')
+        if not name:
+            if 'host' in data:
+                name = data['host'].name
+    if '*' in name:
+        return False
+    if '_' in name:
+        return False
+    return True
+
+
+def is_reserved_ip(ip):
+    network = Network.objects.filter(network__net_contains=ip).first()
+    if network:
+        return any(ip == str(i) for i in network.get_reserved_ipaddresses())
+    return False
+
+
+def _limit_reversed_ipaddresses(ip, request):
+    # Check if an ip address is reserved, and if so, only permit NETWORK_ADMIN_GROUP
+    # members.
+    if is_reserved_ip(ip):
+        if request_in_settings_group(request, NETWORK_ADMIN_GROUP):
+            return True
+        return False
+    return True
+
+
 class IsGrantedNetGroupRegexPermission(IsAuthenticated):
     """
     Permit user if the user has been granted access through a
@@ -182,14 +212,10 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
         hostname = None
         ips = []
         data = validated_serializer.validated_data
-        if '*' in data.get('name', ''):
-            return False
-        if '_' in data.get('name', ''):
+        if not _limit_superuser_only_names(data):
             return False
         if 'ipaddress' in data:
-            if self.is_reserved_ip(data['ipaddress']):
-                if request_in_settings_group(request, NETWORK_ADMIN_GROUP):
-                    return True
+            if not _limit_reversed_ipaddresses(data['ipaddress'], request):
                 return False
         if user_is_adminuser(request.user):
             return True
@@ -217,20 +243,19 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
         if user_is_superuser(request.user):
             return True
         obj = view.get_object()
-        if hasattr(obj, 'ipaddress'):
-            if self.is_reserved_ip(obj.ipaddress):
-                if request_in_settings_group(request, NETWORK_ADMIN_GROUP):
-                    return True
-                return False
-        if user_is_adminuser(request.user):
-            return True
         if isinstance(view, mreg.api.v1.views.HostDetail):
             pass
         elif hasattr(obj, 'host'):
             obj = obj.host
         else:
             raise exceptions.PermissionDenied(f"Unhandled view: {view}")
-
+        if not _limit_superuser_only_names(name=obj.name):
+            return False
+        if hasattr(obj, 'ipaddress'):
+            if not _limit_reversed_ipaddresses(obj.ipaddress, request):
+                return False
+        if user_is_adminuser(request.user):
+            return True
         return self.has_obj_perm(request.user, obj)
 
     def has_update_permission(self, request, view, validated_serializer):
@@ -238,12 +263,10 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
         if user_is_superuser(request.user):
             return True
         data = validated_serializer.validated_data
-        if '*' in data.get('name', ''):
+        if not _limit_superuser_only_names(data=data):
             return False
         if 'ipaddress' in data:
-            if self.is_reserved_ip(data['ipaddress']):
-                if request_in_settings_group(request, NETWORK_ADMIN_GROUP):
-                    return True
+            if not _limit_reversed_ipaddresses(data['ipaddress'], request):
                 return False
         if user_is_adminuser(request.user):
             return True
@@ -271,13 +294,6 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
         for i in host.data['ipaddresses']:
             ips.append(i['ipaddress'])
         return host.data['name'], ips
-
-    @staticmethod
-    def is_reserved_ip(ip):
-        network = Network.objects.filter(network__net_contains=ip).first()
-        if network:
-            return any(ip == str(i) for i in network.get_reserved_ipaddresses())
-        return False
 
 
 class HostGroupPermission(IsAuthenticated):
