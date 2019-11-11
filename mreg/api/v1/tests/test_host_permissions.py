@@ -1,5 +1,4 @@
 from django.contrib.auth.models import Group
-from unittest import skip
 
 from mreg.models import Host, Ipaddress, NetGroupRegexPermission, Network, PtrOverride
 
@@ -57,7 +56,6 @@ class Hosts(HostBasePermissions):
         new_history = self.assert_get('/history/').json()
         self.assertEqual(old_history, new_history)
 
-    @skip("https://github.com/unioslo/mreg/issues/355")
     def test_can_not_create_hostname_with_underscore(self):
         data1 = {'name': '_host1.example.org', 'ipaddress': '10.0.0.1'}
         data2 = {'name': 'host2._sub.example.org', 'ipaddress': '10.0.0.2'}
@@ -93,15 +91,6 @@ class Hosts(HostBasePermissions):
         path = f'/api/v1/ipaddresses/{ip_id}'
         self.assert_patch_and_403(path, datafail)
         self.assert_patch(path, dataok)
-
-
-class HostsSuperuser(MregAPITestCase):
-
-    def test_can_create_hostname_with_prefix_underscore(self):
-        data1 = {'name': '_host1.example.org', 'ipaddress': '10.0.0.1'}
-        data2 = {'name': 'host2._sub.example.org', 'ipaddress': '10.0.0.2'}
-        self.assert_post('/hosts/', data1)
-        self.assert_post('/hosts/', data2)
 
 
 class Ipaddresses(HostBasePermissions):
@@ -236,6 +225,16 @@ class Txts(HostBasePermissions):
         self.assert_post_and_403('/txts/', data)
 
 
+class Underscore(MregAPITestCase):
+    """Test that only superusers can create entries with an underscore."""
+
+    def test_can_create_hostname_with_prefix_underscore(self):
+        data1 = {'name': '_host1.example.org', 'ipaddress': '10.0.0.1'}
+        data2 = {'name': 'host2._sub.example.org', 'ipaddress': '10.0.0.2'}
+        self.assert_post('/hosts/', data1)
+        self.assert_post('/hosts/', data2)
+
+
 class Wildcard(MregAPITestCase):
     """Test that only superusers can create entries with a wildcard."""
 
@@ -243,7 +242,6 @@ class Wildcard(MregAPITestCase):
         self.client = self.get_token_client(superuser=False, adminuser=True)
         self.super_client = self.get_token_client()
 
-    @skip("https://github.com/unioslo/mreg/issues/355")
     def test_super_only_create_wildcard(self):
         """Only a super user may do a POST with a wildcard."""
         data1 = {'name': '*.example.org'}
@@ -261,3 +259,9 @@ class Wildcard(MregAPITestCase):
         self.assert_post(path, {'name': 'host1.example.org'})
         self.assert_patch_and_403(f'{path}host1.example.org', data)
         self.assert_patch(f'{path}host1.example.org', data, client=self.super_client)
+
+    def test_super_only_delete_wildcard(self):
+        self.test_super_only_create_wildcard()
+        path = '/api/v1/hosts/*.example.org'
+        self.assert_delete_and_403(path)
+        self.assert_delete(path, client=self.super_client)
