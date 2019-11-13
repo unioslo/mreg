@@ -143,17 +143,18 @@ class IsSuperOrGroupAdminOrReadOnly(IsAuthenticated):
         return is_super_or_group_admin(request.user)
 
 
-def _limit_superuser_only_names(data=None, name=None):
+def _deny_superuser_only_names(data=None, name=None):
+    """Check for superuser only names. If match, return True."""
     if data is not None:
         name = data.get('name', '')
         if not name:
             if 'host' in data:
                 name = data['host'].name
     if '*' in name:
-        return False
+        return True
     if '_' in name:
-        return False
-    return True
+        return True
+    return False
 
 
 def is_reserved_ip(ip):
@@ -163,14 +164,14 @@ def is_reserved_ip(ip):
     return False
 
 
-def _limit_reversed_ipaddresses(ip, request):
-    # Check if an ip address is reserved, and if so, only permit NETWORK_ADMIN_GROUP
-    # members.
+def _deny_reversed_ipaddress(ip, request):
+    """Check if an ip address is reserved, and if so, only permit
+    NETWORK_ADMIN_GROUP members."""
     if is_reserved_ip(ip):
         if request_in_settings_group(request, NETWORK_ADMIN_GROUP):
-            return True
-        return False
-    return True
+            return False
+        return True
+    return False
 
 
 class IsGrantedNetGroupRegexPermission(IsAuthenticated):
@@ -212,10 +213,10 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
         hostname = None
         ips = []
         data = validated_serializer.validated_data
-        if not _limit_superuser_only_names(data):
+        if _deny_superuser_only_names(data):
             return False
         if 'ipaddress' in data:
-            if not _limit_reversed_ipaddresses(data['ipaddress'], request):
+            if _deny_reversed_ipaddress(data['ipaddress'], request):
                 return False
         if user_is_adminuser(request.user):
             return True
@@ -249,10 +250,10 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
             obj = obj.host
         else:
             raise exceptions.PermissionDenied(f"Unhandled view: {view}")
-        if not _limit_superuser_only_names(name=obj.name):
+        if _deny_superuser_only_names(name=obj.name):
             return False
         if hasattr(obj, 'ipaddress'):
-            if not _limit_reversed_ipaddresses(obj.ipaddress, request):
+            if _deny_reversed_ipaddress(obj.ipaddress, request):
                 return False
         if user_is_adminuser(request.user):
             return True
@@ -263,10 +264,10 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
         if user_is_superuser(request.user):
             return True
         data = validated_serializer.validated_data
-        if not _limit_superuser_only_names(data=data):
+        if _deny_superuser_only_names(data=data):
             return False
         if 'ipaddress' in data:
-            if not _limit_reversed_ipaddresses(data['ipaddress'], request):
+            if _deny_reversed_ipaddress(data['ipaddress'], request):
                 return False
         if user_is_adminuser(request.user):
             return True
