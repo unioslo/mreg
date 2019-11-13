@@ -1,3 +1,5 @@
+import ipaddress
+
 from mreg.models import Host, Ipaddress, Network, PtrOverride
 
 from .tests import clean_and_save, MregAPITestCase
@@ -322,6 +324,18 @@ class NetworksTestCase(MregAPITestCase):
         }
         self.assert_post('/networks/', data)
         self.assert_get_and_404('/networks/%s/first_unused' % data['network'])
+
+    def test_networks_get_random_unused_200_ok(self):
+        """GET on /networks/<ip/mask>/random_unused should return 200 ok and data."""
+        Ipaddress.objects.create(host=self.host_one, ipaddress='10.0.0.17')
+        response = self.assert_get('/networks/%s/random_unused' % self.network_sample.network)
+        self.assertIn(ipaddress.ip_address(response.data), self.network_sample.network)
+
+    def test_ipv6_networks_get_random_unused_200_ok(self):
+        """GET on /networks/<ipv6/mask>/random_unused should return 200 ok and data."""
+        Ipaddress.objects.create(host=self.host_one, ipaddress='2001:db8::beef')
+        response = self.assert_get('/networks/%s/random_unused' % self.network_ipv6_sample.network)
+        self.assertIn(ipaddress.ip_address(response.data), self.network_ipv6_sample.network)
 
     def test_reserved_is_less_or_equal_than_num_addresses(self):
         def _assert(network, excepted, reserved=3):

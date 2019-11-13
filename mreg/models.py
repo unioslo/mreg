@@ -1,4 +1,5 @@
 import ipaddress
+import random
 from collections import defaultdict
 from datetime import timedelta
 from functools import reduce
@@ -546,6 +547,16 @@ class Network(BaseModel):
                 continue
             if ip not in used:
                 return str(ip)
+        return None
+
+    def get_random_unused(self):
+        """
+        Return a random unused IP, if any.
+        """
+
+        unused = self.get_unused_ipaddresses()
+        if unused:
+            return str(random.choice(tuple(unused)))
         return None
 
 

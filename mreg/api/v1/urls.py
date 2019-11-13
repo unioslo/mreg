@@ -46,6 +46,7 @@ urlpatterns = [
     re_path(r'^networks/(?P<network>[^/]+/\d+)/excluded_ranges/$', views.NetworkExcludedRangeList.as_view()),
     re_path(r'^networks/(?P<network>[^/]+/\d+)/excluded_ranges/(?P<pk>.+)', views.NetworkExcludedRangeDetail.as_view()),
     re_path(r'^networks/(?P<network>[^/]+/\d+)/first_unused', views.network_first_unused),
+    re_path(r'^networks/(?P<network>[^/]+/\d+)/random_unused', views.network_random_unused),
     re_path(r'^networks/(?P<network>[^/]+/\d+)/ptroverride_list', views.network_ptroverride_list),
     re_path(r'^networks/(?P<network>[^/]+/\d+)/ptroverride_host_list', views.network_ptroverride_host_list),
     re_path(r'^networks/(?P<network>[^/]+/\d+)/reserved_list', views.network_reserved_list),
