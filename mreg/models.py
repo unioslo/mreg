@@ -521,7 +521,7 @@ class Network(BaseModel):
         if self.network.num_addresses > MAX_UNUSED_LIST:
             # Getting all availible IPs for a ipv6 prefix can easily cause
             # the webserver to hang due to lots and lots of IPs. Instead limit
-            # to the first 4000 hosts.
+            # to the first MAX_UNUSED_LIST hosts.
             found = 0
             for ip in self.network.hosts():
                 if ip in not_available:
