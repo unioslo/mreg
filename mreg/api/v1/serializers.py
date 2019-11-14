@@ -157,7 +157,7 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
     """
     To properly represent a host we include its related objects.
     """
-    ipaddresses = serializers.SerializerMethodField()
+    ipaddresses = IpaddressSerializer(many=True, read_only=True)
     cnames = CnameSerializer(many=True, read_only=True)
     mxs = MxSerializer(many=True, read_only=True)
     txts = TxtSerializer(many=True, read_only=True)
@@ -168,10 +168,6 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
     class Meta:
         model = Host
         fields = '__all__'
-
-    def get_ipaddresses(self, instance):
-        ipaddresses = instance.ipaddresses.all().order_by('ipaddress')
-        return IpaddressSerializer(ipaddresses, many=True, read_only=True).data
 
 
 class HostNameSerializer(ValidationMixin, serializers.ModelSerializer):

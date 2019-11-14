@@ -4,6 +4,7 @@ from collections import defaultdict
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
 
 from rest_framework import (filters, generics, status)
@@ -323,8 +324,11 @@ class HinfoDetail(HostPermissionsUpdateDestroy,
 
 
 def _host_prefetcher(qs):
-    return qs.prefetch_related('cnames', 'hinfo', 'ipaddresses', 'loc', 'mxs',
-                               'ptr_overrides', 'txts')
+    return qs.prefetch_related('cnames', 'hinfo', 'loc', 'mxs',
+                               'ptr_overrides', 'txts'
+            ).prefetch_related(Prefetch('ipaddresses',
+                                         queryset=Ipaddress.objects.order_by('ipaddress'))
+            )
 
 
 class HostList(HostPermissionsListCreateAPIView):
