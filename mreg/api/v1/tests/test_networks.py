@@ -333,7 +333,7 @@ class NetworksTestCase(MregAPITestCase):
         """GET on /networks/<ip/mask>/random_unused should return 200 ok and data."""
         Ipaddress.objects.create(host=self.host_one, ipaddress='10.0.0.17')
         largenet = Network.objects.create(network='10.1.0.0/16', description='large ipv4 network')
-        smallnet = Network.objects.create(network='10.2.0.0/31', description='large ipv4 network')
+        smallnet = Network.objects.create(network='10.2.0.0/31', description='small ipv4 network')
 
         def _assert(network):
             response = self.assert_get('/networks/%s/random_unused' % network)
