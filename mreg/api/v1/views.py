@@ -838,6 +838,17 @@ def network_first_unused(request, *args, **kwargs):
         return Response(content, status=status.HTTP_404_NOT_FOUND)
 
 
+@api_view()
+def network_random_unused(request, *args, **kwargs):
+    network = get_object_or_404(Network, network=kwargs['network'])
+    ip = network.get_random_unused()
+    if ip:
+        return Response(ip, status=status.HTTP_200_OK)
+    else:
+        content = {'ERROR': 'No available IPs'}
+        return Response(content, status=status.HTTP_404_NOT_FOUND)
+
+
 def _network_ptroverride_list(kwargs):
     network = get_object_or_404(Network, network=kwargs['network'])
     from_ip = str(network.network.network_address)

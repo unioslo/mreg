@@ -1,3 +1,5 @@
+import ipaddress
+
 from mreg.models import Host, Ipaddress, Network, PtrOverride
 
 from .tests import clean_and_save, MregAPITestCase
@@ -300,7 +302,11 @@ class NetworksTestCase(MregAPITestCase):
         """GET on /networks/<ipv6/mask>/unused_list should return 200 ok and data."""
         Ipaddress.objects.create(host=self.host_one, ipaddress='2001:db8::beef')
         response = self.assert_get('/networks/%s/unused_list' % self.network_ipv6_sample.network)
-        self.assertEqual(len(response.data), 3997)
+        self.assertEqual(len(response.data), 4096)
+        smallipv6net = Network.objects.create(network='2001:db8:1::/125', description='small ipv6 network')
+        Ipaddress.objects.create(host=self.host_one, ipaddress='2001:db8:1::5')
+        response = self.assert_get('/networks/%s/unused_list' % smallipv6net.network)
+        self.assertEqual(len(response.data), 3)
 
     def test_networks_get_first_unused_200_ok(self):
         """GET on /networks/<ip/mask>/first_unused should return 200 ok and data."""
@@ -322,6 +328,25 @@ class NetworksTestCase(MregAPITestCase):
         }
         self.assert_post('/networks/', data)
         self.assert_get_and_404('/networks/%s/first_unused' % data['network'])
+
+    def test_networks_get_random_unused_200_ok(self):
+        """GET on /networks/<ip/mask>/random_unused should return 200 ok and data."""
+        Ipaddress.objects.create(host=self.host_one, ipaddress='10.0.0.17')
+        largenet = Network.objects.create(network='10.1.0.0/16', description='large ipv4 network')
+        smallnet = Network.objects.create(network='10.2.0.0/31', description='small ipv4 network')
+
+        def _assert(network):
+            response = self.assert_get('/networks/%s/random_unused' % network)
+            self.assertIn(ipaddress.ip_address(response.data), network)
+        _assert(self.network_sample.network)
+        _assert(ipaddress.ip_network(largenet.network))
+        self.assert_get_and_404('/networks/%s/random_unused' % smallnet.network)
+
+    def test_ipv6_networks_get_random_unused_200_ok(self):
+        """GET on /networks/<ipv6/mask>/random_unused should return 200 ok and data."""
+        Ipaddress.objects.create(host=self.host_one, ipaddress='2001:db8::beef')
+        response = self.assert_get('/networks/%s/random_unused' % self.network_ipv6_sample.network)
+        self.assertIn(ipaddress.ip_address(response.data), self.network_ipv6_sample.network)
 
     def test_reserved_is_less_or_equal_than_num_addresses(self):
         def _assert(network, excepted, reserved=3):
