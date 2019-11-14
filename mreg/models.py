@@ -435,6 +435,9 @@ class Cname(ForwardZoneMember):
         return "{} -> {}".format(str(self.name), str(self.host))
 
 
+MAX_UNUSED_LIST = 4096  # 12 bits for addresses. A large ipv4, but tiny ipv6 network.
+
+
 class Network(BaseModel):
     network = CidrAddressField(unique=True)
     description = models.TextField(blank=True)
@@ -512,20 +515,24 @@ class Network(BaseModel):
         Returns which ip-addresses on the network are unused.
         """
         network_ips = []
-        if isinstance(self.network, ipaddress.IPv6Network):
-            # Getting all availible IPs for a ipv6 prefix can easily cause
-            # the webserver to hang due to lots and lots of IPs. Instead limit
-            # to the first 4000 hosts. Should probably be configurable.
-            for ip in self.network.hosts():
-                if len(network_ips) == 4000:
-                    break
-                network_ips.append(ip)
-        else:
-            network_ips = self.network.hosts()
-
         unusable = self.get_unusable_ipaddresses()
         used = self.get_used_ipaddresses()
-        return set(network_ips) - unusable - used
+        not_available = unusable | used
+        if self.network.num_addresses > MAX_UNUSED_LIST:
+            # Getting all availible IPs for a ipv6 prefix can easily cause
+            # the webserver to hang due to lots and lots of IPs. Instead limit
+            # to the first 4000 hosts.
+            found = 0
+            for ip in self.network.hosts():
+                if ip in not_available:
+                    continue
+                network_ips.append(ip)
+                found += 1
+                if found == MAX_UNUSED_LIST:
+                    break
+            return set(network_ips)
+        else:
+            return set(self.network.hosts()) - not_available
 
     def get_unused_ipaddress_count(self):
         """
@@ -556,7 +563,27 @@ class Network(BaseModel):
 
         unused = self.get_unused_ipaddresses()
         if unused:
+            network = self.network
+            if len(unused) == MAX_UNUSED_LIST and network.num_addresses > MAX_UNUSED_LIST:
+                # Attempt to use the entire address if encountering a network larger
+                # than MAX_UNUSED_LIST. Typically an IPv6 network.
+                network_address = int(network.network_address)
+                broadcast_address = int(network.broadcast_address)
+                unusable = self.get_unusable_ipaddresses()
+                used = self.get_used_ipaddresses()
+                not_available = unusable | used
+                # Limit the number of attempts, as random might be really unlucky.
+                for attempts in range(100):
+                    choice = random.randint(network_address, broadcast_address)
+                    if network.version == 6:
+                        randomip = ipaddress.IPv6Address(choice)
+                    else:
+                        randomip = ipaddress.IPv4Address(choice)
+                    if randomip not in not_available:
+                        return str(randomip)
+
             return str(random.choice(tuple(unused)))
+
         return None
 
 
