@@ -45,7 +45,7 @@ class Common:
         if host.zone == self.zone:
             return ""
         data = ""
-        idna_name = 'f{idna_encode(qualify(host.name, self.zone.name)):24}'
+        idna_name = f'{idna_encode(qualify(host.name, self.zone.name)):24}'
         ttl = prep_ttl(host.ttl)
         for ip in host.ipaddresses.all():
             ipaddr = ipaddress.ip_address(ip.ipaddress)
