@@ -118,7 +118,7 @@ class ForwardZoneList(ZoneList):
 class ReverseZoneList(ZoneList):
     filterset = ReverseZoneFilterSet
     serializer_class = ReverseZoneSerializer
-    queryset = ReverseZone.objects.all().order_by('name')
+    queryset = ReverseZone.objects.all().order_by('network')
 
 
 class ZoneDelegationList(generics.ListCreateAPIView):
