@@ -186,23 +186,23 @@ class ForwardZone(BaseZone):
         """Get zone by hostname.
         Return zone or None if not found."""
 
-        def _get_reverse_order(lst):
-            """Return index of sorted zones"""
+        def _get_reverse_order(data):
+            """Return data with longest names first"""
             # We must sort the zones to assert that foo.example.org hosts
             # does not end up in the example.org zone.  This is achieved by
             # spelling the zone postfix backwards and sorting the resulting
             # list backwards
-            lst = [str(x.name)[::-1] for x in lst]
+            lst = [str(x.name)[::-1] for x in data]
             t = range(len(lst))
-            return sorted(t, key=lambda i: lst[i], reverse=True)
+            for i in sorted(t, key=lambda i: lst[i], reverse=True):
+                yield data[i]
 
         zones = ForwardZone.objects.all()
-        for n in _get_reverse_order(zones):
-            z = zones[n]
-            if z.name == name:
-                return z
-            elif name.endswith(f".{z.name}"):
-                return z
+        for zone in _get_reverse_order(zones):
+            if zone.name == name:
+                return zone
+            elif name.endswith(f".{zone.name}"):
+                return zone
         return None
 
 
