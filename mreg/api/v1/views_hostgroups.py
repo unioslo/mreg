@@ -195,6 +195,7 @@ class HostGroupOwnersList(HostGroupM2MList):
     serializer_class = serializers.GroupSerializer
     m2m_field = 'owners'
     m2m_object = Group
+    m2m_create_if_missing = True
 
 
 class HostGroupOwnersDetail(HostGroupM2MDetail):
