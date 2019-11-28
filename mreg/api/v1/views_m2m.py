@@ -57,6 +57,8 @@ class M2MDetail:
 
 class M2MList:
 
+    m2m_create_if_missing = False
+
     def get_queryset(self):
         self.object = get_object_or_404(self.cls,
                                         name=self.kwargs[self.lookup_field])
@@ -70,11 +72,14 @@ class M2MList:
             if qs.filter(name=name).exists():
                 content = {'ERROR': f'{name} already in {self.m2m_field}'}
                 return Response(content, status=status.HTTP_409_CONFLICT)
-            try:
-                instance = self.m2m_object.objects.get(name=name)
-            except self.m2m_object.DoesNotExist:
-                content = {'ERROR': f'"{name}" does not exist'}
-                return Response(content, status=status.HTTP_404_NOT_FOUND)
+            if self.m2m_create_if_missing:
+                instance, created = self.m2m_object.objects.get_or_create(name=name)
+            else:
+                try:
+                    instance = self.m2m_object.objects.get(name=name)
+                except self.m2m_object.DoesNotExist:
+                    content = {'ERROR': f'"{name}" does not exist'}
+                    return Response(content, status=status.HTTP_404_NOT_FOUND)
             self.perform_m2m_alteration(self.m2mrelation.add, instance)
             location = request.path + instance.name
             return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
