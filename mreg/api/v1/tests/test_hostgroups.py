@@ -180,9 +180,9 @@ class APIHostGroupOwnersTestCase(MregAPITestCase):
         self.assert_post_and_409(f'/hostgroups/{self.hostgroup_one.name}/owners/',
                                  {'name': self.owner_one.name})
 
-    def test_add_unknown_owner_to_group_404_not_found(self):
-        self.assert_post_and_404(f'/hostgroups/{self.hostgroup_one.name}/owners/',
-                                 {'name': 'cheese'})
+    def test_add_unknown_owner_to_group_201_ok(self):
+        # An unknown owner is ok, as the group will be created on demand
+        self.assert_post(f'/hostgroups/{self.hostgroup_one.name}/owners/', {'name': 'cheese'})
 
     def test_remove_hostsmember_204_ok(self):
         self.assert_post(f'/hostgroups/{self.hostgroup_one.name}/owners/',
