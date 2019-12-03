@@ -1,7 +1,7 @@
 import ipaddress
 from collections import defaultdict
 
-from mreg.models import Cname, ForwardZone, Hinfo, Host, Ipaddress, Loc, Mx, Naptr, Srv, Sshfp, Txt
+from mreg.models import Cname, ForwardZone, Hinfo, Host, Ipaddress, Loc, Mx, Naptr, ReverseZone, Srv, Sshfp, Txt
 from mreg.utils import idna_encode, qualify
 
 
@@ -76,6 +76,15 @@ class Common:
         if delegations:
             data = ';\n; Delegations\n;\n'
             data += self.get_ns_data(delegations)
+        return data
+
+
+    def get_subreversezones(self):
+        data = ""
+        subzones = ReverseZone.objects.filter(name__endswith="." + self.zone.name)
+        if subzones:
+            data += self.get_ns_data(subzones.order_by("name"))
+            data = ';\n; Sub zones\n;\n' + data
         return data
 
 
@@ -310,6 +319,7 @@ class IPv4ReverseFile(Common):
         for ns in zone.nameservers.all():
             data += ns.zf_string(zone.name)
         data += self.get_delegations()
+        data += self.get_subreversezones()
         _prev_net = 'z'
         for ip, ttl, hostname in zone.get_ipaddresses():
             rev = ip.reverse_pointer
@@ -331,6 +341,7 @@ class IPv6ReverseFile(Common):
         for ns in zone.nameservers.all():
             data += ns.zf_string(zone.name)
         data += self.get_delegations()
+        data += self.get_subreversezones()
         _prev_net = 'z'
         for ip, ttl, hostname in zone.get_ipaddresses():
             rev = ip.reverse_pointer
