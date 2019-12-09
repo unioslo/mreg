@@ -78,16 +78,16 @@ def nonify(value):
 def create_serialno(serialno=0):
     """
     Creates an updated serialnumber based on the provided serialnumber
-    :param serialno: 10-digit serialnumber
+    :param serialno: 10-digit serialnumber in 3YYMMDDXXX format
     :return: Updated serialnumber
     """
-    today = int(time.strftime('%Y%m%d'))
-    if today > serialno//100:
-        return today*100
+    today = int(time.strftime('3%y%m%d'))
+    if today > serialno//1000:
+        return today*1000
     else:
-        # Each day can only have 100 serials
+        # Each day can only have 1000 serials
         # XXX: maybe send a signal?
-        if today*100 + 99 == serialno:
+        if today*1000 + 999 == serialno:
             return serialno
         else:
             return serialno+1

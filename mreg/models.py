@@ -161,7 +161,7 @@ $TTL {default_ttl}
         was updated.
         """
         # Need the have a timedelta as serialno_updated_at to not exhaust
-        # the 100 possible daily serial numbers.
+        # the 1000 possible daily serial numbers.
         min_delta = timedelta(minutes=1)
         if force or self.updated and \
            timezone.now() > self.serialno_updated_at + min_delta:

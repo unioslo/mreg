@@ -768,16 +768,16 @@ class ModelForwardZoneTestCase(TestCase):
         self.assertLess(old_serial, zone.serialno)
         # Will not update serialno just becase updated = True, requires a timedelta
         old_serial = zone.serialno
-        self.updated = True
+        zone.updated = True
         zone.update_serialno()
         zone.save()
         zone.refresh_from_db()
         self.assertEqual(old_serial, zone.serialno)
-        self.assertFalse(zone.updated)
+        self.assertTrue(zone.updated)
         # Make sure the serialno does not wrap, but instead keeps stays the same
-        zone.serialno += 98
-        self.assertEqual(zone.serialno % 100, 99)
-        self.updated = True
+        zone.serialno += 998
+        self.assertEqual(zone.serialno % 1000, 999)
+        zone.updated = True
         zone.serialno_updated_at = timezone.now() - timedelta(minutes=10)
         old_serial = zone.serialno
         zone.update_serialno()
