@@ -249,6 +249,9 @@ class ReverseZone(BaseZone):
         result = []
 
         def _add_to_result(item):
+            # Wildcards are not allowed in reverse zones.
+            if "*" in item.host.name:
+                return
             ttl = item.host.ttl or ""
             result.append((ipaddress.ip_address(item.ipaddress), ttl, item.host.name))
 
