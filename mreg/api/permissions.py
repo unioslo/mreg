@@ -124,16 +124,15 @@ class IsSuperOrNetworkAdminMember(IsAuthenticated):
             return False
         if user_is_superuser(request.user):
             return True
-        if not request_in_settings_group(request, NETWORK_ADMIN_GROUP):
-            return False
-        if isinstance(view, mreg.api.v1.views.NetworkDetail):
-            if request.method == 'PATCH':
-                # Only allow update of the reserved field
-                if 'reserved' in request.data and len(request.data) == 1:
-                    return True
-        elif isinstance(view, (mreg.api.v1.views.NetworkExcludedRangeList,
-                               mreg.api.v1.views.NetworkExcludedRangeDetail)):
-            return True
+        if request_in_settings_group(request, NETWORK_ADMIN_GROUP):
+            if isinstance(view, mreg.api.v1.views.NetworkDetail):
+                if request.method == 'PATCH':
+                    # Only allow update of the reserved field
+                    if 'reserved' in request.data and len(request.data) == 1:
+                        return True
+            elif isinstance(view, (mreg.api.v1.views.NetworkExcludedRangeList,
+                                   mreg.api.v1.views.NetworkExcludedRangeDetail)):
+                return True
         return False
 
 
