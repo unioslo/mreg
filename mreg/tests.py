@@ -774,14 +774,26 @@ class ModelForwardZoneTestCase(TestCase):
         zone.refresh_from_db()
         self.assertEqual(old_serial, zone.serialno)
         self.assertTrue(zone.updated)
+
+    def test_update_serialno_wrapping(self):
+        """Make sure serialno can not wrap and the zone is unchanged when hitting
+           max serialnumber.
+        """
+        zone = ForwardZone(name='example.org', primary_ns='ns.example.org',
+                           email='hostmaster@example.org')
+        zone.serialno += 999
+        zone.save()
+        zone.refresh_from_db()
         # Make sure the serialno does not wrap, but instead keeps stays the same
-        zone.serialno += 998
         self.assertEqual(zone.serialno % 1000, 999)
-        zone.updated = True
-        zone.serialno_updated_at = timezone.now() - timedelta(minutes=10)
+        old_suat = zone.serialno_updated_at = timezone.now() - timedelta(minutes=10)
+        zone.save()
         old_serial = zone.serialno
         zone.update_serialno()
+        zone.refresh_from_db()
+        self.assertTrue(zone.updated)
         self.assertEqual(old_serial, zone.serialno)
+        self.assertEqual(old_suat, zone.serialno_updated_at)
 
 
 class ModelReverseZoneTestCase(TestCase):
