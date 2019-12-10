@@ -165,7 +165,12 @@ $TTL {default_ttl}
         min_delta = timedelta(minutes=1)
         if force or self.updated and \
            timezone.now() > self.serialno_updated_at + min_delta:
-            self.serialno = create_serialno(self.serialno)
+            new_serial = create_serialno(self.serialno)
+            # If hitting the daily limit, make sure not to change the
+            # other variables.
+            if new_serial == self.serialno:
+                return
+            self.serialno = new_serial
             self.serialno_updated_at = timezone.now()
             self.updated = False
             try:
