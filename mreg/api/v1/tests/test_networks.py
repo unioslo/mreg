@@ -449,27 +449,6 @@ class NetworksTestCase(MregAPITestCase):
         self.assert_get_and_401('/networks/')
 
 
-class NetworkAdminPermissions(MregAPITestCase):
-    """Tests for the extra rights that members of NETWORK_ADMIN_GROUP
-       have on Networks."""
-
-    def setUp(self):
-        self.client = self.get_token_client(username='networkadmin', superuser=False)
-        self.add_user_to_groups('NETWORK_ADMIN_GROUP')
-
-    def test_can_only_patch_reserved(self):
-        """
-        Test that members of NETWORK_ADMIN_GROUP can patch the reserved field, and
-        that field only.
-        """
-        Network.objects.create(network='10.0.0.0/24', description='test')
-        path = '/api/v1/networks/10.0.0.0/24'
-        self.assert_patch(path, {'reserved': 5})
-        self.assert_patch_and_403(path, {'description': 'test2'})
-        # Only allowed to do a patch with reserved. Not other fields at the same time.
-        self.assert_patch_and_403(path, {'reserved': 2, 'description': 'test2'})
-
-
 class NetworkExcludedRanges(MregAPITestCase):
     """Tests for NetworkExcludedRange objects and that they are enforced
        for Ipaddress and PtrOverride"""
@@ -538,3 +517,25 @@ class NetworkExcludedRanges(MregAPITestCase):
         self.assert_post(path, {'host': host.id, 'ipaddress': '10.0.0.8'})
         self.assert_post_and_400('/api/v1/hosts/', {'name': 'host2.example.org',
                                                     'ipaddress': '10.0.0.20'})
+
+
+class NetworkAdminPermissions(NetworkExcludedRanges):
+    """Tests for the extra rights that members of NETWORK_ADMIN_GROUP
+       have on Networks."""
+
+    def setUp(self):
+        super().setUp()
+        self.client = self.get_token_client(username='networkadmin',
+                                            superuser=False, adminuser=True)
+        self.add_user_to_groups('NETWORK_ADMIN_GROUP')
+
+    def test_can_only_patch_reserved(self):
+        """
+        Test that members of NETWORK_ADMIN_GROUP can patch the reserved field, and
+        that field only.
+        """
+        path = '/api/v1/networks/10.0.0.0/24'
+        self.assert_patch(path, {'reserved': 5})
+        self.assert_patch_and_403(path, {'description': 'test2'})
+        # Only allowed to do a patch with reserved. Not other fields at the same time.
+        self.assert_patch_and_403(path, {'reserved': 2, 'description': 'test2'})
