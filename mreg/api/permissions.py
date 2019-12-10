@@ -114,19 +114,26 @@ class IsSuperOrAdminOrReadOnly(IsAuthenticated):
 
 class IsSuperOrNetworkAdminMember(IsAuthenticated):
     """
-    Permit user if in super user group, also the network admin
-    can patch certain attributes, but otherwise read-only.
+    Permit user if in super user group and also the network admin
+    can change some views and some fields.
     """
 
     def has_permission(self, request, view):
+        import mreg.api.v1.views
         if not super().has_permission(request, view):
             return False
         if user_is_superuser(request.user):
             return True
-        if request.method == 'PATCH' and request_in_settings_group(request, NETWORK_ADMIN_GROUP):
-            # Only allow update of the reserved field
-            if 'reserved' in request.data and len(request.data) == 1:
-                return True
+        if not request_in_settings_group(request, NETWORK_ADMIN_GROUP):
+            return False
+        if isinstance(view, mreg.api.v1.views.NetworkDetail):
+            if request.method == 'PATCH':
+                # Only allow update of the reserved field
+                if 'reserved' in request.data and len(request.data) == 1:
+                    return True
+        elif isinstance(view, (mreg.api.v1.views.NetworkExcludedRangeList,
+                               mreg.api.v1.views.NetworkExcludedRangeDetail)):
+            return True
         return False
 
 
