@@ -1027,20 +1027,25 @@ def _dhcpv6_hosts_by_ipv4(iprange):
     """
     Find all hosts which have both an ipv4 and ipv6 address,
     and where the ipv4 address has a mac assosicated.
-    Future fun: limit to hosts which have only one ipv4 and ipv6 address?
     """
-    ipv4 = _get_ips_by_range(iprange)
+
+    def _unique_host_ids(qs):
+        qs = qs.select_related('host')
+        host_ids = [ip.host.id for ip in qs]
+        host_once = [host_id for host_id, count in Counter(host_ids).items() if count == 1]
+        return host_once
+
+    ipv6 = _get_ips_by_range('::/0')
+    ipv6 = ipv6.filter(macaddress='').filter(host__in=_unique_host_ids(ipv6))
+    ipv6_host_once = _unique_host_ids(ipv6)
+    ipv6 = ipv6.filter(host__in=ipv6_host_once)
+
+    ipv4 = _get_ips_by_range(iprange).filter(host__in=ipv6_host_once)
     ipv4 = ipv4.exclude(macaddress='')
-    ipv4 = ipv4.select_related('host')
-    ipv4_host_ids = [ip.host.id for ip in ipv4]
-    ipv4_host_once = [host_id for host_id, count in Counter(ipv4_host_ids).items() if count == 1]
+    ipv4_host_once = _unique_host_ids(ipv4)
     ipv4_host2mac = {hostname: mac for hostname, mac in
                      ipv4.values_list('host__name', 'macaddress')}
-    ipv6 = _get_ips_by_range('::/0')
     ipv6 = ipv6.filter(host__in=ipv4_host_once).order_by('ipaddress')
-    ipv6_host_ids = [ip.host.id for ip in ipv6]
-    ipv6_host_once = [host_id for host_id, count in Counter(ipv6_host_ids).items() if count == 1]
-    ipv6 = ipv6.filter(macaddress='').filter(host__in=ipv6_host_once)
     ret = []
     for values in ipv6.values('host__name', 'host__zone__name', 'ipaddress'):
         values['macaddress'] = ipv4_host2mac[values['host__name']]
