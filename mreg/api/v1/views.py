@@ -1025,8 +1025,9 @@ class DhcpHostsByRange(generics.GenericAPIView):
 
 def _dhcpv6_hosts_by_ipv4(iprange):
     """
-    Find all hosts which have both an ipv4 and ipv6 address,
-    and where the ipv4 address has a mac assosicated.
+    Find all hosts which have only one ipv4 and one ipv6 address,
+    and where the ipv4 address has a mac associated and the
+    ipv6 address has not.
     """
 
     def _unique_host_ids(qs):
