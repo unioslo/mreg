@@ -193,6 +193,7 @@ DJANGO_LOGGING = {
     "CONSOLE_LOG": False,
     'IGNORED_PATHS': ['/admin', '/static', '/favicon.ico', '/api/token-auth']
 }
+SQL_LOG = False
 
 # TXT record(s) automatically added to a host when added to a ForwardZone.
 TXT_AUTO_RECORDS = {
