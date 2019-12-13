@@ -1036,12 +1036,14 @@ def _dhcpv6_hosts_by_ipv4(iprange):
         return host_once
 
     ipv6 = _get_ips_by_range('::/0')
-    ipv6 = ipv6.filter(macaddress='').filter(host__in=_unique_host_ids(ipv6))
-    ipv6_hosts = _unique_host_ids(ipv6)
+    qs = ipv6.filter(macaddress='').filter(host__in=_unique_host_ids(ipv6))
+    ipv6_hosts = _unique_host_ids(qs)
 
-    ipv4 = _get_ips_by_range(iprange).filter(host__in=ipv6_hosts)
-    ipv4 = ipv4.exclude(macaddress='').filter(host__in=_unique_host_ids(ipv4))
-    ipv4_hosts = _unique_host_ids(ipv4)
+    ipv4 = _get_ips_by_range(iprange)
+    qs = ipv4.filter(host__in=ipv6_hosts)
+    qs = qs.exclude(macaddress='').filter(host__in=_unique_host_ids(qs))
+    ipv4_hosts = _unique_host_ids(qs)
+    ipv4 = ipv4.filter(host__in=ipv4_hosts)
     ipv4_host2mac = {hostname: mac for hostname, mac in
                      ipv4.values_list('host__name', 'macaddress')}
     ipv6 = ipv6.filter(host__in=ipv4_hosts).order_by('ipaddress')
