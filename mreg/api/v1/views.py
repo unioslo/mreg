@@ -1032,9 +1032,8 @@ def _dhcpv6_hosts_by_ipv4(iprange):
 
     def _unique_host_ids(qs):
         qs = qs.select_related('host')
-        host_ids = [ip.host.id for ip in qs]
-        host_once = [host_id for host_id, count in Counter(host_ids).items() if count == 1]
-        return host_once
+        counter = Counter([ip.host.id for ip in qs])
+        return [host_id for host_id, count in counter.items() if count == 1]
 
     ipv6 = _get_ips_by_range('::/0')
     qs = ipv6.filter(macaddress='').filter(host__in=_unique_host_ids(ipv6))
