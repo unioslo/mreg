@@ -1031,7 +1031,6 @@ def _dhcpv6_hosts_by_ipv4(iprange):
     """
 
     def _unique_host_ids(qs):
-        qs = qs.select_related('host')
         counter = Counter(qs.values_list('host__id', flat=True))
         return [host_id for host_id, count in counter.items() if count == 1]
 
