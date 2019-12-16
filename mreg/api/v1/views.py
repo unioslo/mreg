@@ -863,7 +863,7 @@ def _network_ptroverride_list(kwargs):
 @api_view()
 def network_ptroverride_list(request, *args, **kwargs):
     ptrs = _network_ptroverride_list(kwargs)
-    ptr_list = [i.ipaddress for i in ptrs]
+    ptr_list = ptrs.values_list('ipaddress', flat=True).order_by('ipaddress')
     return Response(ptr_list, status=status.HTTP_200_OK)
 
 
@@ -1031,8 +1031,7 @@ def _dhcpv6_hosts_by_ipv4(iprange):
     """
 
     def _unique_host_ids(qs):
-        qs = qs.select_related('host')
-        counter = Counter([ip.host.id for ip in qs])
+        counter = Counter(qs.values_list('host__id', flat=True))
         return [host_id for host_id, count in counter.items() if count == 1]
 
     ipv6 = _get_ips_by_range('::/0')

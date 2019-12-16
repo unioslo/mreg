@@ -371,16 +371,18 @@ class NetworksTestCase(MregAPITestCase):
         """GET on /networks/<ip/mask>/ptroverride_list should return 200 ok and data."""
         def _get_ptr_list():
             ret = self.assert_get('/networks/%s/ptroverride_list' % self.network_sample.network)
-            return ret.data
+            return list(ret.data)
         self.assertEqual(_get_ptr_list(), [])
+        # Create two and make sure they are sorted.
         PtrOverride.objects.create(host=self.host_one, ipaddress='10.0.0.10')
-        self.assertEqual(_get_ptr_list(), ['10.0.0.10'])
+        PtrOverride.objects.create(host=self.host_one, ipaddress='10.0.0.8')
+        self.assertEqual(_get_ptr_list(), ['10.0.0.8', '10.0.0.10'])
 
     def test_ipv6_networks_get_ptroverride_list(self):
         """GET on /networks/<ipv6/mask>/ptroverride_list should return 200 ok and data."""
         def _get_ptr_list():
             ret = self.assert_get('/networks/%s/ptroverride_list' % self.network_ipv6_sample.network)
-            return ret.data
+            return list(ret.data)
         self.assertEqual(_get_ptr_list(), [])
         PtrOverride.objects.create(host=self.host_one, ipaddress='2001:db8::feed')
         self.assertEqual(_get_ptr_list(), ['2001:db8::feed'])
