@@ -499,33 +499,50 @@ class Network(BaseModel):
                 ip += 1
         return unusable
 
-    def _get_used_ipaddresses(self):
+    def __used(self, model):
         from_ip = str(self.network.network_address)
         to_ip = str(self.network.broadcast_address)
-        return Ipaddress.objects.filter(ipaddress__range=(from_ip, to_ip))
+        return model.objects.filter(ipaddress__range=(from_ip, to_ip))
 
-    def get_used_ipaddresses(self):
-        """
-        Returns the used ipaddress on the network.
-        """
-        ips = self._get_used_ipaddresses()
-        used = {ipaddress.ip_address(i.ipaddress) for i in ips}
-        return used
+    @staticmethod
+    def __used_ips(qs):
+        ips = qs.values_list('ipaddress', flat=True)
+        return {ipaddress.ip_address(ip) for ip in ips}
 
-    def get_used_ipaddress_count(self):
-        """
-        Returns the number of used ipaddreses on the network.
-        """
-        return self._get_used_ipaddresses().count()
+    def _used_ipaddresses(self):
+        return self.__used(Ipaddress)
 
-    def get_unused_ipaddresses(self):
+    def _used_ptroverrides(self):
+        return self.__used(PtrOverride)
+
+    @property
+    def used_ipaddresses(self):
         """
-        Returns which ip-addresses on the network are unused.
+        Returns the used Ipaddress objects on the network.
+        """
+        return self.__used_ips(self._used_ipaddresses())
+
+    @property
+    def used_ptroverrides(self):
+        return self.__used_ips(self._used_ptroverrides())
+
+    @property
+    def used_addresses(self):
+        """
+        Returns which ipaddresses on the network are used.
+
+        A combined usage of Ipaddress and PtrOverride.
+        """
+        return self.used_ipaddresses | self.used_ptroverrides
+
+    @property
+    def unused_addresses(self):
+        """
+        Returns which ipaddresses on the network are unused.
         """
         network_ips = []
         unusable = self.get_unusable_ipaddresses()
-        used = self.get_used_ipaddresses()
-        not_available = unusable | used
+        not_available = unusable | self.used_addresses
         if self.network.num_addresses > MAX_UNUSED_LIST:
             # Getting all availible IPs for a ipv6 prefix can easily cause
             # the webserver to hang due to lots and lots of IPs. Instead limit
@@ -542,13 +559,13 @@ class Network(BaseModel):
         else:
             return set(self.network.hosts()) - not_available
 
-    def get_unused_ipaddress_count(self):
+    @property
+    def unused_count(self):
         """
         Returns the number of unused ipaddreses on the network.
         """
         unusable = self.get_unusable_ipaddresses()
-        used = self.get_used_ipaddresses()
-        return self.network.num_addresses - len(unusable | used)
+        return self.network.num_addresses - len(unusable | self.used_addresses)
 
     def get_first_unused(self):
         """
@@ -556,7 +573,7 @@ class Network(BaseModel):
         """
 
         unusable = self.get_unusable_ipaddresses()
-        used = self.get_used_ipaddresses()
+        used = self.used_addresses
         for ip in self.network.hosts():
             if ip in unusable:
                 continue
@@ -569,7 +586,7 @@ class Network(BaseModel):
         Return a random unused IP, if any.
         """
 
-        unused = self.get_unused_ipaddresses()
+        unused = self.unused_addresses
         if unused:
             network = self.network
             if len(unused) == MAX_UNUSED_LIST and network.num_addresses > MAX_UNUSED_LIST:
@@ -578,8 +595,7 @@ class Network(BaseModel):
                 network_address = int(network.network_address)
                 broadcast_address = int(network.broadcast_address)
                 unusable = self.get_unusable_ipaddresses()
-                used = self.get_used_ipaddresses()
-                not_available = unusable | used
+                not_available = unusable | self.used_addresses
                 # Limit the number of attempts, as random might be really unlucky.
                 for attempts in range(100):
                     choice = random.randint(network_address, broadcast_address)

@@ -765,8 +765,7 @@ class NetworkDetail(MregRetrieveUpdateDestroyAPIView):
 
     def delete(self, request, *args, **kwargs):
         network = self.get_object()
-        used_ipaddresses = network.get_used_ipaddresses()
-        if used_ipaddresses:
+        if network.used_addresses:
             return Response({'ERROR': 'Network contains IP addresses that are in use'},
                             status=status.HTTP_409_CONFLICT)
 
@@ -853,23 +852,18 @@ def network_random_unused(request, *args, **kwargs):
         return Response(content, status=status.HTTP_404_NOT_FOUND)
 
 
-def _network_ptroverride_list(kwargs):
-    network = get_object_or_404(Network, network=kwargs['network'])
-    from_ip = str(network.network.network_address)
-    to_ip = str(network.network.broadcast_address)
-    return PtrOverride.objects.filter(ipaddress__range=(from_ip, to_ip))
-
-
 @api_view()
 def network_ptroverride_list(request, *args, **kwargs):
-    ptrs = _network_ptroverride_list(kwargs)
+    network = get_object_or_404(Network, network=kwargs['network'])
+    ptrs = network._used_ptroverrides()
     ptr_list = ptrs.values_list('ipaddress', flat=True).order_by('ipaddress')
     return Response(ptr_list, status=status.HTTP_200_OK)
 
 
 @api_view()
 def network_ptroverride_host_list(request, *args, **kwargs):
-    ptrs = _network_ptroverride_list(kwargs)
+    network = get_object_or_404(Network, network=kwargs['network'])
+    ptrs = network._used_ptroverrides()
     ret = dict()
     info = ptrs.values_list('host__name', 'ipaddress')
     for host, ip in sorted(info, key=lambda i: ipaddress.ip_address(i[1])):
@@ -887,13 +881,13 @@ def network_reserved_list(request, *args, **kwargs):
 @api_view()
 def network_used_count(request, *args, **kwargs):
     network = get_object_or_404(Network, network=kwargs['network'])
-    return Response(network.get_used_ipaddress_count(), status=status.HTTP_200_OK)
+    return Response(len(network.used_addresses), status=status.HTTP_200_OK)
 
 
 @api_view()
 def network_used_list(request, *args, **kwargs):
     network = get_object_or_404(Network, network=kwargs['network'])
-    used_ipaddresses = list(map(str, sorted(network.get_used_ipaddresses())))
+    used_ipaddresses = list(map(str, sorted(network.used_addresses)))
     return Response(used_ipaddresses, status=status.HTTP_200_OK)
 
 
@@ -901,7 +895,7 @@ def network_used_list(request, *args, **kwargs):
 def network_used_host_list(request, *args, **kwargs):
     network = get_object_or_404(Network, network=kwargs['network'])
     ret = defaultdict(list)
-    info = network._get_used_ipaddresses().values_list('host__name', 'ipaddress')
+    info = network._used_ipaddresses().values_list('host__name', 'ipaddress')
     for host, ip in sorted(info, key=lambda i: ipaddress.ip_address(i[1])):
         bisect.insort(ret[ip], host)
     return Response(ret, status=status.HTTP_200_OK)
@@ -910,13 +904,13 @@ def network_used_host_list(request, *args, **kwargs):
 @api_view()
 def network_unused_count(request, *args, **kwargs):
     network = get_object_or_404(Network, network=kwargs['network'])
-    return Response(network.get_unused_ipaddress_count(), status=status.HTTP_200_OK)
+    return Response(network.unused_count, status=status.HTTP_200_OK)
 
 
 @api_view()
 def network_unused_list(request, *args, **kwargs):
     network = get_object_or_404(Network, network=kwargs['network'])
-    unused_ipaddresses = list(map(str, sorted(network.get_unused_ipaddresses())))
+    unused_ipaddresses = list(map(str, sorted(network.unused_addresses)))
     return Response(unused_ipaddresses, status=status.HTTP_200_OK)
 
 
