@@ -232,6 +232,11 @@ class ReverseZone(BaseZone):
         return ReverseZone.objects.filter(network__net_contains=ip).first()
 
     def get_ipaddresses(self):
+        """
+        Get all ipaddresses used in a reverse zone.
+
+        Will return tuples of (ipaddress, ttl, hostname), sorted by ipaddress.
+        """
         network = self.network
         from_ip = str(network.network_address)
         to_ip = str(network.broadcast_address)
@@ -252,8 +257,7 @@ class ReverseZone(BaseZone):
         ptr_done = set()
         result = []
 
-        def _add_to_result(ip, data):
-            ttl, hostname = data
+        def _add_to_result(ip, ttl, hostname):
             # Wildcards are not allowed in reverse zones.
             if "*" in hostname:
                 return
@@ -268,15 +272,15 @@ class ReverseZone(BaseZone):
             if ip in override_ips:
                 if ip not in ptr_done:
                     ptr_done.add(ip)
-                    _add_to_result(ip, override_ips[ip])
+                    _add_to_result(ip, *override_ips[ip])
             else:
-                _add_to_result(ip, data)
+                _add_to_result(ip, *data)
         # Add PtrOverrides which actually don't override anything,
         # but are only used as PTRs without any Ipaddress object creating
         # forward entries.
         for ptr, data in override_ips.items():
             if ptr not in ptr_done:
-                _add_to_result(ptr, data)
+                _add_to_result(ptr, *data)
 
         # Return sorted by IP
         return sorted(result, key=lambda i: i[0])
