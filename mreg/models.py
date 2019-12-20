@@ -232,50 +232,55 @@ class ReverseZone(BaseZone):
         return ReverseZone.objects.filter(network__net_contains=ip).first()
 
     def get_ipaddresses(self):
+        """
+        Get all ipaddresses used in a reverse zone.
+
+        Will return tuples of (ipaddress, ttl, hostname), sorted by ipaddress.
+        """
         network = self.network
         from_ip = str(network.network_address)
         to_ip = str(network.broadcast_address)
-        ips = Ipaddress.objects.filter(ipaddress__range=(from_ip, to_ip))
-        ips = ips.select_related('host')
+        ipaddresses = dict()
         override_ips = dict()
-        ptrs = PtrOverride.objects.filter(ipaddress__range=(from_ip, to_ip))
-        ptrs = ptrs.select_related('host')
-        for p in ptrs:
-            override_ips[p.ipaddress] = p
+        for model, data in ((Ipaddress, ipaddresses),
+                            (PtrOverride, override_ips),
+                            ):
+            qs = model.objects.filter(ipaddress__range=(from_ip, to_ip))
+            for ip, ttl, hostname in qs.values_list('ipaddress', 'host__ttl', 'host__name'):
+                data[ip] = (ttl, hostname)
         # XXX: send signal/mail to hostmaster(?) about issues with multiple_ip_no_ptr
         count = defaultdict(int)
-        for i in ips:
-            if i.ipaddress not in override_ips:
-                count[i.ipaddress] += 1
+        for i in ipaddresses:
+            if i not in override_ips:
+                count[i] += 1
         multiple_ip_no_ptr = {i: count[i] for i in count if count[i] > 1}
         ptr_done = set()
-        # Use PtrOverrides when found, but only once. Also skip IPaddresses
-        # which have been used multiple times, but lacks a PtrOverride.
         result = []
 
-        def _add_to_result(item):
+        def _add_to_result(ip, ttl, hostname):
             # Wildcards are not allowed in reverse zones.
-            if "*" in item.host.name:
+            if "*" in hostname:
                 return
-            ttl = item.host.ttl or ""
-            result.append((ipaddress.ip_address(item.ipaddress), ttl, item.host.name))
+            ttl = ttl or ""
+            result.append((ipaddress.ip_address(ip), ttl, hostname))
 
-        for i in ips:
-            ip = i.ipaddress
+        # Use PtrOverrides when found, but only once. Also skip IPaddresses
+        # which have been used multiple times, but lacks a PtrOverride.
+        for ip, data in ipaddresses.items():
             if ip in multiple_ip_no_ptr:
                 continue
             if ip in override_ips:
                 if ip not in ptr_done:
                     ptr_done.add(ip)
-                    _add_to_result(override_ips[ip])
+                    _add_to_result(ip, *override_ips[ip])
             else:
-                _add_to_result(i)
+                _add_to_result(ip, *data)
         # Add PtrOverrides which actually don't override anything,
         # but are only used as PTRs without any Ipaddress object creating
         # forward entries.
-        for k, v in override_ips.items():
-            if k not in ptr_done:
-                _add_to_result(v)
+        for ptr, data in override_ips.items():
+            if ptr not in ptr_done:
+                _add_to_result(ptr, *data)
 
         # Return sorted by IP
         return sorted(result, key=lambda i: i[0])
