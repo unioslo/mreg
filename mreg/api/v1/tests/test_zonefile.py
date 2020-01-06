@@ -69,6 +69,7 @@ class APIZonefileTestCase(MregAPITestCase):
         data = {'host': host1.id,
                 'priority': 10,
                 'mx': 'smtp.example.org'}
+        self.assert_post("/mxs/", data)
         data = {'host': host1.id,
                 'cpu': 'supercpu',
                 'os': 'operating system'}
@@ -109,6 +110,8 @@ class APIZonefileTestCase(MregAPITestCase):
 
     def test_get_reverse_zones(self):
         rev_v4 = self.create_reverse_zone('10.10.in-addr.arpa')
+        self.create_reverse_zone('10.10.10.in-addr.arpa')
         rev_v6 = self.create_reverse_zone('0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa')
+        self.create_reverse_zone('0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa')
         self._get_zone(rev_v4)
         self._get_zone(rev_v6)
