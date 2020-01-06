@@ -520,6 +520,14 @@ class NetworkExcludedRanges(MregAPITestCase):
         self.assert_post_and_400('/api/v1/hosts/', {'name': 'host2.example.org',
                                                     'ipaddress': '10.0.0.20'})
 
+    def test_count_unused_ips(self):
+        """Test that excluded ipaddresses are exempted from the unused count"""
+        self.test_create()
+        ret = self.assert_get(f'/api/v1/networks/{self.network4}/unused_count').json()
+        # /24 - net/broadcast - reserved - [10, 200] - 201
+        # 256 - 2             - 3        - 191       - 1   = 59
+        self.assertEqual(ret, 59)
+
 
 class NetworkAdminPermissions(NetworkExcludedRanges):
     """Tests for the extra rights that members of NETWORK_ADMIN_GROUP
