@@ -57,6 +57,7 @@ def _signal_history(resource, name, action, model, model_id, data):
         return
     history.save()
 
+
 def _signal_host_history(host, action, model, data):
     _signal_history('host', host.name, action, model, host.id, data)
 
@@ -64,15 +65,8 @@ def _signal_host_history(host, action, model, data):
 # Update PtrOverride whenever a Ipaddress is created or changed
 @receiver(pre_save, sender=Ipaddress)
 def updated_ipaddress_fix_ptroverride(sender, instance, raw, using, update_fields, **kwargs):
-    if instance.id:
-        oldinstance = Ipaddress.objects.get(id=instance.id)
-        if oldinstance.ipaddress != instance.ipaddress:
-            data = {'ipaddress': oldinstance.ipaddress}
-            qs = PtrOverride.objects.filter(host=instance.host, **data)
-            if qs.exists():
-                qs.delete()
-                _signal_host_history(instance.host, 'destroy', 'PtrOverride', data)
-    else:
+
+    def _create_ptr_if_ipaddress_in_use():
         # Can only add a PtrOverride if count == 1, otherwise we can not guess which
         # one should get it.
         qs = Ipaddress.objects.filter(ipaddress=instance.ipaddress)
@@ -82,6 +76,18 @@ def updated_ipaddress_fix_ptroverride(sender, instance, raw, using, update_field
                 data = {'ipaddress': instance.ipaddress}
                 PtrOverride.objects.create(host=host, **data)
                 _signal_host_history(host, 'create', 'PtrOverride', data)
+
+    if instance.id:
+        oldinstance = Ipaddress.objects.get(id=instance.id)
+        if oldinstance.ipaddress != instance.ipaddress:
+            data = {'ipaddress': oldinstance.ipaddress}
+            qs = PtrOverride.objects.filter(host=instance.host, **data)
+            if qs.exists():
+                qs.delete()
+                _signal_host_history(instance.host, 'destroy', 'PtrOverride', data)
+            _create_ptr_if_ipaddress_in_use()
+    else:
+        _create_ptr_if_ipaddress_in_use()
 
 
 def _common_update_zone(signal, sender, instance):
@@ -155,6 +161,7 @@ def updated_objects_update_zone_serial(sender, instance, raw, using, update_fiel
 @receiver(post_delete, sender=Txt)
 def deleted_objects_update_zone_serial(sender, instance, using, **kwargs):
     _common_update_zone("post_delete", sender, instance)
+
 
 def _host_update_m2m_relations(instance):
     for hostgroup in instance.hostgroups.all():
