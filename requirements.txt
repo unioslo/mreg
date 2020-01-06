@@ -3,7 +3,6 @@ certifi==2019.11.28
 chardet==3.0.4
 coreapi==2.3.3
 coreschema==0.0.4
-coverage==4.5.4
 Django==2.2.8
 django-auth-ldap==2.1.0
 django-logging-json==1.15
