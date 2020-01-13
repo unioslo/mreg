@@ -170,7 +170,7 @@ def is_reserved_ip(ip):
     return False
 
 
-def _deny_reversed_ipaddress(ip, request):
+def _deny_reserved_ipaddress(ip, request):
     """Check if an ip address is reserved, and if so, only permit
     NETWORK_ADMIN_GROUP members."""
     if is_reserved_ip(ip):
@@ -222,7 +222,7 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
         if _deny_superuser_only_names(data):
             return False
         if 'ipaddress' in data:
-            if _deny_reversed_ipaddress(data['ipaddress'], request):
+            if _deny_reserved_ipaddress(data['ipaddress'], request):
                 return False
         if user_is_adminuser(request.user):
             return True
@@ -259,7 +259,7 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
         if _deny_superuser_only_names(name=obj.name):
             return False
         if hasattr(obj, 'ipaddress'):
-            if _deny_reversed_ipaddress(obj.ipaddress, request):
+            if _deny_reserved_ipaddress(obj.ipaddress, request):
                 return False
         if user_is_adminuser(request.user):
             return True
@@ -273,7 +273,7 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
         if _deny_superuser_only_names(data=data):
             return False
         if 'ipaddress' in data:
-            if _deny_reversed_ipaddress(data['ipaddress'], request):
+            if _deny_reserved_ipaddress(data['ipaddress'], request):
                 return False
         if user_is_adminuser(request.user):
             return True
