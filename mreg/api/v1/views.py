@@ -14,8 +14,6 @@ from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from rest_framework_extensions.etag.mixins import ETAGMixin
-
 from url_filter.integrations.drf import DjangoFilterBackend
 from url_filter.filtersets import ModelFilterSet
 
@@ -151,8 +149,7 @@ class HostLogMixin(HistoryLog):
             data.pop('host', None)
 
 
-class MregRetrieveUpdateDestroyAPIView(ETAGMixin,
-                                       generics.RetrieveUpdateDestroyAPIView):
+class MregRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
     """
     Makes sure patch returns sempty body, 204 - No Content, and location of object.
     """
