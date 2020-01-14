@@ -219,10 +219,6 @@ class ForwardFile(Common):
         self.sshfps = defaultdict(list)
         self.txts = defaultdict(list)
 
-        cnames = Cname.objects.filter(zone=self.zone).filter(host__zone=self.zone)
-        for hostname, alias, ttl, in cnames.values_list('host__name', 'name', 'ttl'):
-            self.host_cnames[hostname].append((alias, ttl))
-
         hinfos = Hinfo.objects.filter(host__zone=self.zone)
         for i in hinfos.values_list('host__name', 'cpu', 'os'):
             self.hinfos[i[0]] = i[1:]
@@ -247,10 +243,6 @@ class ForwardFile(Common):
                                     "service", "regex", "replacement"):
             self.naptrs[i[0]].append(i[1:])
 
-        srvs = Srv.objects.filter(host__zone=self.zone)
-        for i in srvs.values_list('host__name', 'name', 'ttl', 'priority', 'weight', 'port'):
-            self.srvs[i[0]].append(i[1:])
-
         sshfps = Sshfp.objects.filter(host__zone=self.zone)
         for i in sshfps.values_list("host__name", "algorithm", "hash_type", "fingerprint"):
             self.sshfps[i[0]].append(i[1:])
@@ -258,6 +250,16 @@ class ForwardFile(Common):
         txts = Txt.objects.filter(host__zone=self.zone)
         for hostname, txt in txts.values_list("host__name", "txt"):
             self.txts[hostname].append((txt,))
+
+        # Only CNAMEs and SRVs in this zone, as they are a name in the zone
+        cnames = Cname.objects.filter(zone=self.zone).filter(host__zone=self.zone)
+        for hostname, alias, ttl, in cnames.values_list('host__name', 'name', 'ttl'):
+            self.host_cnames[hostname].append((alias, ttl))
+
+        srvs = Srv.objects.filter(zone=self.zone).filter(host__zone=self.zone)
+        for i in srvs.values_list('host__name', 'name', 'ttl', 'priority', 'weight', 'port'):
+            self.srvs[i[0]].append(i[1:])
+
 
     def get_subdomains(self):
         data = ""
