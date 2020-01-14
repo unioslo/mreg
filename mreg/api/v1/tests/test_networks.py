@@ -248,8 +248,9 @@ class NetworksTestCase(MregAPITestCase):
     def test_networks_get_usedcount_200_ok(self):
         """GET on /networks/<ip/mask>/used_count return 200 ok and data."""
         Ipaddress.objects.create(host=self.host_one, ipaddress='10.0.0.17')
+        PtrOverride.objects.create(host=self.host_one, ipaddress='10.0.0.18')
         response = self.assert_get('/networks/%s/used_count' % self.network_sample.network)
-        self.assertEqual(response.data, 1)
+        self.assertEqual(response.data, 2)
 
     def test_ipv6_networks_get_usedcount_200_ok(self):
         """GET on /networks/<ipv6/mask>/used_count return 200 ok and data."""
@@ -282,8 +283,9 @@ class NetworksTestCase(MregAPITestCase):
     def test_networks_get_unusedcount_200_ok(self):
         """GET on /networks/<ip/mask>/unused_count should return 200 ok and data."""
         Ipaddress.objects.create(host=self.host_one, ipaddress='10.0.0.17')
+        Ipaddress.objects.create(host=self.host_one, ipaddress='10.0.0.18')
         response = self.assert_get('/networks/%s/unused_count' % self.network_sample.network)
-        self.assertEqual(response.data, 250)
+        self.assertEqual(response.data, 249)
 
     def test_ipv6_networks_get_unusedcount_200_ok(self):
         """GET on /networks/<ipv6/mask>/unused_count should return 200 ok and data."""
