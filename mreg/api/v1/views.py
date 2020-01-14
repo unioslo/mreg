@@ -39,6 +39,15 @@ from .serializers import (CnameSerializer, HinfoSerializer,
                           SshfpSerializer, TxtSerializer)
 
 
+def cname_conflict(cname):
+    try:
+        Cname.objects.get(name=cname)
+        # No exception, means such Cname exists
+        return True
+    except Cname.DoesNotExist:
+        return False
+
+
 # These filtersets are used for applying generic filtering to all objects.
 class CnameFilterSet(ModelFilterSet):
     class Meta:
@@ -348,7 +357,10 @@ class HostList(HostPermissionsListCreateAPIView):
             if self.queryset.filter(name=request.data["name"]).exists():
                 content = {'ERROR': 'name already in use'}
                 return Response(content, status=status.HTTP_409_CONFLICT)
-
+            elif cname_conflict(request.data["name"]):
+                content = {'ERROR': 'name already in use as cname'}
+                return Response(content, status=status.HTTP_409_CONFLICT)
+                
         hostdata = request.data.copy()
 
         if 'ipaddress' in hostdata:
@@ -400,6 +412,9 @@ class HostDetail(HostPermissionsUpdateDestroy,
         if "name" in request.data:
             if self.get_queryset().filter(name=request.data["name"]).exists():
                 content = {'ERROR': 'name already in use'}
+                return Response(content, status=status.HTTP_409_CONFLICT)
+            elif cname_conflict(request.data["name"]):
+                content = {'ERROR': 'name already in use as cname'}
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
         return super().patch(request, *args, **kwargs)
@@ -543,6 +558,14 @@ class NaptrList(HostPermissionsListCreateAPIView):
         qs = super().get_queryset()
         return NaptrFilterSet(data=self.request.GET, queryset=qs).filter()
 
+    def post(self, request, *args, **kwargs):
+        if "replacement" in request.data:
+            if cname_conflict(request.data["replacement"]):
+                content = {'ERROR': 'name already in use as cname'}
+                return Response(content, status=status.HTTP_409_CONFLICT)
+
+        return super().post(request, *args, **kwargs)
+
 
 class NaptrDetail(HostPermissionsUpdateDestroy,
                   MregRetrieveUpdateDestroyAPIView):
@@ -559,6 +582,14 @@ class NaptrDetail(HostPermissionsUpdateDestroy,
 
     queryset = Naptr.objects.all()
     serializer_class = NaptrSerializer
+
+    def patch(self, request, *args, **kwargs):
+        if "replacement" in request.data:
+            if cname_conflict(request.data["replacement"]):
+                content = {'ERROR': 'name already in use as cname'}
+                return Response(content, status=status.HTTP_409_CONFLICT)
+
+        return super().patch(request, *args, **kwargs)
 
 
 class NameServerList(HostPermissionsListCreateAPIView):
