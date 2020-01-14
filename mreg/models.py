@@ -1,6 +1,6 @@
 import ipaddress
 import random
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from datetime import timedelta
 from functools import reduce
 
@@ -231,6 +231,29 @@ class ReverseZone(BaseZone):
         """Search and return a zone which contains an IP address."""
         return ReverseZone.objects.filter(network__net_contains=ip).first()
 
+    def _get_excluded_ranges(self):
+        """
+        Get ranges which should not be exported in the reverse zone.
+
+        These are addresses used by sub zones or delegations.
+
+        Returned as a list of named tuples.
+        """
+        excluded_ips = list()
+        Range = namedtuple('Range', 'name from_ip to_ip')
+        networks = list()
+        for i in self.delegations.all():
+            networks.append(get_network_from_zonename(i.name))
+        for i in ReverseZone.objects.filter(name__endswith="." + self.name):
+            networks.append(i.network)
+
+        for network in networks:
+            from_ip = str(network.network_address)
+            to_ip = str(network.broadcast_address)
+            excluded_ips.append(Range(name=str(network), from_ip=from_ip, to_ip=to_ip))
+
+        return excluded_ips
+
     def get_ipaddresses(self):
         """
         Get all ipaddresses used in a reverse zone.
@@ -242,10 +265,13 @@ class ReverseZone(BaseZone):
         to_ip = str(network.broadcast_address)
         ipaddresses = dict()
         override_ips = dict()
+        excluded_ranges = self._get_excluded_ranges()
         for model, data in ((Ipaddress, ipaddresses),
                             (PtrOverride, override_ips),
                             ):
             qs = model.objects.filter(ipaddress__range=(from_ip, to_ip))
+            for exclude in excluded_ranges:
+                qs = qs.exclude(ipaddress__range=(exclude.from_ip, exclude.to_ip))
             for ip, ttl, hostname in qs.values_list('ipaddress', 'host__ttl', 'host__name'):
                 data[ip] = (ttl, hostname)
         # XXX: send signal/mail to hostmaster(?) about issues with multiple_ip_no_ptr
