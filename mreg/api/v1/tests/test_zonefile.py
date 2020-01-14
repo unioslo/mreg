@@ -1,6 +1,6 @@
-from mreg.models import ForwardZone, Hinfo, Host, Ipaddress, ReverseZone
+from mreg.models import ForwardZone, Host, Ipaddress, ReverseZone
 
-from .tests import MregAPITestCase, clean_and_save
+from .tests import MregAPITestCase
 
 
 class APIZonefileTestCase(MregAPITestCase):
@@ -57,7 +57,6 @@ class APIZonefileTestCase(MregAPITestCase):
 
         # Finally add lots of entries to make sure we test everything when getting the zonefile.
         host1 = Host.objects.get(name='host1.example.org')
-        clean_and_save(host1)
         host2 = Host.objects.create(name='hostæøå1.example.com')
         data = {'name': 'host-alias.example.org',
                 'host': host1.id,
@@ -107,6 +106,21 @@ class APIZonefileTestCase(MregAPITestCase):
 
     def test_get_nonexistent(self):
         self.assert_get_and_404("/zonefiles/ops")
+
+    def test_srvs_outside_zone(self):
+        example_com = self.create_forward_zone('example.com')
+        host = Host.objects.get(name='host1.example.org')
+        data = {'name': '_test123._tls.example.com',
+                'priority': 10,
+                'weight': 10,
+                'port': '1234',
+                'host': host.id}
+        self.assert_post("/srvs/", data)
+        ret = self._get_zone(self.forward)
+        self.assertNotIn(data['name'], ret)
+        ret = self._get_zone(example_com)
+        shortform = data['name'].replace('.example.com', '')
+        self.assertIn(shortform, ret)
 
     def test_get_reverse_zones(self):
         rev_v4 = self.create_reverse_zone('10.10.in-addr.arpa')
