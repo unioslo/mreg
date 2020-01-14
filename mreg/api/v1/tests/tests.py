@@ -858,59 +858,59 @@ class APIPtrOverrideTestcase(MregAPITestCase):
         ret = self.assert_get("/ptroverrides/")
         self.assertEqual(ret.data['count'], 2)
 
-    def test_ptr_override_create_new_host(self):
+    def _test_ptr_override_create_new_host(self, hostname1, hostname2, ipaddress):
         # Adding a new host with already existing IP should
         # create a PtrOverride for it
+        old_count = PtrOverride.objects.count()
+        self.assert_post('/hosts/', {'name': hostname1,
+                                     'ipaddress': ipaddress})
+        self.assertEqual(PtrOverride.objects.count(), old_count)
+        self.assert_post('/hosts/', {'name': hostname2,
+                                     'ipaddress': ipaddress})
         ret = self.assert_get("/ptroverrides/")
-        old_count = ret.data['count']
-        host_data = {'name': 'ns3.example.org',
-                     'contact': 'mail@example.org',
-                     'ipaddress': '10.0.0.5'}
-        host2_data = {'name': 'ns4.example.org',
-                      'contact': 'mail@example.org',
-                      'ipaddress': '10.0.0.5'}
-        self.assert_post('/hosts/', host_data)
-        ret = self.assert_get("/ptroverrides/")
-        new_count = ret.data['count']
-        self.assertEqual(new_count, old_count)
-        self.assert_post('/hosts/', host2_data)
-        ret = self.assert_get("/ptroverrides/")
-        new_count = ret.data['count']
-        self.assertGreater(new_count, old_count)
+        self.assertGreater(ret.data['count'], old_count)
         # Now check that the last PtrOverride
         # points to the first host holding the IP
         ptr_override = ret.data['results'][-1]
-        self.assertEqual(ptr_override['ipaddress'], '10.0.0.5')
-        ret = self.assert_get('/hosts/?name=ns3.example.org')
+        self.assertEqual(ptr_override['ipaddress'], ipaddress)
+        ret = self.assert_get(f'/hosts/?name={hostname1}')
         host_id = ret.data['results'][0]['id']
         self.assertEqual(ptr_override['host'], host_id)
 
-    def test_ptr_override_ipv6_create_new_host(self):
-        # Adding a new host with already existing IPv6 should
+    def test_ptr_override_create_new_host(self):
+        # Adding a new host with an already existing IP should
         # create a PtrOverride for it
-        ret = self.assert_get("/ptroverrides/")
-        old_count = ret.data['count']
-        host_ipv6_data = {'name': 'ns3.example.org',
-                          'contact': 'mail@example.org',
-                          'ipaddress': '2001:db8::7'}
-        host2_ipv6_data = {'name': 'ns4.example.org',
-                           'contact': 'mail@example.org',
-                           'ipaddress': '2001:db8::7'}
-        self.assert_post('/hosts/', host_ipv6_data)
-        ret = self.assert_get("/ptroverrides/")
-        new_count = ret.data['count']
-        self.assertEqual(new_count, old_count)
-        self.assert_post('/hosts/', host2_ipv6_data)
-        ret = self.assert_get("/ptroverrides/")
-        new_count = ret.data['count']
-        self.assertGreater(new_count, old_count)
-        # Now check that the last PtrOverride
-        # points to the first host holding the IP
-        ptr_override = ret.data['results'][-1]
-        self.assertEqual(ptr_override['ipaddress'], '2001:db8::7')
-        ret = self.assert_get('/hosts/?name=ns3.example.org')
-        host_id = ret.data['results'][0]['id']
-        self.assertEqual(ptr_override['host'], host_id)
+        self._test_ptr_override_create_new_host('host1.example.org', 'host2.example.org', '10.0.0.5')
+
+    def test_ptr_override_ipv6_create_new_host(self):
+        # Adding a new host with an already existing IPv6 should
+        # create a PtrOverride for it
+        self._test_ptr_override_create_new_host('host1.example.org', 'host2.example.org', '2001:db8::7')
+
+    def _test_ptr_override_patch_ipaddress(self, hostname1, hostname2, ip1, ip2):
+        """Patching an Ipaddress with an already existing IP should
+           create a PtrOverride for the existing host
+        """
+
+        def _assert_count(hostname, count):
+            self.assertEqual(PtrOverride.objects.filter(host__name=hostname).count(), count)
+
+        self.assert_post('/hosts/', {'name': hostname1,
+                                     'ipaddress': ip1})
+        self.assert_post('/hosts/', {'name': hostname2,
+                                     'ipaddress': ip2})
+        _assert_count(hostname2, 0)
+        ipinfo = self.assert_get(f"/ipaddresses/?host__name={hostname1}").json()["results"][0]
+        self.assert_patch(f"/ipaddresses/{ipinfo['id']}", {'ipaddress': ip2})
+        _assert_count(hostname2, 1)
+
+    def test_ptr_override_patch_ip(self):
+        # Patching an Ipaddress with an already existing IP should
+        # create a PtrOverride for the existing host
+        self._test_ptr_override_patch_ipaddress('host1.example.org', 'host2.example.org',
+                                                '10.0.0.5', '10.0.0.6')
+        self._test_ptr_override_patch_ipaddress('host3.example.org', 'host4.example.org',
+                                                '2001:db8::5', '2001:db8::6')
 
     def test_ptr_override_delete_with_host(self):
         # Deleting a host with assigned PtrOverrides should
