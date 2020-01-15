@@ -129,3 +129,16 @@ class APIZonefileTestCase(MregAPITestCase):
         self.create_reverse_zone('0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa')
         self._get_zone(rev_v4)
         self._get_zone(rev_v6)
+
+    def test_reverse_exclude_addresses(self):
+        """Addresses in delegations or sub zones should not be in the reverse zone."""
+        rev_v4 = self.create_reverse_zone('10.10.in-addr.arpa')
+        self.create_reverse_zone('10.10.10.in-addr.arpa')
+        delegation = {'name': '20.10.10.in-addr.arpa',
+                      'nameservers': ['ns1.example.org', 'ns2.example.org']}
+        self.assert_post(f'/api/v1/zones/reverse/{rev_v4.name}/delegations/', delegation)
+        self._add_host('in-sub-zone.example.org', '10.10.10.10')
+        self._add_host('in-delegation.example.org', '10.10.20.20')
+        ret = self._get_zone(rev_v4)
+        self.assertNotIn('in-sub-zone.example.org', ret)
+        self.assertNotIn('in-delegation.example.org', ret)
