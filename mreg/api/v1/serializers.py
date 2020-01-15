@@ -113,8 +113,8 @@ class IpaddressSerializer(ValidationMixin, serializers.ModelSerializer):
                 # Allow mac to be bound to both an ipv4 and ipv6 address on the same vlan
                 if ipversion != network.network.version:
                     continue
-                ips = network._get_used_ipaddresses()
-                _raise_if_mac_found(ips, mac)
+                qs = network._used_ipaddresses()
+                _raise_if_mac_found(qs, mac)
         return data
 
 
