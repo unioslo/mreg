@@ -124,7 +124,7 @@ class ForwardFile(Common):
         record_data = quote_if_space(txt)
         return f'{name} {ttl} IN {record_type} {record_data}\n'
 
-    def naptr_zf_string(self, name, ttl, preference, order, flag, service, regex, replacement):
+    def naptr_zf_string(self, name, ttl, order, preference, flag, service, regex, replacement):
         """String representation for zonefile export."""
         if flag in ('a', 's'):
             replacement = idna_encode(qualify(replacement, self.zone.name))
