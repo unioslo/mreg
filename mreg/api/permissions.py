@@ -149,8 +149,10 @@ class IsSuperOrGroupAdminOrReadOnly(IsAuthenticated):
         return is_super_or_group_admin(request.user)
 
 
-def _deny_superuser_only_names(data=None, name=None):
+def _deny_superuser_only_names(data=None, name=None, view=None):
     """Check for superuser only names. If match, return True."""
+    import mreg.api.v1.views
+
     if data is not None:
         name = data.get('name', '')
         if not name:
@@ -158,7 +160,9 @@ def _deny_superuser_only_names(data=None, name=None):
                 name = data['host'].name
     if '*' in name:
         return True
-    if '_' in name:
+    # Underscore is allowed for non-superuser in SRV records
+    if '_' in name and not isinstance(view, (mreg.api.v1.views.SrvDetail,
+                                             mreg.api.v1.views.SrvList)):
         return True
     return False
 
@@ -219,7 +223,7 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
         hostname = None
         ips = []
         data = validated_serializer.validated_data
-        if _deny_superuser_only_names(data):
+        if _deny_superuser_only_names(data=data, view=view):
             return False
         if 'ipaddress' in data:
             if _deny_reserved_ipaddress(data['ipaddress'], request):
@@ -247,6 +251,7 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
 
     def has_destroy_permission(self, request, view, validated_serializer):
         import mreg.api.v1.views
+
         if user_is_superuser(request.user):
             return True
         obj = view.get_object()
@@ -256,7 +261,7 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
             obj = obj.host
         else:
             raise exceptions.PermissionDenied(f"Unhandled view: {view}")
-        if _deny_superuser_only_names(name=obj.name):
+        if _deny_superuser_only_names(name=obj.name, view=view):
             return False
         if hasattr(obj, 'ipaddress'):
             if _deny_reserved_ipaddress(obj.ipaddress, request):
@@ -270,7 +275,7 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
         if user_is_superuser(request.user):
             return True
         data = validated_serializer.validated_data
-        if _deny_superuser_only_names(data=data):
+        if _deny_superuser_only_names(data=data, view=view):
             return False
         if 'ipaddress' in data:
             if _deny_reserved_ipaddress(data['ipaddress'], request):
