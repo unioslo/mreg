@@ -1,4 +1,6 @@
-from mreg.models import Host
+from django.contrib.auth.models import Group
+
+from mreg.models import Host, Ipaddress, NetGroupRegexPermission
 
 from .tests import MregAPITestCase, create_forward_zone
 
@@ -69,3 +71,28 @@ class APISrvsTestCase(MregAPITestCase):
         self.assert_delete("/srvs/{}".format(sshfps[0]['id']))
         zone.refresh_from_db()
         self.assertTrue(zone.updated)
+
+class SrvBasePermissions(MregAPITestCase):
+
+    def setUp(self):
+        self.client = self.get_token_client(superuser=False)
+
+        self.host_target = Host.objects.create(name='target.example.org')
+        Ipaddress.objects.create(host=self.host_target, ipaddress='10.0.0.20')
+
+        group = Group.objects.create(name='testgroup')
+        group.user_set.add(self.user)
+        NetGroupRegexPermission.objects.create(group='testgroup',
+                                               range='10.0.0.0/25',
+                                               regex=r'.*\.example\.org$')
+
+    def test_can_create_change_and_delete_srv(self):
+        data = {'name': '_test123._tls.example.org',
+                'priority': 10,
+                'weight': 20,
+                'port': '1234',
+                'host': self.host_target.id}
+        srv_id = self.assert_post("/srvs/", data).json()['id']
+        self.assert_patch(f'/srvs/{srv_id}', {'priority': '20'})
+        self.assert_patch(f'/srvs/{srv_id}', {'port': '4321'})
+        self.assert_delete(f'/srvs/{srv_id}')
