@@ -349,6 +349,7 @@ class HostList(HostPermissionsListCreateAPIView):
                 content = {'ERROR': 'name already in use'}
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
+        # request.data is immutable
         hostdata = request.data.copy()
 
         if 'ipaddress' in hostdata:
