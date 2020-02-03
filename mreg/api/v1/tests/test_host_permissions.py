@@ -29,8 +29,12 @@ class HostBasePermissions(MregAPITestCase):
         self.client = self.get_token_client(superuser=False)
         group = Group.objects.create(name='testgroup')
         group.user_set.add(self.user)
+        Network.objects.create(network='10.1.0.0/25')
         NetGroupRegexPermission.objects.create(group='testgroup',
                                                range='10.0.0.0/25',
+                                               regex=r'.*\.example\.org$')
+        NetGroupRegexPermission.objects.create(group='testgroup',
+                                               range='10.1.0.0/25',
                                                regex=r'.*\.example\.org$')
 
 
@@ -42,6 +46,10 @@ class Hosts(HostBasePermissions):
         self.assert_patch('/hosts/host1.example.org', {'ttl': '5000'})
         self.assert_patch('/hosts/host1.example.org', {'name': 'host2.example.org'})
         self.assert_delete('/hosts/host2.example.org')
+
+    def test_can_create_host_with_network(self):
+        data = {'name': 'host1.example.org', 'network': '10.1.0.0/25'}
+        self.assert_post('/hosts/', data)
 
     def test_can_not_create_host_without_ip(self):
         data = {'name': 'host1.example.org'}
@@ -61,6 +69,18 @@ class Hosts(HostBasePermissions):
         data2 = {'name': 'host2._sub.example.org', 'ipaddress': '10.0.0.2'}
         self.assert_post_and_403('/hosts/', data1)
         self.assert_post_and_403('/hosts/', data2)
+
+    def test_can_not_create_host_with_ip_and_network(self):
+        data = {'name': 'host1.example.org', 'ipaddress': '10.0.0.10', 'network': '10.0.0.0/25'}
+        self.assert_post_and_400('/hosts/', data)
+
+    def test_can_not_create_host_with_nonexisting_network(self):
+        data = {'name': 'host1.example.org', 'network': '100.0.0.0/25'}
+        self.assert_post_and_404('/hosts/', data)
+
+    def test_can_not_create_host_with_erroneous_network(self):
+        data = {'name': 'host1.example.org', 'network': '1.2.3.4/0'}
+        self.assert_post_and_400('/hosts/', data)
 
     def test_can_not_change_host_without_ip(self):
         data = {'name': 'host1.example.org'}
