@@ -16,7 +16,7 @@ from rest_framework.exceptions import PermissionDenied
 from .models import (Cname, ForwardZoneMember, Hinfo, History, Host, HostGroup,
                      Ipaddress, Loc, Mx, NameServer, Naptr,
                      NetGroupRegexPermission, Network, PtrOverride,
-                     ReverseZone, Srv, Sshfp, Txt)
+                     ForwardZone, ReverseZone, Srv, Sshfp, Txt)
 
 
 @receiver(populate_user)
@@ -285,3 +285,14 @@ def add_auto_txt_records_on_new_host(sender, instance, created, **kwargs):
         for data in autozones.get(instance.zone.name, []):
             Txt.objects.create(host=instance, txt=data)
             _signal_host_history(instance, 'create', 'Txt', {'txt': data})
+
+@receiver(post_save, sender=ForwardZone)
+def update_hosts_when_zone_is_added(sender, instance, created, **kwargs):
+    if created:
+        zonename = "." + instance.name
+        for h in Host.objects.filter(name__endswith = zonename):
+            # The filter will also match hosts in sub-zones, so we must check for that.
+            if "." in h.name[0:-len(zonename)]:
+                continue
+            h.zone = instance
+            h.save()
