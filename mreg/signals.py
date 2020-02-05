@@ -288,6 +288,8 @@ def add_auto_txt_records_on_new_host(sender, instance, created, **kwargs):
 
 @receiver(post_save, sender=ForwardZone)
 def update_hosts_when_zone_is_added(sender, instance, created, **kwargs):
+    """When a zone is created, any existing hosts that would be in that zone
+       must be updated."""
     if created:
         zonename = "." + instance.name
         for h in Host.objects.filter(name__endswith = zonename):

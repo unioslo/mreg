@@ -796,8 +796,8 @@ class ModelForwardZoneTestCase(TestCase):
         self.assertEqual(old_suat, zone.serialno_updated_at)
 
     def test_update_hosts_when_zone_added(self):
-        # When you add a Zone, existing Host objects that have a domain
-        # that matches the Zone should be put in that zone.
+        """When you add a Zone, existing Host objects that have a domain
+           that matches the Zone should be put in that zone."""
         host = Host.objects.create(name='foo.'+self.zone_sample.name)
         host.save()
         # Here's another host in a sub-zone, it should not be touched...
