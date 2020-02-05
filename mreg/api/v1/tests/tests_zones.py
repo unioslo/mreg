@@ -349,6 +349,23 @@ class ZonesForwardDelegationTestCase(MregAPITestCase):
         _test('host.delegated.example.org', 'delegated.example.org', 'delegation')
         _test('delegated.example.org', 'delegated.example.org', 'delegation')
 
+    def test_delegation_patch_modifies_zone_updated_at(self):
+        # add a delegation
+        path = self.del_path('example.org')
+        data = {'name': 'delegated.example.org',
+                'nameservers': ['ns1.example.org', 'ns1.delegated.example.org']}
+        self.assert_post(path, data)
+        # get the "before" timestamp
+        data = self.assert_get(self.zonepath + 'example.org').json()
+        before = data['updated_at']
+        # patch the delegation
+        self.assert_patch(path + "delegated.example.org", {'comment': 'new comment'})
+        # get the "after" timestamp
+        data = self.assert_get(self.zonepath + 'example.org').json()
+        after = data['updated_at']
+        # the timestamp should have been updated
+        self.assertLess(before, after)
+
 
 class ZonesReverseDelegationTestCase(MregAPITestCase):
     """ This class defines test testsuite for api/zones/reverse/<name>/delegations/
