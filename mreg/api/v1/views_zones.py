@@ -261,10 +261,6 @@ class ZoneDelegationDetail(MregRetrieveUpdateDestroyAPIView):
 
     def patch(self, request, *args, **kwargs):
         if "comment" in request.data and len(request.data) == 1:
-            # Also update the parent zone's updated attribute
-            self.get_queryset()
-            self.parentzone.updated = True
-            self.parentzone.save()
             return super().patch(request, *args, **kwargs)
         else:
             content = {'ERROR': 'Only allowed to change comment'}
