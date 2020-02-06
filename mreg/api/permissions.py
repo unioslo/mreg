@@ -230,6 +230,11 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
                 return False
         if user_is_adminuser(request.user):
             return True
+        if isinstance(view, (mreg.api.v1.views.IpaddressList,
+                             mreg.api.v1.views.PtrOverrideList)):
+            if 'host' in data:
+                if not self.has_obj_perm(request.user, data['host']):
+                    return False
         if isinstance(view, (mreg.api.v1.views.HostList,
                              mreg.api.v1.views.IpaddressList,
                              mreg.api.v1.views.PtrOverrideList)):
