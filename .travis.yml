@@ -11,11 +11,14 @@ services:
   - postgresql
 addons:
   postgresql: "11"
+  apt:
+    packages:
+      - postgresql-11
+      - postgresql-client-11
+env:
+  global:
+    - PGPORT=5433
 before_install:
-  - wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
-  - sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -sc)-pgdg main" > /etc/apt/sources.list.d/PostgreSQL.list'
-  - sudo apt-get update
-  - sudo apt-get install -y postgresql-11
   - sudo grep postgres /etc/postgresql/11/main/pg_hba.conf
   - sudo sed -i 's/local\s\+all\s\+postgres\s\+peer/local all postgres trust/' /etc/postgresql/11/main/pg_hba.conf 
   - sudo grep postgres /etc/postgresql/11/main/pg_hba.conf
