@@ -17,7 +17,7 @@ addons:
       - postgresql-client-11
 env:
   global:
-    - PGPORT=5432
+    - PGPORT=5433
 before_install:
   - sudo systemctl stop postgresql || sudo journalctl -xe -n 20 -u postgresql
   - sudo sed -i -r 's/(peer|md5)/trust/' /etc/postgresql/11/main/pg_hba.conf
