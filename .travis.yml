@@ -17,14 +17,13 @@ addons:
       - postgresql-client-11
 env:
   global:
-    - PGPORT=5433
+    - PGPORT=5432
 before_install:
   - sudo systemctl stop postgresql || sudo journalctl -xe -n 20 -u postgresql
-  - sudo sed -i 's/peer/trust/' /etc/postgresql/11/main/pg_hba.conf
-  - sudo cat /etc/postgresql/11/main/pg_hba.conf
+  - sudo sed -i 's/(peer|md5)/trust/' /etc/postgresql/11/main/pg_hba.conf
+  - sudo cat /etc/postgresql/11/main/pg_hba.conf | grep -ve '^#'
   - sudo systemctl start postgresql@11-main || sudo journalctl -xe -n 20 -u postgresql
   - sleep 2
-  - sudo systemctl status postgresql
 before_script:
   - psql -c 'CREATE EXTENSION citext;' -U postgres template1
   - psql -c 'CREATE DATABASE travisci;' -U postgres
