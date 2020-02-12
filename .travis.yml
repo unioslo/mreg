@@ -19,10 +19,9 @@ env:
   global:
     - PGPORT=5433
 before_install:
-  - sudo grep postgres /etc/postgresql/11/main/pg_hba.conf
+  - sudo systemctl stop postgresql || sudo journalctl -xe -n 20 -u postgresql
   - sudo sed -i 's/local\s\+all\s\+postgres\s\+peer/local all postgres trust/' /etc/postgresql/11/main/pg_hba.conf 
-  - sudo grep postgres /etc/postgresql/11/main/pg_hba.conf
-  - sudo systemctl restart postgresql@11-main || sudo journalctl -xe -n 20 -u postgresql
+  - sudo systemctl start postgresql@11-main || sudo journalctl -xe -n 20 -u postgresql
   - sleep 2
 before_script:
   - psql -c 'CREATE EXTENSION citext;' -U postgres template1
