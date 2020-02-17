@@ -349,8 +349,32 @@ class HostList(HostPermissionsListCreateAPIView):
                 content = {'ERROR': 'name already in use'}
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
+        if "ipaddress" in request.data and "network" in request.data:
+            content = {'ERROR': '\'ipaddress\' and \'network\' is mutually exclusive'}
+            return Response(content, status=status.HTTP_400_BAD_REQUEST)
+
         # request.data is immutable
         hostdata = request.data.copy()
+
+        if 'network' in hostdata:
+            try:
+                ipaddress.ip_network(hostdata['network'])
+            except ValueError as error:
+                content = {'ERROR': str(error)}
+                return Response(content, status=status.HTTP_400_BAD_REQUEST)
+
+            network = Network.objects.filter(network=hostdata['network']).first()
+            if not network:
+                content = {'ERROR': 'no such network'}
+                return Response(content, status=status.HTTP_404_NOT_FOUND)
+
+            ip = network.get_random_unused()
+            if not ip:
+                content = {'ERROR': 'no available IP in network'}
+                return Response(content, status=status.HTTP_404_NOT_FOUND)
+
+            hostdata['ipaddress'] = ip
+            del hostdata['network']
 
         if 'ipaddress' in hostdata:
             ipkey = hostdata['ipaddress']
