@@ -106,6 +106,9 @@ class ForwardZonesTestCase(MregAPITestCase):
 
     def test_zones_delete_204_no_content(self):
         """"Deleting an existing entry with no conflicts should return 204"""
+        # must delete the hosts in that zone first, to allow deletion of the zone.
+        self.host_one.delete()
+        self.host_two.delete()
         self.assert_delete('/zones/forward/%s' % self.zone_one.name)
 
     def test_zones_delete_with_hosts_403_forbidden(self):
@@ -525,6 +528,12 @@ class ForwardZonesNsTestCase(MregAPITestCase):
         self.assertEqual(NameServer.objects.count(), 1)
         response = self.assert_get(self.ns_path(self.post_data['name']))
         self.assertEqual(response.data, self.post_data['primary_ns'])
+        # Before we can delete the zone, we must delete any hosts in the zone.
+        # Nameservers must be removed from the zone before they can be deleted.
+        self.assert_patch(self.ns_path(self.post_data['name']),
+                          {'primary_ns': 'another.server.somewhere.com'})
+        self.ns_one.delete()
+        self.ns_two.delete()
         self.assert_delete(self.zonepath + self.post_data['name'])
         self.assertFalse(NameServer.objects.exists())
 

@@ -795,6 +795,22 @@ class ModelForwardZoneTestCase(TestCase):
         self.assertEqual(old_serial, zone.serialno)
         self.assertEqual(old_suat, zone.serialno_updated_at)
 
+    def test_update_hosts_when_zone_added(self):
+        """When you add a Zone, existing Host objects that have a domain
+           that matches the Zone should be put in that zone."""
+        host = Host.objects.create(name='foo.'+self.zone_sample.name)
+        host.save()
+        # Here's another host in a sub-zone, it should not be touched...
+        otherhost = Host.objects.create(name='foo.bar.'+self.zone_sample.name)
+        otherhost.save()
+        # Save the zone. This should trigger code that updates the host
+        self.zone_sample.save()
+        saved = Host.objects.get(name=host.name)
+        self.assertNotEqual(saved.zone, None)
+        self.assertEqual(saved.zone.name, self.zone_sample.name)
+        # Verify that otherhost wasn't changed
+        meh = Host.objects.get(name=otherhost.name)
+        self.assertEqual(meh.zone, None)
 
 class ModelReverseZoneTestCase(TestCase):
     """This class defines the test suite for the ReverseZone model."""
