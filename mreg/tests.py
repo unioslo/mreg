@@ -882,6 +882,29 @@ class ModelReverseZoneTestCase(TestCase):
         self.assertEqual(context.exception.messages,
                          ['Maximum CIDR for RFC 2317 is 25'])
 
+    def test_no_ptr_when_multiple_ip_without_override(self):
+        """Test that no PTR is created if multiple hosts have the same IP,
+           but none of the hosts have a PTR override"""
+        self.zone_v4.save()
+        ip = "10.0.0.100"
+        h1 = Host.objects.create(name="h1.example.org")
+        h2 = Host.objects.create(name="h2.example.org")
+        ip1 = Ipaddress.objects.create(host=h1, ipaddress=ip)
+        ip2 = Ipaddress.objects.create(host=h2, ipaddress=ip)
+        h1.ptr_overrides.all().delete()
+
+        self.assertNotIn(ip, [str(e[0]) for e in self.zone_v4.get_ipaddresses()])
+
+    def test_implicit_ptr_to_simple_host(self):
+        self.zone_v4.save()
+        ip = "10.0.0.100"
+        hostname = "h1.example.org"
+        h1 = Host.objects.create(name="h1.example.org")
+        ip1 = Ipaddress.objects.create(host=h1, ipaddress=ip)
+        ip_ptr, _, hostname_ptr = self.zone_v4.get_ipaddresses()[0]
+        self.assertEqual(ip, str(ip_ptr))
+        self.assertEqual(hostname, hostname_ptr)
+
 
 class NameServerDeletionTestCase(TestCase):
     """This class defines the test suite for the NameServer model."""
