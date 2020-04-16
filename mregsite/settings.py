@@ -170,6 +170,7 @@ REST_FRAMEWORK = {
         'mreg.api.permissions.IsAuthenticatedAndReadOnly',
     ),
     'DEFAULT_SCHEMA_CLASS': 'rest_framework.schemas.coreapi.AutoSchema',
+    'EXCEPTION_HANDLER': 'mreg.exception_handler.custom_exception_handler',
 }
 
 SWAGGER_SETTINGS = {
