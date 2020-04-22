@@ -210,6 +210,13 @@ class APITokenAutheticationTestCase(MregAPITestCase):
         self.user.delete()
         self.assert_get_and_401("/hosts/")
 
+    def test_login_with_invalid_credentials(self):
+        self.client = APIClient()
+        """ Using wrong credentials should result in a 401 unauthorized """
+        self.assert_post_and_401("/api/token-auth/", {"username":"someone","password":"incorrect"})
+        """ Incorrect or missing arguments should still return 400 bad request """
+        self.assert_post_and_400("/api/token-auth/", {"who":"someone","why":"because"})
+        self.assert_post_and_400("/api/token-auth/", {})
 
 class APIAutoupdateZonesTestCase(MregAPITestCase):
     """This class tests the autoupdate of zones' updated_at whenever
