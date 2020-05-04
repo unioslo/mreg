@@ -16,8 +16,7 @@ from rest_framework.exceptions import PermissionDenied
 from .models import (Cname, ForwardZoneMember, Hinfo, History, Host, HostGroup,
                      Ipaddress, Loc, Mx, NameServer, Naptr,
                      NetGroupRegexPermission, Network, PtrOverride,
-                     ForwardZone, ReverseZone, Srv, Sshfp, Txt,
-                     ForwardZoneDelegation)
+                     ForwardZone, ReverseZone, Srv, Sshfp, Txt)
 
 
 @receiver(populate_user)
@@ -299,13 +298,3 @@ def update_hosts_when_zone_is_added(sender, instance, created, **kwargs):
                 continue
             h.zone = instance
             h.save()
-
-@receiver(pre_save, sender=Host)
-def hosts_in_a_delegation_shall_get_zone_None(sender, instance, raw, using, update_fields, **kwargs):
-    """ Hosts in a delegation shall get zone == None, not the parentzone. #362 """
-    if instance.zone != None:
-        for d in ForwardZoneDelegation.objects.filter(zone = instance.zone):
-            if instance.name.endswith('.'+d.name):
-                # The host is in this delegation, setting zone to None
-                instance.zone = None
-                break

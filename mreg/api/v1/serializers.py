@@ -32,7 +32,16 @@ class ForwardZoneMixin(ValidationMixin):
     def validate(self, data):
         data = super().validate(data)
         if data.get('name'):
-            data['zone'] = ForwardZone.get_zone_by_hostname(data['name'])
+            hostname = data['name']
+            zone = ForwardZone.get_zone_by_hostname(hostname)
+            if zone is not None:
+                if zone.name != hostname and zone.delegations.exists():
+                    for delegation in zone.delegations.all():
+                        if hostname == delegation.name or hostname.endswith(f".{delegation.name}"):
+                            # this host is in a delegation
+                            zone = None
+                            break
+            data['zone'] = zone
         return data
 
 
