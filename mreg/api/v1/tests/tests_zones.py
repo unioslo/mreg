@@ -366,6 +366,20 @@ class ZonesForwardDelegationTestCase(MregAPITestCase):
         # the timestamp should have been updated
         self.assertLess(before, after)
 
+    def test_hosts_in_delegation_get_zone_none(self):
+        """ Hosts in a delegation shall get zone == None, not the parentzone. #362 """
+        # add a delegation
+        path = self.del_path('example.org')
+        data = {'name': 'delegated.example.org',
+                'nameservers': ['ns1.example.org', 'ns1.delegated.example.org']}
+        self.assert_post(path, data)
+        # add a host in the delegation
+        self.assert_post_and_201('/hosts/', {"name": "foo.delegated.example.org",
+                      "ipaddress": "10.10.0.1", "contact": "mail@delegated.example.org"})
+        # load the host object and verify that its zone is None
+        host = Host.objects.get(name="foo.delegated.example.org")
+        self.assertTrue(host.zone is None)
+
 
 class ZonesReverseDelegationTestCase(MregAPITestCase):
     """ This class defines test testsuite for api/zones/reverse/<name>/delegations/

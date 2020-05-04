@@ -1,6 +1,9 @@
 # local settings
 mregsite/local_settings.py
 
+# mreg logs
+logs/*
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
