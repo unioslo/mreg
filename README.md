@@ -89,6 +89,7 @@ DATABASES = {
 
 * **Øyvind Hagberg**
 * **Øyvind Kolbu**
+* **Paal Braathen**
 * **Geir Ulvik**
 * **Nils Hiorth**
 * **Nicolay Mohebi**
