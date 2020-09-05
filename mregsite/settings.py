@@ -57,7 +57,6 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
-    'rest_framework_swagger',
     'rest_framework.authtoken',
     'django_logging',
     'netfields',
@@ -169,11 +168,7 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'mreg.api.permissions.IsAuthenticatedAndReadOnly',
     ),
-    'DEFAULT_SCHEMA_CLASS': 'rest_framework.schemas.coreapi.AutoSchema',
-}
-
-SWAGGER_SETTINGS = {
-    'USE_SESSION_AUTH': False,
+    'DEFAULT_SCHEMA_CLASS': 'rest_framework.schemas.openapi.AutoSchema',
 }
 
 # This setting must be defined for mreg.api.permissions.IsInRequiredGroup

@@ -64,9 +64,6 @@ To run the tests for the system, simply run
 #### Logging
 * [django-logging](https://github.com/cipriantarta/django-logging)
 
-#### API Documentation
-* [Django REST Swagger](https://marcgibbons.com/django-rest-swagger/)
-
 ## Local Settings
 To override entries in mregsite/settings.py, create a file mregsite/local_settings.py and add the entries there.
 For example, the default database setup in settings.py uses sqlite3, but if you set up your postgres database
