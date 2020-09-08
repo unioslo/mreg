@@ -1,10 +1,10 @@
 Django==3.1.1
 djangorestframework==3.11.1
-django-auth-ldap==2.1.0
+django-auth-ldap==2.2.0
 django-logging-json==1.15
 django-netfields==1.2.2
-django-url-filter==0.3.14
+django-url-filter==0.3.15
 gunicorn==20.0.4
-idna==2.8
-psycopg2-binary==2.8.4
-sentry-sdk==0.14.0
+idna==2.10
+psycopg2-binary==2.8.6
+sentry-sdk==0.17.3
