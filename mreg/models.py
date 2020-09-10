@@ -769,7 +769,7 @@ class History(models.Model):
     model_id = models.PositiveIntegerField()
     model = models.CharField(max_length=64)
     action = models.CharField(max_length=64)
-    data = pgfields.JSONField()
+    data = models.JSONField()
 
     def __str__(self):
         return f'{self.name}, {self.model}, {self.action}, {self.timestamp}'
