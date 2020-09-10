@@ -1139,6 +1139,12 @@ class APIMACaddressTestCase(MregAPITestCase):
                           'macaddress': 'aa:bb:cc:00:00:12'}
         self.assert_post('/ipaddresses/', post_data_full)
 
+    def test_mac_patch_ip_with_existing_mac_204_ok(self):
+        """Patching an IP with an existing MAC address should succeed."""
+        self.assert_patch("/ipaddresses/%s" % self.ipaddress_one.id,
+                          { 'host': self.host_one.id,
+                            'ipaddress': '10.0.0.14'})
+
     def test_mac_post_conflict_ip_and_mac_400_bad_request(self):
         """"Posting an existing IP and mac IP a host should return 400."""
         post_data_full_conflict = {'host': self.host_one.id,
@@ -1196,6 +1202,7 @@ class APIMACaddressTestCase(MregAPITestCase):
         self.network_one = Network.objects.create(network='10.0.0.0/24')
         self.test_mac_post_ip_with_mac_201_ok()
         self.test_mac_patch_ip_and_mac_204_ok()
+        self.test_mac_patch_ip_with_existing_mac_204_ok()
         self.test_mac_patch_mac_204_ok()
 
     def test_get_dhcphost_v4(self):
