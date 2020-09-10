@@ -102,7 +102,9 @@ class IpaddressSerializer(ValidationMixin, serializers.ModelSerializer):
             network = Network.objects.filter(network__net_contains=macip).first()
             if not network:
                 # XXX: what to do? Currently just make sure it is a unique mac
-                _raise_if_mac_found(Ipaddress.objects, mac)
+                # if the mac changed.
+                if self.instance and self.instance.macaddress != mac:
+                    _raise_if_mac_found(Ipaddress.objects, mac)
                 return data
             if network.vlan:
                 networks = Network.objects.filter(vlan=network.vlan)
@@ -114,7 +116,9 @@ class IpaddressSerializer(ValidationMixin, serializers.ModelSerializer):
                 if ipversion != network.network.version:
                     continue
                 qs = network._used_ipaddresses()
-                _raise_if_mac_found(qs, mac)
+                # Validate the MAC unless it belonged to the old IP.
+                if self.instance and not self.instance in qs:
+                    _raise_if_mac_found(qs, mac)
         return data
 
 
