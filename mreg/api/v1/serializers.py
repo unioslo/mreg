@@ -11,8 +11,8 @@ from mreg.models import (Cname, ForwardZone, ForwardZoneDelegation,
                          Mx, NameServer, Naptr,
                          NetGroupRegexPermission, Network, PtrOverride,
                          ReverseZone, ReverseZoneDelegation, Srv, Sshfp, Txt)
-from mreg.utils import nonify
-from mreg.validators import validate_keys
+from mreg.utils import (nonify, normalize_mac)
+from mreg.validators import (validate_keys, validate_normalizeable_mac_address)
 
 
 class ValidationMixin:
@@ -64,8 +64,20 @@ class HinfoSerializer(ValidationMixin, serializers.ModelSerializer):
         model = Hinfo
         fields = '__all__'
 
+class MacAddressSerializerField(serializers.Field):
+    """Normalize the provided MAC address into the common format."""
+    def to_representation(self, obj):
+        return obj
+
+    def to_internal_value(self, data):
+        if data and isinstance(data, str):
+            validate_normalizeable_mac_address(data)
+            return normalize_mac(data)
+        return data
 
 class IpaddressSerializer(ValidationMixin, serializers.ModelSerializer):
+    macaddress = MacAddressSerializerField(required=False)
+
     class Meta:
         model = Ipaddress
         fields = '__all__'

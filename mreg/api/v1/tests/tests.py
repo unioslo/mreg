@@ -1173,6 +1173,16 @@ class APIMACaddressTestCase(MregAPITestCase):
         self.assert_patch_and_400('/ipaddresses/%s' % self.ipaddress_one.id,
                                   patch_mac_in_use)
 
+    def test_mac_patch_formats_204_ok(self):
+        """ Patch an IP with MAC address in various formats. """
+        def _assert(mac):
+            self.assert_patch('/ipaddresses/%s' % self.ipaddress_one.id,
+                              {'macaddress': mac})
+        _assert('AA:BB:CC:00:11:22')
+        _assert('AA-BB-CC-00-11-22')
+        _assert('aabb.cc00.1122')
+        _assert('aa:bb:cc:00:11:22')
+
     def test_mac_patch_invalid_mac_400_bad_request(self):
         """ Patch an IP with invalid MAC should return 400 bad request."""
         def _assert(mac):
@@ -1180,7 +1190,7 @@ class APIMACaddressTestCase(MregAPITestCase):
                                       {'macaddress': mac})
         _assert('00:00:00:00:00:XX')
         _assert('00:00:00:00:00')
-        _assert('AA:BB:cc:dd:ee:ff')
+        _assert('aa_bb_cc_dd_ee_ff')
 
     def test_mac_patch_to_ip_to_network_with_mac_in_use(self):
         """Test that it is not allowed to patch an Ipaddress with a new ipaddress
