@@ -1139,6 +1139,12 @@ class APIMACaddressTestCase(MregAPITestCase):
                           'macaddress': 'aa:bb:cc:00:00:12'}
         self.assert_post('/ipaddresses/', post_data_full)
 
+    def test_mac_patch_ip_with_existing_mac_204_ok(self):
+        """Patching an IP with an existing MAC address should succeed."""
+        self.assert_patch("/ipaddresses/%s" % self.ipaddress_one.id,
+                          { 'host': self.host_one.id,
+                            'ipaddress': '10.0.0.14'})
+
     def test_mac_post_conflict_ip_and_mac_400_bad_request(self):
         """"Posting an existing IP and mac IP a host should return 400."""
         post_data_full_conflict = {'host': self.host_one.id,
@@ -1167,6 +1173,16 @@ class APIMACaddressTestCase(MregAPITestCase):
         self.assert_patch_and_400('/ipaddresses/%s' % self.ipaddress_one.id,
                                   patch_mac_in_use)
 
+    def test_mac_patch_formats_204_ok(self):
+        """ Patch an IP with MAC address in various formats. """
+        def _assert(mac):
+            self.assert_patch('/ipaddresses/%s' % self.ipaddress_one.id,
+                              {'macaddress': mac})
+        _assert('AA:BB:CC:00:11:22')
+        _assert('AA-BB-CC-00-11-22')
+        _assert('aabb.cc00.1122')
+        _assert('aa:bb:cc:00:11:22')
+
     def test_mac_patch_invalid_mac_400_bad_request(self):
         """ Patch an IP with invalid MAC should return 400 bad request."""
         def _assert(mac):
@@ -1174,7 +1190,7 @@ class APIMACaddressTestCase(MregAPITestCase):
                                       {'macaddress': mac})
         _assert('00:00:00:00:00:XX')
         _assert('00:00:00:00:00')
-        _assert('AA:BB:cc:dd:ee:ff')
+        _assert('aa_bb_cc_dd_ee_ff')
 
     def test_mac_patch_to_ip_to_network_with_mac_in_use(self):
         """Test that it is not allowed to patch an Ipaddress with a new ipaddress
@@ -1196,6 +1212,7 @@ class APIMACaddressTestCase(MregAPITestCase):
         self.network_one = Network.objects.create(network='10.0.0.0/24')
         self.test_mac_post_ip_with_mac_201_ok()
         self.test_mac_patch_ip_and_mac_204_ok()
+        self.test_mac_patch_ip_with_existing_mac_204_ok()
         self.test_mac_patch_mac_204_ok()
 
     def test_get_dhcphost_v4(self):

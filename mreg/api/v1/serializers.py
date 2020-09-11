@@ -11,8 +11,8 @@ from mreg.models import (Cname, ForwardZone, ForwardZoneDelegation,
                          Mx, NameServer, Naptr,
                          NetGroupRegexPermission, Network, PtrOverride,
                          ReverseZone, ReverseZoneDelegation, Srv, Sshfp, Txt)
-from mreg.utils import nonify
-from mreg.validators import validate_keys
+from mreg.utils import (nonify, normalize_mac)
+from mreg.validators import (validate_keys, validate_normalizeable_mac_address)
 
 
 class ValidationMixin:
@@ -64,8 +64,20 @@ class HinfoSerializer(ValidationMixin, serializers.ModelSerializer):
         model = Hinfo
         fields = '__all__'
 
+class MacAddressSerializerField(serializers.Field):
+    """Normalize the provided MAC address into the common format."""
+    def to_representation(self, obj):
+        return obj
+
+    def to_internal_value(self, data):
+        if data and isinstance(data, str):
+            validate_normalizeable_mac_address(data)
+            return normalize_mac(data)
+        return data
 
 class IpaddressSerializer(ValidationMixin, serializers.ModelSerializer):
+    macaddress = MacAddressSerializerField(required=False)
+
     class Meta:
         model = Ipaddress
         fields = '__all__'
@@ -102,7 +114,9 @@ class IpaddressSerializer(ValidationMixin, serializers.ModelSerializer):
             network = Network.objects.filter(network__net_contains=macip).first()
             if not network:
                 # XXX: what to do? Currently just make sure it is a unique mac
-                _raise_if_mac_found(Ipaddress.objects, mac)
+                # if the mac changed.
+                if self.instance and self.instance.macaddress != mac:
+                    _raise_if_mac_found(Ipaddress.objects, mac)
                 return data
             if network.vlan:
                 networks = Network.objects.filter(vlan=network.vlan)
@@ -114,7 +128,9 @@ class IpaddressSerializer(ValidationMixin, serializers.ModelSerializer):
                 if ipversion != network.network.version:
                     continue
                 qs = network._used_ipaddresses()
-                _raise_if_mac_found(qs, mac)
+                # Validate the MAC unless it belonged to the old IP.
+                if self.instance and not self.instance in qs:
+                    _raise_if_mac_found(qs, mac)
         return data
 
 

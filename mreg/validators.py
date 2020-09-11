@@ -122,6 +122,12 @@ def validate_mac_address(address):
                                message="Must be on form: aa:bb:cc:00:11:22")
     validator(address)
 
+def validate_normalizeable_mac_address(address):
+    """Validates that the mac address can be normalized."""
+    adr_regex = "^([a-fA-F0-9]{2}[:.-]?){5}[a-fA-F0-9]{2}$"
+    validator = RegexValidator(adr_regex,
+                               message="Invalid MAC address.")
+    validator(address)
 
 def validate_loc(location):
     """Validates that the loc input is on a valid form."""
