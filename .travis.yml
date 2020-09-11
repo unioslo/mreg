@@ -24,9 +24,14 @@ before_install:
   - sudo cat /etc/postgresql/11/main/pg_hba.conf | grep -vP '^(#|\s*$)'
   - sudo systemctl start postgresql@11-main || sudo journalctl -xe -n 20 -u postgresql
   - sleep 2
+install:
+  - pip install -r requirements.txt
+  - pip install coveralls
 before_script:
   - psql -c 'CREATE EXTENSION citext;' -U postgres template1
   - psql -c 'CREATE DATABASE travisci;' -U postgres
   - python manage.py migrate
 script:
-  - python manage.py test
+  - coverage3 run manage.py test
+after_success:
+  - coveralls

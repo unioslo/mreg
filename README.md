@@ -1,4 +1,4 @@
-# mreg
+# mreg [![Build Status](https://api.travis-ci.org/unioslo/mreg.svg?branch=master)](https://travis-ci.org/unioslo/mreg) [![Coverage Status](https://coveralls.io/repos/github/unioslo/mreg/badge.svg?branch=master)](https://coveralls.io/github/unioslo/mreg?branch=master)
 mreg is an API (intended to be as RESTful as possible) for managing DNS.
 An associated project for a command line interface using the mreg API is available at:
 [mreg-cli](https://github.com/usit-gd/mreg-cli)
@@ -212,4 +212,3 @@ python manage.py runserver
 psycopg2-pakken vil antagelig mase litt om en kommende rename. Det vil bli tatt høyde for senere.
 Du skal nå kunne gå til en browser og videre til http://localhost:8000/ressurs/
 for å bl.a se på hva API'et har av info, der 'ressurs' er f.eks 'hosts' eller 'subnets'.
-
