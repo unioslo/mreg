@@ -13,6 +13,7 @@ from mreg.models import (Cname, ForwardZone, ForwardZoneDelegation,
                          ReverseZone, ReverseZoneDelegation, Srv, Sshfp, Txt)
 from mreg.utils import (nonify, normalize_mac)
 from mreg.validators import (validate_keys, validate_normalizeable_mac_address)
+from mreg.api.errors import ValidationError409
 
 
 class ValidationMixin:
@@ -184,6 +185,13 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
     class Meta:
         model = Host
         fields = '__all__'
+
+    def validate(self, data):
+        data = super().validate(data)
+        name = data.get('name')
+        if name and Cname.objects.filter(name=name).exists():
+            raise ValidationError409("CNAME record exists for {}".format(name))
+        return data
 
 
 class HostNameSerializer(ValidationMixin, serializers.ModelSerializer):
