@@ -94,10 +94,15 @@ class IpaddressSerializer(ValidationMixin, serializers.ModelSerializer):
         """
 
         def _raise_if_mac_found(qs, mac):
-            if qs.filter(macaddress=mac).exists():
-                inuse_ip = qs.get(macaddress=mac).ipaddress
-                raise serializers.ValidationError(
-                    "macaddress already in use by {}".format(inuse_ip))
+            # There is a theoretical possibility that a mac address can be in use
+            # by multiple IP addresses, although normally it would never be more than 1.
+            inuse_set = qs.filter(macaddress=mac)
+            if inuse_set.exists():
+                ips = []
+                for inuse_ip in inuse_set:
+                    ips.append("{}".format(inuse_ip.ipaddress))
+                msg = "macaddress already in use by: " + ", ".join(ips)
+                raise ValidationError409(msg)
 
         data = super().validate(data)
         _validate_ip_not_in_network_excluded_range(data.get('ipaddress'))
