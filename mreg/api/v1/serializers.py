@@ -85,12 +85,9 @@ class IpaddressSerializer(ValidationMixin, serializers.ModelSerializer):
 
     def validate(self, data):
         """
-        Make sure a macaddress is semi-unique:
+        Make sure a mac address is semi-unique:
         - Unique if the IP is not in a network.
         - Only in use by one IP per network.
-        - If the network has a vlan id, make sure it is only in use by one of
-          the networks on the same vlan. Exception: allow both a ipv4 and ipv6
-          address on the same vlan to share the same mac address.
         """
 
         def _raise_if_mac_found(qs, mac):
@@ -115,25 +112,20 @@ class IpaddressSerializer(ValidationMixin, serializers.ModelSerializer):
             # If MAC and IP unchanged, nothing to validate.
             if self.instance:
                 if self.instance.macaddress == mac and \
-                   self.instance.ipaddress == macip:
-                    return data
+                    self.instance.ipaddress == macip:
+                        return data
+
             network = Network.objects.filter(network__net_contains=macip).first()
             if not network:
-                # XXX: what to do? Currently just make sure it is a unique mac
+                # Not in any network. What to do? Currently just make sure it is a unique mac
                 # if the mac changed.
                 if self.instance and self.instance.macaddress != mac:
                     _raise_if_mac_found(Ipaddress.objects, mac)
                 return data
-            if network.vlan:
-                networks = Network.objects.filter(vlan=network.vlan)
-            else:
-                networks = [network]
-            ipversion = ipaddress.ip_address(macip).version
-            for network in networks:
-                # Allow mac to be bound to both an ipv4 and ipv6 address on the same vlan
-                if ipversion != network.network.version:
-                    continue
-                qs = network._used_ipaddresses()
+
+            # Validate the mac address, it should be unique in the network.
+            # Exclude the existing ip address object, only look at the other addresses in the network.
+            qs = network._used_ipaddresses()
             if self.instance:
                 qs = qs.exclude(id=self.instance.id)
             _raise_if_mac_found(qs, mac)

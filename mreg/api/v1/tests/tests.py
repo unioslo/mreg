@@ -1161,7 +1161,7 @@ class APIMACaddressTestCase(MregAPITestCase):
                             'ipaddress': '10.0.0.14'})
 
     def test_mac_post_conflict_ip_and_mac_400_bad_request(self):
-        """"Posting an existing IP and mac IP a host should return 400."""
+        """"Posting an existing IP address should return 4xx."""
         post_data_full_conflict = {'host': self.host_one.id,
                                    'ipaddress': self.ipaddress_one.ipaddress,
                                    'macaddress': self.ipaddress_one.macaddress}
@@ -1178,15 +1178,26 @@ class APIMACaddressTestCase(MregAPITestCase):
         self.assert_patch('/ipaddresses/%s' % self.ipaddress_one.id,
                           {'macaddress': ''})
 
-    def test_mac_patch_mac_in_use_400_bad_request(self):
-        """Patch an IP with a MAC in use should return 400 bad request."""
+    def test_mac_patch_mac_in_use_409_conflict(self):
+        """Patch an IP with a MAC in use should return 409 conflict."""
         host_two = Host.objects.create(name='host2.example.org')
         ipaddress_two = Ipaddress.objects.create(host=host_two,
                                                  ipaddress='10.0.0.11',
                                                  macaddress='aa:bb:cc:00:00:11')
         patch_mac_in_use = {'macaddress': ipaddress_two.macaddress}
-        self.assert_patch_and_400('/ipaddresses/%s' % self.ipaddress_one.id,
+        self.assert_patch_and_409('/ipaddresses/%s' % self.ipaddress_one.id,
                                   patch_mac_in_use)
+        # Also if they're on the same network
+        network1 = Network.objects.create(network='10.0.0.0/24')
+        self.assert_patch_and_409('/ipaddresses/%s' % self.ipaddress_one.id,
+                                  patch_mac_in_use)
+        """Patch an IP with a MAC in use should be ok if they're on different networks"""
+        network2 = Network.objects.create(network='20.0.0.0/24')
+        ip2 = Ipaddress.objects.create(host=host_two,
+                                            ipaddress='20.0.0.20',
+                                            macaddress='aa:bb:cc:00:00:20')
+        self.assert_patch_and_204('/ipaddresses/%s' % ip2.id,
+                {'macaddress': self.ipaddress_one.macaddress})
 
     def test_mac_patch_formats_204_ok(self):
         """ Patch an IP with MAC address in various formats. """
@@ -1214,7 +1225,7 @@ class APIMACaddressTestCase(MregAPITestCase):
         ip_two = Ipaddress.objects.create(host=self.host_one,
                                           ipaddress='10.1.0.10',
                                           macaddress=self.ipaddress_one.macaddress)
-        self.assert_patch_and_400(f'/ipaddresses/{ip_two.id}', {'ipaddress': '10.0.0.255'})
+        self.assert_patch_and_409(f'/ipaddresses/{ip_two.id}', {'ipaddress': '10.0.0.255'})
 
     def test_mac_patch_ip_and_mac_204_ok(self):
         """Patch an IP with a new IP and MAC should return 204 ok."""
@@ -1225,6 +1236,13 @@ class APIMACaddressTestCase(MregAPITestCase):
 
     def test_mac_with_network(self):
         self.network_one = Network.objects.create(network='10.0.0.0/24')
+        # Verify that a mac address can't be associated with more than one ip address
+        # on the same network
+        host_two = Host.objects.create(name='host2.example.org')
+        ip_two = Ipaddress.objects.create(host=host_two, ipaddress='10.0.0.5')
+        self.assert_patch_and_409('/ipaddresses/%s' % ip_two.id,
+                                {'macaddress': self.ipaddress_one.macaddress})
+        #
         self.test_mac_post_ip_with_mac_201_ok()
         self.test_mac_patch_ip_and_mac_204_ok()
         self.test_mac_patch_ip_with_existing_mac_204_ok()
@@ -1283,6 +1301,12 @@ class APIMACaddressTestCase(MregAPITestCase):
         self.assert_post('/ipaddresses/',
                          {'host': self.host_one.id,
                           'ipaddress': '2001:db8:1::10',
+                          'macaddress': '11:22:33:44:55:66'})
+        # Verify that using the same mac address on two different networks
+        # with the same vlan number is allowed. (This used to be disallowed)
+        self.assert_post('/ipaddresses/',
+                         {'host': self.host_one.id,
+                          'ipaddress': '10.0.0.54',
                           'macaddress': '11:22:33:44:55:66'})
 
 
