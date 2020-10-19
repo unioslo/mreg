@@ -134,9 +134,9 @@ class IpaddressSerializer(ValidationMixin, serializers.ModelSerializer):
                 if ipversion != network.network.version:
                     continue
                 qs = network._used_ipaddresses()
-                # Validate the MAC unless it belonged to the old IP.
-                if self.instance and not self.instance in qs:
-                    _raise_if_mac_found(qs, mac)
+            if self.instance:
+                qs = qs.exclude(id=self.instance.id)
+            _raise_if_mac_found(qs, mac)
         return data
 
 
