@@ -95,9 +95,7 @@ class IpaddressSerializer(ValidationMixin, serializers.ModelSerializer):
             # by multiple IP addresses, although normally it would never be more than 1.
             inuse_set = qs.filter(macaddress=mac)
             if inuse_set.exists():
-                ips = []
-                for inuse_ip in inuse_set:
-                    ips.append("{}".format(inuse_ip.ipaddress))
+                ips = inuse_set.values_list('ipaddress', flat=True)
                 msg = "macaddress already in use by: " + ", ".join(ips)
                 raise ValidationError409(msg)
 
