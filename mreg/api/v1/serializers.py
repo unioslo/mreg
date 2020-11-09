@@ -65,7 +65,7 @@ class HinfoSerializer(ValidationMixin, serializers.ModelSerializer):
         model = Hinfo
         fields = '__all__'
 
-class MacAddressSerializerField(serializers.Field):
+class MacAddressSerializerField(serializers.CharField):
     """Normalize the provided MAC address into the common format."""
     def to_representation(self, obj):
         return obj
@@ -77,7 +77,7 @@ class MacAddressSerializerField(serializers.Field):
         return data
 
 class IpaddressSerializer(ValidationMixin, serializers.ModelSerializer):
-    macaddress = MacAddressSerializerField(required=False)
+    macaddress = MacAddressSerializerField(required=False, allow_blank=True)
 
     class Meta:
         model = Ipaddress

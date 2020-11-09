@@ -1177,6 +1177,10 @@ class APIMACaddressTestCase(MregAPITestCase):
         """Patch an IP to remove MAC should return 204 ok."""
         self.assert_patch('/ipaddresses/%s' % self.ipaddress_one.id,
                           {'macaddress': ''})
+        # Assert that the MAC was actually removed, ref #421.
+        res = self.assert_get("/api/v1/hosts/?ipaddresses__ipaddress=%s"
+                              % self.ipaddress_one.ipaddress)
+        self.assertEqual(res.json()['results'][0]['ipaddresses'][0]['macaddress'], "")
 
     def test_mac_patch_mac_in_use_409_conflict(self):
         """Patch an IP with a MAC in use should return 409 conflict."""
