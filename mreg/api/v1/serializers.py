@@ -10,7 +10,7 @@ from mreg.models import (Cname, ForwardZone, ForwardZoneDelegation,
                          Hinfo, Host, HostGroup, Ipaddress, Loc,
                          Mx, NameServer, Naptr,
                          NetGroupRegexPermission, Network, PtrOverride,
-                         ReverseZone, ReverseZoneDelegation, Srv, Sshfp, Txt)
+                         ReverseZone, ReverseZoneDelegation, Srv, Sshfp, Txt, Label)
 from mreg.utils import (nonify, normalize_mac)
 from mreg.validators import (validate_keys, validate_normalizeable_mac_address)
 from mreg.api.errors import ValidationError409
@@ -351,3 +351,9 @@ def _validate_ip_not_in_network_excluded_range(ip):
     if qs.exists():
         raise serializers.ValidationError(
                 f"IP {ip} in an excluded range: {qs.first()}")
+
+
+class LabelSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Label
+        fields = '__all__'
