@@ -16,8 +16,8 @@ class LabelTestCase(MregAPITestCase):
         # Verify that spaces in the label name isn't allowed
         self.assert_post_and_400('/api/v1/labels/', {'name':'test label 3', 'description':'A label with spaces'})
 
-    def test_delete_label(self):
-        self.assert_delete('/api/v1/labels/testlabel')
+    def test_delete_label_by_name(self):
+        self.assert_delete('/api/v1/labels/name/testlabel')
 
     def test_get_labels(self):
         response = self.assert_get('/api/v1/labels/')
@@ -25,3 +25,17 @@ class LabelTestCase(MregAPITestCase):
         self.assertEqual(data['count'], 1)
         self.assertEqual(len(data['results']), 1)
         self.assertEqual(data['results'][0]['name'],'testlabel')
+
+    def test_delete_label_by_pk(self):
+        # find the id of the label
+        response = self.assert_get('/api/v1/labels/')
+        data = response.json()
+        # delete the label by referring to it by id
+        self.assert_delete("/api/v1/labels/{}".format(data['results'][0]['id']))
+
+    def test_change_label_name(self):
+        self.assert_patch("/api/v1/labels/name/testlabel", {"name":"newname"})
+        # read it back and verify that the name changed
+        response = self.assert_get('/api/v1/labels/')
+        data = response.json()
+        self.assertEqual("newname", data['results'][0]['name'])

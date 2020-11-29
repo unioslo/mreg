@@ -53,4 +53,10 @@ class LabelDetail(MregRetrieveUpdateDestroyAPIView):
     queryset = Label.objects.all()
     serializer_class = serializers.LabelSerializer
     permission_classes = (IsSuperOrAdminOrReadOnly,)
+
+
+class LabelDetailByName(MregRetrieveUpdateDestroyAPIView):
+    queryset = Label.objects.all()
+    serializer_class = serializers.LabelSerializer
+    permission_classes = (IsSuperOrAdminOrReadOnly,)
     lookup_field = 'name'
