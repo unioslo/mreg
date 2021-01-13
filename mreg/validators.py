@@ -167,3 +167,8 @@ def validate_keys(obj):
     if unknown_keys:
         raise serializers.ValidationError(
                 f'invalid keys passed into serializer: {unknown_keys}')
+
+
+def validate_nospaces(str):
+    if str.find(' ')>-1:
+        raise serializers.ValidationError(f"Can't contain spaces: {str}")

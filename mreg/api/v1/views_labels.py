@@ -29,12 +29,6 @@ class LabelList(MregListCreateAPIView):
             if self.get_queryset().filter(name=request.data['name']).exists():
                 content = {'ERROR': 'Label name already in use'}
                 return Response(content, status=status.HTTP_409_CONFLICT)
-            if ' ' in request.data['name']:
-                content = {'ERROR': "Label name can't contain spaces"}
-                return Response(content, status=status.HTTP_400_BAD_REQUEST)
-            if not "description" in request.data or request.data['description'] == '':
-                content = {'ERROR': "A description is required for a label"}
-                return Response(content, status=status.HTTP_400_BAD_REQUEST)
         self.lookup_field = 'name'
         return super().post(request, *args, **kwargs)
 

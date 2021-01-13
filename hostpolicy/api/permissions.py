@@ -36,10 +36,7 @@ class IsSuperOrHostPolicyAdminOrReadOnly(IsAuthenticated):
             return False
 
         # Find out which labels are attached to this role
-        role = HostPolicyRole.objects.get(name=view.kwargs['name'])
-        role_labels = []
-        for label in role.labels.all():
-            role_labels.append(label.name)
+        role_labels = list(HostPolicyRole.objects.filter(name=view.kwargs['name']).values_list('labels__name',flat=True))
 
         # Find all the NetGroupRegexPermission objects that correspond with
         # the ipaddress, hostname, and the groups that the user is a member of
@@ -47,12 +44,8 @@ class IsSuperOrHostPolicyAdminOrReadOnly(IsAuthenticated):
             hostname = view.kwargs['host']
         else:
             hostname = request.data.get("name")
-        host = Host.objects.get(name=hostname)
-        ips = []
-        hostserr = HostSerializer(host)
-        for i in hostserr.data['ipaddresses']:
-            ips.append(i['ipaddress'])
-        qs = NetGroupRegexPermission.find_perm(request.user.group_list, host.name, ips)
+        ips = list(Host.objects.filter(name=hostname).exclude(ipaddresses__ipaddress=None).values_list('ipaddresses__ipaddress',flat=True))
+        qs = NetGroupRegexPermission.find_perm(request.user.group_list, hostname, ips)
 
         # If no permissions matched the host/ip, we deny access
         if not qs.exists():
@@ -60,10 +53,9 @@ class IsSuperOrHostPolicyAdminOrReadOnly(IsAuthenticated):
 
         # Do any of those permissions have labels that match the labels attached to this role?
         # If so, access is granted
-        for perm in qs:
-            for label in perm.labels.all():
-                if label.name in role_labels:
-                    return True
+        perm_labels = qs.values_list('labels__name',flat=True)
+        if any(label in perm_labels for label in role_labels):
+            return True
 
         # If the code got to this point, it means none of the labels matched.
         return False
