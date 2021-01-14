@@ -33,6 +33,7 @@ from .validators import (
     validate_reverse_zone_name,
     validate_srv_service_text,
     validate_ttl,
+    validate_nowhitespace,
 )
 
 
@@ -718,10 +719,22 @@ class HostGroup(BaseModel):
         return "%s" % self.name
 
 
+class Label(BaseModel):
+    name = LCICharField(max_length=64, unique=True, validators=[validate_nowhitespace])
+    description = models.TextField(blank=False)
+    class Meta:
+        db_table = 'label'
+        ordering = ('name',)
+
+    def __str__(self):
+        return str(self.name)
+
+
 class NetGroupRegexPermission(BaseModel):
     group = models.CharField(max_length=80)
     range = CidrAddressField()
     regex = models.CharField(max_length=250, validators=[validate_regex])
+    labels = models.ManyToManyField(Label, blank=True, related_name='permissions')
 
     objects = NetManager()
 

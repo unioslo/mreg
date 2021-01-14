@@ -1,4 +1,5 @@
 import re
+import string
 
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
@@ -167,3 +168,8 @@ def validate_keys(obj):
     if unknown_keys:
         raise serializers.ValidationError(
                 f'invalid keys passed into serializer: {unknown_keys}')
+
+
+def validate_nowhitespace(text):
+    if any(s in text for s in string.whitespace):
+        raise serializers.ValidationError(f"Can't contain whitespace: {text}")

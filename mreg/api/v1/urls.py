@@ -1,6 +1,6 @@
 from django.urls import path, re_path
 
-from . import views, views_hostgroups, views_zones
+from . import views, views_hostgroups, views_zones, views_labels
 
 urlpatterns = [
     path('cnames/', views.CnameList.as_view()),
@@ -26,6 +26,9 @@ urlpatterns = [
     path('hostgroups/<name>/owners/<owner>', views_hostgroups.HostGroupOwnersDetail.as_view()),
     path('ipaddresses/', views.IpaddressList.as_view()),
     path('ipaddresses/<pk>', views.IpaddressDetail.as_view()),
+    path('labels/', views_labels.LabelList.as_view()),
+    path('labels/<pk>', views_labels.LabelDetail.as_view()),
+    path('labels/name/<name>', views_labels.LabelDetailByName.as_view()),
     path('locs/', views.LocList.as_view()),
     path('locs/<pk>', views.LocDetail.as_view()),
     path('mxs/', views.MxList.as_view()),

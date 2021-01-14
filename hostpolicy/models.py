@@ -4,7 +4,7 @@ import datetime
 from django.db import models
 
 from mreg.fields import LCICharField
-from mreg.models import Host
+from mreg.models import Host, Label
 
 
 class HostPolicyComponent(models.Model):
@@ -46,6 +46,7 @@ class HostPolicyRole(HostPolicyComponent):
     name = LCICharField(max_length=64, unique=True, validators=[_validate_role_name])
     atoms = models.ManyToManyField(HostPolicyAtom, related_name='roles')
     hosts = models.ManyToManyField(Host, related_name='hostpolicyroles')
+    labels = models.ManyToManyField(Label, blank=True, related_name='hostpolicyroles')
 
     class Meta:
         db_table = 'hostpolicy_role'

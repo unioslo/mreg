@@ -151,7 +151,7 @@ class HostLogMixin(HistoryLog):
 
 class MregRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
     """
-    Makes sure patch returns sempty body, 204 - No Content, and location of object.
+    Makes sure patch returns empty body, 204 - No Content, and location of object.
     """
 
     def perform_update(self, serializer, **kwargs):

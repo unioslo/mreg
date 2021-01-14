@@ -1,7 +1,14 @@
 from urllib.parse import urljoin
 
+from django.contrib.auth.models import Group
+
 from hostpolicy.models import HostPolicyAtom, HostPolicyRole
-from mreg.models import Host
+from mreg.models import (
+                        Host,
+                        Ipaddress,
+                        NetGroupRegexPermission,
+                        Label
+                        )
 
 from mreg.api.v1.tests.tests import MregAPITestCase
 
@@ -216,3 +223,70 @@ class HostPolicyNoRights(MregAPITestCase):
         self.client.logout()
         self.assert_get_and_401('/hostpolicy/roles/')
         self.assert_get_and_401('/hostpolicy/roles/test1')
+
+    def test_all_of_it_but_with_netgroupregex_permission(self):
+        group = Group.objects.create(name='dummygroup')
+        group.user_set.add(self.user)
+        perm = NetGroupRegexPermission.objects.create(
+            group='dummygroup', range='0.0.0.0/0', regex='.*\.example\.org')
+        label = Label.objects.create(name="Safelabel")
+        perm.labels.add(label)
+        self.role.labels.add(label)
+        self.test_can_not_create_or_delete_atom_or_role()
+        self.test_can_not_alter_m2m_relations()
+        self.test_client_must_be_logged_in()
+
+
+class HostPolicyWithNetGroupRegexPermission(MregAPITestCase):
+    """Test that a user with no admin rights BUT a matching network/group/regex permission
+        can attach relevant roles to hosts"""
+
+    basepath = '/api/v1/hostpolicy/roles/'
+
+    def setUp(self):
+        self.client = self.get_token_client(superuser=False)
+        self.role = HostPolicyRole.objects.create(name='role1')
+        self.safelabel = Label.objects.create(name="Safelabel")
+        self.role.labels.add(self.safelabel)
+        group = Group.objects.create(name='dummygroup')
+        group.user_set.add(self.user)
+        self.perm = NetGroupRegexPermission.objects.create(
+            group='dummygroup', range='11.22.33.0/24', regex='.*\.example\.org')
+        self.perm.labels.add(self.safelabel)
+        self.host = Host.objects.create(name='host1.example.org')
+        Ipaddress.objects.create(host=self.host, ipaddress='11.22.33.44')
+
+    def test_add_host_to_role_and_remove_it(self):
+        post_data = { 'name': self.host.name }
+        url = self.basepath + self.role.name + '/hosts/'
+        self.assert_post(url, post_data)
+        # trying to add it again should result in a 409 conflict
+        self.assert_post_and_409(url, post_data)
+        # remove the host from the role
+        url = self.basepath + self.role.name + '/hosts/' + self.host.name
+        self.assert_delete(url)
+        # trying to remove it again should result in a 404 not found
+        self.assert_delete_and_404(url)
+
+    def test_add_host_if_label_doesnt_match(self):
+        label2 = Label.objects.create(name="Unsafelabel")
+        self.role.labels.add(label2)
+        self.role.labels.remove(self.safelabel)
+        post_data = { 'name': self.host.name }
+        url = self.basepath + self.role.name + '/hosts/'
+        self.assert_post_and_403(url, post_data)
+        self.role.labels.clear()
+        self.assert_post_and_403(url, post_data)
+
+    def test_add_host_if_user_not_in_group(self):
+        self.user.groups.clear()
+        post_data = { 'name': self.host.name }
+        url = self.basepath + self.role.name + '/hosts/'
+        self.assert_post_and_403(url, post_data)
+
+    def test_with_host_that_doesnt_match_perm(self):
+        host2 = Host.objects.create(name='host2.otherdomain.org')
+        Ipaddress.objects.create(host=host2, ipaddress='55.66.77.88')
+        post_data = { 'name': host2.name }
+        url = self.basepath + self.role.name + '/hosts/'
+        self.assert_post_and_403(url, post_data)
