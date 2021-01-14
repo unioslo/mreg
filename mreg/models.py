@@ -33,7 +33,7 @@ from .validators import (
     validate_reverse_zone_name,
     validate_srv_service_text,
     validate_ttl,
-    validate_nospaces,
+    validate_nowhitespace,
 )
 
 
@@ -720,7 +720,7 @@ class HostGroup(BaseModel):
 
 
 class Label(BaseModel):
-    name = LCICharField(max_length=64, unique=True, validators=[validate_nospaces])
+    name = LCICharField(max_length=64, unique=True, validators=[validate_nowhitespace])
     description = models.TextField(blank=False)
     class Meta:
         db_table = 'label'
