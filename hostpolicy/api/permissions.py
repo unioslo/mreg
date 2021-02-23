@@ -37,6 +37,9 @@ class IsSuperOrHostPolicyAdminOrReadOnly(IsAuthenticated):
 
         # Find out which labels are attached to this role
         role_labels = HostPolicyRole.objects.filter(name=view.kwargs['name']).values_list('labels__name',flat=True)
+        if not any(role_labels):
+            # if the role doesn't have any labels, there's no possibility of access at this point
+            return False
 
         # Find all the NetGroupRegexPermission objects that correspond with
         # the ipaddress, hostname, and the groups that the user is a member of

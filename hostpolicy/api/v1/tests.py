@@ -278,6 +278,19 @@ class HostPolicyWithNetGroupRegexPermission(MregAPITestCase):
         self.role.labels.clear()
         self.assert_post_and_403(url, post_data)
 
+    def test_add_host_if_there_are_no_labels(self):
+        # If the role has no label, the user shouldn't be permitted to add the host to it
+        self.role.labels.remove(self.safelabel)
+        post_data = { 'name': self.host.name }
+        url = self.basepath + self.role.name + '/hosts/'
+        self.assert_post_and_403(url, post_data)
+        # Also try this if the permission doesn't have any labels either
+        self.perm.labels.remove(self.safelabel)
+        self.assert_post_and_403(url, post_data)
+        # Finally, try a case where the role has a label but the permission doesn't have it
+        self.role.labels.add(self.safelabel)
+        self.assert_post_and_403(url, post_data)
+
     def test_add_host_if_user_not_in_group(self):
         self.user.groups.clear()
         post_data = { 'name': self.host.name }
