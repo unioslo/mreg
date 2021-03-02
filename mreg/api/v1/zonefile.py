@@ -121,7 +121,12 @@ class ForwardFile(Common):
 
     def txt_zf_string(self, name, ttl, txt):
         record_type = 'TXT   '
-        record_data = quote_if_space(txt)
+        record_data = ''
+        # Support RFC 4408 section 3.1.3 style TXTs: long strings splitted in 255 character chunks
+        for i in range(0, len(txt), 255):
+            if i > 0:
+                record_data += ' '
+            record_data += quote_if_space(txt[i:i+255])
         return f'{name} {ttl} IN {record_type} {record_data}\n'
 
     def naptr_zf_string(self, name, ttl, order, preference, flag, service, regex, replacement):

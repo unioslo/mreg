@@ -122,6 +122,18 @@ class APIZonefileTestCase(MregAPITestCase):
         shortform = data['name'].replace('.example.com', '')
         self.assertIn(shortform, ret)
 
+    def test_long_txts(self):
+        # Check RFC 4408 section 3.1.3 style TXTs: long strings splitted in 255 character chunks
+        host = Host.objects.get(name='host1.example.org')
+        # 260 chars
+        long_txt = "o"*260
+        data = {'txt': long_txt,
+                'host': host.id}
+        self.assert_post("/txts/", data)
+        ret = self._get_zone(self.forward)
+        # make sure the 260 chars are splitted in 255 chars with a space and then the rest
+        self.assertIn(f'{"o"*255} ooooo', ret)
+
     def test_get_reverse_zones(self):
         rev_v4 = self.create_reverse_zone('10.10.in-addr.arpa')
         self.create_reverse_zone('10.10.10.in-addr.arpa')
