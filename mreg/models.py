@@ -451,7 +451,7 @@ class PtrOverride(BaseModel):
 class Txt(BaseModel):
     host = models.ForeignKey(Host, on_delete=models.CASCADE, db_column='host',
                              related_name='txts')
-    txt = models.TextField(max_length=255)
+    txt = models.TextField(max_length=4096)
 
     class Meta:
         db_table = 'txt'
