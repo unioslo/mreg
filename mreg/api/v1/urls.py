@@ -1,8 +1,10 @@
 from django.urls import path, re_path
 
-from . import views, views_hostgroups, views_zones, views_labels
+from . import views, views_hostgroups, views_zones, views_labels, views_bacnet
 
 urlpatterns = [
+    path('bacnet/ids/', views_bacnet.BACnetIDList.as_view()),
+    path('bacnet/ids/<id>', views_bacnet.BACnetIDDetail.as_view()),
     path('cnames/', views.CnameList.as_view()),
     path('cnames/<name>', views.CnameDetail.as_view()),
     path('dhcphosts/ipv4/', views.DhcpHostsAllV4.as_view()),
