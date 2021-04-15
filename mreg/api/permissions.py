@@ -159,15 +159,17 @@ def _deny_superuser_only_names(data=None, name=None, view=None, request=None):
         if not name:
             if 'host' in data:
                 name = data['host'].name
-    if '*' in name:
-        # members of the dns wildcard group can create wildcard records below subdomains (*.sub.example.com)
-        if request_in_settings_group(request, DNS_WILDCARD_GROUP) and name.count('.') >= 3 and not '_' in name:
-            return False
-        return True
+
     # Underscore is allowed for non-superuser in SRV records
     if '_' in name and not isinstance(view, (mreg.api.v1.views.SrvDetail,
                                              mreg.api.v1.views.SrvList)):
         return True
+
+    # Except for super-users, only members of the DNS wildcard group can create wildcard records.
+    # And then only below subdomains, like *.sub.example.com
+    if '*' in name and (not request_in_settings_group(request, DNS_WILDCARD_GROUP) or name.count('.') < 3):
+        return True
+
     return False
 
 
