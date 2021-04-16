@@ -207,3 +207,4 @@ if TESTING:
     GROUPADMINUSER_GROUP = "default-groupadmin-group"
     NETWORK_ADMIN_GROUP = "default-networkadmin-group"
     HOSTPOLICYADMIN_GROUP = "default-hostpolicyadmin-group"
+    DNS_WILDCARD_GROUP = "default-dns-wildcard-group"

@@ -268,6 +268,7 @@ class Wildcard(MregAPITestCase):
 
     def setUp(self):
         self.client = self.get_token_client(superuser=False, adminuser=True)
+        self.admin_user = self.user  # keep this user for later, as the next call to get_token_client will overwrite it
         self.super_client = self.get_token_client()
 
     def test_super_only_create_wildcard(self):
@@ -293,3 +294,15 @@ class Wildcard(MregAPITestCase):
         path = '/api/v1/hosts/*.example.org'
         self.assert_delete_and_403(path)
         self.assert_delete(path, client=self.super_client)
+
+    def test_special_group_members_create_wildcard(self):
+        """Members in DNS_WILDCARD_GROUP can create entries with a wildcard, but only below subdomains"""
+        self.user = self.admin_user
+        self.add_user_to_groups('DNS_WILDCARD_GROUP')
+        data1 = {'name': '*.example.org'}  # not allowed
+        data2 = {'name': '*.sub.example.org'}  # allowed
+        data3 = {'name': '*._sub.example.org'} # try to sneak an underscore in there
+        path = '/api/v1/hosts/'
+        self.assert_post_and_403(path, data1)
+        self.assert_post_and_201(path, data2)
+        self.assert_post_and_403(path, data3)
