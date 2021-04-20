@@ -9,6 +9,7 @@ from mreg.models import HostGroup, NetGroupRegexPermission, Network
 NETWORK_ADMIN_GROUP = 'NETWORK_ADMIN_GROUP'
 SUPERUSER_GROUP = 'SUPERUSER_GROUP'
 ADMINUSER_GROUP = 'ADMINUSER_GROUP'
+DNS_WILDCARD_GROUP = 'DNS_WILDCARD_GROUP'
 
 
 def get_settings_groups(group_setting_name):
@@ -149,7 +150,7 @@ class IsSuperOrGroupAdminOrReadOnly(IsAuthenticated):
         return is_super_or_group_admin(request.user)
 
 
-def _deny_superuser_only_names(data=None, name=None, view=None):
+def _deny_superuser_only_names(data=None, name=None, view=None, request=None):
     """Check for superuser only names. If match, return True."""
     import mreg.api.v1.views
 
@@ -158,12 +159,17 @@ def _deny_superuser_only_names(data=None, name=None, view=None):
         if not name:
             if 'host' in data:
                 name = data['host'].name
-    if '*' in name:
-        return True
+
     # Underscore is allowed for non-superuser in SRV records
     if '_' in name and not isinstance(view, (mreg.api.v1.views.SrvDetail,
                                              mreg.api.v1.views.SrvList)):
         return True
+
+    # Except for super-users, only members of the DNS wildcard group can create wildcard records.
+    # And then only below subdomains, like *.sub.example.com
+    if '*' in name and (not request_in_settings_group(request, DNS_WILDCARD_GROUP) or name.count('.') < 3):
+        return True
+
     return False
 
 
@@ -223,7 +229,7 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
         hostname = None
         ips = []
         data = validated_serializer.validated_data
-        if _deny_superuser_only_names(data=data, view=view):
+        if _deny_superuser_only_names(data=data, view=view, request=request):
             return False
         if 'ipaddress' in data:
             if _deny_reserved_ipaddress(data['ipaddress'], request):
@@ -266,7 +272,7 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
             obj = obj.host
         else:
             raise exceptions.PermissionDenied(f"Unhandled view: {view}")
-        if _deny_superuser_only_names(name=obj.name, view=view):
+        if _deny_superuser_only_names(name=obj.name, view=view, request=request):
             return False
         if hasattr(obj, 'ipaddress'):
             if _deny_reserved_ipaddress(obj.ipaddress, request):
@@ -280,7 +286,7 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
         if user_is_superuser(request.user):
             return True
         data = validated_serializer.validated_data
-        if _deny_superuser_only_names(data=data, view=view):
+        if _deny_superuser_only_names(data=data, view=view, request=request):
             return False
         if 'ipaddress' in data:
             if _deny_reserved_ipaddress(data['ipaddress'], request):
