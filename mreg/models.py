@@ -805,7 +805,7 @@ class BACnetID(models.Model):
         j = 0
         for i in BACnetID.objects.values_list('id', flat=True).order_by('id'):
             if i==j:
-                j = j+1
+                j += 1
             else:
                 return j
         return j

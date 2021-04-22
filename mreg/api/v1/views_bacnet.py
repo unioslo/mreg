@@ -34,8 +34,7 @@ class BACnetIDList(MregListCreateAPIView):
             data['id'] = BACnetID.first_unused_id()
         else:
             # if an ID value was supplied, and it is already in use, return 409 conflict instead of the default 400 bad request
-            foo = BACnetID.objects.filter(id=data['id'])
-            if len(foo) > 0:
+            if BACnetID.objects.filter(id=data['id']).exists():
                 return Response(status=status.HTTP_409_CONFLICT)
 
         try:
