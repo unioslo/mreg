@@ -173,3 +173,10 @@ def validate_keys(obj):
 def validate_nowhitespace(text):
     if any(s in text for s in string.whitespace):
         raise serializers.ValidationError(f"Can't contain whitespace: {text}")
+
+
+def validate_BACnetID(value):
+    validator_min = MinValueValidator(0)
+    validator_max = MaxValueValidator(4194302)
+    validator_min(value)
+    validator_max(value)

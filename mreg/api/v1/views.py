@@ -24,7 +24,7 @@ from mreg.api.permissions import (IsAuthenticatedAndReadOnly,
                                   IsSuperGroupMember,
                                   IsSuperOrAdminOrReadOnly,
                                   IsSuperOrNetworkAdminMember,)
-from mreg.models import (Cname, Hinfo, Host, HostGroup, Ipaddress, Loc,
+from mreg.models import (BACnetID, Cname, Hinfo, Host, HostGroup, Ipaddress, Loc,
                          Mx, NameServer, Naptr, Network,
                          PtrOverride, Srv, Sshfp, Txt)
 
@@ -321,7 +321,7 @@ class HinfoDetail(HostPermissionsUpdateDestroy,
 
 
 def _host_prefetcher(qs):
-    return qs.prefetch_related('cnames', 'hinfo', 'loc', 'mxs',
+    return qs.prefetch_related('bacnetid', 'cnames', 'hinfo', 'loc', 'mxs',
                                'ptr_overrides', 'txts'
             ).prefetch_related(Prefetch('ipaddresses',
                                          queryset=Ipaddress.objects.order_by('ipaddress'))

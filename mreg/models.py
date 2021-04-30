@@ -34,6 +34,7 @@ from .validators import (
     validate_srv_service_text,
     validate_ttl,
     validate_nowhitespace,
+    validate_BACnetID,
 )
 
 
@@ -786,3 +787,25 @@ class History(models.Model):
 
     def __str__(self):
         return f'{self.name}, {self.model}, {self.action}, {self.timestamp}'
+
+
+class BACnetID(models.Model):
+    id = models.IntegerField(primary_key=True, validators=[validate_BACnetID])
+    host = models.OneToOneField(Host, on_delete=models.CASCADE, related_name='bacnetid')
+
+    class Meta:
+        db_table = 'bacnetid'
+
+    @property
+    def hostname(self):
+        return self.host.name
+
+    @staticmethod
+    def first_unused_id() -> int:
+        j = 0
+        for i in BACnetID.objects.values_list('id', flat=True).order_by('id'):
+            if i==j:
+                j += 1
+            else:
+                return j
+        return j

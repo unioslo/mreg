@@ -10,7 +10,7 @@ from mreg.models import (Cname, ForwardZone, ForwardZoneDelegation,
                          Hinfo, Host, HostGroup, Ipaddress, Loc,
                          Mx, NameServer, Naptr,
                          NetGroupRegexPermission, Network, PtrOverride,
-                         ReverseZone, ReverseZoneDelegation, Srv, Sshfp, Txt, Label)
+                         ReverseZone, ReverseZoneDelegation, Srv, Sshfp, Txt, Label, BACnetID)
 from mreg.utils import (nonify, normalize_mac)
 from mreg.validators import (validate_keys, validate_normalizeable_mac_address)
 from mreg.api.errors import ValidationError409
@@ -165,6 +165,17 @@ class HistorySerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+class BACnetIDSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BACnetID
+        fields = ('id','host','hostname',)
+
+class BACnetID_ID_Serializer(serializers.ModelSerializer):
+    class Meta:
+        model = BACnetID
+        fields = ('id',)
+
+
 class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
     """
     To properly represent a host we include its related objects.
@@ -176,6 +187,7 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
     ptr_overrides = PtrOverrideSerializer(many=True, read_only=True)
     hinfo = HinfoSerializer(read_only=True)
     loc = LocSerializer(read_only=True)
+    bacnetid = BACnetID_ID_Serializer(read_only=True)
 
     class Meta:
         model = Host
