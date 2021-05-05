@@ -8,9 +8,11 @@ from rest_framework.exceptions import PermissionDenied
 
 from .models import (Cname, ForwardZone, Host, HostGroup, Ipaddress,
                      Loc, NameServer, Naptr,
-                     NetGroupRegexPermission, Network, PtrOverride,
-                     ReverseZone, Srv, Sshfp, Txt)
+                     NetGroupRegexPermission, Network, NetworkExcludedRange,
+                     PtrOverride, ReverseZone, Srv, Sshfp, Txt,
+                     MAX_UNUSED_LIST)
 
+import signal
 
 def clean_and_save(entity):
     entity.full_clean()
@@ -382,6 +384,21 @@ class ModelNetworkTestCase(TestCase):
         self.network_ipv6_sample.delete()
         new_count = Network.objects.count()
         self.assertNotEqual(old_count, new_count)
+
+    def test_ipv6_quick_list_unused(self):
+        # Github issue https://github.com/unioslo/mreg/issues/435
+        n = Network(network='2001:DB8:BAD:BAD::/64', description='a description')
+        clean_and_save(n)
+        clean_and_save(NetworkExcludedRange(network=n, start_ip='2001:DB8:BAD:BAD::1:0', end_ip='2001:DB8:BAD:BAD:ffff:ffff:ffff:ffff'))
+        unused_count_should_be = 0x10000 - len(n.get_reserved_ipaddresses())
+        def handler(signum, frame):
+            raise Exception("timeout")
+        signal.signal(signal.SIGALRM, handler)
+        signal.alarm(5)
+        # The following calls will take too long and cause a timeout exception if they aren't implemented correctly
+        self.assertEqual(len(n.unused_addresses), MAX_UNUSED_LIST)
+        self.assertEqual(n.unused_count, unused_count_should_be)
+        signal.alarm(0) # Cancel the timer if no exception happened
 
 
 class ModelIpaddressTestCase(TestCase):
