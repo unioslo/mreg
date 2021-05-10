@@ -397,7 +397,7 @@ class ModelNetworkTestCase(TestCase):
             raise Exception("timeout")
         signal.signal(signal.SIGALRM, handler)
         signal.alarm(10)
-        # The following calls will take too long and cause a timeout exception if they aren't implemented correctly
+        # The following calls will take too long and cause a timeout exception if they aren't implemented correctly.
         self.assertEqual(len(n.unused_addresses), MAX_UNUSED_LIST)
         self.assertEqual(n.unused_count, unused_count_should_be)
         self.assertNotEqual(n.get_first_unused(), None)
