@@ -518,17 +518,21 @@ class Network(BaseModel):
             ret.add(network.broadcast_address)
         return ret
 
+    def get_excluded_ranges_start_end(self):
+        excluded = []
+        for start_ip, end_ip in self.excluded_ranges.values_list('start_ip', 'end_ip'):
+            start_ip = ipaddress.ip_address(start_ip)
+            end_ip = ipaddress.ip_address(end_ip)
+            excluded.append((start_ip,end_ip))
+        return excluded
+
     def get_unused_ipaddresses(self, max = MAX_UNUSED_LIST):
         """
         Returns which ipaddresses on the network are unused.
         """
         network_ips = []
         used_or_reserved = self.used_addresses | self.get_reserved_ipaddresses()
-        excluded = []
-        for ex in self.excluded_ranges.all():
-            start_ip = ipaddress.ip_address(ex.start_ip)
-            end_ip = ipaddress.ip_address(ex.end_ip)
-            excluded.append((start_ip,end_ip))
+        excluded = self.get_excluded_ranges_start_end()
         # Getting all available IPs for a ipv6 prefix can easily cause
         # the webserver to hang due to lots and lots of IPs. Instead limit
         # to the first MAX_UNUSED_LIST hosts.
@@ -634,6 +638,7 @@ class Network(BaseModel):
                 network_address = int(network.network_address)
                 broadcast_address = int(network.broadcast_address)
                 used_or_reserved = self.used_addresses | self.get_reserved_ipaddresses()
+                excluded = self.get_excluded_ranges_start_end()
                 # Limit the number of attempts, as random might be really unlucky.
                 for attempts in range(100):
                     choice = random.randint(network_address, broadcast_address)
@@ -643,11 +648,13 @@ class Network(BaseModel):
                         randomip = ipaddress.IPv4Address(choice)
                     if randomip in used_or_reserved:
                         continue
-                    for i in self.excluded_ranges.all():
-                        start_ip = ipaddress.ip_address(i.start_ip)
-                        end_ip = ipaddress.ip_address(i.end_ip)
-                        if randomip >= start_ip and randomip <= end_ip:
-                            continue
+                    was_excluded = False
+                    for ex in excluded:
+                        if randomip >= ex[0] and randomip <= ex[1]:
+                            was_excluded = True
+                            break
+                    if was_excluded:
+                        continue
                     return str(randomip)
 
             return str(random.choice(tuple(unused)))
