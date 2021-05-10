@@ -523,23 +523,28 @@ class Network(BaseModel):
         Returns which ipaddresses on the network are unused.
         """
         network_ips = []
-        used = self.used_addresses
-        reserved = self.get_reserved_ipaddresses()
+        used_or_reserved = self.used_addresses | self.get_reserved_ipaddresses()
+        excluded = []
+        for ex in self.excluded_ranges.all():
+            start_ip = ipaddress.ip_address(ex.start_ip)
+            end_ip = ipaddress.ip_address(ex.end_ip)
+            excluded.append((start_ip,end_ip))
         # Getting all available IPs for a ipv6 prefix can easily cause
         # the webserver to hang due to lots and lots of IPs. Instead limit
         # to the first MAX_UNUSED_LIST hosts.
         found = 0
         ip = next(self.network.hosts())
         while ip in self.network:
-            if ip in used or ip in reserved:
+            if ip in used_or_reserved:
                 ip += 1
                 continue
-            for ex in self.excluded_ranges.all():
-                start_ip = ipaddress.ip_address(ex.start_ip)
-                end_ip = ipaddress.ip_address(ex.end_ip)
-                if ip >= start_ip and ip <= end_ip:
-                    ip = end_ip+1
-                    continue
+            was_excluded = False
+            for ex in excluded:
+                if ip >= ex[0] and ip <= ex[1]:
+                    ip = ex[1]+1
+                    was_excluded = True
+            if was_excluded:
+                continue
             network_ips.append(ip)
             found += 1
             if found == max:

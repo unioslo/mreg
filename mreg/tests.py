@@ -12,7 +12,7 @@ from .models import (Cname, ForwardZone, Host, HostGroup, Ipaddress,
                      PtrOverride, ReverseZone, Srv, Sshfp, Txt,
                      MAX_UNUSED_LIST)
 
-import signal
+import signal, ipaddress
 
 def clean_and_save(entity):
     entity.full_clean()
@@ -396,13 +396,25 @@ class ModelNetworkTestCase(TestCase):
         def handler(signum, frame):
             raise Exception("timeout")
         signal.signal(signal.SIGALRM, handler)
-        signal.alarm(10)
+        signal.alarm(5)
         # The following calls will take too long and cause a timeout exception if they aren't implemented correctly.
         self.assertEqual(len(n.unused_addresses), MAX_UNUSED_LIST)
         self.assertEqual(n.unused_count, unused_count_should_be)
         self.assertNotEqual(n.get_first_unused(), None)
         self.assertNotEqual(n.get_random_unused(), None)
         signal.alarm(0) # Cancel the timer if no exception happened
+
+    def test_excluded_ranges(self):
+        """Test that exclusion of IP address ranges work"""
+        clean_and_save(self.network_sample) # 10.0.0.0/20
+        clean_and_save(NetworkExcludedRange(network=self.network_sample, start_ip='10.0.0.0', end_ip='10.0.0.200'))
+        ip = self.network_sample.get_first_unused()
+        self.assertEqual(str(ip), '10.0.0.201')
+        clean_and_save(NetworkExcludedRange(network=self.network_sample, start_ip='10.0.0.202', end_ip='10.0.15.255'))
+        unused = self.network_sample.get_unused_ipaddresses()
+        self.assertEqual(unused, {ipaddress.IPv4Address('10.0.0.201')})
+        ip = self.network_sample.get_random_unused()
+        self.assertEqual(str(ip), '10.0.0.201')
 
 
 class ModelIpaddressTestCase(TestCase):
