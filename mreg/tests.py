@@ -389,8 +389,10 @@ class ModelNetworkTestCase(TestCase):
         # Github issue https://github.com/unioslo/mreg/issues/435
         n = Network(network='2001:DB8:BAD:BAD::/64', description='a description')
         clean_and_save(n)
-        clean_and_save(NetworkExcludedRange(network=n, start_ip='2001:DB8:BAD:BAD::1:0', end_ip='2001:DB8:BAD:BAD:ffff:ffff:ffff:ffff'))
-        unused_count_should_be = 0x10000 - len(n.get_reserved_ipaddresses())
+        # Create one large excluded range at the start and one at the end
+        clean_and_save(NetworkExcludedRange(network=n, start_ip='2001:DB8:BAD:BAD::0', end_ip='2001:DB8:BAD:BAD::ffff:ffff:ffff'))
+        clean_and_save(NetworkExcludedRange(network=n, start_ip='2001:DB8:BAD:BAD:2:0:0:0', end_ip='2001:DB8:BAD:BAD:ffff:ffff:ffff:ffff'))
+        unused_count_should_be = 0x1000000000000 - len(n.get_reserved_ipaddresses())
         def handler(signum, frame):
             raise Exception("timeout")
         signal.signal(signal.SIGALRM, handler)
@@ -398,6 +400,8 @@ class ModelNetworkTestCase(TestCase):
         # The following calls will take too long and cause a timeout exception if they aren't implemented correctly
         self.assertEqual(len(n.unused_addresses), MAX_UNUSED_LIST)
         self.assertEqual(n.unused_count, unused_count_should_be)
+        self.assertNotEqual(n.get_first_unused(), None)
+        self.assertNotEqual(n.get_random_unused(), None)
         signal.alarm(0) # Cancel the timer if no exception happened
 
 

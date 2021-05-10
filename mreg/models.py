@@ -518,20 +518,34 @@ class Network(BaseModel):
             ret.add(network.broadcast_address)
         return ret
 
-    def is_usable(self, ip) -> bool:
-        """ Checks whether the given ip address can be used.
-            Unusable addresses are:
-            - reserved addresses
-            - ips in excluded ranges
+    def get_unused_ipaddresses(self, max = MAX_UNUSED_LIST):
         """
-        if ip in self.get_reserved_ipaddresses():
-            return False
-        for i in self.excluded_ranges.all():
-            start_ip = ipaddress.ip_address(i.start_ip)
-            end_ip = ipaddress.ip_address(i.end_ip)
-            if ip >= start_ip and ip <= end_ip:
-                return False
-        return True
+        Returns which ipaddresses on the network are unused.
+        """
+        network_ips = []
+        used = self.used_addresses
+        reserved = self.get_reserved_ipaddresses()
+        # Getting all available IPs for a ipv6 prefix can easily cause
+        # the webserver to hang due to lots and lots of IPs. Instead limit
+        # to the first MAX_UNUSED_LIST hosts.
+        found = 0
+        ip = next(self.network.hosts())
+        while ip in self.network:
+            if ip in used or ip in reserved:
+                ip += 1
+                continue
+            for ex in self.excluded_ranges.all():
+                start_ip = ipaddress.ip_address(ex.start_ip)
+                end_ip = ipaddress.ip_address(ex.end_ip)
+                if ip >= start_ip and ip <= end_ip:
+                    ip = end_ip+1
+                    continue
+            network_ips.append(ip)
+            found += 1
+            if found == max:
+                break
+            ip += 1
+        return set(network_ips)
 
     def __used(self, model):
         from_ip = str(self.network.network_address)
@@ -574,20 +588,7 @@ class Network(BaseModel):
         """
         Returns which ipaddresses on the network are unused.
         """
-        network_ips = []
-        used = self.used_addresses
-        # Getting all availible IPs for a ipv6 prefix can easily cause
-        # the webserver to hang due to lots and lots of IPs. Instead limit
-        # to the first MAX_UNUSED_LIST hosts.
-        found = 0
-        for ip in self.network.hosts():
-            if ip in used or not self.is_usable(ip):
-                continue
-            network_ips.append(ip)
-            found += 1
-            if found == MAX_UNUSED_LIST:
-                break
-        return set(network_ips)
+        return self.get_unused_ipaddresses()
 
     @property
     def unused_count(self):
@@ -609,10 +610,9 @@ class Network(BaseModel):
         """
         Return the first unused IP found, if any.
         """
-        used = self.used_addresses
-        for ip in self.network.hosts():
-            if ip not in used and self.is_usable(ip):
-                return str(ip)
+        a = self.get_unused_ipaddresses(1)
+        if a:
+            return str(next(iter(a)))
         return None
 
     def get_random_unused(self):
@@ -628,7 +628,7 @@ class Network(BaseModel):
                 # than MAX_UNUSED_LIST. Typically an IPv6 network.
                 network_address = int(network.network_address)
                 broadcast_address = int(network.broadcast_address)
-                used = self.used_addresses
+                used_or_reserved = self.used_addresses | self.get_reserved_ipaddresses()
                 # Limit the number of attempts, as random might be really unlucky.
                 for attempts in range(100):
                     choice = random.randint(network_address, broadcast_address)
@@ -636,8 +636,14 @@ class Network(BaseModel):
                         randomip = ipaddress.IPv6Address(choice)
                     else:
                         randomip = ipaddress.IPv4Address(choice)
-                    if randomip not in used and self.is_usable(randomip):
-                        return str(randomip)
+                    if randomip in used_or_reserved:
+                        continue
+                    for i in self.excluded_ranges.all():
+                        start_ip = ipaddress.ip_address(i.start_ip)
+                        end_ip = ipaddress.ip_address(i.end_ip)
+                        if randomip >= start_ip and randomip <= end_ip:
+                            continue
+                    return str(randomip)
 
             return str(random.choice(tuple(unused)))
 
