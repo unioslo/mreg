@@ -518,19 +518,43 @@ class Network(BaseModel):
             ret.add(network.broadcast_address)
         return ret
 
-    def get_unusable_ipaddresses(self):
-        """ Returns a set with all ips which can not be used:
-            - reserved addresses
-            - ips in excluded ranges
+    def get_excluded_ranges_start_end(self):
+        excluded = []
+        for start_ip, end_ip in self.excluded_ranges.values_list('start_ip', 'end_ip'):
+            start_ip = ipaddress.ip_address(start_ip)
+            end_ip = ipaddress.ip_address(end_ip)
+            excluded.append((start_ip,end_ip))
+        return excluded
+
+    def get_unused_ipaddresses(self, max = MAX_UNUSED_LIST):
         """
-        unusable = self.get_reserved_ipaddresses()
-        for i in self.excluded_ranges.all():
-            ip = ipaddress.ip_address(i.start_ip)
-            end_ip = ipaddress.ip_address(i.end_ip)
-            while ip <= end_ip:
-                unusable.add(ip)
+        Returns which ipaddresses on the network are unused.
+        """
+        network_ips = []
+        used_or_reserved = self.used_addresses | self.get_reserved_ipaddresses()
+        excluded = self.get_excluded_ranges_start_end()
+        # Getting all available IPs for a ipv6 prefix can easily cause
+        # the webserver to hang due to lots and lots of IPs. Instead limit
+        # to the first MAX_UNUSED_LIST hosts.
+        found = 0
+        ip = next(self.network.hosts())
+        while ip in self.network:
+            if ip in used_or_reserved:
                 ip += 1
-        return unusable
+                continue
+            was_excluded = False
+            for start_ip, end_ip in excluded:
+                if ip >= start_ip and ip <= end_ip:
+                    ip = end_ip + 1
+                    was_excluded = True
+            if was_excluded:
+                continue
+            network_ips.append(ip)
+            found += 1
+            if found == max:
+                break
+            ip += 1
+        return set(network_ips)
 
     def __used(self, model):
         from_ip = str(self.network.network_address)
@@ -573,45 +597,31 @@ class Network(BaseModel):
         """
         Returns which ipaddresses on the network are unused.
         """
-        network_ips = []
-        unusable = self.get_unusable_ipaddresses()
-        not_available = unusable | self.used_addresses
-        if self.network.num_addresses > MAX_UNUSED_LIST:
-            # Getting all availible IPs for a ipv6 prefix can easily cause
-            # the webserver to hang due to lots and lots of IPs. Instead limit
-            # to the first MAX_UNUSED_LIST hosts.
-            found = 0
-            for ip in self.network.hosts():
-                if ip in not_available:
-                    continue
-                network_ips.append(ip)
-                found += 1
-                if found == MAX_UNUSED_LIST:
-                    break
-            return set(network_ips)
-        else:
-            return set(self.network.hosts()) - not_available
+        return self.get_unused_ipaddresses()
 
     @property
     def unused_count(self):
         """
-        Returns the number of unused ipaddreses on the network.
+        Returns the number of unused ipaddresses on the network.
         """
-        unusable = self.get_unusable_ipaddresses()
-        return self.network.num_addresses - len(unusable | self.used_addresses)
+        # start with the number of all adresses defined by the CIDR
+        result = self.network.num_addresses
+        # subtract excluded ranges
+        for i in self.excluded_ranges.all():
+            result -= i.num_addresses()
+        # subtract reserved addresses
+        result -= len(self.get_reserved_ipaddresses())
+        # subtract used addresses
+        result -= len(self.used_addresses)
+        return result
 
     def get_first_unused(self):
         """
         Return the first unused IP found, if any.
         """
-
-        unusable = self.get_unusable_ipaddresses()
-        used = self.used_addresses
-        for ip in self.network.hosts():
-            if ip in unusable:
-                continue
-            if ip not in used:
-                return str(ip)
+        a = self.get_unused_ipaddresses(1)
+        if a:
+            return str(next(iter(a)))
         return None
 
     def get_random_unused(self):
@@ -627,8 +637,8 @@ class Network(BaseModel):
                 # than MAX_UNUSED_LIST. Typically an IPv6 network.
                 network_address = int(network.network_address)
                 broadcast_address = int(network.broadcast_address)
-                unusable = self.get_unusable_ipaddresses()
-                not_available = unusable | self.used_addresses
+                used_or_reserved = self.used_addresses | self.get_reserved_ipaddresses()
+                excluded = self.get_excluded_ranges_start_end()
                 # Limit the number of attempts, as random might be really unlucky.
                 for attempts in range(100):
                     choice = random.randint(network_address, broadcast_address)
@@ -636,8 +646,16 @@ class Network(BaseModel):
                         randomip = ipaddress.IPv6Address(choice)
                     else:
                         randomip = ipaddress.IPv4Address(choice)
-                    if randomip not in not_available:
-                        return str(randomip)
+                    if randomip in used_or_reserved:
+                        continue
+                    was_excluded = False
+                    for start_ip, end_ip in excluded:
+                        if randomip >= start_ip and randomip <= end_ip:
+                            was_excluded = True
+                            break
+                    if was_excluded:
+                        continue
+                    return str(randomip)
 
             return str(random.choice(tuple(unused)))
 
@@ -659,6 +677,11 @@ class NetworkExcludedRange(BaseModel):
 
     def __str__(self):
         return f'{self.network.network} -> [{self.start_ip} -> [{self.end_ip}]'
+
+    def num_addresses(self):
+        start = ipaddress.ip_address(self.start_ip)
+        end = ipaddress.ip_address(self.end_ip)
+        return int(end)-int(start)+1
 
 
 class Naptr(BaseModel):
