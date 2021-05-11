@@ -1,0 +1,41 @@
+name: mreg-docker
+on: [push]
+jobs:
+  build:
+    name: Build Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Out Repo
+        uses: actions/checkout@v2
+      - name: Guix cache
+        uses: actions/cache@v2
+        with:
+          # Note: /gnu/store may exceed the limit of 5GiB, so don't
+          # cache it.  TODO: Selective caching with 'guix archive'?
+          path: |
+            ~/.cache/guix
+          key: guix-cache-${{ github.sha }}
+          restore-keys: |
+            guix-cache-
+      - name: Read channels.scm
+        run: |
+          echo "CHANNELS<<EOF" >> $GITHUB_ENV
+          cat ci/channels.scm >> $GITHUB_ENV
+          echo EOF >> $GITHUB_ENV
+      - name: Install Guix
+        uses: PromyLOPH/guix-install-action@v1
+        with:
+          channels: "${{ env.CHANNELS }}"
+      - name: Build mreg
+        run: guix build --fallback -m ./ci/manifest.scm
+      - name: Pack Docker image
+        run: >
+          guix pack --fallback -f docker --save-provenance --root=mreg-docker.tar.gz
+          -S /bin=bin -S /app=app -S /etc/profile=etc/profile
+          --entry-point=bin/mreg-wrapper
+          -m ./ci/manifest.scm
+      - name: Upload artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: mreg-docker.tar.gz
+          path: mreg-docker.tar.gz
