@@ -543,9 +543,9 @@ class Network(BaseModel):
                 ip += 1
                 continue
             was_excluded = False
-            for ex in excluded:
-                if ip >= ex[0] and ip <= ex[1]:
-                    ip = ex[1]+1
+            for start_ip, end_ip in excluded:
+                if ip >= start_ip and ip <= end_ip:
+                    ip = end_ip + 1
                     was_excluded = True
             if was_excluded:
                 continue
@@ -649,8 +649,8 @@ class Network(BaseModel):
                     if randomip in used_or_reserved:
                         continue
                     was_excluded = False
-                    for ex in excluded:
-                        if randomip >= ex[0] and randomip <= ex[1]:
+                    for start_ip, end_ip in excluded:
+                        if randomip >= start_ip and randomip <= end_ip:
                             was_excluded = True
                             break
                     if was_excluded:
