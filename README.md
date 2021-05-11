@@ -14,6 +14,37 @@ from `requirements.txt`. We use pip.
 
 ### Installing
 
+#### Using a pre-made Docker image.
+
+Pre-built Docker images are available to download from https://github.com/unioslo/mreg/actions/workflows/docker-image.yml.
+
+To use, make the image available to Docker with:
+
+```
+docker load < mreg-docker.tar.gz
+```
+
+It is expected that you mount a custom "mregsite" directory on /app/mregsite:
+
+```
+docker run \
+  --mount type=bind,source=$HOME/customsettings,destination=/app/mregsite,readonly \
+  mreg-wrapper-mreg-python-wrapper:latest
+```
+
+To access application logs outside the container, also mount `/app/logs`.
+
+The Docker image can be reproduced locally by installing [GNU Guix](https://guix.gnu.org) and running:
+
+```
+guix time-machine -C ci/channels.scm -- pack -f docker \
+  -S /bin=bin -S /app=app -S /etc/profile=etc/profile \
+  --entry-point=bin/mreg-wrapper \
+  -m ci/manifest.scm
+```
+
+#### Manually
+
 A step by step series of examples that tell you how to get a development env running
 
 When you've got your copy of the mreg directory, setup you virtual environment.
@@ -91,6 +122,7 @@ DATABASES = {
 * **Nils Hiorth**
 * **Nicolay Mohebi**
 * **Magnus Hirth**
+* **Marius Bakke**
 
 
 ## License
