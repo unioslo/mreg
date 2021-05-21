@@ -38,7 +38,7 @@ The Docker image can be reproduced locally by installing [GNU Guix](https://guix
 
 ```
 guix time-machine -C ci/channels.scm -- pack -f docker \
-  -S /bin=bin -S /app=app -S /etc/profile=etc/profile \
+  -S /app=app -S /etc/profile=etc/profile \
   --entry-point=bin/mreg-wrapper \
   -m ci/manifest.scm
 ```
