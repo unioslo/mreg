@@ -56,7 +56,7 @@ exec ~a ~a
 (define %entry-point
   (mreg-wrapper
    mreg/dev
-   '("--workers" "3" "mregsite.wsgi")))
+   '("--bind=0.0.0.0" "--workers" "3" "mregsite.wsgi")))
 
 (manifest
  (append (list (manifest-entry
