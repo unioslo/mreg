@@ -106,6 +106,8 @@ DATABASES = {
     }
 }
 
+DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
+
 if 'TRAVIS' in os.environ:
     DEBUG = True
     ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
