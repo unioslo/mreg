@@ -609,13 +609,9 @@ class Network(BaseModel):
         # subtract excluded ranges
         for i in self.excluded_ranges.all():
             result -= i.num_addresses()
-        # subtract used addresses
-        used = self.used_addresses
-        result -= len(used)
-        # subtract reserved addresses that aren't used
-        for r in self.get_reserved_ipaddresses():
-            if r not in used:
-                result-=1
+        # subtract used and reserved addresses
+        used_or_reserved = self.used_addresses | self.get_reserved_ipaddresses()
+        result -= len(used_or_reserved)
         return result
 
     def get_first_unused(self):
