@@ -525,6 +525,9 @@ class NetworkExcludedRanges(MregAPITestCase):
     def test_count_unused_ips(self):
         """Test that excluded ipaddresses are exempted from the unused count"""
         self.test_create()
+        # Create a host that uses one of the reserved addresses. (Should not be counted twice)
+        host1 = Host.objects.create(name='host1.example.org')
+        Ipaddress.objects.create(host=host1, ipaddress='10.0.0.2')
         ret = self.assert_get(f'/api/v1/networks/{self.network4}/unused_count').json()
         # /24 - net/broadcast - reserved - [10, 200] - 201
         # 256 - 2             - 3        - 191       - 1   = 59
