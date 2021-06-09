@@ -10,6 +10,7 @@ from django.db import DatabaseError, models, transaction
 from django.db.models import Q
 from django.utils import timezone
 from netfields import CidrAddressField, NetManager
+from rest_framework.authtoken.models import Token
 
 from .fields import DnsNameField, LCICharField
 from .models_auth import User  # noqa: F401, needed by mreg.settings for now
@@ -831,3 +832,6 @@ class BACnetID(models.Model):
             else:
                 return j
         return j
+
+class ExpiringToken(Token):
+    last_used = models.DateTimeField(auto_now=True)

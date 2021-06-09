@@ -2,16 +2,18 @@ from datetime import timedelta
 from operator import itemgetter
 from unittest import skip
 
+import mock
+
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.utils import timezone
 
-from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient, APITestCase
 
 from mreg.models import (ForwardZone, Host, Ipaddress,
-                         Network, PtrOverride, ReverseZone, Txt)
+                         Network, PtrOverride, ReverseZone, Txt,
+                         ExpiringToken)
 
 
 class MissingSettings(Exception):
@@ -34,7 +36,7 @@ class MregAPITestCase(APITestCase):
         self.user = get_user_model().objects.create_user(username=username,
                                                          password="test")
         self.user.groups.clear()
-        token, created = Token.objects.get_or_create(user=self.user)
+        token, created = ExpiringToken.objects.get_or_create(user=self.user)
         if superuser:
             self.add_user_to_groups('SUPERUSER_GROUP')
         if adminuser:
@@ -194,19 +196,28 @@ class APITokenAuthenticationTestCase(MregAPITestCase):
 
     def test_force_expire(self):
         self.assert_get("/hosts/")
-        token = Token.objects.get(user=self.user)
+        token = ExpiringToken.objects.get(user=self.user)
         EXPIRE_HOURS = getattr(settings, 'REST_FRAMEWORK_TOKEN_EXPIRE_HOURS', 8)
-        token.created = timezone.now() - timedelta(hours=EXPIRE_HOURS)
-        token.save()
-        self.assert_get_and_401("/hosts/")
+        minute_after_expiry = token.last_used + timedelta(hours=EXPIRE_HOURS,
+                                                                minutes=1)
+        with mock.patch('django.utils.timezone.now') as mock_future:
+            mock_future.return_value = minute_after_expiry
+            self.assert_get_and_401("/hosts/")
 
     def test_token_rotation(self):
-        old = Token.objects.get(user=self.user)
+        old = ExpiringToken.objects.get(user=self.user)
         self.assert_post_and_200("/api/token-auth/",
                                  {"username": self.user,
                                   "password":"test"})
-        new = Token.objects.get(user=self.user)
+        new = ExpiringToken.objects.get(user=self.user)
         assert old.key != new.key
+
+    def test_token_usage(self):
+        old = ExpiringToken.objects.get(user=self.user)
+        self.assert_get("/hosts/")
+        new = ExpiringToken.objects.get(user=self.user)
+        assert old.created == new.created
+        self.assertLess(old.last_used, new.last_used)
 
     def test_is_active_false(self):
         self.assert_get("/hosts/")
