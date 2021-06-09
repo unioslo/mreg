@@ -23,11 +23,12 @@ class ObtainExpiringAuthToken(ObtainAuthToken):
             else:
                 raise err
 
-        token, created = Token.objects.get_or_create(user=serializer.validated_data['user'])
-        if not created:
-            # update the created time of the token to keep it valid
-            token.created = timezone.now()
-            token.save()
+        user = serializer.validated_data['user']
+
+        # Force token rotation.
+        Token.objects.filter(user=user).delete()
+
+        token, created = Token.objects.get_or_create(user=user)
 
         return Response({'token': token.key})
 

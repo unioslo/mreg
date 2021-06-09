@@ -31,7 +31,8 @@ class MregAPITestCase(APITestCase):
                 username = 'adminuser'
             else:
                 username = 'nobody'
-        self.user, created = get_user_model().objects.get_or_create(username=username)
+        self.user = get_user_model().objects.create_user(username=username,
+                                                         password="test")
         self.user.groups.clear()
         token, created = Token.objects.get_or_create(user=self.user)
         if superuser:
@@ -179,7 +180,7 @@ def create_reverse_zone(name='10.10.in-addr.arpa', primary_ns='ns.example.org',
     return ReverseZone.objects.create(name=name, primary_ns=primary_ns, email=email)
 
 
-class APITokenAutheticationTestCase(MregAPITestCase):
+class APITokenAuthenticationTestCase(MregAPITestCase):
     """Test various token authentication operations."""
 
     def test_logout(self):
@@ -198,6 +199,14 @@ class APITokenAutheticationTestCase(MregAPITestCase):
         token.created = timezone.now() - timedelta(hours=EXPIRE_HOURS)
         token.save()
         self.assert_get_and_401("/hosts/")
+
+    def test_token_rotation(self):
+        old = Token.objects.get(user=self.user)
+        self.assert_post_and_200("/api/token-auth/",
+                                 {"username": self.user,
+                                  "password":"test"})
+        new = Token.objects.get(user=self.user)
+        assert old.key != new.key
 
     def test_is_active_false(self):
         self.assert_get("/hosts/")

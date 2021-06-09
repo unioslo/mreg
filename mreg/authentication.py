@@ -23,4 +23,8 @@ class ExpiringTokenAuthentication(TokenAuthentication):
         if token.created < timezone.now() - timedelta(hours=EXPIRE_HOURS):
             raise exceptions.AuthenticationFailed('Token has expired')
 
+        # Update the created time of the token to keep it valid.
+        token.created = timezone.now()
+        token.save()
+
         return token.user, token
