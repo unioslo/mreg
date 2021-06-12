@@ -1,8 +1,13 @@
-import ipaddress
-import re
-import time
+from django.conf import settings
 
 import idna
+import ipaddress
+import json
+import pika
+import re
+import ssl
+import time
+
 
 
 def clear_none(value):
@@ -130,3 +135,38 @@ def normalize_mac(mac: str) -> str:
     mac = re.sub('[.:-]', '', mac).lower()
     return ":".join(["%s" % (mac[i:i+2]) for i in range(0, 12, 2)])
 
+
+mq_channel = None
+
+def send_event_to_mq(obj, routing_key):
+    config = getattr(settings, 'MQ_CONFIG', None)
+    if config is None:
+        return
+
+    global mq_channel
+    if mq_channel is None:
+        credentials = pika.credentials.PlainCredentials(
+            username=config['username'],
+            password=config['password'],
+        )
+        ssl_options = None
+        if config.get('ssl',False):
+            ssl_context = ssl.create_default_context()
+            ssl_options = pika.SSLOptions(ssl_context, config['host'])
+        connection_parameters = pika.ConnectionParameters(
+            host=config['host'],
+            credentials=credentials,
+            ssl_options = ssl_options,
+            virtual_host = config.get('virtual_host','/'),
+        )
+        connection = pika.BlockingConnection(connection_parameters)
+        mq_channel = connection.channel()
+        if config.get('declare',False):
+            mq_channel.exchange_declare(exchange=config['exchange'], exchange_type='topic')
+
+    mq_channel.basic_publish(
+        exchange=config['exchange'],
+        routing_key=routing_key,
+        body=json.dumps(obj),
+        properties=pika.BasicProperties(content_type="application/json"),
+    )

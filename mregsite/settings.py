@@ -190,6 +190,17 @@ TXT_AUTO_RECORDS = {
         'example.org': ('v=spf1 -all', ),
 }
 
+# Example of how MQ settings would look (put yours in local_settings.py)
+# MQ_CONFIG = {
+#    "host": "...",
+#    "ssl": True/False,
+#    "virtual_host": "...",
+#    "exchange": "...",
+#    "declare": True/False,
+#    "username": "...",
+#    "password": "...",
+#}
+
 # Import local settings that may override those in this file.
 try:
     from .local_settings import *  # noqa: F401,F403

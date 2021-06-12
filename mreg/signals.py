@@ -18,6 +18,7 @@ from .models import (Cname, ForwardZoneMember, Hinfo, History, Host, HostGroup,
                      NetGroupRegexPermission, Network, PtrOverride,
                      ForwardZone, ReverseZone, Srv, Sshfp, Txt)
 
+from .utils import send_event_to_mq
 
 @receiver(populate_user)
 def populate_user_from_ldap(sender, signal, user=None, ldap_user=None, **kwargs):
@@ -298,3 +299,21 @@ def update_hosts_when_zone_is_added(sender, instance, created, **kwargs):
                 continue
             h.zone = instance
             h.save()
+
+@receiver(post_delete, sender=Ipaddress)
+def send_event_ip_removed_from_host(sender, instance, **kwargs):
+    obj = {
+        'host': instance.host.name,
+        'ipaddress': instance.ipaddress,
+        'action': 'remove_ip_from_host',
+    }
+    send_event_to_mq(obj, "host.ipaddress")
+
+@receiver(post_save, sender=Ipaddress)
+def send_event_ip_added_to_host(sender, instance, created, **kwargs):
+    obj = {
+        'host': instance.host.name,
+        'ipaddress': instance.ipaddress,
+        'action': 'add_ip_to_host',
+    }
+    send_event_to_mq(obj, "host.ipaddress")
