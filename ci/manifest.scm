@@ -46,7 +46,6 @@
 export PYTHONPATH=\"/app:$PYTHONPATH\"
 cd /app
 python manage.py migrate --noinput
-python manage.py delete_all_tokens
 exec ~a $@ mregsite.wsgi
 "
                        bash gunicorn)))
