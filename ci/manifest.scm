@@ -25,7 +25,7 @@
 ;; Note: To use custom site settings, bind a customized "mregsite"
 ;; directory to /app/mregsite, like so:
 ;;  --mount type=bind,source=$HOME/localsettings,destination=/app/mregsite
-(define* (mreg-wrapper mreg #:optional (args '()))
+(define (mreg-wrapper mreg)
   (with-imported-modules '((guix build utils))
     (computed-file
      "mreg-wrapper"
@@ -47,19 +47,16 @@ export PYTHONPATH=\"/app:$PYTHONPATH\"
 cd /app
 python manage.py migrate --noinput
 python manage.py delete_all_tokens
-exec ~a ~a $@
+exec ~a $@ mregsite.wsgi
 "
-                       bash gunicorn (string-join '#$args " "))))
+                       bash gunicorn)))
            (chmod wrapper #o555))))))
-
-(define %entry-point
-  (mreg-wrapper mreg/dev '("mregsite.wsgi")))
 
 (manifest
  (append (list (manifest-entry
                  (version "0")
                  (name "mreg-wrapper")
-                 (item %entry-point)))
+                 (item (mreg-wrapper mreg/dev))))
          (manifest-entries
           (packages->manifest
            (list mreg/dev python-wrapper)))))
