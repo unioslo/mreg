@@ -55,9 +55,7 @@ exec ~a ~a $@
              (chmod wrapper #o555)))))))
 
 (define %entry-point
-  (mreg-wrapper
-   mreg/dev
-   '("--bind=0.0.0.0" "--workers" "3" "mregsite.wsgi")))
+  (mreg-wrapper mreg/dev '("mregsite.wsgi")))
 
 (manifest
  (append (list (manifest-entry

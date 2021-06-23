@@ -29,7 +29,7 @@ It is expected that you mount a custom "mregsite" directory on /app/mregsite:
 ```
 docker run \
   --mount type=bind,source=$HOME/customsettings,destination=/app/mregsite,readonly \
-  mreg-wrapper-mreg-python-wrapper:latest
+  mreg-wrapper-mreg-python-wrapper:latest --workers=4 --bind=0.0.0.0
 ```
 
 To access application logs outside the container, also mount `/app/logs`.
