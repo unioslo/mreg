@@ -26,33 +26,31 @@
 ;; directory to /app/mregsite, like so:
 ;;  --mount type=bind,source=$HOME/localsettings,destination=/app/mregsite
 (define* (mreg-wrapper mreg #:optional (args '()))
-  (let ((gunicorn (car (assoc-ref (package-propagated-inputs mreg)
-                                  "gunicorn"))))
-    (with-imported-modules '((guix build utils))
-      (computed-file
-       "mreg-wrapper"
-       #~(begin
-           (use-modules (guix build utils)
-                        (ice-9 format))
-           (let* ((bash #$(file-append bash-minimal "/bin/bash"))
-                  (gunicorn #$(file-append gunicorn "/bin/gunicorn"))
-                  (wrapper (string-append #$output "/bin/mreg-wrapper"))
-                  (mreg #$(file-append mreg "/lib/python"
-                                       (version-major+minor (package-version python))
-                                       "/site-packages/mreg")))
-             (mkdir-p (string-append #$output "/bin"))
-             (copy-recursively mreg (string-append #$output "/app"))
-             (call-with-output-file wrapper
-               (lambda (port)
-                 (format port "#!~a
+  (with-imported-modules '((guix build utils))
+    (computed-file
+     "mreg-wrapper"
+     #~(begin
+         (use-modules (guix build utils)
+                      (ice-9 format))
+         (let ((bash #$(file-append bash-minimal "/bin/bash"))
+               (gunicorn #$(file-append gunicorn "/bin/gunicorn"))
+               (wrapper (string-append #$output "/bin/mreg-wrapper"))
+               (mreg #$(file-append mreg "/lib/python"
+                                    (version-major+minor (package-version python))
+                                    "/site-packages/mreg")))
+           (mkdir-p (string-append #$output "/bin"))
+           (copy-recursively mreg (string-append #$output "/app"))
+           (call-with-output-file wrapper
+             (lambda (port)
+               (format port "#!~a
 export PYTHONPATH=\"/app:$PYTHONPATH\"
 cd /app
 python manage.py migrate --noinput
 python manage.py delete_all_tokens
 exec ~a ~a $@
 "
-                         bash gunicorn (string-join '#$args " "))))
-             (chmod wrapper #o555)))))))
+                       bash gunicorn (string-join '#$args " "))))
+           (chmod wrapper #o555))))))
 
 (define %entry-point
   (mreg-wrapper mreg/dev '("mregsite.wsgi")))
