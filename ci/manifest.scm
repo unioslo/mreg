@@ -1,4 +1,9 @@
-(use-modules (guix packages)
+(use-modules (srfi srfi-26)
+             (git repository)
+             (git reference)
+             (git commit)
+             (git oid)
+             (guix packages)
              (guix git)
              (guix gexp)
              (guix utils)
@@ -7,18 +12,28 @@
              (gnu packages python-web)
              (uio packages mreg))
 
+(define (head-commit checkout)
+ "Get the current HEAD of CHECKOUT."
+  (let* ((repo (repository-open checkout))
+         (head (reference-target (repository-head repo)))
+         (commit (commit-lookup repo head)))
+    (repository-close! repo)
+    (oid->string head)))
+
 ;; Use the HEAD of the local checkout unless running on the CI.
-(define %commit (getenv "GITHUB_SHA"))
-(define %uri (if %commit
-                 (string-append (getenv "GITHUB_SERVER_URL") "/"
-                                (getenv "GITHUB_REPOSITORY"))
-                 (dirname (dirname (current-filename)))))
+(define %repository
+  (or (and=> (getenv "GITHUB_SERVER_URL")
+             (cut string-append <> "/" (getenv "GITHUB_REPOSITORY")))
+      (dirname (dirname (current-filename)))))
+
+(define %commit (or (getenv "GITHUB_SHA")
+                    (head-commit %repository)))
 
 (define mreg/dev
   (package
     (inherit mreg)
-    (version (string-append "0.0+" (if %commit (string-take %commit 7) "dev")))
-    (source (git-checkout (url %uri) (commit %commit)))))
+    (version (string-append "0.0+" (string-take %commit 7)))
+    (source (git-checkout (url %repository) (commit %commit)))))
 
 ;; Script to run migrations and start a gunicorn server, used as the
 ;; "entry point" in the Docker container.
