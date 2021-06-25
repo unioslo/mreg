@@ -1,5 +1,7 @@
 name: mreg-docker
-on: [push]
+on:
+  push:
+    branches: master
 jobs:
   build:
     name: Build Docker image
