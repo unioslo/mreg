@@ -108,17 +108,17 @@ DATABASES = {
 
 DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
 
-if 'TRAVIS' in os.environ:
+if 'CI' in os.environ:
     DEBUG = True
     ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
     DATABASES = {
         'default': {
             'ENGINE':   'django.db.backends.postgresql',
-            'NAME':     'travisci',
+            'NAME':     'mregci',
             'USER':     'postgres',
-            'PASSWORD': '',
+            'PASSWORD': 'postgres',
             'HOST':     'localhost',
-            'PORT':     '5433',
+            'PORT':     '5432',
         }
     }
 

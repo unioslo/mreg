@@ -1,0 +1,119 @@
+on: [push, pull_request]
+
+name: CI
+jobs:
+  test:
+    name: Test
+    runs-on: ${{ matrix.os }}
+    services:
+      postgres:
+        image: postgres:latest
+        env:
+          # Password is required.
+          POSTGRES_PASSWORD: postgres
+        # Add health checks to wait until Postgres has started.
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          # Map the containerized port to localhost.
+          - 5432:5432
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        python-version:
+          - '3.6'
+          - '3.7'
+          - '3.8'
+          - '3.9'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Cache pip
+        uses: actions/cache@v2
+        with:
+          path: ~/.cache/pip
+          key: v1-pip-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('requirements-*.txt') }}
+          restore-keys: |
+            v1-pip-${{ runner.os }}-${{ matrix.python-version }}
+            v1-pip-${{ runner.os }}
+            v1-pip-
+      - name: Install Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          # Needed to build the native python-ldap extension.
+          sudo apt-get -y install libsasl2-dev libldap2-dev
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+      - name: Configure PostgreSQL
+        run: |
+          psql -c 'CREATE EXTENSION citext;' -h localhost -U postgres template1
+          psql -c 'CREATE DATABASE mregci;' -h localhost -U postgres
+        env:
+          PGPASSWORD: postgres
+      - name: Run migrations
+        run: python manage.py migrate
+      - name: Test
+        run: coverage run manage.py test -v2
+      - name: Upload coverage
+        uses: actions/upload-artifact@v2
+        with:
+          name: coverage-${{ matrix.python-version }}
+          path: .coverage
+
+  coveralls:
+    name: Coveralls
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        python-version:
+          - '3.6'
+          - '3.7'
+          - '3.8'
+          - '3.9'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Cache pip
+        uses: actions/cache@v2
+        with:
+          path: ~/.cache/pip
+          key: v1-pip-${{ runner.os }}-${{ matrix.python-version }}
+          restore-keys: |
+            v1-pip-${{ runner.os }}
+            v1-pip-
+      - name: Install Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Download coverage
+        uses: actions/download-artifact@v2
+        with:
+          name: coverage-${{ matrix.python-version }}
+      - name: Install Coveralls
+        run: pip install coveralls
+      - name: Run Coveralls
+        run: coveralls
+        env:
+          COVERALLS_PARALLEL: true
+          COVERALLS_FLAG_NAME: python-${{ matrix.python-version }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  finish:
+    name: Coveralls Completed
+    needs: coveralls
+    runs-on: ubuntu-latest
+    container:
+      image: thekevjames/coveralls
+    steps:
+      - name: Coveralls Finish
+        run: coveralls --finish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
