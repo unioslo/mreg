@@ -2,6 +2,10 @@ name: mreg-docker
 on:
   push:
     branches: master
+  # Run every week to get updated dependencies.
+  schedule:
+    - cron: '40 08 * * 1'
+
 jobs:
   build:
     name: Build Docker image
