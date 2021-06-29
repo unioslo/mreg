@@ -102,6 +102,9 @@ jobs:
       - name: Run Coveralls
         run: coveralls
         env:
+          # Note: Set service name to work around
+          # https://github.com/TheKevJames/coveralls-python/issues/252
+          COVERALLS_SERVICE_NAME: github
           COVERALLS_PARALLEL: true
           COVERALLS_FLAG_NAME: python-${{ matrix.python-version }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
