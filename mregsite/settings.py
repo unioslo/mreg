@@ -203,7 +203,7 @@ try:
 except ImportError:
     pass
 
-if TESTING:
+if TESTING or 'CI' in os.environ:
     SUPERUSER_GROUP = "default-super-group"
     ADMINUSER_GROUP = "default-admin-group"
     GROUPADMINUSER_GROUP = "default-groupadmin-group"
