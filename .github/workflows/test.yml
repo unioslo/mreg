@@ -1,4 +1,9 @@
-on: [pull_request]
+on:
+  push:
+    paths-ignore:
+      - 'ci/**'
+
+  pull_request:
 
 name: CI
 jobs:
@@ -67,6 +72,7 @@ jobs:
           path: .coverage
 
   coveralls:
+    if: ${{ github.event_name == 'pull_request' || github.repository == 'unioslo/mreg' }}
     name: Coveralls
     needs: test
     runs-on: ${{ matrix.os }}
