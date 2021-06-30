@@ -61,7 +61,7 @@
 export PYTHONPATH=\"/app:$PYTHONPATH\"
 cd /app
 python manage.py migrate --noinput
-exec ~a $@ mregsite.wsgi
+exec ~a $GUNICORN_ARGS $@ mregsite.wsgi
 "
                        bash gunicorn)))
            (chmod wrapper #o555))))))
