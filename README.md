@@ -1,4 +1,4 @@
-# mreg [![Build Status](https://github.com/unioslo/mreg/actions/workflows/test.yml/badge.svg)](https://github.com/unioslo/mreg/actions/workflows/test.yml) [![Coverage Status](https://coveralls.io/repos/github/unioslo/mreg/badge.svg?branch=master)](https://coveralls.io/github/unioslo/mreg?branch=master)
+# mreg [![Build Status](https://github.com/unioslo/mreg/actions/workflows/test.yml/badge.svg)](https://github.com/unioslo/mreg/actions/workflows/test.yml) [![Docker Status](https://github.com/unioslo/mreg/actions/workflows/docker-image.yml/badge.svg)](https://github.com/unioslo/mreg/actions/workflows/docker-image.yml) [![Coverage Status](https://coveralls.io/repos/github/unioslo/mreg/badge.svg?branch=master)](https://coveralls.io/github/unioslo/mreg?branch=master)
 mreg is an API (intended to be as RESTful as possible) for managing DNS.
 An associated project for a command line interface using the mreg API is available at:
 [mreg-cli](https://github.com/usit-gd/mreg-cli)
@@ -14,14 +14,12 @@ from `requirements.txt`. We use pip.
 
 ### Installing
 
-#### Using a pre-made Docker image.
+#### Using Docker.
 
-Pre-built Docker images are available to download from https://github.com/unioslo/mreg/actions/workflows/docker-image.yml.
-
-To use, make the image available to Docker with:
+Pre-built Docker images are available from [`ghcr.io/unioslo/mreg`](https://ghcr.io/unioslo/mreg):
 
 ```
-docker load < mreg-docker.tar.gz
+docker pull ghcr.io/unioslo/mreg
 ```
 
 It is expected that you mount a custom "mregsite" directory on /app/mregsite:
@@ -29,7 +27,7 @@ It is expected that you mount a custom "mregsite" directory on /app/mregsite:
 ```
 docker run \
   --mount type=bind,source=$HOME/customsettings,destination=/app/mregsite,readonly \
-  mreg-wrapper-mreg-python-wrapper:latest --workers=4 --bind=0.0.0.0
+  ghcr.io/unioslo/mreg:latest --workers=4 --bind=0.0.0.0
 ```
 
 To access application logs outside the container, also mount `/app/logs`.

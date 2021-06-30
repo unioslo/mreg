@@ -1,4 +1,4 @@
-name: Docker
+name: Docker Image
 on:
   push:
     branches: master
@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    name: Build Docker image
+    name: Build
     runs-on: ubuntu-latest
     steps:
       - name: Check Out Repo
@@ -45,3 +45,28 @@ jobs:
         with:
           name: mreg-docker.tar.gz
           path: mreg-docker.tar.gz
+
+  publish:
+    name: Publish
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: mreg-docker.tar.gz
+      - name: Load image
+        run: docker load < mreg-docker.tar.gz
+      - name: Log in to registry
+        run: >
+          echo "${{ secrets.GITHUB_TOKEN }}"
+          | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Push image
+        run: |
+          IMAGE_ID=ghcr.io/${{ github.repository_owner }}/mreg
+
+          docker tag mreg-wrapper-mreg-python-wrapper:latest $IMAGE_ID:latest
+          docker push $IMAGE_ID:latest
