@@ -18,7 +18,7 @@ jobs:
           POSTGRES_PASSWORD: postgres
         # Add health checks to wait until Postgres has started.
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready && PGPASSWORD=$POSTGRES_PASSWORD psql -U postgres -c 'CREATE EXTENSION IF NOT EXISTS citext;' template1 || exit 1"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -55,12 +55,6 @@ jobs:
           sudo apt-get -y install libsasl2-dev libldap2-dev
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
-      - name: Configure PostgreSQL
-        run: |
-          psql -c 'CREATE EXTENSION citext;' -h localhost -U postgres template1
-          psql -c 'CREATE DATABASE mregci;' -h localhost -U postgres
-        env:
-          PGPASSWORD: postgres
       - name: Check migrations
         run: python manage.py makemigrations --check
       - name: Test
