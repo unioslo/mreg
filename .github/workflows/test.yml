@@ -61,8 +61,8 @@ jobs:
           psql -c 'CREATE DATABASE mregci;' -h localhost -U postgres
         env:
           PGPASSWORD: postgres
-      - name: Run migrations
-        run: python manage.py migrate
+      - name: Check migrations
+        run: python manage.py makemigrations --check
       - name: Test
         run: coverage run manage.py test -v2
       - name: Upload coverage
