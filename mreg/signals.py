@@ -317,3 +317,20 @@ def send_event_ip_added_to_host(sender, instance, created, **kwargs):
         'action': 'add_ip_to_host',
     }
     send_event_to_mq(obj, "host.ipaddress")
+
+@receiver(post_save, sender=Host)
+def send_event_host_created(sender, instance, created, **kwargs):
+    if created:
+        obj = {
+            'host': instance.name,
+            'action': 'add_host',
+        }
+        send_event_to_mq(obj, "host")
+
+@receiver(post_delete, sender=Host)
+def send_event_host_removed(sender, instance, **kwargs):
+    obj = {
+        'host': instance.name,
+        'action': 'remove_host',
+    }
+    send_event_to_mq(obj, "host")
