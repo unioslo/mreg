@@ -14,11 +14,11 @@ jobs:
       postgres:
         image: postgres:latest
         env:
-          # Password is required.
+          POSTGRES_USER: mreg
           POSTGRES_PASSWORD: postgres
         # Add health checks to wait until Postgres has started.
         options: >-
-          --health-cmd "pg_isready && PGPASSWORD=$POSTGRES_PASSWORD psql -U postgres -c 'CREATE EXTENSION IF NOT EXISTS citext;' template1 || exit 1"
+          --health-cmd "pg_isready && PGPASSWORD=$POSTGRES_PASSWORD psql -U mreg -c 'CREATE EXTENSION IF NOT EXISTS citext;' template1 || exit 1"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -59,6 +59,8 @@ jobs:
         run: python manage.py makemigrations --check
       - name: Test
         run: coverage run manage.py test -v2
+        env:
+          MREG_DB_PASSWORD: postgres
       - name: Upload coverage
         uses: actions/upload-artifact@v2
         with:

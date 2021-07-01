@@ -25,9 +25,11 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SECRET_KEY = ')e#67040xjxar=zl^y#@#b*zilv2dxtraj582$^(e6!wf++_n#'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True if 'CI' in os.environ else False
 
-ALLOWED_HOSTS = []
+# The IP addresses that can access this instance.  Ignored if DEBUG
+# is True.
+ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
 
 AUTH_USER_MODEL = 'mreg.User'
 
@@ -95,32 +97,17 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'mregsite.wsgi.application'
 
-
-# Database
-# https://docs.djangoproject.com/en/2.0/ref/settings/#databases
-
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': 'mydatabase',
+        'ENGINE':   'django.db.backends.postgresql',
+        'NAME':     os.environ.get('MREG_DB_NAME', 'mreg'),
+        'USER':     os.environ.get('MREG_DB_USER', 'mreg'),
+        'PASSWORD': os.environ.get('MREG_DB_PASSWORD', ''),
+        'HOST':     os.environ.get('MREG_DB_HOST', 'localhost'),
+        'PORT':     os.environ.get('MREG_DB_PORT', '5432'),
     }
 }
 
-DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
-
-if 'CI' in os.environ:
-    DEBUG = True
-    ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
-    DATABASES = {
-        'default': {
-            'ENGINE':   'django.db.backends.postgresql',
-            'NAME':     os.environ.get('DB_NAME', 'mregci'),
-            'USER':     os.environ.get('DB_USER', 'postgres'),
-            'PASSWORD': os.environ.get('DB_PASSWORD', 'postgres'),
-            'HOST':     os.environ.get('DB_HOST', 'localhost'),
-            'PORT':     os.environ.get('DB_PORT', '5432'),
-        }
-    }
 
 # Password validation
 # https://docs.djangoproject.com/en/2.0/ref/settings/#auth-password-validators
@@ -160,6 +147,12 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static/')
+
+
+# Default primary key field type
+# https://docs.djangoproject.com/en/3.2/ref/settings/#default-auto-field
+DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
+
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
