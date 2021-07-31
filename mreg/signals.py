@@ -323,7 +323,7 @@ def send_event_host_created(sender, instance, created, **kwargs):
     if created:
         obj = {
             'host': instance.name,
-            'action': 'add_host',
+            'action': 'host_created',
         }
         send_event_to_mq(obj, "host")
 
@@ -331,6 +331,6 @@ def send_event_host_created(sender, instance, created, **kwargs):
 def send_event_host_removed(sender, instance, **kwargs):
     obj = {
         'host': instance.name,
-        'action': 'remove_host',
+        'action': 'host_removed',
     }
     send_event_to_mq(obj, "host")

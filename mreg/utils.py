@@ -8,7 +8,7 @@ import re
 import ssl
 import time
 
-
+from pika.exceptions import (ConnectionClosedByBroker, StreamLostError, AMQPConnectionError)
 
 def clear_none(value):
     """
@@ -144,7 +144,7 @@ def send_event_to_mq(obj, routing_key):
         return
 
     global mq_channel
-    if mq_channel is None:
+    if mq_channel is None or mq_channel.connection.is_closed:
         credentials = pika.credentials.PlainCredentials(
             username=config['username'],
             password=config['password'],
@@ -159,14 +159,20 @@ def send_event_to_mq(obj, routing_key):
             ssl_options = ssl_options,
             virtual_host = config.get('virtual_host','/'),
         )
-        connection = pika.BlockingConnection(connection_parameters)
+        try:
+            connection = pika.BlockingConnection(connection_parameters)
+        except AMQPConnectionError:
+            return
         mq_channel = connection.channel()
         if config.get('declare',False):
             mq_channel.exchange_declare(exchange=config['exchange'], exchange_type='topic')
 
-    mq_channel.basic_publish(
-        exchange=config['exchange'],
-        routing_key=routing_key,
-        body=json.dumps(obj),
-        properties=pika.BasicProperties(content_type="application/json"),
-    )
+    try:
+        mq_channel.basic_publish(
+            exchange=config['exchange'],
+            routing_key=routing_key,
+            body=json.dumps(obj),
+            properties=pika.BasicProperties(content_type="application/json"),
+        )
+    except (ConnectionClosedByBroker, StreamLostError):
+        mq_channel = None
