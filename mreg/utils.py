@@ -144,35 +144,38 @@ def send_event_to_mq(obj, routing_key):
         return
 
     global mq_channel
-    if mq_channel is None or mq_channel.connection.is_closed:
-        credentials = pika.credentials.PlainCredentials(
-            username=config['username'],
-            password=config['password'],
-        )
-        ssl_options = None
-        if config.get('ssl',False):
-            ssl_context = ssl.create_default_context()
-            ssl_options = pika.SSLOptions(ssl_context, config['host'])
-        connection_parameters = pika.ConnectionParameters(
-            host=config['host'],
-            credentials=credentials,
-            ssl_options = ssl_options,
-            virtual_host = config.get('virtual_host','/'),
-        )
-        try:
-            connection = pika.BlockingConnection(connection_parameters)
-        except AMQPConnectionError:
-            return
-        mq_channel = connection.channel()
-        if config.get('declare',False):
-            mq_channel.exchange_declare(exchange=config['exchange'], exchange_type='topic')
 
-    try:
-        mq_channel.basic_publish(
-            exchange=config['exchange'],
-            routing_key=routing_key,
-            body=json.dumps(obj),
-            properties=pika.BasicProperties(content_type="application/json"),
-        )
-    except (ConnectionClosedByBroker, StreamLostError):
-        mq_channel = None
+    for retry in range(10):
+        if mq_channel is None or mq_channel.connection.is_closed:
+            credentials = pika.credentials.PlainCredentials(
+                username=config['username'],
+                password=config['password'],
+            )
+            ssl_options = None
+            if config.get('ssl',False):
+                ssl_context = ssl.create_default_context()
+                ssl_options = pika.SSLOptions(ssl_context, config['host'])
+            connection_parameters = pika.ConnectionParameters(
+                host=config['host'],
+                credentials=credentials,
+                ssl_options = ssl_options,
+                virtual_host = config.get('virtual_host','/'),
+            )
+            try:
+                connection = pika.BlockingConnection(connection_parameters)
+                mq_channel = connection.channel()
+                if config.get('declare',False):
+                    mq_channel.exchange_declare(exchange=config['exchange'], exchange_type='topic')
+            except AMQPConnectionError:
+                continue
+
+        try:
+            mq_channel.basic_publish(
+                exchange=config['exchange'],
+                routing_key=routing_key,
+                body=json.dumps(obj),
+                properties=pika.BasicProperties(content_type="application/json"),
+            )
+            break
+        except (ConnectionClosedByBroker, StreamLostError):
+            mq_channel = None
