@@ -204,13 +204,30 @@ class APITokenAuthenticationTestCase(MregAPITestCase):
             mock_future.return_value = minute_after_expiry
             self.assert_get_and_401("/hosts/")
 
-    def test_token_rotation(self):
+    def test_token_reissue(self):
+        """ Authenticating before expiry should issue the same token. """
         old = ExpiringToken.objects.get(user=self.user)
         self.assert_post_and_200("/api/token-auth/",
                                  {"username": self.user,
                                   "password":"test"})
         new = ExpiringToken.objects.get(user=self.user)
-        assert old.key != new.key
+        assert old.key == new.key
+        self.assertLess(old.last_used, new.last_used)
+
+    def test_token_rotation(self):
+        old = ExpiringToken.objects.get(user=self.user)
+        EXPIRE_HOURS = getattr(settings, 'REST_FRAMEWORK_TOKEN_EXPIRE_HOURS', 8)
+        minute_after_expiry = old.last_used + timedelta(hours=EXPIRE_HOURS,
+                                                        minutes=1)
+        with mock.patch('django.utils.timezone.now') as mock_future:
+            mock_future.return_value = minute_after_expiry
+            # Remove old Authorization header, otherwise the expired Token will be rejected with a 401
+            self.client.credentials()
+            self.assert_post_and_200("/api/token-auth/",
+                                     {"username": self.user,
+                                      "password":"test"})
+            new = ExpiringToken.objects.get(user=self.user)
+            assert old.key != new.key
 
     def test_token_usage(self):
         old = ExpiringToken.objects.get(user=self.user)
