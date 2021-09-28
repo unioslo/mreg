@@ -4,6 +4,7 @@ from collections import defaultdict, namedtuple
 from datetime import timedelta
 from functools import reduce
 
+from django.conf import settings
 import django.contrib.postgres.fields as pgfields
 from django.contrib.auth.models import Group
 from django.db import DatabaseError, models, transaction
@@ -835,3 +836,8 @@ class BACnetID(models.Model):
 
 class ExpiringToken(Token):
     last_used = models.DateTimeField(auto_now=True)
+
+    @property
+    def is_expired(self):
+        EXPIRE_HOURS = getattr(settings, 'REST_FRAMEWORK_TOKEN_EXPIRE_HOURS', 8)
+        return self.last_used < timezone.now() - timedelta(hours=EXPIRE_HOURS)

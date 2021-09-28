@@ -1,5 +1,3 @@
-from django.utils import timezone
-
 from rest_framework import status
 from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.permissions import IsAuthenticated
@@ -26,10 +24,12 @@ class ObtainExpiringAuthToken(ObtainAuthToken):
 
         user = serializer.validated_data['user']
 
-        # Force token rotation.
-        ExpiringToken.objects.filter(user=user).delete()
-
         token, created = ExpiringToken.objects.get_or_create(user=user)
+
+        if not created and token.is_expired:
+            # Force rotation of expired tokens.
+            ExpiringToken.objects.filter(user=user).delete()
+            token, _ = ExpiringToken.objects.get_or_create(user=user)
 
         return Response({'token': token.key})
 
