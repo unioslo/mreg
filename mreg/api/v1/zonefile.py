@@ -47,7 +47,7 @@ class Common:
         data = ""
         idna_name = f'{idna_encode(qualify(host.name, self.zone.name)):24}'
         ttl = prep_ttl(host.ttl)
-        for ip in host.ipaddresses.all():
+        for ip in host.ipaddresses.only('ipaddress'):
             ipaddr = ipaddress.ip_address(ip.ipaddress)
             record_type = 'A     ' if ipaddr.version == 4 else 'AAAA  '
             data += self.ip_zf_string(idna_name, ttl, record_type, ip.ipaddress)
@@ -82,7 +82,7 @@ class Common:
     def get_subreversezones(self):
         data = ""
         subzones = ReverseZone.objects.filter(name__endswith="." + self.zone.name)
-        if subzones:
+        if subzones.exists():
             data += self.get_ns_data(subzones.order_by("name"))
             data = ';\n; Sub zones\n;\n' + data
         return data
@@ -295,11 +295,11 @@ class ForwardFile(Common):
         except Host.DoesNotExist:
             pass
         # Print info about hosts and their corresponding data
-        hosts = Host.objects.filter(zone=zone.id).order_by('name')
-        hosts = hosts.exclude(name=zone.name)
-        if hosts:
+        hosts = Host.objects.filter(zone=zone.id).exclude(name=zone.name)
+        if hosts.exists():
             data += ';\n; Host addresses\n;\n'
-            for host in hosts:
+            hosts = hosts.only('name', 'ttl').order_by('name')
+            for host in hosts.iterator():
                 data += self.host_data(host)
         # Print misc entries
         srvs = Srv.objects.filter(zone=zone.id).exclude(host__zone=zone.id)
