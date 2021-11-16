@@ -1020,24 +1020,17 @@ def _dhcphosts_by_range(iprange):
     ips = ips.values('host__name', 'ipaddress', 'macaddress', 'host__zone__name')
     return Response(ips)
 
+@api_view()
+def dhcp_hosts_all_v4(request, *args, **kwargs):
+    return _dhcphosts_by_range('0.0.0.0/0')
 
-class DhcpHostsAllV4(generics.GenericAPIView):
+@api_view()
+def dhcp_hosts_all_v6(request, *args, **kwargs):
+    return _dhcphosts_by_range('::/0')
 
-    def get(self, request, *args, **kwargs):
-        return _dhcphosts_by_range('0.0.0.0/0')
-
-
-class DhcpHostsAllV6(generics.GenericAPIView):
-
-    def get(self, request, *args, **kwargs):
-        return _dhcphosts_by_range('::/0')
-
-
-class DhcpHostsByRange(generics.GenericAPIView):
-
-    def get(self, request, *args, **kwargs):
-        return _dhcphosts_by_range(_get_iprange(kwargs))
-
+@api_view()
+def dhcp_hosts_by_range(request, *args, **kwargs):
+    return _dhcphosts_by_range(_get_iprange(kwargs))
 
 def _dhcpv6_hosts_by_ipv4(iprange):
     """
