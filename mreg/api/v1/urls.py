@@ -73,7 +73,7 @@ urlpatterns = [
     re_path(r'^zones/reverse/(?P<name>(\d+/)?[^/]+)/delegations/$', views_zones.ReverseZoneDelegationList.as_view()),
     re_path(r'^zones/reverse/(?P<name>(\d+/)?[^/]+)/delegations/(?P<delegation>(.*))', views_zones.ReverseZoneDelegationDetail.as_view()),
     re_path(r'^zones/reverse/(?P<name>(\d+/)?[^/]+)/nameservers$', views_zones.ReverseZoneNameServerDetail.as_view()),
-    re_path(r'^zonefiles/(?P<name>(\d+/)?[^/]+)', views_zones.ZoneFileDetail.as_view()),
+    re_path(r'^zonefiles/(?P<name>(\d+/)?[^/]+)', views_zones.zone_file_detail),
     path('permissions/netgroupregex/', views.NetGroupRegexPermissionList.as_view()),
     path('permissions/netgroupregex/<pk>', views.NetGroupRegexPermissionDetail.as_view()),
 ]

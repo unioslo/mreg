@@ -5,7 +5,7 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404
 
 from rest_framework import (generics, renderers, status)
-from rest_framework.decorators import api_view
+from rest_framework.decorators import (api_view, renderer_classes)
 from rest_framework.exceptions import MethodNotAllowed, ParseError
 from rest_framework.response import Response
 
@@ -369,7 +369,9 @@ class PlainTextRenderer(renderers.TemplateHTMLRenderer):
         return data.encode(self.charset)
 
 
-class ZoneFileDetail(generics.GenericAPIView):
+@api_view()
+@renderer_classes([PlainTextRenderer])
+def zone_file_detail(request, *args, **kwargs):
     """
     Handles a DNS zone file in plaintext.
 
@@ -377,21 +379,19 @@ class ZoneFileDetail(generics.GenericAPIView):
     Generate zonefile for a given zone.
     """
 
-    renderer_classes = (PlainTextRenderer, )
-    lookup_field = 'name'
+    zonename = kwargs['name']
 
-    def get_queryset(self):
-        zonename = self.kwargs[self.lookup_field]
+    if zonename.endswith(".arpa"):
+        qs = ReverseZone.objects.all()
+    else:
+        qs = ForwardZone.objects.all()
 
-        if zonename.endswith(".arpa"):
-            self.queryset = ReverseZone.objects.all()
-        else:
-            self.queryset = ForwardZone.objects.all()
-        return super().get_queryset()
+    try:
+        zone = qs.get(name=zonename)
+    except (ForwardZone.DoesNotExist, ReverseZone.DoesNotExist):
+        raise Http404
 
-    def get(self, request, *args, **kwargs):
-        zone = self.get_object()
-        # XXX: a force argument to force serialno update?
-        zone.update_serialno()
-        zonefile = ZoneFile(zone)
-        return Response(zonefile.generate())
+    # XXX: a force argument to force serialno update?
+    zone.update_serialno()
+    zonefile = ZoneFile(zone)
+    return Response(zonefile.generate())
