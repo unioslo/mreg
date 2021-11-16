@@ -1,3 +1,5 @@
 mock
 coverage
 coveralls
+uritemplate
+pyyaml

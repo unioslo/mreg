@@ -58,10 +58,18 @@ jobs:
           pip install -r requirements-dev.txt
       - name: Check migrations
         run: python manage.py makemigrations --check
+      - name: Export OpenAPI schema
+        run: python manage.py generateschema > openapi.yml
       - name: Test
         run: coverage run manage.py test -v2
         env:
           MREG_DB_PASSWORD: postgres
+      - name: Upload OpenAPI schema
+        if: matrix.python-version == '3.10'
+        uses: actions/upload-artifact@v2
+        with:
+          name: openapi.yml
+          path: openapi.yml
       - name: Upload coverage
         uses: actions/upload-artifact@v2
         with:
