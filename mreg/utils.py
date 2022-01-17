@@ -1,11 +1,16 @@
 from django.conf import settings
 
+from datetime import datetime, timezone;
+import hashlib
 import idna
 import ipaddress
 import json
+import os
 import pika
+import random
 import re
 import ssl
+import string
 import time
 
 from pika.exceptions import (ConnectionClosedByBroker, StreamLostError, AMQPConnectionError)
@@ -137,6 +142,8 @@ def normalize_mac(mac: str) -> str:
 
 
 mq_channel = None
+mq_id : int = 1
+pid_and_time = str(os.getpid()) + " " + str(time.time()) + " "
 
 def send_event_to_mq(obj, routing_key):
     config = getattr(settings, 'MQ_CONFIG', None)
@@ -144,6 +151,16 @@ def send_event_to_mq(obj, routing_key):
         return
 
     global mq_channel
+    global mq_id
+    global pid_and_time
+
+    # Add an id property to the event
+    obj['id'] = hashlib.md5((pid_and_time + str(mq_id)).encode('utf-8')).hexdigest()
+    mq_id += 1
+
+    # Add a timestamp to the event
+    local_time = datetime.now(timezone.utc).astimezone()
+    obj['timestamp'] = local_time.isoformat()
 
     for retry in range(10):
         if mq_channel is None or mq_channel.connection.is_closed:
