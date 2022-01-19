@@ -129,11 +129,8 @@ class IsSuperOrNetworkAdminMember(IsAuthenticated):
             if isinstance(view, mreg.api.v1.views.NetworkDetail):
                 if request.method == 'PATCH':
                     # Only allow update of the reserved/frozen fields
-                    if 'reserved' in request.data and len(request.data) == 1:
-                        return True
-                    if 'frozen' in request.data and len(request.data) == 1:
-                        return True
-                    if 'reserved' in request.data and 'frozen' in request.data and len(request.data) == 2:
+                    allowed_fields = {'frozen', 'reserved'}
+                    if allowed_fields.issuperset(request.data):
                         return True
             elif isinstance(view, (mreg.api.v1.views.NetworkExcludedRangeList,
                                    mreg.api.v1.views.NetworkExcludedRangeDetail)):
