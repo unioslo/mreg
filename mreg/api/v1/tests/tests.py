@@ -2,7 +2,7 @@ from datetime import timedelta
 from operator import itemgetter
 from unittest import skip
 
-import mock
+import unittest.mock as mock
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
