@@ -771,7 +771,7 @@ class NetGroupRegexPermission(BaseModel):
         return f"group {self.group}, range {self.range}, regex {self.regex}"
 
     @classmethod
-    def find_perm(cls, groups, hostname, ips):
+    def find_perm(cls, groups, hostname, ips, require_ip=True):
         if not isinstance(hostname, str):
             raise ValueError(f'hostname is invalid type ({type(hostname)})')
         if isinstance(groups, str):
@@ -782,13 +782,17 @@ class NetGroupRegexPermission(BaseModel):
             ips = [ips]
         if not isinstance(ips, (list, tuple)):
             raise ValueError(f'ips on invalid type ({type(ips)})')
-        if not all([groups, hostname, ips]):
+        if require_ip and not ips:
+            return cls.objects.none()
+        if not all([groups, hostname]):
             return cls.objects.none()
         qs = cls.objects.filter(
                 group__in=groups
             ).extra(
                 where=["%s ~ regex"], params=[str(hostname)]
-            ).filter(
+            )
+        if require_ip:
+            qs = qs.filter(
                 reduce(lambda x, y: x | y, [Q(range__net_contains=ip) for ip in ips])
             )
         return qs

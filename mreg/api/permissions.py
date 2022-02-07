@@ -214,9 +214,9 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
         return False
 
     @staticmethod
-    def has_perm(user, hostname, ips):
+    def has_perm(user, hostname, ips, require_ip=True):
         return bool(NetGroupRegexPermission.find_perm(user.group_list,
-                                                      hostname, ips))
+                                                      hostname, ips, require_ip))
 
     def has_obj_perm(self, user, obj):
         return self.has_perm(user, *self._get_hostname_and_ips(obj))
@@ -242,6 +242,9 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
             if 'host' in data:
                 if not self.has_obj_perm(request.user, data['host']):
                     return False
+        if isinstance(view, mreg.api.v1.views.CnameList):
+            # only check the cname, don't care about ip addresses
+            return self.has_perm(request.user, data['name'], (), require_ip=False)
         if isinstance(view, (mreg.api.v1.views.HostList,
                              mreg.api.v1.views.IpaddressList,
                              mreg.api.v1.views.PtrOverrideList)):

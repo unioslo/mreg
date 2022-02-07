@@ -1,6 +1,6 @@
 from django.contrib.auth.models import Group
 
-from mreg.models import Host, Ipaddress, NetGroupRegexPermission, Network, PtrOverride
+from mreg.models import ForwardZone, Host, Ipaddress, NetGroupRegexPermission, Network, PtrOverride
 
 from .tests import MregAPITestCase
 
@@ -32,10 +32,10 @@ class HostBasePermissions(MregAPITestCase):
         Network.objects.create(network='10.1.0.0/25')
         NetGroupRegexPermission.objects.create(group='testgroup',
                                                range='10.0.0.0/25',
-                                               regex=r'.*\.example\.org$')
+                                               regex=r'^ho.*\.example\.org$')
         NetGroupRegexPermission.objects.create(group='testgroup',
                                                range='10.1.0.0/25',
-                                               regex=r'.*\.example\.org$')
+                                               regex=r'^ho.*\.example\.org$')
 
 
 class Hosts(HostBasePermissions):
@@ -119,6 +119,22 @@ class Hosts(HostBasePermissions):
         self.assert_patch_and_403(path, datafail1)
         self.assert_post_and_403(path2, datafail2)
         self.assert_patch(path, dataok)
+
+    def test_can_not_create_CNAME_outside_permissions(self):
+        ForwardZone.objects.create(name='example.org', primary_ns='ns.example.org', email='hostmaster@example.org')
+        data = {'name': 'host1.example.org', 'ipaddress': '10.0.0.1'}
+        ret = self.assert_post('/hosts/', data)
+        # read back to get the ID
+        host = self.assert_get(ret['Location']).json()
+        # try to create a cname that doesn't match the regex in the permission (should fail)
+        data = {'name': 'snafu.example.org', 'host': host['id']}
+        self.assert_post_and_403('/cnames/', data)
+        # try to create the same cname, but with superuser (it should work now)
+        super_client = self.get_token_client()
+        self.assert_post('/cnames/', data, client=super_client)
+        # create a cname that matches the regex, with the ordinary (non-super) user. Should work
+        data = {'name': 'host123.example.org', 'host': host['id']}
+        self.assert_post('/cnames/', data)
 
 
 class Ipaddresses(HostBasePermissions):
