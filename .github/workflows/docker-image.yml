@@ -1,7 +1,9 @@
 name: Docker Image
 on:
   push:
-    branches: master
+    branches:
+      - master
+      - publish-events-to-rabbitmq
   # Run every week to get updated dependencies.
   schedule:
     - cron: '40 08 * * 1'
@@ -67,6 +69,8 @@ jobs:
       - name: Push image
         run: |
           IMAGE_ID=ghcr.io/${{ github.repository_owner }}/mreg
+          TAG_NAME=latest
+          [[ "$GITHUB_REF_NAME" == "master" ]] || TAG_NAME="$GITHUB_REF_NAME"
 
-          docker tag mreg-wrapper-mreg-python-wrapper:latest $IMAGE_ID:latest
-          docker push $IMAGE_ID:latest
+          docker tag mreg-wrapper-mreg-python-wrapper:latest $IMAGE_ID:$TAG_NAME
+          docker push $IMAGE_ID:$TAG_NAME
