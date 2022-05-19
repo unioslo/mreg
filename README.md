@@ -45,6 +45,16 @@ guix time-machine -C ci/channels.scm -- pack -f docker \
 
 A step by step series of examples that tell you how to get a development env running
 
+Begin by installing required OS level dependencies.
+
+**Debian/Ubuntu**
+```
+> sudo apt-get install libsasl2-dev python-dev libldap2-dev libssl-dev
+```
+**RedHat/derivatives**
+```
+> sudo yum install python-devel openldap-devel
+```
 When you've got your copy of the mreg directory, setup you virtual environment.
 ```
 > python3 -m venv venv
