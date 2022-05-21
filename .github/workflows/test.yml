@@ -53,6 +53,7 @@ jobs:
       - name: Install dependencies
         run: |
           # Needed to build the native python-ldap extension.
+          sudo apt-get update
           sudo apt-get -y install libsasl2-dev libldap2-dev
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
