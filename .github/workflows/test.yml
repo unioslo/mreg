@@ -2,6 +2,7 @@ on:
   push:
     paths-ignore:
       - 'ci/**'
+      - 'README.md'
 
   pull_request:
 
