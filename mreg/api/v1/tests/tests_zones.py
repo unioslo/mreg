@@ -373,18 +373,18 @@ class ZonesForwardDelegationTestCase(MregAPITestCase):
         data = {'name': 'delegated.example.org',
                 'nameservers': ['ns1.example.org', 'ns1.delegated.example.org']}
         self.assert_post(path, data)
-        # add a host in the delegation
-        self.assert_post_and_201('/hosts/', {"name": "foo.delegated.example.org",
-                "ipaddress": "10.10.0.1", "contact": "mail@delegated.example.org"})
-        # load the host object and verify that its zone is None
-        host = Host.objects.get(name="foo.delegated.example.org")
-        self.assertTrue(host.zone is None)
-        # add a host with the same name as the delegation
-        self.assert_post_and_201('/hosts/', {"name": "delegated.example.org",
-                "ipaddress": "10.10.0.2", "contact": "mail@delegated.example.org"})
-        # load the host object and verify that its zone is None
-        host = Host.objects.get(name="delegated.example.org")
-        self.assertTrue(host.zone is None)
+        # test by adding some hosts that should get zone == None
+        hostnames = [
+            'foo.delegated.example.org', # a host in the delegation
+            'delegated.example.org' # a host with the same name as the delegation
+        ]
+        for hostname in hostnames:
+            with self.subTest(hostname=hostname):
+                # add the host
+                self.assert_post_and_201('/hosts/', {"name": hostname, "ipaddress": "10.0.0.1", "contact": "mail@delegated.example.org"})
+                # load the host object and verify that its zone is None
+                host = Host.objects.get(name=hostname)
+                self.assertIsNone(host.zone)
 
 
 class ZonesReverseDelegationTestCase(MregAPITestCase):
