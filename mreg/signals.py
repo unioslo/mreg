@@ -17,8 +17,7 @@ from .models import (Cname, ForwardZoneMember, Hinfo, History, Host, HostGroup,
                      Ipaddress, Loc, Mx, NameServer, Naptr,
                      NetGroupRegexPermission, Network, PtrOverride,
                      ForwardZone, ReverseZone, Srv, Sshfp, Txt)
-
-from .utils import send_event_to_mq
+from .mqsender import MQSender
 
 @receiver(populate_user)
 def populate_user_from_ldap(sender, signal, user=None, ldap_user=None, **kwargs):
@@ -307,7 +306,7 @@ def send_event_ip_removed_from_host(sender, instance, **kwargs):
         'ipaddress': instance.ipaddress,
         'action': 'remove_ip_from_host',
     }
-    send_event_to_mq(obj, "host.ipaddress")
+    MQSender().send_event(obj, "host.ipaddress")
 
 @receiver(post_save, sender=Ipaddress)
 def send_event_ip_added_to_host(sender, instance, created, **kwargs):
@@ -316,7 +315,7 @@ def send_event_ip_added_to_host(sender, instance, created, **kwargs):
         'ipaddress': instance.ipaddress,
         'action': 'add_ip_to_host',
     }
-    send_event_to_mq(obj, "host.ipaddress")
+    MQSender().send_event(obj, "host.ipaddress")
 
 @receiver(post_save, sender=Host)
 def send_event_host_created(sender, instance, created, **kwargs):
@@ -325,7 +324,7 @@ def send_event_host_created(sender, instance, created, **kwargs):
             'host': instance.name,
             'action': 'host_created',
         }
-        send_event_to_mq(obj, "host")
+        MQSender().send_event(obj, "host")
 
 @receiver(post_delete, sender=Host)
 def send_event_host_removed(sender, instance, **kwargs):
@@ -333,4 +332,4 @@ def send_event_host_removed(sender, instance, **kwargs):
         'host': instance.name,
         'action': 'host_removed',
     }
-    send_event_to_mq(obj, "host")
+    MQSender().send_event(obj, "host")

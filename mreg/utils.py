@@ -1,19 +1,9 @@
-from django.conf import settings
-
-from datetime import datetime, timezone;
-import hashlib
-import idna
 import ipaddress
-import json
-import os
-import pika
-import random
 import re
-import ssl
-import string
 import time
 
-from pika.exceptions import (ConnectionClosedByBroker, StreamLostError, AMQPConnectionError)
+import idna
+
 
 def clear_none(value):
     """
@@ -140,59 +130,3 @@ def normalize_mac(mac: str) -> str:
     mac = re.sub('[.:-]', '', mac).lower()
     return ":".join(["%s" % (mac[i:i+2]) for i in range(0, 12, 2)])
 
-
-mq_channel = None
-mq_id : int = 1
-pid_and_time = str(os.getpid()) + " " + str(time.time()) + " "
-
-def send_event_to_mq(obj, routing_key):
-    config = getattr(settings, 'MQ_CONFIG', None)
-    if config is None:
-        return
-
-    global mq_channel
-    global mq_id
-    global pid_and_time
-
-    # Add an id property to the event
-    obj['id'] = hashlib.md5((pid_and_time + str(mq_id)).encode('utf-8')).hexdigest()
-    mq_id += 1
-
-    # Add a timestamp to the event
-    local_time = datetime.now(timezone.utc).astimezone()
-    obj['timestamp'] = local_time.isoformat()
-
-    for retry in range(10):
-        if mq_channel is None or mq_channel.connection.is_closed:
-            credentials = pika.credentials.PlainCredentials(
-                username=config['username'],
-                password=config['password'],
-            )
-            ssl_options = None
-            if config.get('ssl',False):
-                ssl_context = ssl.create_default_context()
-                ssl_options = pika.SSLOptions(ssl_context, config['host'])
-            connection_parameters = pika.ConnectionParameters(
-                host=config['host'],
-                credentials=credentials,
-                ssl_options = ssl_options,
-                virtual_host = config.get('virtual_host','/'),
-            )
-            try:
-                connection = pika.BlockingConnection(connection_parameters)
-                mq_channel = connection.channel()
-                if config.get('declare',False):
-                    mq_channel.exchange_declare(exchange=config['exchange'], exchange_type='topic')
-            except AMQPConnectionError:
-                continue
-
-        try:
-            mq_channel.basic_publish(
-                exchange=config['exchange'],
-                routing_key=routing_key,
-                body=json.dumps(obj),
-                properties=pika.BasicProperties(content_type="application/json"),
-            )
-            break
-        except (ConnectionClosedByBroker, StreamLostError):
-            mq_channel = None
