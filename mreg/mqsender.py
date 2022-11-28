@@ -21,7 +21,7 @@ class MQSender(object):
 
 	def __init__(self):
 		self.mq_channel = None
-		self.mq_id : int = int(time.time_ns()/1000000)
+		self.mq_id : int = time.time_ns()//1_000_000
 
 	def send_event(self, obj, routing_key):
 		config = getattr(settings, 'MQ_CONFIG', None)
