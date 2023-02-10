@@ -391,7 +391,11 @@ def zone_file_detail(request, *args, **kwargs):
     except (ForwardZone.DoesNotExist, ReverseZone.DoesNotExist):
         raise Http404
 
+    excludePrivateAddresses:bool = False
+    if 'excludePrivate' in request.GET and request.GET['excludePrivate'].lower() in ['true','yes','t','y','1']:
+        excludePrivateAddresses = True
+
     # XXX: a force argument to force serialno update?
     zone.update_serialno()
-    zonefile = ZoneFile(zone)
+    zonefile = ZoneFile(zone,excludePrivateAddresses)
     return Response(zonefile.generate())

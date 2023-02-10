@@ -6,13 +6,14 @@ from mreg.utils import idna_encode, qualify
 
 
 class ZoneFile:
-    def __init__(self, zone):
+    def __init__(self, zone, excludePrivateAddresses):
         if zone.name.endswith('.in-addr.arpa'):
             self.zonetype = IPv4ReverseFile(zone)
         elif zone.name.endswith('.ip6.arpa'):
             self.zonetype = IPv6ReverseFile(zone)
         else:
             self.zonetype = ForwardFile(zone)
+        self.zonetype.excludePrivateAddresses = excludePrivateAddresses
 
     def generate(self):
         return self.zonetype.generate()
@@ -232,6 +233,10 @@ class ForwardFile(Common):
         for network, record_type in (('0.0.0.0/0', 'A     '),
                                      ('::/0', 'AAAA  '),):
             ipfilter = ips.extra(where=["ipaddress << %s"], params=[network])
+            if self.excludePrivateAddresses:
+                ipfilter = ipfilter.exclude(ipaddress__range=('10.0.0.0','10.255.255.255'))\
+                                   .exclude(ipaddress__range=('172.16.0.0','172.31.255.255'))\
+                                   .exclude(ipaddress__range=('192.168.0.0','192.168.255.255'))
             for hostname, ip in ipfilter.values_list("host__name", "ipaddress"):
                 self.ipaddresses[hostname].append((record_type, ip,))
 

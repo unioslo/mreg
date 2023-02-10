@@ -154,3 +154,28 @@ class APIZonefileTestCase(MregAPITestCase):
         ret = self._get_zone(rev_v4)
         self.assertNotIn('in-sub-zone.example.org', ret)
         self.assertNotIn('in-delegation.example.org', ret)
+
+    def test_excluding_private_addresses(self):
+        """Addresses in the private address spaces defined in RFC 1918 can be excluded from the zone files."""
+        # test with some private and non-private addresses
+        testhosts = [
+            {'name': 'alpha', 'ip': '10.0.0.4', 'private': True},
+            {'name': 'bravo', 'ip': '172.16.0.4', 'private': True},
+            {'name': 'charlie', 'ip': '192.168.0.4', 'private': True},
+            {'name': 'delta', 'ip': '129.240.130.240', 'private': False},
+            {'name': 'echo', 'ip': '2001:700:100:4003::29', 'private': False}
+        ]
+        for h in testhosts:
+            self._add_host('{}.{}'.format(h['name'],self.forward.name), h['ip'])
+        # get the forward zone file, verify it contains both private and non-private addresses
+        data = self._get_zone(self.forward)
+        for h in testhosts:
+            self.assertIn(h['ip'], data)
+        # get the forward zone file but with private addresses excluded, verify it contains only public addresses
+        response = self.assert_get(f"/zonefiles/{self.forward.name}?excludePrivate=yes")
+        data = response.data
+        for h in testhosts:
+            if h['private']:
+                self.assertNotIn(h['ip'], data)
+            else:
+                self.assertIn(h['ip'], data)
