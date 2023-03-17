@@ -1,8 +1,39 @@
 from django.contrib.auth.models import Group
+from rest_framework import exceptions
 
-from mreg.models import ForwardZone, Host, Ipaddress, NetGroupRegexPermission, Network, PtrOverride
+from mreg.api.permissions import get_settings_groups, user_in_required_group
+from mreg.models import ForwardZone, Host, Ipaddress, NetGroupRegexPermission, Network, PtrOverride, User
+
 
 from .tests import MregAPITestCase
+
+
+class Internals(MregAPITestCase):
+    """Test internal structures in permissions."""
+    def test_missing_group_settings(self):
+        """Ensure that missing group settings are caught if requested."""
+        with self.assertRaises(exceptions.APIException):
+            get_settings_groups("NO_SUCH_SETTINGS_GROUP")
+
+    def test_user_in_required_groups(self):
+        """Ensure that user_in_required_groups works."""
+        testuser, _ = User.objects.get_or_create(username="testuser")
+        testgroup, _ = Group.objects.get_or_create(name="testgroup")
+
+        with self.assertRaises(exceptions.APIException):
+            user_in_required_group(testuser)
+
+        # Note that required groups contains the names of the groups, not objects.
+        # See the User definition in mreg/models_auth.py
+        self.assertFalse(user_in_required_group(testuser, required_groups=[testgroup.name]))
+        # The caching of group list requires us to manually expunge the cache.
+        # This operation has no API, so right no we do it the hard way.
+        testuser._group_list = None
+        testuser.groups.add(testgroup)
+        self.assertTrue(user_in_required_group(testuser, required_groups=[testgroup.name]))
+
+        testuser.delete()
+        testgroup.delete()
 
 
 class HostsNoRights(MregAPITestCase):

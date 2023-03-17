@@ -164,6 +164,11 @@ class NetworksTestCase(MregAPITestCase):
         self.assertEqual(response.data['count'], 4)
         self.assertEqual(len(response.data['results']), 4)
 
+    def test_networks_get_401_unauthorized(self):
+        """GET on an existing ip-network while unauthorized should return 401 Unauthorized."""
+        self.client.logout()
+        self.assert_get_and_401('/networks/%s' % self.network_sample.network)
+
     def test_networks_patch_204_no_content(self):
         """Patching an existing and valid entry should return 204 and Location"""
         response = self.assert_patch('/networks/%s' % self.network_sample.network,
@@ -451,7 +456,6 @@ class NetworksTestCase(MregAPITestCase):
         self.assert_get('/networks/')
         self.client.logout()
         self.assert_get_and_401('/networks/')
-
 
 class NetworkExcludedRanges(MregAPITestCase):
     """Tests for NetworkExcludedRange objects and that they are enforced
