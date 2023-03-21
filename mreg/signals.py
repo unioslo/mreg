@@ -51,9 +51,11 @@ def _signal_history(resource, name, action, model, model_id, data):
                       model=model,
                       action=action,
                       data=data)
+
+    # We should never fail at performing a clean on the testdata itself.
     try:
         history.full_clean()
-    except ValidationError:
+    except ValidationError:  # pragma: no cover
         return
     history.save()
 

@@ -72,7 +72,9 @@ class IsInRequiredGroup(IsAuthenticated):
     Allows only access to users in the required group.
     """
 
-    def has_permission(self, request, view):
+    # Note that required_user_groups is not used internally and requires a
+    # settings change for proper testing.
+    def has_permission(self, request, view):  # pragma: no cover
         if not super().has_permission(request, view):
             return False
         return request_in_settings_group(request, 'REQUIRED_USER_GROUPS')
@@ -83,7 +85,9 @@ class ReadOnlyForRequiredGroup(IsInRequiredGroup):
     Allows read only access to users in the required group.
     """
 
-    def has_permission(self, request, view):
+    # Note that required_user_groups is not used internally and requires a
+    # settings change for proper testing.
+    def has_permission(self, request, view):  # pragma: no cover
         if not super().has_permission(request, view):
             return False
         return request.method in SAFE_METHODS

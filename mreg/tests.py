@@ -393,7 +393,7 @@ class ModelNetworkTestCase(TestCase):
         clean_and_save(NetworkExcludedRange(network=n, start_ip='2001:DB8:BAD:BAD::0', end_ip='2001:DB8:BAD:BAD::ffff:ffff:ffff'))
         clean_and_save(NetworkExcludedRange(network=n, start_ip='2001:DB8:BAD:BAD:2:0:0:0', end_ip='2001:DB8:BAD:BAD:ffff:ffff:ffff:ffff'))
         unused_count_should_be = 0x1000000000000 - len(n.get_reserved_ipaddresses())
-        def handler(signum, frame):
+        def handler(signum, frame):  # pragma: no cover
             raise Exception("timeout")
         signal.signal(signal.SIGALRM, handler)
         signal.alarm(5)

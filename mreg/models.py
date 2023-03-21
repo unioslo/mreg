@@ -180,7 +180,7 @@ $TTL {default_ttl}
             try:
                 with transaction.atomic():
                     self.save()
-            except DatabaseError:
+            except DatabaseError:  # pragma: no cover
                 pass
 
 
@@ -289,7 +289,7 @@ class ReverseZone(BaseZone):
 
         def _add_to_result(ip, ttl, hostname):
             # Wildcards are not allowed in reverse zones.
-            if "*" in hostname:
+            if "*" in hostname:  # pragma: no cover
                 return
             ttl = ttl or ""
             result.append((ipaddress.ip_address(ip), ttl, hostname))

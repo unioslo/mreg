@@ -15,7 +15,8 @@ class DjangoJSONModelEncoder(DjangoJSONEncoder):
         if isinstance(o, Model):
             return model_to_dict(o)
 
-        return super().default(o)
+        # TODO: #485 We should never ever hit this. Should we fail?
+        return super().default(o)  # pragma: no cover
 
 
 class HistoryLog:
@@ -47,9 +48,11 @@ class HistoryLog:
                           model=model,
                           action=action,
                           data=json_data)
+
+        # We should never fail at performing a clean on the testdata itself.
         try:
             history.full_clean()
-        except ValidationError as e:
+        except ValidationError as e:  # pragma: no cover
             print(e)
             return
         history.save()
@@ -82,9 +85,11 @@ class HistoryLog:
                           model=model,
                           action=action,
                           data=data)
+
+        # We should never fail at performing a clean on the testdata itself.
         try:
             history.full_clean()
-        except ValidationError as e:
+        except ValidationError as e:  # pragma: no cover
             print(e)
             return
         history.save()
