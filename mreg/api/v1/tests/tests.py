@@ -48,7 +48,7 @@ class MregAPITestCase(APITestCase):
 
     def add_user_to_groups(self, group_setting_name):
         groups = getattr(settings, group_setting_name, None)
-        if groups is None:  # pragma: no cover (test QA)
+        if groups is None:
             raise MissingSettings(f"{group_setting_name} not set")
         if not isinstance(groups, (list, tuple)):
             groups = (groups, )
@@ -199,6 +199,11 @@ class APITestInternals(MregAPITestCase):
         self.assertEqual(nonify(target), target)
         self.assertEqual(nonify(-1), "")
 
+    def test_add_user_to_group(self):
+        """Test that add_user_to_group works."""
+        with self.assertRaises(MissingSettings):
+            self.add_user_to_groups("nosuchgroup")
+
 
 class APITokenAuthenticationTestCase(MregAPITestCase):
     """Test various token authentication operations."""
@@ -272,6 +277,7 @@ class APITokenAuthenticationTestCase(MregAPITestCase):
         """ Incorrect or missing arguments should still return 400 bad request """
         self.assert_post_and_400("/api/token-auth/", {"who":"someone","why":"because"})
         self.assert_post_and_400("/api/token-auth/", {})
+
 
 class APIAutoupdateZonesTestCase(MregAPITestCase):
     """This class tests the autoupdate of zones' updated_at whenever
@@ -883,7 +889,7 @@ class APIPtrOverrideTestcase(MregAPITestCase):
 
     @skip("This test crashes the database and is skipped "
           "until the underlying problem has been fixed")
-    def test_ptr_override_reject_invalid_ipv4_400(self):  # pragma: no cover
+    def test_ptr_override_reject_invalid_ipv4_400(self):  # pragma: no cover (skipped test)
         ptr_override_data = {'host': self.host.id,
                              'ipaddress': '10.0.0.400'}
         self.assert_post_and_400("/ptroverrides/", ptr_override_data)

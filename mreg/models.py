@@ -289,7 +289,7 @@ class ReverseZone(BaseZone):
 
         def _add_to_result(ip, ttl, hostname):
             # Wildcards are not allowed in reverse zones.
-            if "*" in hostname:  # pragma: no cover
+            if "*" in hostname:
                 return
             ttl = ttl or ""
             result.append((ipaddress.ip_address(ip), ttl, hostname))

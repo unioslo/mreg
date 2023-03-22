@@ -1,6 +1,6 @@
 from django.conf import settings
 from rest_framework import exceptions
-from rest_framework.permissions import SAFE_METHODS, IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, SAFE_METHODS
 
 from mreg.api.v1.serializers import HostSerializer
 from mreg.models import HostGroup, NetGroupRegexPermission, Network

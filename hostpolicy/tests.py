@@ -20,7 +20,7 @@ class Internals(TestCase):
         """Test that __str__ returns obj.name."""
         name = "test1"
         atom = HostPolicyAtom(name=name, description='test')
-        self.assertEqual(str(atom), '"' + name + '"')
+        self.assertEqual(str(atom), f'"{name}"')
 
 
 class UniqueNamespace(TestCase):
