@@ -13,7 +13,7 @@ def clean_and_save(entity):
     entity.save()
 
 
-class Internals(TestCase):
+class APITestHostPolicyInternals(TestCase):
     """Test internal data structures."""
 
     def test_str(self):
