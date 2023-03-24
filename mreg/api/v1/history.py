@@ -11,12 +11,7 @@ from mreg.models import History
 class DjangoJSONModelEncoder(DjangoJSONEncoder):
 
     def default(self, o):
-
-        if isinstance(o, Model):
-            return model_to_dict(o)
-
-        # TODO: #485 We should never ever hit this. Should we fail?
-        return super().default(o)  # pragma: no cover
+        return model_to_dict(o)
 
 
 class HistoryLog:
