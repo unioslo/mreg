@@ -166,10 +166,6 @@ REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'rest_framework.schemas.openapi.AutoSchema',
 }
 
-# This setting must be defined for mreg.api.permissions.IsInRequiredGroup
-# to work.
-# REQUIRED_USER_GROUPS = "default-required-group"
-
 REST_FRAMEWORK_EXTENSIONS = {
     'DEFAULT_OBJECT_ETAG_FUNC':
         'rest_framework_extensions.utils.default_object_etag_func',

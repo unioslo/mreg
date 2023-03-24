@@ -34,12 +34,6 @@ def _list_in_list(list_a, list_b):
     return any(i in list_b for i in list_a)
 
 
-def user_in_required_group(user, required_groups=[]):
-    if not required_groups:
-        required_groups = get_settings_groups('REQUIRED_USER_GROUPS')
-    return _list_in_list(required_groups, user.group_list)
-
-
 def user_is_superuser(user):
     return user_in_settings_group(user, 'SUPERUSER_GROUP')
 
@@ -62,32 +56,6 @@ def is_super_or_group_admin(user):
 
 class IsAuthenticatedAndReadOnly(IsAuthenticated):
     def has_permission(self, request, view):
-        if not super().has_permission(request, view):
-            return False
-        return request.method in SAFE_METHODS
-
-
-class IsInRequiredGroup(IsAuthenticated):
-    """
-    Allows only access to users in the required group.
-    """
-
-    # Note that required_user_groups is not used internally and requires a
-    # settings change for proper testing.
-    def has_permission(self, request, view):  # pragma: no cover
-        if not super().has_permission(request, view):
-            return False
-        return request_in_settings_group(request, 'REQUIRED_USER_GROUPS')
-
-
-class ReadOnlyForRequiredGroup(IsInRequiredGroup):
-    """
-    Allows read only access to users in the required group.
-    """
-
-    # Note that required_user_groups is not used internally and requires a
-    # settings change for proper testing.
-    def has_permission(self, request, view):  # pragma: no cover
         if not super().has_permission(request, view):
             return False
         return request.method in SAFE_METHODS
