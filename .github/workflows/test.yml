@@ -61,6 +61,9 @@ jobs:
         run: tox -r
         env:
           MREG_DB_PASSWORD: postgres
+      - name: tox -e coverage -r
+        env:
+          MREG_DB_PASSWORD: postgres
       - name: Check migrations
         run: python manage.py makemigrations --check
       - name: Export OpenAPI schema
