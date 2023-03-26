@@ -61,7 +61,8 @@ jobs:
         run: tox -r
         env:
           MREG_DB_PASSWORD: postgres
-      - name: tox -e coverage -r
+      - name: Coverage
+        run: tox -e coverage -r
         env:
           MREG_DB_PASSWORD: postgres
       - name: Check migrations
