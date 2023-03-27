@@ -15,6 +15,7 @@ from mreg.models import (ForwardZone, Host, Ipaddress,
                          Network, PtrOverride, ReverseZone, Txt,
                          ExpiringToken)
 
+from mreg.utils import nonify
 
 class MissingSettings(Exception):
     pass
@@ -182,6 +183,28 @@ def create_reverse_zone(name='10.10.in-addr.arpa', primary_ns='ns.example.org',
     return ReverseZone.objects.create(name=name, primary_ns=primary_ns, email=email)
 
 
+class APITestInternals(MregAPITestCase):
+    """Test internal methods."""
+
+    def test_create_path(self):
+        """Test that _create_path generates correct paths."""
+        target = "/api/v1/target"
+        self.assertEqual(self._create_path("/api/v1/target"), target)
+        self.assertEqual(self._create_path("/target"), target)
+        self.assertEqual(self._create_path("target"), target)
+
+    def test_nonify(self):
+        """Test that nonify works."""
+        target = 42
+        self.assertEqual(nonify(target), target)
+        self.assertEqual(nonify(-1), "")
+
+    def test_add_user_to_group(self):
+        """Test that add_user_to_group works."""
+        with self.assertRaises(MissingSettings):
+            self.add_user_to_groups("nosuchgroup")
+
+
 class APITokenAuthenticationTestCase(MregAPITestCase):
     """Test various token authentication operations."""
 
@@ -209,7 +232,7 @@ class APITokenAuthenticationTestCase(MregAPITestCase):
         old = ExpiringToken.objects.get(user=self.user)
         self.assert_post_and_200("/api/token-auth/",
                                  {"username": self.user,
-                                  "password":"test"})
+                                  "password": "test"})
         new = ExpiringToken.objects.get(user=self.user)
         assert old.key == new.key
         self.assertLess(old.last_used, new.last_used)
@@ -254,6 +277,7 @@ class APITokenAuthenticationTestCase(MregAPITestCase):
         """ Incorrect or missing arguments should still return 400 bad request """
         self.assert_post_and_400("/api/token-auth/", {"who":"someone","why":"because"})
         self.assert_post_and_400("/api/token-auth/", {})
+
 
 class APIAutoupdateZonesTestCase(MregAPITestCase):
     """This class tests the autoupdate of zones' updated_at whenever
@@ -567,9 +591,25 @@ class APIHostsAutoTxtRecords(MregAPITestCase):
 class APIHostsIdna(MregAPITestCase):
 
     data_v4 = {'name': 'æøå.example.org', "ipaddress": '10.10.0.1'}
+    data_v4_long = {
+        'name': 'endørtilhøjreibaggrundenførerudtilforstuenenandendørtilvenstre.example.org',
+        "ipaddress": '10.10.0.2'
+    }
+    data_v4_codepoint = {
+        'name': 'Endørtilhøjreibaggrundenførerudtilforstuen.example.org',
+        "ipaddress": '10.10.0.2'
+    }
 
     def _add_data(self, data):
         self.assert_post_and_201('/hosts/', data)
+
+    def test_long_idna(self):
+        """Test creating a host with a too long IDNA."""
+        self.assert_post_and_400('/hosts/', self.data_v4_long)
+
+    def test_codepoint_idna(self):
+        """Test creating a host with a codepoint issue using IDNA."""
+        self.assert_post_and_400('/hosts/', self.data_v4_codepoint)
 
     def test_hosts_idna_forward(self):
         """Test that a hostname outside ASCII 128 is handled properly"""
@@ -849,7 +889,7 @@ class APIPtrOverrideTestcase(MregAPITestCase):
 
     @skip("This test crashes the database and is skipped "
           "until the underlying problem has been fixed")
-    def test_ptr_override_reject_invalid_ipv4_400(self):
+    def test_ptr_override_reject_invalid_ipv4_400(self):  # pragma: no cover (skipped test)
         ptr_override_data = {'host': self.host.id,
                              'ipaddress': '10.0.0.400'}
         self.assert_post_and_400("/ptroverrides/", ptr_override_data)

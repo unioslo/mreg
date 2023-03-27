@@ -1,5 +1,4 @@
 from django.conf import settings
-
 from rest_framework import exceptions
 from rest_framework.permissions import IsAuthenticated, SAFE_METHODS
 
@@ -35,11 +34,6 @@ def _list_in_list(list_a, list_b):
     return any(i in list_b for i in list_a)
 
 
-def user_in_required_group(user):
-    return _list_in_list(get_settings_groups('REQUIRED_USER_GROUPS'),
-                         user.group_list)
-
-
 def user_is_superuser(user):
     return user_in_settings_group(user, 'SUPERUSER_GROUP')
 
@@ -61,28 +55,6 @@ def is_super_or_group_admin(user):
 
 
 class IsAuthenticatedAndReadOnly(IsAuthenticated):
-    def has_permission(self, request, view):
-        if not super().has_permission(request, view):
-            return False
-        return request.method in SAFE_METHODS
-
-
-class IsInRequiredGroup(IsAuthenticated):
-    """
-    Allows only access to users in the required group.
-    """
-
-    def has_permission(self, request, view):
-        if not super().has_permission(request, view):
-            return False
-        return request_in_settings_group(request, 'REQUIRED_USER_GROUPS')
-
-
-class ReadOnlyForRequiredGroup(IsInRequiredGroup):
-    """
-    Allows read only access to users in the required group.
-    """
-
     def has_permission(self, request, view):
         if not super().has_permission(request, view):
             return False
@@ -257,7 +229,9 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
             hostname = data['host'].name
         elif 'host' in data:
             hostname, ips = self._get_hostname_and_ips(data['host'])
-        else:
+        else:  # pragma: no cover
+            # Testing these kinds of should-never-happen codepaths is hard.
+            # We have to basically mock a complete API call and then break it.
             raise exceptions.PermissionDenied(f"Unhandled view: {view}")
 
         if ips and hostname:
@@ -274,7 +248,9 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
             pass
         elif hasattr(obj, 'host'):
             obj = obj.host
-        else:
+        else:  # pragma: no cover
+            # Testing these kinds of should-never-happen codepaths is hard.
+            # We have to basically mock a complete API call and then break it.
             raise exceptions.PermissionDenied(f"Unhandled view: {view}")
         if _deny_superuser_only_names(name=obj.name, view=view, request=request):
             return False
@@ -313,7 +289,9 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
                 if not self.has_obj_perm(request.user, data['host']):
                     return False
             return self.has_obj_perm(request.user, obj.host)
-        raise exceptions.PermissionDenied(f"Unhandled view: {view}")
+        # Testing these kinds of should-never-happen codepaths is hard.
+        # We have to basically mock a complete API call and then break it.
+        raise exceptions.PermissionDenied(f"Unhandled view: {view}")  # pragma: no cover
 
     def _get_hostname_and_ips(self, hostobject):
         ips = []

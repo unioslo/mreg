@@ -11,6 +11,8 @@ class LabelTestCase(MregAPITestCase):
     def test_create_label(self):
         # Create a normal label
         self.assert_post('/api/v1/labels/', {'name':'normal_label','description':'A normal label'})
+        # Creating a label with the same name should fail
+        self.assert_post_and_409('/api/v1/labels/', {'name':'normal_label','description':'A normal label redone'})
         # Verify that a description is required
         self.assert_post_and_400('/api/v1/labels/', {'name':'testlabel2'})
         # Verify that spaces in the label name isn't allowed

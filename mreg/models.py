@@ -180,7 +180,7 @@ $TTL {default_ttl}
             try:
                 with transaction.atomic():
                     self.save()
-            except DatabaseError:
+            except DatabaseError:  # pragma: no cover
                 pass
 
 

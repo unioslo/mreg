@@ -79,10 +79,9 @@ class MacAddressSerializerField(serializers.CharField):
         return obj
 
     def to_internal_value(self, data):
-        if data and isinstance(data, str):
-            validate_normalizeable_mac_address(data)
-            return normalize_mac(data)
-        return data
+        validate_normalizeable_mac_address(data)
+        return normalize_mac(data)
+
 
 class IpaddressSerializer(ValidationMixin, serializers.ModelSerializer):
     macaddress = MacAddressSerializerField(required=False, allow_blank=True)
@@ -243,9 +242,8 @@ class NetworkExcludedRangeSerializer(ValidationMixin, serializers.ModelSerialize
 
         def _get_ip(attr):
             ip = data.get(attr) or getattr(self.instance, attr)
-            if isinstance(ip, str):
-                return ipaddress.ip_address(ip)
-            return ip
+            return ipaddress.ip_address(ip)
+
         start_ip = _get_ip('start_ip')
         end_ip = _get_ip('end_ip')
         network_obj = data.get('network') or self.instance.network

@@ -51,6 +51,7 @@ def _signal_history(resource, name, action, model, model_id, data):
                       model=model,
                       action=action,
                       data=data)
+
     try:
         history.full_clean()
     except ValidationError:

@@ -13,6 +13,16 @@ def clean_and_save(entity):
     entity.save()
 
 
+class APITestHostPolicyInternals(TestCase):
+    """Test internal data structures."""
+
+    def test_str(self):
+        """Test that __str__ returns obj.name."""
+        name = "test1"
+        atom = HostPolicyAtom(name=name, description='test')
+        self.assertEqual(str(atom), f'"{name}"')
+
+
 class UniqueNamespace(TestCase):
     """Atoms and Roles must jointly have unique names, so test that."""
 

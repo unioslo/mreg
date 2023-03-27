@@ -1,16 +1,12 @@
 import re
 import string
 
+import idna
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
-
-import idna
-
 from rest_framework import serializers
 
-
 from .utils import get_network_from_zonename
-
 
 # TODO: Implement validation for retry, refresh, expire
 

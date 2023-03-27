@@ -1,8 +1,19 @@
 from django.contrib.auth.models import Group
+from rest_framework import exceptions
 
-from mreg.models import ForwardZone, Host, Ipaddress, NetGroupRegexPermission, Network, PtrOverride
+from mreg.api.permissions import get_settings_groups
+from mreg.models import ForwardZone, Host, Ipaddress, NetGroupRegexPermission, Network, PtrOverride, User
+
 
 from .tests import MregAPITestCase
+
+
+class Internals(MregAPITestCase):
+    """Test internal structures in permissions."""
+    def test_missing_group_settings(self):
+        """Ensure that missing group settings are caught if requested."""
+        with self.assertRaises(exceptions.APIException):
+            get_settings_groups("NO_SUCH_SETTINGS_GROUP")
 
 
 class HostsNoRights(MregAPITestCase):

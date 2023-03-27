@@ -543,7 +543,7 @@ class ForwardZonesNsTestCase(MregAPITestCase):
                                   {'garbage': self.ns_one.name})
 
     @skip("Not testable, yet")
-    def test_zones_ns_patch_404_not_found(self):
+    def test_zones_ns_patch_404_not_found(self):  # pragma: no cover
         """"Patching the list of nameservers with a non-existing nameserver should return 404"""
         self.assert_post(self.zonepath, self.post_data)
         self.assert_patch_and_404(self.ns_path(self.post_data['name']),

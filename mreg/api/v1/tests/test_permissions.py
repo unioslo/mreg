@@ -1,3 +1,5 @@
+from rest_framework.test import APIClient
+
 from .tests import MregAPITestCase
 
 
@@ -13,6 +15,15 @@ class NetGroupRegexPermissionTestCase(MregAPITestCase):
         ret1 = self.assert_post('/permissions/netgroupregex/', self.data)
         ret2 = self.assert_get('/permissions/netgroupregex/{}'.format(ret1.json()['id']))
         self.assertEqual(ret1.json(), ret2.json())
+
+    def test_get_at_different_privilege_levels(self):
+        """Verify get at different privilege levels."""
+        ret1 = self.assert_post('/permissions/netgroupregex/', self.data)
+        self.client = self.get_token_client(superuser=False, adminuser=False)
+        ret2 = self.assert_get('/permissions/netgroupregex/{}'.format(ret1.json()['id']))
+        self.assertEqual(ret1.json(), ret2.json())
+        self.client = APIClient()
+        self.assert_get_and_401('/permissions/netgroupregex/{}'.format(ret1.json()['id']))
 
     def test_list(self):
         ret1 = self.assert_post('/permissions/netgroupregex/', self.data)
