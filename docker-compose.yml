@@ -1,0 +1,34 @@
+services:
+  postgres:
+    image: postgres
+    environment:
+      - POSTGRES_USER=mreg
+      - POSTGRES_DB=mreg
+      - POSTGRES_PASSWORD=mreg
+    healthcheck:
+       test: ["CMD", "pg_isready", "--username=mreg"]
+       interval: 10s
+       timeout: 5s
+       retries: 5
+       start_period: 5s
+
+  # Uncomment this if you want a RabbitMQ server to send events to. See also MQ config in settings.py
+  # rabbitmq:
+  #   image: rabbitmq
+  #   ports:
+  #     - 5672:5672
+
+  mreg:
+    depends_on:
+      postgres:
+        condition: service_healthy
+      #rabbitmq:
+      #  condition: service_started
+    build: .
+    ports:
+      - 8000:8000
+    environment:
+      - MREG_DB_HOST=postgres
+      - MREG_DB_NAME=mreg
+      - MREG_DB_USER=mreg
+      - MREG_DB_PASSWORD=mreg

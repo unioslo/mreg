@@ -1,6 +1,7 @@
 #!/bin/sh
 set -e
 cd /app
+./manage.py create_citext_extension
 ./manage.py migrate
 #./manage.py runserver 0.0.0.0:8000
 

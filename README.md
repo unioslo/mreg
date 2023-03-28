@@ -17,9 +17,12 @@ from `requirements.txt`. We use pip.
 #### Using Docker.
 
 Pre-built Docker images are available from [`ghcr.io/unioslo/mreg`](https://ghcr.io/unioslo/mreg):
-
 ```
 docker pull ghcr.io/unioslo/mreg
+```
+You can also build locally, from the source:
+```
+docker build -t mreg .
 ```
 
 It is expected that you mount a custom "mregsite" directory on /app/mregsite:
@@ -27,19 +30,19 @@ It is expected that you mount a custom "mregsite" directory on /app/mregsite:
 ```
 docker run \
   --mount type=bind,source=$HOME/customsettings,destination=/app/mregsite,readonly \
-  ghcr.io/unioslo/mreg:latest --workers=4 --bind=0.0.0.0
+  ghcr.io/unioslo/mreg:latest
 ```
 
 To access application logs outside the container, also mount `/app/logs`.
 
-The Docker image can be reproduced locally by installing [GNU Guix](https://guix.gnu.org) and running:
+It is also possible to not mount a settings directory, and to supply database login details in environment variables instead, overriding the default values found in `mregsite/settings.py`.
+```
+docker run --network host \
+  -e MREG_DB_HOST=my_postgres_host -e MREG_DB_NAME=mreg -e MREG_DB_USER=mreg -e MREG_DB_PASSWORD=mreg \
+  ghcr.io/unioslo/mreg:latest
+```
 
-```
-guix time-machine -C ci/channels.scm -- pack -f docker \
-  -S /app=app -S /etc/profile=etc/profile \
-  --entry-point=bin/mreg-wrapper \
-  -m ci/manifest.scm
-```
+For a full example, see `docker-compose.yml`.
 
 #### Manually
 
@@ -121,6 +124,9 @@ DATABASES = {
 * **Nicolay Mohebi**
 * **Magnus Hirth**
 * **Marius Bakke**
+* **Safet Amedov**
+* **Tannaz Roshandel**
+* **Terje Kvernes**
 
 
 ## License
