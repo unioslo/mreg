@@ -5,8 +5,6 @@ from django.db.models import Prefetch
 from rest_framework import status
 from rest_framework.response import Response
 
-from url_filter.filtersets import ModelFilterSet
-
 from mreg.api.permissions import (HostGroupPermission,
                                   IsSuperOrGroupAdminOrReadOnly)
 from mreg.models import History, Host, HostGroup
@@ -20,10 +18,7 @@ from .views import (MregListCreateAPIView,
                     )
 from .views_m2m import M2MDetail, M2MList, M2MPermissions
 
-
-class HostGroupFilterSet(ModelFilterSet):
-    class Meta:
-        model = HostGroup
+from .filters import HostGroupFilterSet
 
 
 class HostGroupM2MPermissions(M2MPermissions):
@@ -79,10 +74,7 @@ class HostGroupList(HostGroupLogMixin, MregListCreateAPIView):
     queryset = HostGroup.objects.all()
     serializer_class = serializers.HostGroupSerializer
     permission_classes = (IsSuperOrGroupAdminOrReadOnly, )
-
-    def get_queryset(self):
-        qs = _hostgroup_prefetcher(super().get_queryset())
-        return HostGroupFilterSet(data=self.request.GET, queryset=qs).filter()
+    filter_class = HostGroupFilterSet
 
     def post(self, request, *args, **kwargs):
         if "name" in request.data:

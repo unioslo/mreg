@@ -4,25 +4,19 @@ from django.db.models import Prefetch
 from rest_framework import status
 from rest_framework.response import Response
 
-from url_filter.filtersets import ModelFilterSet
 from .views import MregListCreateAPIView, MregRetrieveUpdateDestroyAPIView
 from mreg.models import Label
 from mreg.api.permissions import IsSuperOrAdminOrReadOnly
 from . import serializers
 
-class LabelFilterSet(ModelFilterSet):
-    class Meta:
-        model = Label
+from .filters import LabelFilterSet
 
 
 class LabelList(MregListCreateAPIView):
     queryset = Label.objects.all()
     serializer_class = serializers.LabelSerializer
     permission_classes = (IsSuperOrAdminOrReadOnly,)
-
-    def get_queryset(self):
-        qs = super().get_queryset()
-        return LabelFilterSet(data=self.request.GET, queryset=qs).filter()
+    filter_class = LabelFilterSet
 
     def post(self, request, *args, **kwargs):
         if "name" in request.data:

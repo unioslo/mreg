@@ -1,6 +1,5 @@
 from rest_framework import status
 from rest_framework.response import Response
-from url_filter.filtersets import ModelFilterSet
 
 from mreg.api.v1.views import (
     MregListCreateAPIView,
@@ -10,9 +9,8 @@ from mreg.api.permissions import IsGrantedNetGroupRegexPermission
 from mreg.models import (Host, BACnetID)
 from . import serializers
 
-class BACnetIDFilterSet(ModelFilterSet):
-    class Meta:
-        model = BACnetID
+from .filters import BACnetIDFilterSet
+
 
 class BACnetIDList(MregListCreateAPIView):
     queryset = BACnetID.objects.order_by('id')
@@ -20,10 +18,7 @@ class BACnetIDList(MregListCreateAPIView):
     permission_classes = (IsGrantedNetGroupRegexPermission, )
     lookup_field = 'id'
     filterset_fields = 'id'
-
-    def get_queryset(self):
-       qs = super().get_queryset()
-       return BACnetIDFilterSet(data=self.request.GET, queryset=qs).filter()
+    filter_class = BACnetIDFilterSet
 
     def post(self, request, *args, **kwargs):
         # request.data is immutable

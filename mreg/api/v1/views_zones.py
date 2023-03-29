@@ -9,8 +9,6 @@ from rest_framework.decorators import (api_view, renderer_classes)
 from rest_framework.exceptions import MethodNotAllowed, ParseError
 from rest_framework.response import Response
 
-from url_filter.filtersets import ModelFilterSet
-
 from mreg.models import (ForwardZone, ForwardZoneDelegation,
                          Host, NameServer,
                          ReverseZone, ReverseZoneDelegation)
@@ -21,25 +19,8 @@ from .serializers import (ForwardZoneDelegationSerializer, ForwardZoneSerializer
 from .views import (MregRetrieveUpdateDestroyAPIView, )
 from .zonefile import ZoneFile
 
-
-class ForwardZoneFilterSet(ModelFilterSet):
-    class Meta:
-        model = ForwardZone
-
-
-class ForwardZoneDelegationFilterSet(ModelFilterSet):
-    class Meta:
-        model = ForwardZoneDelegation
-
-
-class ReverseZoneFilterSet(ModelFilterSet):
-    class Meta:
-        model = ReverseZone
-
-
-class ReverseZoneDelegationFilterSet(ModelFilterSet):
-    class Meta:
-        model = ReverseZoneDelegation
+from .filters import (ForwardZoneFilterSet, ForwardZoneDelegationFilterSet,
+                      ReverseZoneFilterSet, ReverseZoneDelegationFilterSet)
 
 
 def _update_parent_zone(qs, zonename):
@@ -87,7 +68,7 @@ class ZoneList(generics.ListCreateAPIView):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        return self.filterset(data=self.request.GET, queryset=qs).filter()
+        return self.filterset(data=self.request.GET, queryset=qs).qs
 
     def post(self, request, *args, **kwargs):
         qs = self.get_queryset()
@@ -136,7 +117,7 @@ class ZoneDelegationList(generics.ListCreateAPIView):
     def get_queryset(self):
         self.parentzone = get_object_or_404(self.model, name=self.kwargs[self.lookup_field])
         self.queryset = self.parentzone.delegations.all().order_by('id')
-        return self.filterset(data=self.request.GET, queryset=self.queryset).filter()
+        return self.filterset(data=self.request.GET, queryset=self.queryset).qs
 
     def post(self, request, *args, **kwargs):
         qs = self.get_queryset()
