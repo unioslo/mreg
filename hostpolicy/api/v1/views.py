@@ -2,7 +2,7 @@ from django.db.models import Prefetch
 from rest_framework import status
 from rest_framework.response import Response
 
-from url_filter.filtersets import ModelFilterSet
+from django_filters import rest_framework as filters
 
 from hostpolicy.models import HostPolicyAtom, HostPolicyRole
 from hostpolicy.api.permissions import IsSuperOrHostPolicyAdminOrReadOnly
@@ -20,14 +20,16 @@ from mreg.models.host import Host
 from . import serializers
 
 
-class HostPolicyAtomFilterSet(ModelFilterSet):
+class HostPolicyAtomFilterSet(filters.FilterSet):
     class Meta:
         model = HostPolicyAtom
+        fields = '__all__'
 
 
-class HostPolicyRoleFilterSet(ModelFilterSet):
+class HostPolicyRoleFilterSet(filters.FilterSet):
     class Meta:
         model = HostPolicyRole
+        fields = '__all__'
 
 
 class HostPolicyAtomLogMixin(HistoryLog):
@@ -61,10 +63,7 @@ class HostPolicyAtomList(HostPolicyAtomLogMixin, MregListCreateAPIView):
     serializer_class = serializers.HostPolicyAtomSerializer
     permission_classes = (IsSuperOrHostPolicyAdminOrReadOnly, )
     lookup_field = 'name'
-
-    def get_queryset(self):
-        qs = super().get_queryset()
-        return HostPolicyRoleFilterSet(data=self.request.GET, queryset=qs).filter()
+    filter_class = HostPolicyRoleFilterSet
 
     def post(self, request, *args, **kwargs):
         if "name" in request.data:
@@ -96,10 +95,7 @@ class HostPolicyRoleList(HostPolicyRoleLogMixin, MregListCreateAPIView):
     serializer_class = serializers.HostPolicyRoleSerializer
     permission_classes = (IsSuperOrHostPolicyAdminOrReadOnly, )
     lookup_field = 'name'
-
-    def get_queryset(self):
-        qs = _role_prefetcher(super().get_queryset())
-        return HostPolicyRoleFilterSet(data=self.request.GET, queryset=qs).filter()
+    filter_class = HostPolicyRoleFilterSet
 
     def post(self, request, *args, **kwargs):
         if "name" in request.data:
