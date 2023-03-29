@@ -1,11 +1,14 @@
 name: Container image
 on:
   push:
-    branches:
-      - master
-  # Run every week to get updated dependencies.
+    paths-ignore:
+      - 'ci/**'
+      - 'README.md'
   schedule:
-    - cron: '40 08 * * 1'
+    - cron: '40 08 * * 1'  # Run every week to get updated dependencies.
+  pull_request:
+    types: [opened, reopened, synchronize]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -53,6 +56,8 @@ jobs:
 
   publish:
     name: Publish
+    # only publish the image if this event was triggered on the master branch, and not by a pull request
+    if: ${{ github.ref == 'refs/heads/master' && github.event_name != 'pull_request' }}
     needs: test
     runs-on: ubuntu-latest
     permissions:

@@ -3,8 +3,9 @@ on:
     paths-ignore:
       - 'ci/**'
       - 'README.md'
-
   pull_request:
+    types: [opened, reopened, synchronize]
+  workflow_dispatch:
 
 name: CI
 jobs:
