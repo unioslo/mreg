@@ -5,12 +5,9 @@ An associated project for a command line interface using the mreg API is availab
 
 ## Getting Started
 
-
 ### Prerequisites
 
-Fork the project from github.
-You need a terminal, `python3`, and access to a package manager that can install the necessary requirements
-from `requirements.txt`. We use pip.
+If you want to set up your own PostgreSQL server by installing the necessary packages manually, you might need to install dependencies for setting up the citext extension. On Fedora, the package is called [`postgresql-contrib`](https://packages.fedoraproject.org/pkgs/postgresql/postgresql-contrib/).
 
 ### Installing
 
@@ -46,26 +43,28 @@ For a full example, see `docker-compose.yml`.
 
 #### Manually
 
-A step by step series of examples that tell you how to get a development env running
+##### A step by step series of examples that tell you how to get a development env running:
 
-When you've got your copy of the mreg directory, setup you virtual environment.
+Start by cloning the project from github. You need a terminal, `python3`, and access to a package manager that can install the necessary requirements from `requirements.txt`. We use pip.
+
+When you've got your copy of the mreg directory, setup you virtual environment:
 ```
 > python3 -m venv venv
 > source venv/bin/activate
 ```
-Then install the required packages
+Then install the required packages:
 ```
 > pip install -r requirements.txt
 ```
-Perform database migrations
+Perform database migrations:
 ```
 > python manage.py migrate
 ```
-Load sample data from fixtures into the now migrated database
+Load sample data from fixtures into the now migrated database:
 ```
 > python manage.py loaddata mreg/fixtures/fixtures.json
 ```
-And finally, run the server.
+And finally, run the server:
 ```
 > python manage.py runserver
 ```

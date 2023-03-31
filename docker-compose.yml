@@ -1,5 +1,9 @@
+# THIS DOCKER COMPOSE FILE IS ONLY PROVIDED AS AN EXAMPLE, IT IS NOT SUITABLE FOR PRODUCTION AS IS.
 services:
   postgres:
+    # If you want the data in the database to remain after the container is stopped,
+    # you should mount a directory into /var/lib/postgresql/data, or use a volume. See the documentation:
+    # https://github.com/docker-library/docs/blob/master/postgres/README.md#where-to-store-data
     image: postgres
     environment:
       - POSTGRES_USER=mreg
