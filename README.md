@@ -5,21 +5,21 @@ An associated project for a command line interface using the mreg API is availab
 
 ## Getting Started
 
-
 ### Prerequisites
 
-Fork the project from github.
-You need a terminal, `python3`, and access to a package manager that can install the necessary requirements
-from `requirements.txt`. We use pip.
+If you want to set up your own PostgreSQL server by installing the necessary packages manually, you might need to install dependencies for setting up the citext extension. On Fedora, the package is called [`postgresql-contrib`](https://packages.fedoraproject.org/pkgs/postgresql/postgresql-contrib/).
 
 ### Installing
 
 #### Using Docker.
 
 Pre-built Docker images are available from [`ghcr.io/unioslo/mreg`](https://ghcr.io/unioslo/mreg):
-
 ```
 docker pull ghcr.io/unioslo/mreg
+```
+You can also build locally, from the source:
+```
+docker build -t mreg .
 ```
 
 It is expected that you mount a custom "mregsite" directory on /app/mregsite:
@@ -27,42 +27,44 @@ It is expected that you mount a custom "mregsite" directory on /app/mregsite:
 ```
 docker run \
   --mount type=bind,source=$HOME/customsettings,destination=/app/mregsite,readonly \
-  ghcr.io/unioslo/mreg:latest --workers=4 --bind=0.0.0.0
+  ghcr.io/unioslo/mreg:latest
 ```
 
 To access application logs outside the container, also mount `/app/logs`.
 
-The Docker image can be reproduced locally by installing [GNU Guix](https://guix.gnu.org) and running:
+It is also possible to not mount a settings directory, and to supply database login details in environment variables instead, overriding the default values found in `mregsite/settings.py`.
+```
+docker run --network host \
+  -e MREG_DB_HOST=my_postgres_host -e MREG_DB_NAME=mreg -e MREG_DB_USER=mreg -e MREG_DB_PASSWORD=mreg \
+  ghcr.io/unioslo/mreg:latest
+```
 
-```
-guix time-machine -C ci/channels.scm -- pack -f docker \
-  -S /app=app -S /etc/profile=etc/profile \
-  --entry-point=bin/mreg-wrapper \
-  -m ci/manifest.scm
-```
+For a full example, see `docker-compose.yml`.
 
 #### Manually
 
-A step by step series of examples that tell you how to get a development env running
+##### A step by step series of examples that tell you how to get a development env running:
 
-When you've got your copy of the mreg directory, setup you virtual environment.
+Start by cloning the project from github. You need a terminal, `python3`, and access to a package manager that can install the necessary requirements from `requirements.txt`. We use pip.
+
+When you've got your copy of the mreg directory, setup you virtual environment:
 ```
 > python3 -m venv venv
 > source venv/bin/activate
 ```
-Then install the required packages
+Then install the required packages:
 ```
 > pip install -r requirements.txt
 ```
-Perform database migrations
+Perform database migrations:
 ```
 > python manage.py migrate
 ```
-Load sample data from fixtures into the now migrated database
+Load sample data from fixtures into the now migrated database:
 ```
 > python manage.py loaddata mreg/fixtures/fixtures.json
 ```
-And finally, run the server.
+And finally, run the server:
 ```
 > python manage.py runserver
 ```
@@ -121,6 +123,9 @@ DATABASES = {
 * **Nicolay Mohebi**
 * **Magnus Hirth**
 * **Marius Bakke**
+* **Safet Amedov**
+* **Tannaz Roshandel**
+* **Terje Kvernes**
 
 
 ## License

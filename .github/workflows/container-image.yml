@@ -31,13 +31,22 @@ jobs:
     name: Test
     needs: build
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:latest
+        env:
+          POSTGRES_USER: mreg
+          POSTGRES_PASSWORD: mreg
+        # Set health checks to wait until postgres has started
+        options: >-
+          --health-cmd "pg_isready --username=mreg"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          # Map the containerized port to localhost.
+          - 5432:5432
     steps:
-    - name: Start PostgreSQL
-      run: |
-        docker network create mreg
-        docker run --rm --network mreg -h postgres --name postgres -e POSTGRES_PASSWORD=mreg -e POSTGRES_USER=mreg --detach postgres
-        sleep 3s
-        docker exec postgres psql -U mreg -h localhost -c 'CREATE EXTENSION IF NOT EXISTS citext;' -d template1
     - name: Checkout
       uses: actions/checkout@v3
     - name: Download artifact
@@ -48,10 +57,8 @@ jobs:
       run: docker load --input mreg.tgz
     - name: Run tests
       run: |
-        docker run --rm -t --network mreg --entrypoint /app/entrypoint-test.sh \
-        --mount type=bind,source=${{github.workspace}}/mregsite,target=/app/mregsite,ro=true \
-        --mount type=tmpfs,target=/app/logs \
-        -e MREG_DB_HOST=postgres -e MREG_DB_PASSWORD=mreg -e MREG_DB_USER=mreg \
+        docker run --rm -t --network host --entrypoint /app/entrypoint-test.sh \
+        -e MREG_DB_HOST=localhost -e MREG_DB_PASSWORD=mreg -e MREG_DB_USER=mreg \
         mreg
 
   publish:

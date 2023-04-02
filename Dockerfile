@@ -16,6 +16,8 @@ EXPOSE 8000
 
 COPY requirements*.txt entrypoint* manage.py /app/
 COPY mreg /app/mreg/
+COPY mregsite /app/mregsite/
+RUN  mkdir /app/logs
 COPY hostpolicy /app/hostpolicy/
 COPY --from=builder /usr/src/mreg/wheels /wheels
 RUN apk update && apk upgrade \
