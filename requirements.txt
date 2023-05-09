@@ -1,4 +1,4 @@
-Django==3.2.18
+Django==3.2.19
 djangorestframework==3.13.1
 django-auth-ldap==4.0.0
 django-logging-json==1.15
