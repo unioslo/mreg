@@ -99,6 +99,10 @@ class HostPolicyAtomTestCase(HostPolicyRoleTestCase):
         self.object_one, _ = HostPolicyAtom.objects.get_or_create(name='testatom1')
         self.object_two, _ = HostPolicyAtom.objects.get_or_create(name='testatom2')
 
+    def test_create_with_date(self):
+        post_data = {"name": "orange", "description": "Round and orange", "create_date": "2018-07-07"}
+        self.assert_post('/api/v1/hostpolicy/atoms/', post_data)
+
 
 class HostPolicyAdminRights(MregAPITestCase):
     """Test that all of the API for HostPolicy are available for the admin group
