@@ -11,7 +11,9 @@ from mreg.models import History
 class DjangoJSONModelEncoder(DjangoJSONEncoder):
 
     def default(self, o):
-        return model_to_dict(o)
+        if isinstance(o, Model):
+            return model_to_dict(o)
+        return super().default(o)
 
 
 class HistoryLog:
