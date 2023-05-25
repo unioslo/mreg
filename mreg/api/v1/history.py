@@ -1,5 +1,9 @@
 import json
 
+import datetime
+
+from django_logging import log
+
 from django.core.exceptions import ValidationError
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db.models import Model
@@ -13,6 +17,10 @@ class DjangoJSONModelEncoder(DjangoJSONEncoder):
     def default(self, o):
         if isinstance(o, Model):
             return model_to_dict(o)
+        elif isinstance(o, datetime.date):
+            return super().default(o)
+
+        log.warning("DjangoJSONModelEncoder, unexpected type: '%s'", type(o))
         return super().default(o)
 
 
