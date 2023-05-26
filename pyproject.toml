@@ -1,0 +1,9 @@
+[tool.ruff]
+# https://beta.ruff.rs/docs/rules/
+select = ["E", "F"]
+line-length = 119
+exclude = [
+    "mreg/migrations/",
+    "hostpolicy/migrations/",
+    ".tox",
+]
