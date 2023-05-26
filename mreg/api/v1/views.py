@@ -2,7 +2,6 @@ import bisect
 import ipaddress
 from collections import Counter, defaultdict
 
-from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
@@ -14,7 +13,6 @@ from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from url_filter.integrations.drf import DjangoFilterBackend
 from url_filter.filtersets import ModelFilterSet
 
 
@@ -24,7 +22,7 @@ from mreg.api.permissions import (IsAuthenticatedAndReadOnly,
                                   IsSuperGroupMember,
                                   IsSuperOrAdminOrReadOnly,
                                   IsSuperOrNetworkAdminMember,)
-from mreg.models import (BACnetID, Cname, Hinfo, Host, HostGroup, Ipaddress, Loc,
+from mreg.models import (Cname, Hinfo, Host, HostGroup, Ipaddress, Loc,
                          Mx, NameServer, Naptr, Network,
                          PtrOverride, Srv, Sshfp, Txt)
 
@@ -321,10 +319,14 @@ class HinfoDetail(HostPermissionsUpdateDestroy,
 
 
 def _host_prefetcher(qs):
-    return qs.prefetch_related('bacnetid', 'cnames', 'hinfo', 'loc', 'mxs',
-                               'ptr_overrides', 'txts'
-            ).prefetch_related(Prefetch('ipaddresses',
-                                         queryset=Ipaddress.objects.order_by('ipaddress'))
+    return qs.prefetch_related(
+                'bacnetid', 'cnames', 'hinfo', 'loc',
+                'mxs', 'ptr_overrides', 'txts'
+            ).prefetch_related(
+                Prefetch(
+                    'ipaddresses',
+                    queryset=Ipaddress.objects.order_by('ipaddress')
+                )
             )
 
 
@@ -386,7 +388,7 @@ class HostList(HostPermissionsListCreateAPIView):
                 with transaction.atomic():
                     # XXX: must fix. perform_creates failes as it has no ipaddress and the
                     # the permissions fails for most users. Maybe a nested serializer should fix it?
-                    #self.perform_create(hostserializer)
+                    # self.perform_create(hostserializer)
                     hostserializer.save()
                     self.save_log_create(hostserializer)
                     ipdata = {'host': host.pk, 'ipaddress': ipkey}
@@ -1020,17 +1022,21 @@ def _dhcphosts_by_range(iprange):
     ips = ips.values('host__name', 'ipaddress', 'macaddress', 'host__zone__name')
     return Response(ips)
 
+
 @api_view()
 def dhcp_hosts_all_v4(request, *args, **kwargs):
     return _dhcphosts_by_range('0.0.0.0/0')
+
 
 @api_view()
 def dhcp_hosts_all_v6(request, *args, **kwargs):
     return _dhcphosts_by_range('::/0')
 
+
 @api_view()
 def dhcp_hosts_by_range(request, *args, **kwargs):
     return _dhcphosts_by_range(_get_iprange(kwargs))
+
 
 def _dhcpv6_hosts_by_ipv4(iprange):
     """

@@ -6,7 +6,7 @@ from django.shortcuts import get_object_or_404
 
 from rest_framework import (generics, renderers, status)
 from rest_framework.decorators import (api_view, renderer_classes)
-from rest_framework.exceptions import MethodNotAllowed, ParseError
+from rest_framework.exceptions import ParseError
 from rest_framework.response import Response
 
 from url_filter.filtersets import ModelFilterSet
@@ -391,11 +391,11 @@ def zone_file_detail(request, *args, **kwargs):
     except (ForwardZone.DoesNotExist, ReverseZone.DoesNotExist):
         raise Http404
 
-    excludePrivateAddresses:bool = False
-    if 'excludePrivate' in request.GET and request.GET['excludePrivate'].lower() in ['true','yes','t','y','1']:
+    excludePrivateAddresses: bool = False
+    if 'excludePrivate' in request.GET and request.GET['excludePrivate'].lower() in ['true', 'yes', 't', 'y', '1']:
         excludePrivateAddresses = True
 
     # XXX: a force argument to force serialno update?
     zone.update_serialno()
-    zonefile = ZoneFile(zone,excludePrivateAddresses)
+    zonefile = ZoneFile(zone, excludePrivateAddresses)
     return Response(zonefile.generate())

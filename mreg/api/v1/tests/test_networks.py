@@ -226,7 +226,6 @@ class NetworksTestCase(MregAPITestCase):
         response = self.assert_get('/networks/ip/10.0.0.5')
         self.assertEqual(response.data['network'], str(self.network_sample.network))
 
-
     def test_networks_get_one_ip_network_200_ok(self):
         """GET on an ip in a known network should return 200 OK."""
         obj = Network.objects.create(network='10.2.0.0/32')
@@ -457,6 +456,7 @@ class NetworksTestCase(MregAPITestCase):
         self.client.logout()
         self.assert_get_and_401('/networks/')
 
+
 class NetworkExcludedRanges(MregAPITestCase):
     """Tests for NetworkExcludedRange objects and that they are enforced
        for Ipaddress and PtrOverride"""
@@ -557,7 +557,7 @@ class NetworkAdminPermissions(NetworkExcludedRanges):
         self.assert_patch(path, {'reserved': 5})
         self.assert_patch_and_403(path, {'description': 'test2'})
         self.assert_patch(path, {'frozen': True})
-        self.assert_patch(path, {'frozen': False, 'reserved':7})
+        self.assert_patch(path, {'frozen': False, 'reserved': 7})
         # Only allowed to do a patch with reserved and/or frozen. Not other fields at the same time.
         self.assert_patch_and_403(path, {'reserved': 2, 'description': 'test2'})
         self.assert_patch_and_403(path, {'frozen': True, 'description': 'test3'})

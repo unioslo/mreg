@@ -79,7 +79,6 @@ class Common:
             data += self.get_ns_data(delegations)
         return data
 
-
     def get_subreversezones(self):
         data = ""
         subzones = ReverseZone.objects.filter(name__endswith="." + self.zone.name)
@@ -234,9 +233,9 @@ class ForwardFile(Common):
                                      ('::/0', 'AAAA  '),):
             ipfilter = ips.extra(where=["ipaddress << %s"], params=[network])
             if self.excludePrivateAddresses:
-                ipfilter = ipfilter.exclude(ipaddress__range=('10.0.0.0','10.255.255.255'))\
-                                   .exclude(ipaddress__range=('172.16.0.0','172.31.255.255'))\
-                                   .exclude(ipaddress__range=('192.168.0.0','192.168.255.255'))
+                ipfilter = ipfilter.exclude(ipaddress__range=('10.0.0.0', '10.255.255.255'))\
+                                   .exclude(ipaddress__range=('172.16.0.0', '172.31.255.255'))\
+                                   .exclude(ipaddress__range=('192.168.0.0', '192.168.255.255'))
             for hostname, ip in ipfilter.values_list("host__name", "ipaddress"):
                 self.ipaddresses[hostname].append((record_type, ip,))
 
@@ -269,7 +268,6 @@ class ForwardFile(Common):
         srvs = Srv.objects.filter(zone=self.zone).filter(host__zone=self.zone)
         for i in srvs.values_list('host__name', 'name', 'ttl', 'priority', 'weight', 'port'):
             self.srvs[i[0]].append(i[1:])
-
 
     def get_subdomains(self):
         data = ""

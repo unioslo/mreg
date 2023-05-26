@@ -1,10 +1,7 @@
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from rest_framework.exceptions import PermissionDenied
-
 from mreg.models import Host
-from mreg.mqsender import MQSender
 from .models import (HostPolicyAtom, HostPolicyRole)
 
 

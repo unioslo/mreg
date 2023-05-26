@@ -232,7 +232,7 @@ class HostPolicyNoRights(MregAPITestCase):
         group = Group.objects.create(name='dummygroup')
         group.user_set.add(self.user)
         perm = NetGroupRegexPermission.objects.create(
-            group='dummygroup', range='0.0.0.0/0', regex='.*\.example\.org')
+            group='dummygroup', range='0.0.0.0/0', regex=r'.*\.example\.org')
         label = Label.objects.create(name="Safelabel")
         perm.labels.add(label)
         self.role.labels.add(label)
@@ -255,13 +255,13 @@ class HostPolicyWithNetGroupRegexPermission(MregAPITestCase):
         group = Group.objects.create(name='dummygroup')
         group.user_set.add(self.user)
         self.perm = NetGroupRegexPermission.objects.create(
-            group='dummygroup', range='11.22.33.0/24', regex='.*\.example\.org')
+            group='dummygroup', range='11.22.33.0/24', regex=r'.*\.example\.org')
         self.perm.labels.add(self.safelabel)
         self.host = Host.objects.create(name='host1.example.org')
         Ipaddress.objects.create(host=self.host, ipaddress='11.22.33.44')
 
     def test_add_host_to_role_and_remove_it(self):
-        post_data = { 'name': self.host.name }
+        post_data = {'name': self.host.name}
         url = self.basepath + self.role.name + '/hosts/'
         self.assert_post(url, post_data)
         # trying to add it again should result in a 409 conflict
@@ -276,7 +276,7 @@ class HostPolicyWithNetGroupRegexPermission(MregAPITestCase):
         label2 = Label.objects.create(name="Unsafelabel")
         self.role.labels.add(label2)
         self.role.labels.remove(self.safelabel)
-        post_data = { 'name': self.host.name }
+        post_data = {'name': self.host.name}
         url = self.basepath + self.role.name + '/hosts/'
         self.assert_post_and_403(url, post_data)
         self.role.labels.clear()
@@ -285,7 +285,7 @@ class HostPolicyWithNetGroupRegexPermission(MregAPITestCase):
     def test_add_host_if_there_are_no_labels(self):
         # If the role has no label, the user shouldn't be permitted to add the host to it
         self.role.labels.remove(self.safelabel)
-        post_data = { 'name': self.host.name }
+        post_data = {'name': self.host.name}
         url = self.basepath + self.role.name + '/hosts/'
         self.assert_post_and_403(url, post_data)
         # Also try this if the permission doesn't have any labels either
@@ -297,13 +297,13 @@ class HostPolicyWithNetGroupRegexPermission(MregAPITestCase):
 
     def test_add_host_if_user_not_in_group(self):
         self.user.groups.clear()
-        post_data = { 'name': self.host.name }
+        post_data = {'name': self.host.name}
         url = self.basepath + self.role.name + '/hosts/'
         self.assert_post_and_403(url, post_data)
 
     def test_with_host_that_doesnt_match_perm(self):
         host2 = Host.objects.create(name='host2.otherdomain.org')
         Ipaddress.objects.create(host=host2, ipaddress='55.66.77.88')
-        post_data = { 'name': host2.name }
+        post_data = {'name': host2.name}
         url = self.basepath + self.role.name + '/hosts/'
         self.assert_post_and_403(url, post_data)

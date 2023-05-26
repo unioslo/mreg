@@ -1,5 +1,4 @@
 from django.contrib.auth.models import Group
-from django.core.exceptions import ValidationError
 from django.db.models import Prefetch
 
 from rest_framework import status
@@ -9,7 +8,7 @@ from url_filter.filtersets import ModelFilterSet
 
 from mreg.api.permissions import (HostGroupPermission,
                                   IsSuperOrGroupAdminOrReadOnly)
-from mreg.models import History, Host, HostGroup
+from mreg.models import Host, HostGroup
 
 from . import serializers
 from .history import HistoryLog

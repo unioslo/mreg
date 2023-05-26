@@ -10,9 +10,11 @@ from mreg.api.permissions import IsGrantedNetGroupRegexPermission
 from mreg.models import (Host, BACnetID)
 from . import serializers
 
+
 class BACnetIDFilterSet(ModelFilterSet):
     class Meta:
         model = BACnetID
+
 
 class BACnetIDList(MregListCreateAPIView):
     queryset = BACnetID.objects.order_by('id')
@@ -22,8 +24,8 @@ class BACnetIDList(MregListCreateAPIView):
     filterset_fields = 'id'
 
     def get_queryset(self):
-       qs = super().get_queryset()
-       return BACnetIDFilterSet(data=self.request.GET, queryset=qs).filter()
+        qs = super().get_queryset()
+        return BACnetIDFilterSet(data=self.request.GET, queryset=qs).filter()
 
     def post(self, request, *args, **kwargs):
         # request.data is immutable
@@ -33,7 +35,8 @@ class BACnetIDList(MregListCreateAPIView):
         if 'id' not in data:
             data['id'] = BACnetID.first_unused_id()
         else:
-            # if an ID value was supplied, and it is already in use, return 409 conflict instead of the default 400 bad request
+            # if an ID value was supplied, and it is already in use, return 409 conflict
+            # instead of the default 400 bad request
             if BACnetID.objects.filter(id=data['id']).exists():
                 return Response(status=status.HTTP_409_CONFLICT)
 
@@ -45,8 +48,9 @@ class BACnetIDList(MregListCreateAPIView):
                 data['host'] = host.id
             elif 'host' in data:
                 host = Host.objects.get(id=data['host'])
-            # if a host was supplied and that host already has a BACnet ID, return 409 conflict instead of the default 400 bad request
-            if host and hasattr(host,'bacnetid'):
+            # if a host was supplied and that host already has a BACnet ID, return 409 conflict
+            # instead of the default 400 bad request
+            if host and hasattr(host, 'bacnetid'):
                 content = {'ERROR': 'The host already has a BACnet ID.'}
                 return Response(content, status=status.HTTP_409_CONFLICT)
         except Host.DoesNotExist:

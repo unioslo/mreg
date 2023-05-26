@@ -73,6 +73,7 @@ class HinfoSerializer(ValidationMixin, serializers.ModelSerializer):
         model = Hinfo
         fields = '__all__'
 
+
 class MacAddressSerializerField(serializers.CharField):
     """Normalize the provided MAC address into the common format."""
     def to_representation(self, obj):
@@ -115,10 +116,10 @@ class IpaddressSerializer(ValidationMixin, serializers.ModelSerializer):
         if mac:
             macip = data.get('ipaddress') or self.instance.ipaddress
             # If MAC and IP unchanged, nothing to validate.
-            if self.instance:
-                if self.instance.macaddress == mac and \
-                    self.instance.ipaddress == macip:
-                        return data
+            instance = self.instance
+            if instance:
+                if instance.macaddress == mac and instance.ipaddress == macip:
+                    return data
 
             network = Network.objects.filter(network__net_contains=macip).first()
             if not network:
@@ -175,7 +176,8 @@ class HistorySerializer(serializers.ModelSerializer):
 class BACnetIDSerializer(serializers.ModelSerializer):
     class Meta:
         model = BACnetID
-        fields = ('id','host','hostname',)
+        fields = ('id', 'host', 'hostname',)
+
 
 class BACnetID_ID_Serializer(serializers.ModelSerializer):
     class Meta:

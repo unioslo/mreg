@@ -267,9 +267,9 @@ class LocTestCase(TestCase):
         from RFC1876, section 4 "Example data".
         """
         def _test_loc(loc):
-            l = Loc(host=host, loc=loc)
-            clean_and_save(l)
-            l.delete()
+            loc_obj = Loc(host=host, loc=loc)
+            clean_and_save(loc_obj)
+            loc_obj.delete()
         host = Host.objects.create(name='host.example.org')
 
         _test_loc('42 21 54 N 71 06 18 W -24m 30m')
@@ -399,11 +399,26 @@ class ModelNetworkTestCase(TestCase):
         n = Network(network='2001:DB8:BAD:BAD::/64', description='a description')
         clean_and_save(n)
         # Create one large excluded range at the start and one at the end
-        clean_and_save(NetworkExcludedRange(network=n, start_ip='2001:DB8:BAD:BAD::0', end_ip='2001:DB8:BAD:BAD::ffff:ffff:ffff'))
-        clean_and_save(NetworkExcludedRange(network=n, start_ip='2001:DB8:BAD:BAD:2:0:0:0', end_ip='2001:DB8:BAD:BAD:ffff:ffff:ffff:ffff'))
+        clean_and_save(
+            NetworkExcludedRange(
+                network=n,
+                start_ip='2001:DB8:BAD:BAD::0',
+                end_ip='2001:DB8:BAD:BAD::ffff:ffff:ffff'
+            )
+        )
+
+        clean_and_save(
+            NetworkExcludedRange(
+                network=n,
+                start_ip='2001:DB8:BAD:BAD:2:0:0:0',
+                end_ip='2001:DB8:BAD:BAD:ffff:ffff:ffff:ffff'
+            )
+        )
         unused_count_should_be = 0x1000000000000 - len(n.get_reserved_ipaddresses())
+
         def handler(signum, frame):  # pragma: no cover
             raise Exception("timeout")
+
         signal.signal(signal.SIGALRM, handler)
         signal.alarm(5)
         # The following calls will take too long and cause a timeout exception if they aren't implemented correctly.
@@ -411,11 +426,11 @@ class ModelNetworkTestCase(TestCase):
         self.assertEqual(n.unused_count, unused_count_should_be)
         self.assertNotEqual(n.get_first_unused(), None)
         self.assertNotEqual(n.get_random_unused(), None)
-        signal.alarm(0) # Cancel the timer if no exception happened
+        signal.alarm(0)  # Cancel the timer if no exception happened
 
     def test_excluded_ranges(self):
         """Test that exclusion of IP address ranges work"""
-        clean_and_save(self.network_sample) # 10.0.0.0/20
+        clean_and_save(self.network_sample)  # 10.0.0.0/20
         clean_and_save(NetworkExcludedRange(network=self.network_sample, start_ip='10.0.0.0', end_ip='10.0.0.200'))
         ip = self.network_sample.get_first_unused()
         self.assertEqual(str(ip), '10.0.0.201')
@@ -853,6 +868,7 @@ class ModelForwardZoneTestCase(TestCase):
         # Verify that otherhost wasn't changed
         meh = Host.objects.get(name=otherhost.name)
         self.assertEqual(meh.zone, None)
+
 
 class ModelReverseZoneTestCase(TestCase):
     """This class defines the test suite for the ReverseZone model."""

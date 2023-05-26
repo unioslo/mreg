@@ -5,6 +5,7 @@ from .models import HostPolicyAtom, HostPolicyRole
 from mreg.models import Host
 from mreg.mqsender import MQSender
 
+
 @receiver(m2m_changed, sender=HostPolicyRole.atoms.through)
 @receiver(m2m_changed, sender=HostPolicyRole.hosts.through)
 def role_update_updated_at_on_changes(sender, instance, action, model,
@@ -44,10 +45,10 @@ def atom_update_m2m_relations_on_delete(sender, instance, using, **kwargs):
     """
     _hostpolicyatom_update_m2m_relations(instance)
 
+
 @receiver(m2m_changed, sender=HostPolicyRole.hosts.through)
-def send_event_for_host_role_changes(sender, instance, action, model,
-             reverse, pk_set, **kwargs):
-    if not action in ('post_add','post_remove',):
+def send_event_for_host_role_changes(sender, instance, action, model, reverse, pk_set, **kwargs):
+    if action not in ('post_add', 'post_remove',):
         return
     for pk in pk_set:
         obj = {
@@ -60,10 +61,10 @@ def send_event_for_host_role_changes(sender, instance, action, model,
             obj['action'] = 'remove_role_from_host'
         MQSender().send_event(obj, "host.role")
 
+
 @receiver(m2m_changed, sender=HostPolicyRole.atoms.through)
-def send_event_for_role_atom_changes(sender, instance, action, model,
-             reverse, pk_set, **kwargs):
-    if not action in ('post_add','post_remove',):
+def send_event_for_role_atom_changes(sender, instance, action, model, reverse, pk_set, **kwargs):
+    if action not in ('post_add', 'post_remove',):
         return
     for pk in pk_set:
         obj = {
@@ -76,6 +77,7 @@ def send_event_for_role_atom_changes(sender, instance, action, model,
             obj['action'] = 'remove_atom_from_role'
         MQSender().send_event(obj, "role.atom")
 
+
 @receiver(post_save, sender=HostPolicyRole)
 def send_event_when_role_created(sender, instance, created, **kwargs):
     if created:
@@ -85,6 +87,7 @@ def send_event_when_role_created(sender, instance, created, **kwargs):
         }
         MQSender().send_event(obj, "role")
 
+
 @receiver(post_delete, sender=HostPolicyRole)
 def send_event_when_role_removed(sender, instance, **kwargs):
     obj = {
@@ -92,6 +95,7 @@ def send_event_when_role_removed(sender, instance, **kwargs):
         'action': 'role_removed',
     }
     MQSender().send_event(obj, "role")
+
 
 @receiver(post_save, sender=HostPolicyAtom)
 def send_event_when_atom_created(sender, instance, created, **kwargs):
@@ -101,6 +105,7 @@ def send_event_when_atom_created(sender, instance, created, **kwargs):
             'action': 'atom_created',
         }
         MQSender().send_event(obj, "atom")
+
 
 @receiver(post_delete, sender=HostPolicyAtom)
 def send_event_when_atom_removed(sender, instance, **kwargs):

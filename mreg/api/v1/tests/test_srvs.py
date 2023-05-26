@@ -72,6 +72,7 @@ class APISrvsTestCase(MregAPITestCase):
         zone.refresh_from_db()
         self.assertTrue(zone.updated)
 
+
 class SrvBasePermissions(MregAPITestCase):
 
     def setUp(self):

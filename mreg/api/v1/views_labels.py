@@ -1,6 +1,3 @@
-from django.core.exceptions import ValidationError
-from django.db.models import Prefetch
-
 from rest_framework import status
 from rest_framework.response import Response
 
@@ -9,6 +6,7 @@ from .views import MregListCreateAPIView, MregRetrieveUpdateDestroyAPIView
 from mreg.models import Label
 from mreg.api.permissions import IsSuperOrAdminOrReadOnly
 from . import serializers
+
 
 class LabelFilterSet(ModelFilterSet):
     class Meta:

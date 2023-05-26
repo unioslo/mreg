@@ -7,7 +7,6 @@ import unittest.mock as mock
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
-from django.utils import timezone
 
 from rest_framework.test import APIClient, APITestCase
 
@@ -16,6 +15,7 @@ from mreg.models import (ForwardZone, Host, Ipaddress,
                          ExpiringToken)
 
 from mreg.utils import nonify
+
 
 class MissingSettings(Exception):
     pass
@@ -222,7 +222,7 @@ class APITokenAuthenticationTestCase(MregAPITestCase):
         token = ExpiringToken.objects.get(user=self.user)
         EXPIRE_HOURS = getattr(settings, 'REST_FRAMEWORK_TOKEN_EXPIRE_HOURS', 8)
         minute_after_expiry = token.last_used + timedelta(hours=EXPIRE_HOURS,
-                                                                minutes=1)
+                                                          minutes=1)
         with mock.patch('django.utils.timezone.now') as mock_future:
             mock_future.return_value = minute_after_expiry
             self.assert_get_and_401("/hosts/")
@@ -248,7 +248,7 @@ class APITokenAuthenticationTestCase(MregAPITestCase):
             self.client.credentials()
             self.assert_post_and_200("/api/token-auth/",
                                      {"username": self.user,
-                                      "password":"test"})
+                                      "password": "test"})
             new = ExpiringToken.objects.get(user=self.user)
             assert old.key != new.key
 
@@ -273,9 +273,9 @@ class APITokenAuthenticationTestCase(MregAPITestCase):
     def test_login_with_invalid_credentials(self):
         self.client = APIClient()
         """ Using wrong credentials should result in a 401 unauthorized """
-        self.assert_post_and_401("/api/token-auth/", {"username":"someone","password":"incorrect"})
+        self.assert_post_and_401("/api/token-auth/", {"username": "someone", "password": "incorrect"})
         """ Incorrect or missing arguments should still return 400 bad request """
-        self.assert_post_and_400("/api/token-auth/", {"who":"someone","why":"because"})
+        self.assert_post_and_400("/api/token-auth/", {"who": "someone", "why": "because"})
         self.assert_post_and_400("/api/token-auth/", {})
 
 
@@ -443,14 +443,14 @@ class APIAutoupdateHostZoneTestCase(MregAPITestCase):
         self.assert_post_and_201('/hosts/', self.org_host1)
         self.assert_patch_and_204('/hosts/host1.example.org',
                                   {"name": "host1.example.com"})
-        res = self.assert_get(f"/hosts/host1.example.com")
+        res = self.assert_get("/hosts/host1.example.com")
         self.assertEqual(res.json()['zone'], self.zone_com.id)
 
     def test_rename_host_to_unknown_zone(self):
         self.assert_post_and_201('/hosts/', self.org_host1)
         self.assert_patch_and_204('/hosts/host1.example.org',
                                   {"name": "host1.example.net"})
-        res = self.assert_get(f"/hosts/host1.example.net")
+        res = self.assert_get("/hosts/host1.example.net")
         self.assertEqual(res.json()['zone'], None)
 
 
@@ -701,7 +701,6 @@ class LocTTestCase(MregAPITestCase):
         self.host.delete()
         ret = self.assert_get('/locs/')
         self.assertEqual(ret.data['count'], 0)
-
 
 
 class APIMxTestcase(MregAPITestCase):
@@ -1086,8 +1085,6 @@ class APISshfpTestcase(MregAPITestCase):
         self.assertTrue(self.zone.updated)
 
 
-
-
 class APIIPaddressesTestCase(MregAPITestCase):
     """This class defines the test suite for api/ipaddresses"""
 
@@ -1234,8 +1231,8 @@ class APIMACaddressTestCase(MregAPITestCase):
     def test_mac_patch_ip_with_existing_mac_204_ok(self):
         """Patching an IP with an existing MAC address should succeed."""
         self.assert_patch("/ipaddresses/%s" % self.ipaddress_one.id,
-                          { 'host': self.host_one.id,
-                            'ipaddress': '10.0.0.14'})
+                          {'host': self.host_one.id,
+                           'ipaddress': '10.0.0.14'})
 
     def test_mac_post_conflict_ip_and_mac_400_bad_request(self):
         """"Posting an existing IP address should return 4xx."""
@@ -1269,16 +1266,16 @@ class APIMACaddressTestCase(MregAPITestCase):
         self.assert_patch_and_409('/ipaddresses/%s' % self.ipaddress_one.id,
                                   patch_mac_in_use)
         # Also if they're on the same network
-        network1 = Network.objects.create(network='10.0.0.0/24')
+        Network.objects.create(network='10.0.0.0/24')
         self.assert_patch_and_409('/ipaddresses/%s' % self.ipaddress_one.id,
                                   patch_mac_in_use)
         """Patch an IP with a MAC in use should be ok if they're on different networks"""
-        network2 = Network.objects.create(network='20.0.0.0/24')
+        Network.objects.create(network='20.0.0.0/24')
         ip2 = Ipaddress.objects.create(host=host_two,
-                                            ipaddress='20.0.0.20',
-                                            macaddress='aa:bb:cc:00:00:20')
+                                       ipaddress='20.0.0.20',
+                                       macaddress='aa:bb:cc:00:00:20')
         self.assert_patch_and_204('/ipaddresses/%s' % ip2.id,
-                {'macaddress': self.ipaddress_one.macaddress})
+                                  {'macaddress': self.ipaddress_one.macaddress})
 
     def test_mac_patch_formats_204_ok(self):
         """ Patch an IP with MAC address in various formats. """
@@ -1322,8 +1319,8 @@ class APIMACaddressTestCase(MregAPITestCase):
         host_two = Host.objects.create(name='host2.example.org')
         ip_two = Ipaddress.objects.create(host=host_two, ipaddress='10.0.0.5')
         self.assert_patch_and_409('/ipaddresses/%s' % ip_two.id,
-                                {'macaddress': self.ipaddress_one.macaddress})
-        #
+                                  {'macaddress': self.ipaddress_one.macaddress})
+
         self.test_mac_post_ip_with_mac_201_ok()
         self.test_mac_patch_ip_and_mac_204_ok()
         self.test_mac_patch_ip_with_existing_mac_204_ok()

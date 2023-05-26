@@ -1,6 +1,7 @@
 from mreg.api.v1.tests.tests import MregAPITestCase
 from mreg.models import (Host, BACnetID, Group, Ipaddress, Network, NetGroupRegexPermission)
 
+
 class BACnetIDTest(MregAPITestCase):
 
     basepath = '/api/v1/bacnet/ids/'

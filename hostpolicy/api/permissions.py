@@ -4,7 +4,7 @@ from mreg.api.permissions import user_is_superuser, user_in_settings_group
 
 from mreg.models import Host, NetGroupRegexPermission
 from hostpolicy.models import HostPolicyRole
-from mreg.api.v1.serializers import HostSerializer
+
 
 def user_is_hostpolicy_adminuser(user):
     return user_in_settings_group(user, 'HOSTPOLICYADMIN_GROUP')
@@ -36,7 +36,7 @@ class IsSuperOrHostPolicyAdminOrReadOnly(IsAuthenticated):
             return False
 
         # Find out which labels are attached to this role
-        role_labels = HostPolicyRole.objects.filter(name=view.kwargs['name']).values_list('labels__name',flat=True)
+        role_labels = HostPolicyRole.objects.filter(name=view.kwargs['name']).values_list('labels__name', flat=True)
         if not any(role_labels):
             # if the role doesn't have any labels, there's no possibility of access at this point
             return False
@@ -47,7 +47,11 @@ class IsSuperOrHostPolicyAdminOrReadOnly(IsAuthenticated):
             hostname = view.kwargs['host']
         else:
             hostname = request.data.get("name")
-        ips = list(Host.objects.filter(name=hostname).exclude(ipaddresses__ipaddress=None).values_list('ipaddresses__ipaddress',flat=True))
+        ips = list(Host.objects.filter(
+                        name=hostname
+                    ).exclude(
+                        ipaddresses__ipaddress=None
+                    ).values_list('ipaddresses__ipaddress', flat=True))
         qs = NetGroupRegexPermission.find_perm(request.user.group_list, hostname, ips)
 
         # If no permissions matched the host/ip, we deny access
@@ -56,13 +60,12 @@ class IsSuperOrHostPolicyAdminOrReadOnly(IsAuthenticated):
 
         # Do any of those permissions have labels that match the labels attached to this role?
         # If so, access is granted
-        perm_labels = qs.values_list('labels__name',flat=True)
+        perm_labels = qs.values_list('labels__name', flat=True)
         if any(label in perm_labels for label in role_labels):
             return True
 
         # If the code got to this point, it means none of the labels matched.
         return False
-
 
     def has_m2m_change_permission(self, request, view):
         return True

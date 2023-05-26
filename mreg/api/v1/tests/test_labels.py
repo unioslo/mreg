@@ -1,22 +1,21 @@
-from mreg.models import Label
-
 from .tests import MregAPITestCase
+
 
 class LabelTestCase(MregAPITestCase):
     """"This class defines the test suite for api/labels """
     def setUp(self):
         super().setUp()
-        self.assert_post('/api/v1/labels/', {'name':'testlabel','description':'Testing test one two'})
+        self.assert_post('/api/v1/labels/', {'name': 'testlabel', 'description': 'Testing test one two'})
 
     def test_create_label(self):
         # Create a normal label
-        self.assert_post('/api/v1/labels/', {'name':'normal_label','description':'A normal label'})
+        self.assert_post('/api/v1/labels/', {'name': 'normal_label', 'description': 'A normal label'})
         # Creating a label with the same name should fail
-        self.assert_post_and_409('/api/v1/labels/', {'name':'normal_label','description':'A normal label redone'})
+        self.assert_post_and_409('/api/v1/labels/', {'name': 'normal_label', 'description': 'A normal label redone'})
         # Verify that a description is required
-        self.assert_post_and_400('/api/v1/labels/', {'name':'testlabel2'})
+        self.assert_post_and_400('/api/v1/labels/', {'name': 'testlabel2'})
         # Verify that spaces in the label name isn't allowed
-        self.assert_post_and_400('/api/v1/labels/', {'name':'test label 3', 'description':'A label with spaces'})
+        self.assert_post_and_400('/api/v1/labels/', {'name': 'test label 3', 'description': 'A label with spaces'})
 
     def test_delete_label_by_name(self):
         self.assert_delete('/api/v1/labels/name/testlabel')
@@ -26,7 +25,7 @@ class LabelTestCase(MregAPITestCase):
         data = response.json()
         self.assertEqual(data['count'], 1)
         self.assertEqual(len(data['results']), 1)
-        self.assertEqual(data['results'][0]['name'],'testlabel')
+        self.assertEqual(data['results'][0]['name'], 'testlabel')
 
     def test_delete_label_by_pk(self):
         # find the id of the label
@@ -36,7 +35,7 @@ class LabelTestCase(MregAPITestCase):
         self.assert_delete("/api/v1/labels/{}".format(data['results'][0]['id']))
 
     def test_change_label_name(self):
-        self.assert_patch("/api/v1/labels/name/testlabel", {"name":"newname"})
+        self.assert_patch("/api/v1/labels/name/testlabel", {"name": "newname"})
         # read it back and verify that the name changed
         response = self.assert_get('/api/v1/labels/')
         data = response.json()

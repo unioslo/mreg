@@ -1,5 +1,6 @@
 from django.core.management.base import BaseCommand, CommandError
 
+
 class Command(BaseCommand):
     help = 'Delete all tokens from the database.'
 
@@ -7,5 +8,5 @@ class Command(BaseCommand):
         try:
             from rest_framework.authtoken.models import Token
             Token.objects.all().delete()
-        except:
+        except Exception:
             raise CommandError('Failed to delete tokens.')

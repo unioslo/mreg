@@ -525,10 +525,10 @@ class Network(BaseModel):
         for start_ip, end_ip in self.excluded_ranges.values_list('start_ip', 'end_ip'):
             start_ip = ipaddress.ip_address(start_ip)
             end_ip = ipaddress.ip_address(end_ip)
-            excluded.append((start_ip,end_ip))
+            excluded.append((start_ip, end_ip))
         return excluded
 
-    def get_unused_ipaddresses(self, max = MAX_UNUSED_LIST):
+    def get_unused_ipaddresses(self, max=MAX_UNUSED_LIST):
         """
         Returns which ipaddresses on the network are unused.
         """
@@ -747,6 +747,7 @@ class HostGroup(BaseModel):
 class Label(BaseModel):
     name = LCICharField(max_length=64, unique=True, validators=[validate_nowhitespace])
     description = models.TextField(blank=False)
+
     class Meta:
         db_table = 'label'
         ordering = ('name',)
@@ -832,11 +833,12 @@ class BACnetID(models.Model):
     def first_unused_id() -> int:
         j = 0
         for i in BACnetID.objects.values_list('id', flat=True).order_by('id'):
-            if i==j:
+            if i == j:
                 j += 1
             else:
                 return j
         return j
+
 
 class ExpiringToken(Token):
     last_used = models.DateTimeField(auto_now=True)

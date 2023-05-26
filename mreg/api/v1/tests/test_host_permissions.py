@@ -2,7 +2,7 @@ from django.contrib.auth.models import Group
 from rest_framework import exceptions
 
 from mreg.api.permissions import get_settings_groups
-from mreg.models import ForwardZone, Host, Ipaddress, NetGroupRegexPermission, Network, PtrOverride, User
+from mreg.models import ForwardZone, Host, Ipaddress, NetGroupRegexPermission, Network, PtrOverride
 
 
 from .tests import MregAPITestCase
@@ -328,7 +328,7 @@ class Wildcard(MregAPITestCase):
         self.add_user_to_groups('DNS_WILDCARD_GROUP')
         data1 = {'name': '*.example.org'}  # not allowed
         data2 = {'name': '*.sub.example.org'}  # allowed
-        data3 = {'name': '*._sub.example.org'} # try to sneak an underscore in there
+        data3 = {'name': '*._sub.example.org'}  # try to sneak an underscore in there
         path = '/api/v1/hosts/'
         self.assert_post_and_403(path, data1)
         self.assert_post_and_201(path, data2)

@@ -120,6 +120,7 @@ def get_network_from_zonename(name):
             net += "%s%s%s%s:" % (i, next(it, '0'), next(it, '0'), next(it, '0'))
         return ipaddress.ip_network("{}:/{}".format(net, netmask))
 
+
 # Taken from mreg_cli.util.format_mac.
 def normalize_mac(mac: str) -> str:
     """
@@ -129,4 +130,3 @@ def normalize_mac(mac: str) -> str:
     """
     mac = re.sub('[.:-]', '', mac).lower()
     return ":".join(["%s" % (mac[i:i+2]) for i in range(0, 12, 2)])
-

@@ -195,7 +195,7 @@ TXT_AUTO_RECORDS = {
 #    "declare": True/False,
 #    "username": "...",
 #    "password": "...",
-#}
+# }
 
 # Import local settings that may override those in this file.
 try:

@@ -1,8 +1,6 @@
 from django.contrib import admin
 from django.urls import include, path
 
-from mreg.api.v1 import views
-
 from rest_framework.schemas import get_schema_view
 
 # Schema view for swagger api documentation

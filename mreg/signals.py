@@ -19,6 +19,7 @@ from .models import (Cname, ForwardZoneMember, Hinfo, History, Host, HostGroup,
                      ForwardZone, ReverseZone, Srv, Sshfp, Txt)
 from .mqsender import MQSender
 
+
 @receiver(populate_user)
 def populate_user_from_ldap(sender, signal, user=None, ldap_user=None, **kwargs):
     """Find all groups from ldap with attr LDAP_GROUP_ATTR and matching
@@ -287,18 +288,20 @@ def add_auto_txt_records_on_new_host(sender, instance, created, **kwargs):
             Txt.objects.create(host=instance, txt=data)
             _signal_host_history(instance, 'create', 'Txt', {'txt': data})
 
+
 @receiver(post_save, sender=ForwardZone)
 def update_hosts_when_zone_is_added(sender, instance, created, **kwargs):
     """When a zone is created, any existing hosts that would be in that zone
        must be updated."""
     if created:
         zonename = "." + instance.name
-        for h in Host.objects.filter(name__endswith = zonename):
+        for h in Host.objects.filter(name__endswith=zonename):
             # The filter will also match hosts in sub-zones, so we must check for that.
             if "." in h.name[0:-len(zonename)]:
                 continue
             h.zone = instance
             h.save()
+
 
 @receiver(post_delete, sender=Ipaddress)
 def send_event_ip_removed_from_host(sender, instance, **kwargs):
@@ -309,6 +312,7 @@ def send_event_ip_removed_from_host(sender, instance, **kwargs):
     }
     MQSender().send_event(obj, "host.ipaddress")
 
+
 @receiver(post_save, sender=Ipaddress)
 def send_event_ip_added_to_host(sender, instance, created, **kwargs):
     obj = {
@@ -318,6 +322,7 @@ def send_event_ip_added_to_host(sender, instance, created, **kwargs):
     }
     MQSender().send_event(obj, "host.ipaddress")
 
+
 @receiver(post_save, sender=Host)
 def send_event_host_created(sender, instance, created, **kwargs):
     if created:
@@ -326,6 +331,7 @@ def send_event_host_created(sender, instance, created, **kwargs):
             'action': 'host_created',
         }
         MQSender().send_event(obj, "host")
+
 
 @receiver(post_delete, sender=Host)
 def send_event_host_removed(sender, instance, **kwargs):
