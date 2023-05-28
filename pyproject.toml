@@ -21,4 +21,4 @@ requires = [
 ]
 
 [tool.setuptools]
-py-modules = ["mreg", "mregsite", "hostpolicy"]
+py-modules = ["mreg", "mregsite", "hostpolicy"] 
