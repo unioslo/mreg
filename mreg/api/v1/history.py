@@ -60,8 +60,8 @@ class HistoryLog:
         # We should never fail at performing a clean on the testdata itself.
         try:
             history.full_clean()
-        except ValidationError as e:  # pragma: no cover
-            print(e)
+        except ValidationError as e:
+            log.error(ErrorLogObject(None, e, None))
             return
         history.save()
 
@@ -103,8 +103,8 @@ class HistoryLog:
         # We should never fail at performing a clean on the testdata itself.
         try:
             history.full_clean()
-        except ValidationError as e:  # pragma: no cover
-            print(e)
+        except ValidationError as e:
+            log.error(ErrorLogObject(None, e, None))
             return
         history.save()
 
