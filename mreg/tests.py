@@ -14,8 +14,6 @@ from pika.exceptions import (AMQPConnectionError, ConnectionClosedByBroker,
                              StreamLostError)
 from rest_framework.exceptions import PermissionDenied
 
-from mreg.mqsender import MQSender
-
 from .models import (MAX_UNUSED_LIST, Cname, ForwardZone, Host, HostGroup,
                      Ipaddress, Loc, NameServer, Naptr,
                      NetGroupRegexPermission, Network, NetworkExcludedRange,
