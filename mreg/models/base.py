@@ -26,13 +26,12 @@ from mreg.validators import (
 MAX_UNUSED_LIST = 4096  # 12 bits for addresses. A large ipv4, but tiny ipv6 network.
 
 # To avoid circular imports, this base file is not allowed to import any other models
-# from any other files. We do however want to include the ForwardZoneMemer model here 
-# to ensure it is always available for import in other files. To do this, we use the
-# lazy loading feature of django models. This means that the model is not loaded until
-# it is first used. This is done by using the string name of the model instead of the
-# model itself. This is why we have to use the string "ForwardZone" as the target for
-# the foreign key in the ForwardZoneMember model. However, rather than hardcoding the
-# string "ForwardZone" here, we use the constant _FORWARD_ZONE.
+# from any other files. We do however want to include the model ForwardZoneMember here 
+# to ensure it is always available for import elsewhere. To achieve this, we use the
+# lazy loading feature of django modelsm where we use a string instead of the class
+# reference. Here we thus use the string "ForwardZone" as the target for the foreign key
+# in the ForwardZoneMember model -- and to avoid hardcoding the string "ForwardZone"
+# deep into the file, we use the following constant "_FORWARD_ZONE" as the reference.
 _FORWARD_ZONE = "ForwardZone"
 
 class BaseModel(models.Model):
