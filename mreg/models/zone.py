@@ -5,9 +5,9 @@ from datetime import timedelta
 import django.contrib.postgres.fields as pgfields
 from django.db import DatabaseError, models, transaction
 from django.utils import timezone
-from netfields import CidrAddressField, NetManager
-
 from mreg.fields import DnsNameField
+from mreg.models.base import BaseModel, NameServer, ZoneHelpers
+from mreg.models.host import Ipaddress, PtrOverride
 from mreg.utils import (
     create_serialno,
     encode_mail,
@@ -20,9 +20,7 @@ from mreg.validators import (
     validate_reverse_zone_name,
     validate_ttl,
 )
-
-from mreg.models.base import BaseModel, ZoneHelpers, NameServer
-from mreg.models.host import Ipaddress, PtrOverride
+from netfields import CidrAddressField, NetManager
 
 
 class BaseZone(BaseModel, ZoneHelpers):

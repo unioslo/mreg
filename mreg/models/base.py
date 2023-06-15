@@ -8,20 +8,10 @@ from datetime import timedelta
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
-from rest_framework.authtoken.models import Token
-
 from mreg.fields import DnsNameField, LCICharField
-from mreg.utils import (
-    clear_none,
-    idna_encode,
-    qualify,
-)
-from mreg.validators import (
-    validate_hostname,
-    validate_ttl,
-    validate_nowhitespace,
-)
-
+from mreg.utils import clear_none, idna_encode, qualify
+from mreg.validators import validate_hostname, validate_nowhitespace, validate_ttl
+from rest_framework.authtoken.models import Token
 
 MAX_UNUSED_LIST = 4096  # 12 bits for addresses. A large ipv4, but tiny ipv6 network.
 

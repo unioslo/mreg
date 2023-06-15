@@ -1,6 +1,7 @@
 from django.db import models
-
 from mreg.fields import DnsNameField, LCICharField
+from mreg.models.base import BaseModel, ForwardZoneMember
+from mreg.models.host import Host
 from mreg.validators import (
     validate_16bit_uint,
     validate_hexadecimal,
@@ -10,8 +11,6 @@ from mreg.validators import (
     validate_ttl,
 )
 
-from mreg.models.base import BaseModel, ForwardZoneMember
-from mreg.models.host import Host 
 
 class Loc(BaseModel):
     host = models.OneToOneField(Host, on_delete=models.CASCADE, primary_key=True)

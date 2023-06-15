@@ -4,12 +4,9 @@ from functools import reduce
 
 from django.db import models
 from django.db.models import Q
+from mreg.models.base import MAX_UNUSED_LIST, BaseModel, Label
+from mreg.validators import validate_regex
 from netfields import CidrAddressField, NetManager
-from mreg.validators import (
-    validate_regex,
-)
-
-from mreg.models.base import BaseModel, Label, MAX_UNUSED_LIST
 
 
 class Network(BaseModel):

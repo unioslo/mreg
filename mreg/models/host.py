@@ -1,15 +1,9 @@
 import django.contrib.postgres.fields as pgfields
 from django.contrib.auth.models import Group
 from django.db import models
-
 from mreg.fields import DnsNameField, LCICharField
-from mreg.validators import (
-    validate_ttl,
-    validate_BACnetID,
-    validate_mac_address,
-)
-
 from mreg.models.base import BaseModel, ForwardZoneMember
+from mreg.validators import validate_BACnetID, validate_mac_address, validate_ttl
 
 
 class Host(ForwardZoneMember):
