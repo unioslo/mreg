@@ -8,5 +8,5 @@ class User(AbstractUser):
     @property
     def group_list(self):
         if self._group_list is None:
-            self._group_list = list(self.groups.values_list('name', flat=True))
+            self._group_list = list(self.groups.values_list("name", flat=True))
         return self._group_list

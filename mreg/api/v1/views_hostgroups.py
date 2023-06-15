@@ -8,7 +8,7 @@ from url_filter.filtersets import ModelFilterSet
 
 from mreg.api.permissions import (HostGroupPermission,
                                   IsSuperOrGroupAdminOrReadOnly)
-from mreg.models import Host, HostGroup
+from mreg.models.host import Host, HostGroup
 
 from . import serializers
 from .history import HistoryLog

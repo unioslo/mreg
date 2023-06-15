@@ -1,7 +1,10 @@
 import ipaddress
 from collections import defaultdict
 
-from mreg.models import Cname, ForwardZone, Hinfo, Host, Ipaddress, Loc, Mx, Naptr, ReverseZone, Srv, Sshfp, Txt
+from mreg.models.resource_records import Cname, Loc, Naptr, Srv, Sshfp, Txt, Hinfo, Mx
+from mreg.models.host import Host, Ipaddress
+from mreg.models.zone import ReverseZone, ForwardZone
+
 from mreg.utils import idna_encode, qualify
 
 

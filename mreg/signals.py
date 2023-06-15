@@ -13,11 +13,13 @@ from django_auth_ldap.backend import populate_user
 
 from rest_framework.exceptions import PermissionDenied
 
-from .models import (Cname, ForwardZoneMember, Hinfo, History, Host, HostGroup,
-                     Ipaddress, Loc, Mx, NameServer, Naptr,
-                     NetGroupRegexPermission, Network, PtrOverride,
-                     ForwardZone, ReverseZone, Srv, Sshfp, Txt)
-from .mqsender import MQSender
+from mreg.models.base import History, NameServer, ForwardZoneMember
+from mreg.models.resource_records import Cname, Loc, Naptr, Srv, Sshfp, Txt, Hinfo, Mx
+from mreg.models.host import Host, HostGroup, Ipaddress, PtrOverride
+from mreg.models.network import NetGroupRegexPermission, Network
+from mreg.models.zone import ForwardZone, ReverseZone
+
+from mreg.mqsender import MQSender
 
 
 @receiver(populate_user)

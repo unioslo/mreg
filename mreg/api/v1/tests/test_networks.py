@@ -1,6 +1,7 @@
 import ipaddress
 
-from mreg.models import Host, Ipaddress, Network, PtrOverride
+from mreg.models.host import Host, Ipaddress, PtrOverride
+from mreg.models.network import Network
 
 from .tests import clean_and_save, MregAPITestCase
 

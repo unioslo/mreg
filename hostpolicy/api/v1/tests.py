@@ -3,12 +3,9 @@ from urllib.parse import urljoin
 from django.contrib.auth.models import Group
 
 from hostpolicy.models import HostPolicyAtom, HostPolicyRole
-from mreg.models import (
-                        Host,
-                        Ipaddress,
-                        NetGroupRegexPermission,
-                        Label
-                        )
+from mreg.models.base import Label
+from mreg.models.host import Host, Ipaddress
+from mreg.models.network import NetGroupRegexPermission
 
 from mreg.api.v1.tests.tests import MregAPITestCase
 

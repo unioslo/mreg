@@ -3,7 +3,8 @@ from rest_framework import exceptions
 from rest_framework.permissions import IsAuthenticated, SAFE_METHODS
 
 from mreg.api.v1.serializers import HostSerializer
-from mreg.models import HostGroup, NetGroupRegexPermission, Network
+from mreg.models.host import HostGroup
+from mreg.models.network import NetGroupRegexPermission, Network
 
 NETWORK_ADMIN_GROUP = 'NETWORK_ADMIN_GROUP'
 SUPERUSER_GROUP = 'SUPERUSER_GROUP'

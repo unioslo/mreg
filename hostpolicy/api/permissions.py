@@ -2,7 +2,8 @@ from rest_framework.permissions import IsAuthenticated, SAFE_METHODS
 
 from mreg.api.permissions import user_is_superuser, user_in_settings_group
 
-from mreg.models import Host, NetGroupRegexPermission
+from mreg.models.host import Host
+from mreg.models.network import NetGroupRegexPermission
 from hostpolicy.models import HostPolicyRole
 
 

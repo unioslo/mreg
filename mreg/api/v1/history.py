@@ -9,7 +9,7 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.db.models import Model
 from django.forms import model_to_dict
 
-from mreg.models import History
+from mreg.models.base import History
 
 
 class DjangoJSONModelEncoder(DjangoJSONEncoder):

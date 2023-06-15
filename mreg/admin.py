@@ -1,7 +1,8 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
-from .models import (User, ExpiringToken)
+from mreg.models.auth import User
+from mreg.models.base import ExpiringToken
 
 admin.site.register(User, UserAdmin)
 

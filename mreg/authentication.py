@@ -3,7 +3,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import exceptions
 from rest_framework.authentication import TokenAuthentication
 
-from mreg.models import ExpiringToken
+from mreg.models.base import ExpiringToken
 
 
 class ExpiringTokenAuthentication(TokenAuthentication):

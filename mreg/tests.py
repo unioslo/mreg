@@ -14,11 +14,12 @@ from pika.exceptions import (AMQPConnectionError, ConnectionClosedByBroker,
                              StreamLostError)
 from rest_framework.exceptions import PermissionDenied
 
-from .models import (MAX_UNUSED_LIST, Cname, ForwardZone, Host, HostGroup,
-                     Ipaddress, Loc, NameServer, Naptr,
-                     NetGroupRegexPermission, Network, NetworkExcludedRange,
-                     PtrOverride, ReverseZone, Srv, Sshfp, Txt)
-from .mqsender import MQSender
+from mreg.models.base import MAX_UNUSED_LIST, NameServer
+from mreg.models.zone import ReverseZone, ForwardZone
+from mreg.models.network import Network, NetworkExcludedRange, NetGroupRegexPermission
+from mreg.models.resource_records import Cname, Loc, Naptr, Srv, Sshfp, Txt
+from mreg.models.host import Host, HostGroup, Ipaddress, PtrOverride    
+from mreg.mqsender import MQSender
 
 
 def clean_and_save(entity):

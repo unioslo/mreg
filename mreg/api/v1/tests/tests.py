@@ -10,9 +10,11 @@ from django.contrib.auth.models import Group
 
 from rest_framework.test import APIClient, APITestCase
 
-from mreg.models import (ForwardZone, Host, Ipaddress,
-                         Network, PtrOverride, ReverseZone, Txt,
-                         ExpiringToken)
+from mreg.models.base import ExpiringToken
+from mreg.models.network import Network
+from mreg.models.host import Host, Ipaddress, PtrOverride
+from mreg.models.zone import ForwardZone, ReverseZone
+from mreg.models.resource_records import Txt
 
 from mreg.utils import nonify
 

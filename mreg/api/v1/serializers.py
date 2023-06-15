@@ -5,12 +5,13 @@ from django.utils import timezone
 
 from rest_framework import serializers
 
-import mreg.models
-from mreg.models import (Cname, ForwardZone, ForwardZoneDelegation,
-                         Hinfo, Host, HostGroup, Ipaddress, Loc,
-                         Mx, NameServer, Naptr,
-                         NetGroupRegexPermission, Network, PtrOverride,
-                         ReverseZone, ReverseZoneDelegation, Srv, Sshfp, Txt, Label, BACnetID)
+from mreg.models.base import NameServer, Label, History
+from mreg.models.zone import ForwardZone, ReverseZone, ForwardZoneDelegation, ReverseZoneDelegation
+from mreg.models.host import Host, HostGroup, BACnetID, Ipaddress, PtrOverride
+from mreg.models.resource_records import Cname, Loc, Naptr, Srv, Sshfp, Txt, Hinfo, Mx
+
+from mreg.models.network import Network, NetGroupRegexPermission, NetworkExcludedRange
+
 from mreg.utils import (nonify, normalize_mac)
 from mreg.validators import (validate_keys, validate_normalizeable_mac_address)
 from mreg.api.errors import ValidationError409
@@ -169,7 +170,7 @@ class PtrOverrideSerializer(ValidationMixin, serializers.ModelSerializer):
 class HistorySerializer(serializers.ModelSerializer):
 
     class Meta:
-        model = mreg.models.History
+        model = History
         fields = '__all__'
 
 
@@ -236,7 +237,7 @@ class SrvSerializer(ForwardZoneMixin, serializers.ModelSerializer):
 
 class NetworkExcludedRangeSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
-        model = mreg.models.NetworkExcludedRange
+        model = NetworkExcludedRange
         fields = '__all__'
 
     def validate(self, data):
@@ -366,7 +367,7 @@ class HostGroupSerializer(serializers.ModelSerializer):
 def _validate_ip_not_in_network_excluded_range(ip):
     if ip is None:
         return
-    qs = mreg.models.NetworkExcludedRange.objects.filter(start_ip__lte=ip,
+    qs = NetworkExcludedRange.objects.filter(start_ip__lte=ip,
                                                          end_ip__gte=ip)
     if qs.exists():
         raise serializers.ValidationError(

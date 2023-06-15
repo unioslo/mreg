@@ -1,6 +1,7 @@
 from django.contrib.auth.models import Group
 
-from mreg.models import Host, Ipaddress, NetGroupRegexPermission
+from mreg.models.host import Host, Ipaddress
+from mreg.models.network import NetGroupRegexPermission
 
 from .tests import MregAPITestCase, create_forward_zone
 

@@ -7,7 +7,7 @@ from mreg.api.v1.views import (
     MregRetrieveUpdateDestroyAPIView,
 )
 from mreg.api.permissions import IsGrantedNetGroupRegexPermission
-from mreg.models import (Host, BACnetID)
+from mreg.models.host import Host, BACnetID
 from . import serializers
 
 

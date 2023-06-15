@@ -42,7 +42,7 @@ class Migration(migrations.Migration):
             options={
                 'db_table': 'forward_zone',
             },
-            bases=(models.Model, mreg.models.ZoneHelpers),
+            bases=(models.Model, mreg.models.base.ZoneHelpers),
         ),
         migrations.CreateModel(
             name='Host',
@@ -125,7 +125,7 @@ class Migration(migrations.Migration):
             options={
                 'db_table': 'reverse_zone',
             },
-            bases=(models.Model, mreg.models.ZoneHelpers),
+            bases=(models.Model, mreg.models.base.ZoneHelpers),
         ),
         migrations.CreateModel(
             name='Hinfo',
@@ -159,7 +159,7 @@ class Migration(migrations.Migration):
             options={
                 'db_table': 'reverse_zone_delegation',
             },
-            bases=(models.Model, mreg.models.ZoneHelpers),
+            bases=(models.Model, mreg.models.base.ZoneHelpers),
         ),
         migrations.CreateModel(
             name='PtrOverride',
@@ -212,7 +212,7 @@ class Migration(migrations.Migration):
             options={
                 'db_table': 'forward_zone_delegation',
             },
-            bases=(models.Model, mreg.models.ZoneHelpers),
+            bases=(models.Model, mreg.models.base.ZoneHelpers),
         ),
         migrations.AddField(
             model_name='forwardzone',
