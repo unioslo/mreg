@@ -28,7 +28,7 @@ MAX_UNUSED_LIST = 4096  # 12 bits for addresses. A large ipv4, but tiny ipv6 net
 # To avoid circular imports, this base file is not allowed to import any other models
 # from any other files. We do however want to include the model ForwardZoneMember here 
 # to ensure it is always available for import elsewhere. To achieve this, we use the
-# lazy loading feature of django modelsm where we use a string instead of the class
+# lazy loading feature of django models where we use a string instead of the class
 # reference. Here we thus use the string "ForwardZone" as the target for the foreign key
 # in the ForwardZoneMember model -- and to avoid hardcoding the string "ForwardZone"
 # deep into the file, we use the following constant "_FORWARD_ZONE" as the reference.
