@@ -12,7 +12,7 @@ on:
 
 jobs:
   build:
-    name: Build
+    name: Build image
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
@@ -28,7 +28,7 @@ jobs:
         path: mreg.tgz
 
   test:
-    name: Test
+    name: Unit tests
     needs: build
     runs-on: ubuntu-latest
     services:
@@ -61,11 +61,40 @@ jobs:
         -e MREG_DB_HOST=localhost -e MREG_DB_PASSWORD=mreg -e MREG_DB_USER=mreg \
         mreg
 
+  mreg-cli:
+    name: Test with mreg-cli
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+    - name: Download artifact
+      uses: actions/download-artifact@v3
+      with:
+        name: mreg
+    - name: Load container image
+      run: docker load --input mreg.tgz
+    - name: Tag container image
+      # There's a docker-compose.yml file in the mreg-cli repo that wants the image from ghcr.io,
+      # but we want to use the newly built custom image
+      run: docker tag mreg ghcr.io/unioslo/mreg:latest
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.11
+    - name: Install mreg-cli
+      run: |
+        wget -nd https://github.com/unioslo/mreg-cli/archive/refs/heads/master.zip
+        unzip master.zip
+        cd mreg-cli-master
+        pip install -r requirements.txt
+        pip install -e .
+    - name: Run the tests
+      run: mreg-cli-master/ci/run_testsuite_and_record.sh
+
   publish:
     name: Publish
     # only publish the image if this event was triggered on the master branch, and not by a pull request
     if: ${{ github.ref == 'refs/heads/master' && github.event_name != 'pull_request' }}
-    needs: test
+    needs: mreg-cli
     runs-on: ubuntu-latest
     permissions:
       packages: write
