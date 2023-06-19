@@ -12,6 +12,7 @@ class NetGroupRegexPermissionTestCase(MregAPITestCase):
         self.assert_post('/permissions/netgroupregex/', self.data)
 
     def test_get(self):
+        self.assert_get('/permissions/netgroupregex/')
         ret1 = self.assert_post('/permissions/netgroupregex/', self.data)
         ret2 = self.assert_get('/permissions/netgroupregex/{}'.format(ret1.json()['id']))
         self.assertEqual(ret1.json(), ret2.json())
