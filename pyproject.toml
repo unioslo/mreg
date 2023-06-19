@@ -7,3 +7,18 @@ exclude = [
     "hostpolicy/migrations/",
     ".tox",
 ]
+
+[project]
+name = "mreg"
+version = "0.0.1"
+
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = [
+    "setuptools >= 46.1.0",
+    "wheel",
+    "toml"
+]
+
+[tool.setuptools]
+py-modules = ["mreg", "mregsite", "hostpolicy"]
