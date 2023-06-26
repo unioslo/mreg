@@ -7,7 +7,7 @@ class NetGroupRegexPermissionTestCase(MregAPITestCase):
 
     data = {'group': 'testgroup', 'range': '10.0.0.0/24',
             'regex': r'.*\.example\.org$'}
-
+    
     def test_create(self):
         self.assert_post('/permissions/netgroupregex/', self.data)
 
@@ -16,6 +16,17 @@ class NetGroupRegexPermissionTestCase(MregAPITestCase):
         ret1 = self.assert_post('/permissions/netgroupregex/', self.data)
         ret2 = self.assert_get('/permissions/netgroupregex/{}'.format(ret1.json()['id']))
         self.assertEqual(ret1.json(), ret2.json())
+
+    def test_get_ordering(self):
+        obj1 = self.data
+        obj2 = self.data.copy()
+        obj2["group"] = 'testgroup2'
+
+        self.assert_post('/permissions/netgroupregex/', obj1)
+        self.assert_post('/permissions/netgroupregex/', obj2)
+        ret1 = self.assert_get('/permissions/netgroupregex/?ordering=range,group')
+        self.assertEqual(ret1.json()['results'][0]['group'], obj1['group'])
+        self.assertEqual(ret1.json()['results'][1]['group'], obj2['group'])
 
     def test_get_at_different_privilege_levels(self):
         """Verify get at different privilege levels."""

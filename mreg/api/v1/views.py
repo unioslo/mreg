@@ -120,7 +120,8 @@ class TxtFilterSet(ModelFilterSet):
 
 
 class NetGroupRegexPermissionFilterSet(ModelFilterSet):
-    class Meta:NetGroupRegexPermission
+    class Meta:
+        model = NetGroupRegexPermission
 
 
 class MregMixin:
