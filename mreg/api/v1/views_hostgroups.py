@@ -73,7 +73,7 @@ class HostGroupList(HostGroupLogMixin, MregListCreateAPIView):
     queryset = HostGroup.objects.all()
     serializer_class = serializers.HostGroupSerializer
     permission_classes = (IsSuperOrGroupAdminOrReadOnly, )
-    filter_class = HostGroupFilterSet
+    filterset_class = HostGroupFilterSet
 
     def post(self, request, *args, **kwargs):
         if "name" in request.data:

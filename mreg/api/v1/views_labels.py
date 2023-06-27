@@ -13,7 +13,7 @@ class LabelList(MregListCreateAPIView):
     queryset = Label.objects.all()
     serializer_class = serializers.LabelSerializer
     permission_classes = (IsSuperOrAdminOrReadOnly,)
-    filter_class = LabelFilterSet
+    filterset_class = LabelFilterSet
 
     def post(self, request, *args, **kwargs):
         if "name" in request.data:

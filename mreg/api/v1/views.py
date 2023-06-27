@@ -6,6 +6,8 @@ from django.db import transaction
 from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
 
+from django_filters import rest_framework as rest_filters
+
 from rest_framework import filters, generics, status
 from rest_framework.decorators import api_view
 from rest_framework.exceptions import MethodNotAllowed, ParseError
@@ -68,6 +70,7 @@ from .serializers import (
 class MregMixin:
     filter_backends = (
         filters.SearchFilter,
+        rest_filters.DjangoFilterBackend,
         filters.OrderingFilter,
     )
     ordering_fields = "__all__"
@@ -206,7 +209,7 @@ class CnameList(HostPermissionsListCreateAPIView):
     queryset = Cname.objects.all()
     serializer_class = CnameSerializer
     lookup_field = "name"
-    filter_class = CnameFilterSet
+    filterset_class = CnameFilterSet
 
 
 class CnameDetail(HostPermissionsUpdateDestroy, MregRetrieveUpdateDestroyAPIView):
@@ -237,7 +240,7 @@ class HinfoList(HostPermissionsListCreateAPIView):
 
     queryset = Hinfo.objects.all().order_by("host")
     serializer_class = HinfoSerializer
-    filter_class = HinfoFilterSet
+    filterset_class = HinfoFilterSet
 
 
 class HinfoDetail(HostPermissionsUpdateDestroy, MregRetrieveUpdateDestroyAPIView):
@@ -279,7 +282,7 @@ class HostList(HostPermissionsListCreateAPIView):
     # so HostFilterSet would need to implement these changes.
     # However, we also reuse _host_prefetcher in the HostDetail view below
     # so this would all require a bit of careful refactoring...
-    # filter_class = HostFilterSet
+    # filterset_class = HostFilterSet
 
     def get_queryset(self):
         qs = _host_prefetcher(super().get_queryset())
@@ -380,7 +383,7 @@ class HostDetail(HostPermissionsUpdateDestroy, MregRetrieveUpdateDestroyAPIView)
 class HistoryList(MregMixin, generics.ListAPIView):
     queryset = History.objects.all().order_by('id')
     serializer_class = HistorySerializer
-    filter_class = HistoryFilterSet
+    filterset_class = HistoryFilterSet
 
 
 class HistoryDetail(MregMixin, generics.RetrieveAPIView):
@@ -400,7 +403,7 @@ class IpaddressList(HostPermissionsListCreateAPIView):
 
     queryset = Ipaddress.objects.get_queryset().order_by("id")
     serializer_class = IpaddressSerializer
-    filter_class = IpaddressFilterSet
+    filterset_class = IpaddressFilterSet
 
 
 class IpaddressDetail(HostPermissionsUpdateDestroy, MregRetrieveUpdateDestroyAPIView):
@@ -430,7 +433,7 @@ class LocList(HostPermissionsListCreateAPIView):
 
     queryset = Loc.objects.all().order_by("host")
     serializer_class = LocSerializer
-    filter_class = LocFilterSet
+    filterset_class = LocFilterSet
 
 
 class LocDetail(HostPermissionsUpdateDestroy, MregRetrieveUpdateDestroyAPIView):
@@ -460,7 +463,7 @@ class MxList(HostPermissionsListCreateAPIView):
 
     queryset = Mx.objects.get_queryset().order_by("id")
     serializer_class = MxSerializer
-    filter_class = MxFilterSet
+    filterset_class = MxFilterSet
 
 
 class MxDetail(HostPermissionsUpdateDestroy, MregRetrieveUpdateDestroyAPIView):
@@ -490,7 +493,7 @@ class NaptrList(HostPermissionsListCreateAPIView):
 
     queryset = Naptr.objects.all()
     serializer_class = NaptrSerializer
-    filter_class = NaptrFilterSet
+    filterset_class = NaptrFilterSet
 
 
 class NaptrDetail(HostPermissionsUpdateDestroy, MregRetrieveUpdateDestroyAPIView):
@@ -521,7 +524,7 @@ class NameServerList(HostPermissionsListCreateAPIView):
     queryset = NameServer.objects.all()
     serializer_class = NameServerSerializer
     lookup_field = "name"
-    filter_class = NameServerFilterSet
+    filterset_class = NameServerFilterSet
 
 
 class NameServerDetail(HostPermissionsUpdateDestroy, MregRetrieveUpdateDestroyAPIView):
@@ -552,7 +555,7 @@ class PtrOverrideList(HostPermissionsListCreateAPIView):
 
     queryset = PtrOverride.objects.get_queryset().order_by("id")
     serializer_class = PtrOverrideSerializer
-    filter_class = PtrOverrideFilterSet
+    filterset_class = PtrOverrideFilterSet
 
 
 class PtrOverrideDetail(HostPermissionsUpdateDestroy, MregRetrieveUpdateDestroyAPIView):
@@ -582,7 +585,7 @@ class SshfpList(HostPermissionsListCreateAPIView):
 
     queryset = Sshfp.objects.get_queryset().order_by("id")
     serializer_class = SshfpSerializer
-    filter_class = SshfpFilterSet
+    filterset_class = SshfpFilterSet
 
 
 class SshfpDetail(HostPermissionsUpdateDestroy, MregRetrieveUpdateDestroyAPIView):
@@ -612,7 +615,7 @@ class SrvList(HostPermissionsListCreateAPIView):
 
     queryset = Srv.objects.all()
     serializer_class = SrvSerializer
-    filter_class = SrvFilterSet
+    filterset_class = SrvFilterSet
 
 
 class SrvDetail(HostPermissionsUpdateDestroy, MregRetrieveUpdateDestroyAPIView):
@@ -661,7 +664,7 @@ class NetworkList(MregListCreateAPIView):
     serializer_class = NetworkSerializer
     permission_classes = (IsSuperGroupMember | IsAuthenticatedAndReadOnly,)
     lookup_field = "network"
-    filter_class = NetworkFilterSet
+    filterset_class = NetworkFilterSet
 
     def post(self, request, *args, **kwargs):
         error = _overlap_check(request.data["network"])
@@ -863,7 +866,7 @@ class TxtList(HostPermissionsListCreateAPIView):
 
     queryset = Txt.objects.get_queryset().order_by("id")
     serializer_class = TxtSerializer
-    filter_class = TxtFilterSet
+    filterset_class = TxtFilterSet
 
 
 class TxtDetail(HostPermissionsUpdateDestroy, MregRetrieveUpdateDestroyAPIView):
@@ -888,7 +891,7 @@ class NetGroupRegexPermissionList(MregMixin, generics.ListCreateAPIView):
     queryset = NetGroupRegexPermission.objects.all().order_by('id')
     serializer_class = NetGroupRegexPermissionSerializer
     permission_classes = (IsSuperOrAdminOrReadOnly,)
-    filter_class = NetGroupRegexPermissionFilterSet
+    filterset_class = NetGroupRegexPermissionFilterSet
 
 
 class NetGroupRegexPermissionDetail(MregRetrieveUpdateDestroyAPIView):

@@ -8,6 +8,13 @@ from .tests import MregAPITestCase
 class APIHostGroupsTestCase(MregAPITestCase):
     """This class defines the test suite for api/hostgroups"""
 
+    def _url_returns_count(self, url, count):
+        """Check that the url returns exactly count results."""
+        response = self.assert_get(url)
+        data = response.json()
+        self.assertEqual(data['count'], count)
+        self.assertEqual(len(data['results']), count)
+
     def setUp(self):
         """Define the test client and other test variables."""
         super().setUp()
@@ -21,10 +28,8 @@ class APIHostGroupsTestCase(MregAPITestCase):
 
     def test_hostgroups_list_200_ok(self):
         """List all hosts should return 200"""
-        response = self.assert_get('/hostgroups/')
-        data = response.json()
-        self.assertEqual(data['count'], 3)
-        self.assertEqual(len(data['results']), 3)
+        self._url_returns_count('/hostgroups/', 3)
+        self._url_returns_count('/hostgroups/?name=testgroup1', 1)
 
     def test_hostgroups_get_404_not_found(self):
         """"Getting a non-existing entry should return 404"""

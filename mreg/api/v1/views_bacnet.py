@@ -18,7 +18,7 @@ class BACnetIDList(MregListCreateAPIView):
     permission_classes = (IsGrantedNetGroupRegexPermission,)
     lookup_field = "id"
     filterset_fields = "id"
-    filter_class = BACnetIDFilterSet
+    filterset_class = BACnetIDFilterSet
 
     def post(self, request, *args, **kwargs):
         # request.data is immutable

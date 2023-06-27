@@ -27,11 +27,11 @@ from mreg.models import (
 )
 
 
-class JSONFieldExactFilter(filters.BaseCSVFilter, filters.CharFilter):
+class JSONFieldExactFilter(filters.CharFilter):
     pass
 
 
-class CIDRFieldExactFilter(filters.BaseCSVFilter, filters.CharFilter):
+class CIDRFieldExactFilter(filters.CharFilter):
     pass
 
 

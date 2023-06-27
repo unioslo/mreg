@@ -63,7 +63,7 @@ class HostPolicyAtomList(HostPolicyAtomLogMixin, MregListCreateAPIView):
     serializer_class = serializers.HostPolicyAtomSerializer
     permission_classes = (IsSuperOrHostPolicyAdminOrReadOnly, )
     lookup_field = 'name'
-    filter_class = HostPolicyRoleFilterSet
+    filterset_class = HostPolicyAtomFilterSet
 
     def post(self, request, *args, **kwargs):
         if "name" in request.data:
@@ -95,7 +95,7 @@ class HostPolicyRoleList(HostPolicyRoleLogMixin, MregListCreateAPIView):
     serializer_class = serializers.HostPolicyRoleSerializer
     permission_classes = (IsSuperOrHostPolicyAdminOrReadOnly, )
     lookup_field = 'name'
-    filter_class = HostPolicyRoleFilterSet
+    filterset_class = HostPolicyRoleFilterSet
 
     def post(self, request, *args, **kwargs):
         if "name" in request.data:
