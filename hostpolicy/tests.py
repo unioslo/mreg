@@ -1,7 +1,7 @@
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from mreg.models import Host
+from mreg.models.host import Host
 from .models import (HostPolicyAtom, HostPolicyRole)
 
 

@@ -1,4 +1,5 @@
-from mreg.models import ForwardZone, Host, Ipaddress, ReverseZone
+from mreg.models.host import Host, Ipaddress
+from mreg.models.zone import ForwardZone, ReverseZone
 
 from .tests import MregAPITestCase
 

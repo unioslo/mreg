@@ -4,7 +4,8 @@ import datetime
 from django.db import models
 
 from mreg.fields import LCICharField
-from mreg.models import Host, Label
+from mreg.models.host import Host
+from mreg.models.base import Label
 
 
 class HostPolicyComponent(models.Model):

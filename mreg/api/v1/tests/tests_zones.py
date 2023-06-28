@@ -1,6 +1,7 @@
 from unittest import skip
 
-from mreg.models import (ForwardZone, Host, NameServer, ReverseZone)
+from mreg.models.host import Host
+from mreg.models.zone import ForwardZone, NameServer, ReverseZone
 from mreg.utils import create_serialno
 
 from .tests import clean_and_save, MregAPITestCase

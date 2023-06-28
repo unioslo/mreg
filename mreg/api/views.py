@@ -6,7 +6,7 @@ from rest_framework.views import APIView
 from rest_framework import serializers
 from rest_framework.exceptions import AuthenticationFailed
 
-from mreg.models import ExpiringToken
+from mreg.models.base import ExpiringToken
 
 
 class ObtainExpiringAuthToken(ObtainAuthToken):

@@ -2,8 +2,9 @@ from django.contrib.auth.models import Group
 from rest_framework import exceptions
 
 from mreg.api.permissions import get_settings_groups
-from mreg.models import ForwardZone, Host, Ipaddress, NetGroupRegexPermission, Network, PtrOverride
-
+from mreg.models.host import Host, Ipaddress, PtrOverride
+from mreg.models.network import NetGroupRegexPermission, Network
+from mreg.models.zone import ForwardZone
 
 from .tests import MregAPITestCase
 

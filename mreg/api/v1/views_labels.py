@@ -3,7 +3,7 @@ from rest_framework.response import Response
 
 from url_filter.filtersets import ModelFilterSet
 from .views import MregListCreateAPIView, MregRetrieveUpdateDestroyAPIView
-from mreg.models import Label
+from mreg.models.base import Label
 from mreg.api.permissions import IsSuperOrAdminOrReadOnly
 from . import serializers
 

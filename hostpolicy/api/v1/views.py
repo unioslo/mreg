@@ -15,7 +15,7 @@ from mreg.api.v1.views import (MregListCreateAPIView,
 
 from mreg.api.v1.history import HistoryLog
 from mreg.api.v1.views_m2m import M2MDetail, M2MList, M2MPermissions
-from mreg.models import Host
+from mreg.models.host import Host
 
 from . import serializers
 

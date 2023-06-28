@@ -11,9 +11,10 @@ from rest_framework.response import Response
 
 from url_filter.filtersets import ModelFilterSet
 
-from mreg.models import (ForwardZone, ForwardZoneDelegation,
-                         Host, NameServer,
-                         ReverseZone, ReverseZoneDelegation)
+from mreg.models.base import NameServer
+from mreg.models.host import Host
+from mreg.models.zone import ForwardZone, ForwardZoneDelegation, ReverseZone, ReverseZoneDelegation
+
 from mreg.api.permissions import (IsSuperGroupMember, IsAuthenticatedAndReadOnly)
 
 from .serializers import (ForwardZoneDelegationSerializer, ForwardZoneSerializer,

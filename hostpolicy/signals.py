@@ -2,7 +2,7 @@ from django.db.models.signals import m2m_changed, pre_delete, pre_save, post_sav
 from django.dispatch import receiver
 
 from .models import HostPolicyAtom, HostPolicyRole
-from mreg.models import Host
+from mreg.models.host import Host
 from mreg.mqsender import MQSender
 
 

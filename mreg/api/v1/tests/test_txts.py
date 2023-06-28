@@ -1,4 +1,4 @@
-from mreg.models import Host
+from mreg.models.host import Host
 
 from .tests import MregAPITestCase
 

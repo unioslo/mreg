@@ -1,5 +1,8 @@
+from django.contrib.auth.models import Group
+
 from mreg.api.v1.tests.tests import MregAPITestCase
-from mreg.models import (Host, BACnetID, Group, Ipaddress, Network, NetGroupRegexPermission)
+from mreg.models.host import Host, BACnetID, Ipaddress
+from mreg.models.network import Network, NetGroupRegexPermission
 
 
 class BACnetIDTest(MregAPITestCase):

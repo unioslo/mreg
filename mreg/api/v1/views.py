@@ -15,16 +15,17 @@ from rest_framework.views import APIView
 
 from url_filter.filtersets import ModelFilterSet
 
+from mreg.models.base import NameServer, History
+from mreg.models.host import Host, HostGroup, Ipaddress, PtrOverride
+from mreg.models.network import Network, NetworkExcludedRange, NetGroupRegexPermission
+from mreg.models.resource_records import Cname, Loc, Naptr, Srv, Sshfp, Txt, Hinfo, Mx
 
-import mreg.models
+
 from mreg.api.permissions import (IsAuthenticatedAndReadOnly,
                                   IsGrantedNetGroupRegexPermission,
                                   IsSuperGroupMember,
                                   IsSuperOrAdminOrReadOnly,
                                   IsSuperOrNetworkAdminMember,)
-from mreg.models import (Cname, Hinfo, Host, HostGroup, Ipaddress, Loc,
-                         Mx, NameServer, Naptr, Network,
-                         PtrOverride, Srv, Sshfp, Txt)
 
 from .history import HistoryLog
 from .serializers import (CnameSerializer, HinfoSerializer,
@@ -50,7 +51,7 @@ class HinfoFilterSet(ModelFilterSet):
 
 class HistoryFilterSet(ModelFilterSet):
     class Meta:
-        model = mreg.models.History
+        model = History
 
 
 class HostFilterSet(ModelFilterSet):
@@ -110,7 +111,7 @@ class NetworkFilterSet(ModelFilterSet):
 
 class NetworkExcludedRangeFilterSet(ModelFilterSet):
     class Meta:
-        model = mreg.models.NetworkExcludedRange
+        model = NetworkExcludedRange
 
 
 class TxtFilterSet(ModelFilterSet):
@@ -120,7 +121,7 @@ class TxtFilterSet(ModelFilterSet):
 
 class NetGroupRegexPermissionFilterSet(ModelFilterSet):
     class Meta:
-        model = mreg.models.NetGroupRegexPermission
+        model = NetGroupRegexPermission
 
 
 class MregMixin:
@@ -434,7 +435,7 @@ class HostDetail(HostPermissionsUpdateDestroy,
 
 class HistoryList(MregMixin, generics.ListAPIView):
 
-    queryset = mreg.models.History.objects.all().order_by('id')
+    queryset = History.objects.all().order_by('id')
     serializer_class = HistorySerializer
 
     def get_queryset(self):
@@ -453,7 +454,7 @@ class HistoryList(MregMixin, generics.ListAPIView):
 
 class HistoryDetail(MregMixin, generics.RetrieveAPIView):
 
-    queryset = mreg.models.History.objects.all()
+    queryset = History.objects.all()
     serializer_class = HistorySerializer
 
 
@@ -975,7 +976,7 @@ class NetGroupRegexPermissionList(MregMixin, generics.ListCreateAPIView):
     """
     """
 
-    queryset = mreg.models.NetGroupRegexPermission.objects.all().order_by('id')
+    queryset = NetGroupRegexPermission.objects.all().order_by('id')
     serializer_class = NetGroupRegexPermissionSerializer
     permission_classes = (IsSuperOrAdminOrReadOnly, )
 
@@ -988,7 +989,7 @@ class NetGroupRegexPermissionDetail(MregRetrieveUpdateDestroyAPIView):
     """
     """
 
-    queryset = mreg.models.NetGroupRegexPermission.objects.all().order_by('id')
+    queryset = NetGroupRegexPermission.objects.all().order_by('id')
     serializer_class = NetGroupRegexPermissionSerializer
     permission_classes = (IsSuperOrAdminOrReadOnly, )
 
