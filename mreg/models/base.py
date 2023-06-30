@@ -8,21 +8,24 @@ from datetime import timedelta
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
-from mreg.fields import DnsNameField, LCICharField
+from rest_framework.authtoken.models import Token
+
+from mreg.fields import LowerCaseCharField, LowerCaseDNSNameField
+from mreg.managers import LowerCaseManager
 from mreg.utils import clear_none, idna_encode, qualify
 from mreg.validators import validate_hostname, validate_nowhitespace, validate_ttl
-from rest_framework.authtoken.models import Token
 
 MAX_UNUSED_LIST = 4096  # 12 bits for addresses. A large ipv4, but tiny ipv6 network.
 
 # To avoid circular imports, this base file is not allowed to import any other models
-# from any other files. We do however want to include the model ForwardZoneMember here 
+# from any other files. We do however want to include the model ForwardZoneMember here
 # to ensure it is always available for import elsewhere. To achieve this, we use the
 # lazy loading feature of django models where we use a string instead of the class
 # reference. Here we thus use the string "ForwardZone" as the target for the foreign key
 # in the ForwardZoneMember model -- and to avoid hardcoding the string "ForwardZone"
 # deep into the file, we use the following constant "_FORWARD_ZONE" as the reference.
 _FORWARD_ZONE = "ForwardZone"
+
 
 class BaseModel(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
@@ -33,8 +36,10 @@ class BaseModel(models.Model):
 
 
 class NameServer(BaseModel):
-    name = DnsNameField(unique=True)
+    name = LowerCaseDNSNameField(unique=True)
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
+
+    objects = LowerCaseManager()
 
     class Meta:
         db_table = "ns"
@@ -100,8 +105,12 @@ class ZoneHelpers:
 
 
 class Label(BaseModel):
-    name = LCICharField(max_length=64, unique=True, validators=[validate_nowhitespace])
+    name = LowerCaseCharField(
+        max_length=64, unique=True, validators=[validate_nowhitespace]
+    )
     description = models.TextField(blank=False)
+
+    objects = LowerCaseManager()
 
     class Meta:
         db_table = "label"
@@ -135,6 +144,7 @@ class ForwardZoneMember(BaseModel):
     zone = models.ForeignKey(
         _FORWARD_ZONE, models.DO_NOTHING, db_column="zone", blank=True, null=True
     )
+
     class Meta:
         abstract = True
 

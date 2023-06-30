@@ -1,11 +1,12 @@
-from django.core.exceptions import ValidationError
 import datetime
 
+from django.core.exceptions import ValidationError
 from django.db import models
 
-from mreg.fields import LCICharField
-from mreg.models.host import Host
+from mreg.fields import LowerCaseCharField
+from mreg.managers import LowerCaseManager
 from mreg.models.base import Label
+from mreg.models.host import Host
 
 
 class HostPolicyComponent(models.Model):
@@ -29,7 +30,9 @@ def _validate_atom_name(name):
 
 class HostPolicyAtom(HostPolicyComponent):
 
-    name = LCICharField(max_length=64, unique=True, validators=[_validate_atom_name])
+    name = LowerCaseCharField(max_length=64, unique=True, validators=[_validate_atom_name])
+
+    objects = LowerCaseManager()
 
     class Meta:
         db_table = 'hostpolicy_atom'
@@ -44,10 +47,12 @@ def _validate_role_name(name):
 
 class HostPolicyRole(HostPolicyComponent):
 
-    name = LCICharField(max_length=64, unique=True, validators=[_validate_role_name])
+    name = LowerCaseCharField(max_length=64, unique=True, validators=[_validate_role_name])
     atoms = models.ManyToManyField(HostPolicyAtom, related_name='roles')
     hosts = models.ManyToManyField(Host, related_name='hostpolicyroles')
     labels = models.ManyToManyField(Label, blank=True, related_name='hostpolicyroles')
+
+    objects = LowerCaseManager()
 
     class Meta:
         db_table = 'hostpolicy_role'

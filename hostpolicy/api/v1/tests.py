@@ -3,11 +3,10 @@ from urllib.parse import urljoin
 from django.contrib.auth.models import Group
 
 from hostpolicy.models import HostPolicyAtom, HostPolicyRole
+from mreg.api.v1.tests.tests import MregAPITestCase
 from mreg.models.base import Label
 from mreg.models.host import Host, Ipaddress
 from mreg.models.network import NetGroupRegexPermission
-
-from mreg.api.v1.tests.tests import MregAPITestCase
 
 
 class HostPolicyUniqueNameSpace(MregAPITestCase):
@@ -42,6 +41,10 @@ class HostPolicyRoleTestCase(MregAPITestCase):
         data = response.json()
         self.assertEqual(data['count'], 2)
         self.assertEqual(len(data['results']), 2)
+
+    def test_case_insensitive(self):
+        """Case insensitive lookups should work"""
+        self.assert_get(self.basejoin(self.object_one.name.upper()))
 
     def test_get_404_not_found(self):
         """"Getting a non-existing entry should return 404"""
