@@ -4,6 +4,8 @@ from rest_framework.response import Response
 from .views import MregListCreateAPIView, MregRetrieveUpdateDestroyAPIView
 from mreg.models.base import Label
 from mreg.api.permissions import IsSuperOrAdminOrReadOnly
+
+from mreg.mixins import LowerCaseLookupMixin
 from . import serializers
 
 from .filters import LabelFilterSet
@@ -24,7 +26,7 @@ class LabelList(MregListCreateAPIView):
         return super().post(request, *args, **kwargs)
 
 
-class LabelDetail(MregRetrieveUpdateDestroyAPIView):
+class LabelDetail(LowerCaseLookupMixin, MregRetrieveUpdateDestroyAPIView):
     """
     get:
     Returns details for a Label.

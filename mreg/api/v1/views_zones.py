@@ -13,6 +13,8 @@ from mreg.models.base import NameServer
 from mreg.models.host import Host
 from mreg.models.zone import ForwardZone, ForwardZoneDelegation, ReverseZone, ReverseZoneDelegation
 
+from mreg.mixins import LowerCaseLookupMixin
+
 from mreg.api.permissions import (IsSuperGroupMember, IsAuthenticatedAndReadOnly)
 
 from .serializers import (ForwardZoneDelegationSerializer, ForwardZoneSerializer,
@@ -152,7 +154,7 @@ class ReverseZoneDelegationList(ZoneDelegationList):
     model = ReverseZone
 
 
-class ZoneDetail(MregRetrieveUpdateDestroyAPIView):
+class ZoneDetail(LowerCaseLookupMixin, MregRetrieveUpdateDestroyAPIView):
     """
     get:
     List details for a zone.
@@ -219,7 +221,7 @@ class ReverseZoneDetail(ZoneDetail):
     queryset = ReverseZone.objects.all()
 
 
-class ZoneDelegationDetail(MregRetrieveUpdateDestroyAPIView):
+class ZoneDelegationDetail(LowerCaseLookupMixin, MregRetrieveUpdateDestroyAPIView):
 
     lookup_field = 'delegation'
     permission_classes = (IsSuperGroupMember | IsAuthenticatedAndReadOnly, )

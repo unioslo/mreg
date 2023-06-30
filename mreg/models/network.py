@@ -4,9 +4,10 @@ from functools import reduce
 
 from django.db import models
 from django.db.models import Q
+from netfields import CidrAddressField, NetManager
+
 from mreg.models.base import MAX_UNUSED_LIST, BaseModel, Label
 from mreg.validators import validate_regex
-from netfields import CidrAddressField, NetManager
 
 
 class Network(BaseModel):
@@ -98,10 +99,12 @@ class Network(BaseModel):
 
     def _used_ipaddresses(self):
         from mreg.models.host import Ipaddress
+
         return self.__used(Ipaddress)
 
     def _used_ptroverrides(self):
         from mreg.models.host import PtrOverride
+
         return self.__used(PtrOverride)
 
     @property

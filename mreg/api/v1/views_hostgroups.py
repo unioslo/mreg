@@ -8,6 +8,8 @@ from mreg.api.permissions import (HostGroupPermission,
                                   IsSuperOrGroupAdminOrReadOnly)
 from mreg.models.host import Host, HostGroup
 
+from mreg.mixins import LowerCaseLookupMixin
+
 from . import serializers
 from .history import HistoryLog
 from .views import (MregListCreateAPIView,
@@ -77,14 +79,15 @@ class HostGroupList(HostGroupLogMixin, MregListCreateAPIView):
 
     def post(self, request, *args, **kwargs):
         if "name" in request.data:
-            if self.get_queryset().filter(name=request.data['name']).exists():
+            # We need to manually use lower() here due to the overriden get_queryset()
+            if self.get_queryset().filter(name=request.data['name'].lower()).exists():
                 content = {'ERROR': 'hostgroup name already in use'}
                 return Response(content, status=status.HTTP_409_CONFLICT)
         self.lookup_field = 'name'
         return super().post(request, *args, **kwargs)
 
 
-class HostGroupDetail(HostGroupPermissionsUpdateDestroy):
+class HostGroupDetail(LowerCaseLookupMixin, HostGroupPermissionsUpdateDestroy):
     """
     get:
     Returns details for the specified hostgroup. Includes hostgroups that are members.

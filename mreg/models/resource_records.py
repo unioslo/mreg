@@ -1,5 +1,7 @@
 from django.db import models
-from mreg.fields import DnsNameField, LCICharField
+
+from mreg.fields import LowerCaseCharField, LowerCaseDNSNameField
+from mreg.managers import LowerCaseManager
 from mreg.models.base import BaseModel, ForwardZoneMember
 from mreg.models.host import Host
 from mreg.validators import (
@@ -60,7 +62,7 @@ class Mx(BaseModel):
         Host, on_delete=models.CASCADE, db_column="host", related_name="mxs"
     )
     priority = models.PositiveIntegerField(validators=[validate_16bit_uint])
-    mx = DnsNameField()
+    mx = LowerCaseDNSNameField()
 
     class Meta:
         db_table = "mx"
@@ -88,8 +90,10 @@ class Cname(ForwardZoneMember):
     host = models.ForeignKey(
         Host, on_delete=models.CASCADE, db_column="host", related_name="cnames"
     )
-    name = DnsNameField(unique=True)
+    name = LowerCaseDNSNameField(unique=True)
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
+
+    objects = LowerCaseManager
 
     class Meta:
         db_table = "cname"
@@ -106,9 +110,11 @@ class Naptr(BaseModel):
     preference = models.IntegerField(validators=[validate_16bit_uint])
     order = models.IntegerField(validators=[validate_16bit_uint])
     flag = models.CharField(max_length=1, blank=True, validators=[validate_naptr_flag])
-    service = LCICharField(max_length=128, blank=True)
+    service = LowerCaseCharField(max_length=128, blank=True)
     regex = models.CharField(max_length=128, blank=True)
-    replacement = LCICharField(max_length=255)
+    replacement = LowerCaseCharField(max_length=255)
+
+    objects = LowerCaseManager()
 
     class Meta:
         db_table = "naptr"
@@ -134,8 +140,9 @@ class Naptr(BaseModel):
             self.replacement,
         )
 
+
 class Srv(ForwardZoneMember):
-    name = LCICharField(max_length=255, validators=[validate_srv_service_text])
+    name = LowerCaseCharField(max_length=255, validators=[validate_srv_service_text])
     priority = models.IntegerField(validators=[validate_16bit_uint])
     weight = models.IntegerField(validators=[validate_16bit_uint])
     port = models.IntegerField(validators=[validate_16bit_uint])

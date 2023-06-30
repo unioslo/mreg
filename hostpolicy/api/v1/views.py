@@ -4,17 +4,18 @@ from rest_framework.response import Response
 
 from django_filters import rest_framework as rest_filters
 
-from hostpolicy.models import HostPolicyAtom, HostPolicyRole
 from hostpolicy.api.permissions import IsSuperOrHostPolicyAdminOrReadOnly
-from mreg.api.v1.serializers import HostNameSerializer
-from mreg.api.v1.views import (MregListCreateAPIView,
-                               MregPermissionsListCreateAPIView,
-                               MregPermissionsUpdateDestroy,
-                               MregRetrieveUpdateDestroyAPIView,
-                               )
-
+from hostpolicy.models import HostPolicyAtom, HostPolicyRole
 from mreg.api.v1.history import HistoryLog
+from mreg.api.v1.serializers import HostNameSerializer
+from mreg.api.v1.views import (
+    MregListCreateAPIView,
+    MregPermissionsListCreateAPIView,
+    MregPermissionsUpdateDestroy,
+    MregRetrieveUpdateDestroyAPIView,
+)
 from mreg.api.v1.views_m2m import M2MDetail, M2MList, M2MPermissions
+from mreg.mixins import LowerCaseLookupMixin
 from mreg.models.host import Host
 
 from . import serializers
@@ -79,14 +80,15 @@ class HostPolicyAtomList(HostPolicyAtomLogMixin, MregListCreateAPIView):
 
     def post(self, request, *args, **kwargs):
         if "name" in request.data:
-            if self.get_queryset().filter(name=request.data['name']).exists():
+            # Due to the overriding of get_queryset, we need to manually use lower()
+            if self.get_queryset().filter(name=request.data['name'].lower()).exists():
                 content = {'ERROR': 'name already in use'}
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
         return super().post(request, *args, **kwargs)
 
 
-class HostPolicyAtomDetail(HostPolicyAtomLogMixin, MregRetrieveUpdateDestroyAPIView):
+class HostPolicyAtomDetail(HostPolicyAtomLogMixin, LowerCaseLookupMixin, MregRetrieveUpdateDestroyAPIView):
 
     queryset = HostPolicyAtom.objects.all()
     serializer_class = serializers.HostPolicyAtomSerializer
@@ -111,14 +113,14 @@ class HostPolicyRoleList(HostPolicyRoleLogMixin, MregListCreateAPIView):
 
     def post(self, request, *args, **kwargs):
         if "name" in request.data:
-            if self.get_queryset().filter(name=request.data['name']).exists():
+            # Due to the overriding of get_queryset, we need to manually use lower()
+            if self.get_queryset().filter(name=request.data['name'].lower()).exists():
                 content = {'ERROR': 'name already in use'}
                 return Response(content, status=status.HTTP_409_CONFLICT)
-
         return super().post(request, *args, **kwargs)
 
 
-class HostPolicyRoleDetail(HostPolicyRoleLogMixin, MregRetrieveUpdateDestroyAPIView):
+class HostPolicyRoleDetail(HostPolicyRoleLogMixin, LowerCaseLookupMixin, MregRetrieveUpdateDestroyAPIView):
 
     queryset = HostPolicyRole.objects.all()
     serializer_class = serializers.HostPolicyRoleSerializer

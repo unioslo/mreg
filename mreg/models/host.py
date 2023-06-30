@@ -1,16 +1,19 @@
-import django.contrib.postgres.fields as pgfields
 from django.contrib.auth.models import Group
 from django.db import models
-from mreg.fields import DnsNameField, LCICharField
+
+from mreg.fields import LowerCaseCharField, LowerCaseDNSNameField
+from mreg.managers import LowerCaseManager
 from mreg.models.base import BaseModel, ForwardZoneMember
 from mreg.validators import validate_BACnetID, validate_mac_address, validate_ttl
 
 
 class Host(ForwardZoneMember):
-    name = DnsNameField(unique=True)
-    contact = pgfields.CIEmailField(blank=True)
+    name = LowerCaseDNSNameField(unique=True)
+    contact = models.EmailField(blank=True)
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
     comment = models.TextField(blank=True)
+
+    objects = LowerCaseManager()
 
     class Meta:
         db_table = "host"
@@ -54,13 +57,15 @@ class PtrOverride(BaseModel):
 
 
 class HostGroup(BaseModel):
-    name = LCICharField(max_length=50, unique=True)
+    name = LowerCaseCharField(max_length=50, unique=True)
     description = models.CharField(max_length=200, blank=True)
     owners = models.ManyToManyField(Group, blank=True)
     parent = models.ManyToManyField(
         "self", symmetrical=False, blank=True, related_name="groups"
     )
     hosts = models.ManyToManyField(Host, related_name="hostgroups")
+
+    objects = LowerCaseManager()
 
     class Meta:
         db_table = "hostgroup"

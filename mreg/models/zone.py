@@ -2,10 +2,12 @@ import ipaddress
 from collections import defaultdict, namedtuple
 from datetime import timedelta
 
-import django.contrib.postgres.fields as pgfields
 from django.db import DatabaseError, models, transaction
 from django.utils import timezone
-from mreg.fields import DnsNameField
+from netfields import CidrAddressField, NetManager
+
+from mreg.fields import LowerCaseDNSNameField
+from mreg.managers import LowerCaseManager, lower_case_manager_factory
 from mreg.models.base import BaseModel, NameServer, ZoneHelpers
 from mreg.models.host import Ipaddress, PtrOverride
 from mreg.utils import (
@@ -20,14 +22,13 @@ from mreg.validators import (
     validate_reverse_zone_name,
     validate_ttl,
 )
-from netfields import CidrAddressField, NetManager
 
 
 class BaseZone(BaseModel, ZoneHelpers):
     updated = models.BooleanField(default=True)
-    primary_ns = DnsNameField()
+    primary_ns = LowerCaseDNSNameField()
     nameservers = models.ManyToManyField(NameServer, db_column="ns")
-    email = pgfields.CIEmailField()
+    email = models.EmailField()
     serialno = models.BigIntegerField(
         default=create_serialno, validators=[validate_32bit_uint]
     )
@@ -37,6 +38,8 @@ class BaseZone(BaseModel, ZoneHelpers):
     expire = models.IntegerField(default=1814400)
     soa_ttl = models.IntegerField(default=43200, validators=[validate_ttl])
     default_ttl = models.IntegerField(default=43200, validators=[validate_ttl])
+
+    objects = LowerCaseManager()
 
     class Meta:
         abstract = True
@@ -105,7 +108,9 @@ $TTL {default_ttl}
 
 
 class ForwardZone(BaseZone):
-    name = DnsNameField(unique=True)
+    name = LowerCaseDNSNameField(unique=True)
+
+    objects = LowerCaseManager()
 
     class Meta:
         db_table = "forward_zone"
@@ -136,12 +141,13 @@ class ForwardZone(BaseZone):
 
 
 class ReverseZone(BaseZone):
-    name = DnsNameField(unique=True, validators=[validate_reverse_zone_name])
+    name = LowerCaseDNSNameField(unique=True, validators=[validate_reverse_zone_name])
     # network can not be blank, but it will allow full_clean() to pass, even if
     # the network is not set. Will anyway be overridden by update() and save().
     network = CidrAddressField(unique=True, blank=True)
 
-    objects = NetManager()
+    # We want lower case filtering and exludes for "name", but also use NetManager for the network field.
+    objects = lower_case_manager_factory(NetManager)()
 
     class Meta:
         db_table = "reverse_zone"
@@ -246,9 +252,11 @@ class ForwardZoneDelegation(BaseModel, ZoneHelpers):
         db_column="zone",
         related_name="delegations",
     )
-    name = DnsNameField(unique=True)
+    name = LowerCaseDNSNameField(unique=True)
     nameservers = models.ManyToManyField(NameServer, db_column="ns")
     comment = models.CharField(blank=True, max_length=200)
+
+    objects = LowerCaseManager()
 
     class Meta:
         db_table = "forward_zone_delegation"
@@ -264,7 +272,7 @@ class ReverseZoneDelegation(BaseModel, ZoneHelpers):
         db_column="zone",
         related_name="delegations",
     )
-    name = DnsNameField(unique=True, validators=[validate_reverse_zone_name])
+    name = LowerCaseDNSNameField(unique=True, validators=[validate_reverse_zone_name])
     nameservers = models.ManyToManyField(NameServer, db_column="ns")
     comment = models.CharField(blank=True, max_length=200)
 
@@ -273,5 +281,3 @@ class ReverseZoneDelegation(BaseModel, ZoneHelpers):
 
     def __str__(self):
         return f"{self.zone.name} {self.name}"
-
-

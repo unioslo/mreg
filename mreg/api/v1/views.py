@@ -65,6 +65,7 @@ from .serializers import (
     TxtSerializer,
 )
 
+from mreg.mixins import LowerCaseLookupMixin
 
 class MregMixin:
     filter_backends = (
@@ -211,7 +212,10 @@ class CnameList(HostPermissionsListCreateAPIView):
     filterset_class = CnameFilterSet
 
 
-class CnameDetail(HostPermissionsUpdateDestroy, MregRetrieveUpdateDestroyAPIView):
+
+class CnameDetail(HostPermissionsUpdateDestroy,
+                  LowerCaseLookupMixin,
+                  MregRetrieveUpdateDestroyAPIView):
     """
     get:
     Returns details for the specified cname.
@@ -242,7 +246,10 @@ class HinfoList(HostPermissionsListCreateAPIView):
     filterset_class = HinfoFilterSet
 
 
-class HinfoDetail(HostPermissionsUpdateDestroy, MregRetrieveUpdateDestroyAPIView):
+
+class HinfoDetail(HostPermissionsUpdateDestroy,
+                  LowerCaseLookupMixin,
+                  MregRetrieveUpdateDestroyAPIView):
     """
     get:
     Returns details for a hinfo.
@@ -354,7 +361,9 @@ class HostList(HostPermissionsListCreateAPIView):
                 )
 
 
-class HostDetail(HostPermissionsUpdateDestroy, MregRetrieveUpdateDestroyAPIView):
+class HostDetail(HostPermissionsUpdateDestroy,
+                 LowerCaseLookupMixin,
+                 MregRetrieveUpdateDestroyAPIView):
     """
     get:
     Returns details for the specified host. Includes relations like IP address/a-records, ptr-records, cnames.
