@@ -1,7 +1,6 @@
 from django.core.exceptions import ValidationError
 from django.test import TestCase
-
-from mreg.models import Host, Ipaddress, PtrOverride
+from mreg.models.host import Host, Ipaddress, PtrOverride
 
 from .base import clean_and_save
 
@@ -89,7 +88,8 @@ class ModelPtrOverrideTestCase(TestCase):
 
     def test_model_updated_by_added_ip(self):
         """Test to check that an PtrOverride is added when two hosts share the same ip.
-        Also makes sure that the PtrOverride points to the first host which held the ip."""
+        Also makes sure that the PtrOverride points to the first host which held the ip.
+        """
         initial_count = PtrOverride.objects.count()
         ip_one = Ipaddress(host=self.host_one, ipaddress="10.0.0.1")
         clean_and_save(ip_one)

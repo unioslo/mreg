@@ -1,7 +1,6 @@
 from django.core.exceptions import ValidationError
 from django.test import TestCase
-
-from mreg.models import NetGroupRegexPermission, Network
+from mreg.models.network import NetGroupRegexPermission, Network
 
 from .base import clean_and_save
 

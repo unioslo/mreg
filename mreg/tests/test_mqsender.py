@@ -4,14 +4,13 @@ from itertools import combinations
 from unittest import mock
 
 from django.test import TestCase, override_settings
+from mreg.mqsender import MQSender
 from pika import SSLOptions
 from pika.exceptions import (
     AMQPConnectionError,
     ConnectionClosedByBroker,
     StreamLostError,
 )
-
-from mreg.mqsender import MQSender
 
 
 class MQSenderTest(TestCase):

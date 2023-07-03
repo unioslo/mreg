@@ -1,7 +1,6 @@
 from django.test import TestCase
+from mreg.models.host import Host, HostGroup
 from rest_framework.exceptions import PermissionDenied
-
-from mreg.models import Host, HostGroup
 
 from .base import clean_and_save
 

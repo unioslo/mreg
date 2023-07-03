@@ -1,6 +1,6 @@
 from django.test import TestCase
-
-from mreg.models import Host, Naptr
+from mreg.models.host import Host
+from mreg.models.resource_records import Naptr
 
 from .base import clean_and_save
 

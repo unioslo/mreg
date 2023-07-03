@@ -2,8 +2,8 @@ from datetime import timedelta
 
 from django.test import TestCase
 from django.utils import timezone
-
-from mreg.models import ForwardZone, Host
+from mreg.models.host import Host
+from mreg.models.zone import ForwardZone
 
 from .base import clean_and_save
 

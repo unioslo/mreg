@@ -1,8 +1,9 @@
 from django.test import TestCase
-
+from mreg.models.base import NameServer
+from mreg.models.host import Host, Ipaddress
+from mreg.models.network import Network
+from mreg.models.zone import ForwardZone, ReverseZone
 from rest_framework.exceptions import PermissionDenied
-
-from mreg.models import ForwardZone, Host, Ipaddress, NameServer, Network, ReverseZone
 
 from .base import clean_and_save
 

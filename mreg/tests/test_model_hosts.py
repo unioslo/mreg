@@ -1,7 +1,6 @@
 from django.core.exceptions import ValidationError
 from django.test import TestCase
-
-from mreg.models import Host
+from mreg.models.host import Host
 
 from .base import clean_and_save
 

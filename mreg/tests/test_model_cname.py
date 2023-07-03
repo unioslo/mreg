@@ -1,6 +1,6 @@
 from django.test import TestCase
-
-from mreg.models import Cname, Host
+from mreg.models.host import Host
+from mreg.models.resource_records import Cname
 
 from .base import clean_and_save
 

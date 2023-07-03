@@ -2,8 +2,7 @@ import ipaddress
 import signal
 
 from django.test import TestCase
-
-from mreg.models import MAX_UNUSED_LIST, Network, NetworkExcludedRange
+from mreg.models.network import MAX_UNUSED_LIST, Network, NetworkExcludedRange
 
 from .base import clean_and_save
 

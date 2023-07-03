@@ -1,7 +1,6 @@
 from django.core.exceptions import ValidationError
 from django.test import TestCase
-
-from mreg.models import ReverseZone
+from mreg.models.zone import ReverseZone
 
 from .base import clean_and_save
 

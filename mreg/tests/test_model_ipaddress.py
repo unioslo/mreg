@@ -1,6 +1,5 @@
 from django.test import TestCase
-
-from mreg.models import Host, Ipaddress
+from mreg.models.host import Host, Ipaddress
 
 from .base import clean_and_save
 
