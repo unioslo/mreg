@@ -77,8 +77,8 @@ class TestLoggingMiddleware(MregAPITestCase):
 
         # test the behavior of the logging system with different delays
         delay_responses = [
-            (0.1, "debug"),
-            (0.5, "debug"),
+            (0.1, "info"),
+            (0.5, "info"),
             (1.0, "warning"),
             (2.0, "warning"),
             (5.0, "critical"),
