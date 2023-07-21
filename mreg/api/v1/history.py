@@ -2,7 +2,7 @@ import json
 
 import datetime
 
-from django_logging import log
+import structlog
 
 from django.core.exceptions import ValidationError
 from django.core.serializers.json import DjangoJSONEncoder
@@ -11,9 +11,10 @@ from django.forms import model_to_dict
 
 from mreg.models.base import History
 
+log = structlog.get_logger(__name__)
+
 
 class DjangoJSONModelEncoder(DjangoJSONEncoder):
-
     def default(self, o):
         if isinstance(o, Model):
             return model_to_dict(o)
@@ -25,14 +26,14 @@ class DjangoJSONModelEncoder(DjangoJSONEncoder):
 
 
 class HistoryLog:
-
     def save_log(self, action, serializer, data, orig_data=None):
         if serializer.Meta.model == self.model:
-            model_id = serializer.data['id']
-            name = serializer.data['name']
+            model_id = serializer.data["id"]
+            name = serializer.data["name"]
         else:
-            obj = data.get(self.foreign_key_name,
-                           serializer.data.get(self.foreign_key_name, None))
+            obj = data.get(
+                self.foreign_key_name, serializer.data.get(self.foreign_key_name, None)
+            )
             if isinstance(obj, self.model):
                 pass
             elif isinstance(obj, int):
@@ -42,17 +43,19 @@ class HistoryLog:
             model_id = obj.id
             name = obj.name
         self.manipulate_data(action, serializer, data, orig_data)
-        if action == 'update':
-            data = {'current_data': orig_data, 'update': data}
+        if action == "update":
+            data = {"current_data": orig_data, "update": data}
         model = serializer.Meta.model.__name__
         json_data = self.get_jsondata(data)
-        history = History(user=self.request.user,
-                          resource=self.log_resource,
-                          name=name,
-                          model_id=model_id,
-                          model=model,
-                          action=action,
-                          data=json_data)
+        history = History(
+            user=self.request.user,
+            resource=self.log_resource,
+            name=name,
+            model_id=model_id,
+            model=model,
+            action=action,
+            data=json_data,
+        )
 
         # We should never fail at performing a clean on the testdata itself.
         try:
@@ -75,21 +78,27 @@ class HistoryLog:
         self.save_log("create", serializer, serializer.validated_data)
 
     def save_log_update(self, serializer):
-        self.save_log("update", serializer, serializer.validated_data, orig_data=self.orig_data)
+        self.save_log(
+            "update", serializer, serializer.validated_data, orig_data=self.orig_data
+        )
 
     def save_log_m2m_alteration(self, method, instance):
-        data = {"relation": self.m2m_field,
-                "id": str(instance.id),
-                "name": instance.name}
+        data = {
+            "relation": self.m2m_field,
+            "id": str(instance.id),
+            "name": instance.name,
+        }
         model = instance.__class__.__name__
         action = method.__name__
-        history = History(user=self.request.user,
-                          resource=self.log_resource,
-                          name=self.object.name,
-                          model_id=self.object.id,
-                          model=model,
-                          action=action,
-                          data=data)
+        history = History(
+            user=self.request.user,
+            resource=self.log_resource,
+            name=self.object.name,
+            model_id=self.object.id,
+            model=model,
+            action=action,
+            data=data,
+        )
 
         # We should never fail at performing a clean on the testdata itself.
         try:
@@ -105,10 +114,12 @@ class HistoryLog:
 
     def perform_update(self, serializer):
         # Make sure to get the original data before serializer.save()
-        if not hasattr(self, 'orig_data'):
+        if not hasattr(self, "orig_data"):
             self.orig_data = self.get_serializer(self.get_object()).data
         super().perform_update(serializer)
-        self.save_log("update", serializer, serializer.validated_data, orig_data=self.orig_data)
+        self.save_log(
+            "update", serializer, serializer.validated_data, orig_data=self.orig_data
+        )
 
     def perform_destroy(self, instance):
         serializer = self.get_serializer(instance)

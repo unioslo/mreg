@@ -1,9 +1,11 @@
 Django==3.2.20
 djangorestframework==3.13.1
 django-auth-ldap==4.0.0
-django-logging-json==1.15
 django-netfields==1.2.4
 django-url-filter==0.3.15
+structlog==23.1.0
+# For colorful console output during development.
+rich==13.4.2
 gunicorn==20.1.0
 idna==3.4
 psycopg2-binary==2.9.5

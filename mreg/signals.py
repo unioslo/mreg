@@ -25,7 +25,20 @@ from mreg.models.host import Host, HostGroup, Ipaddress, PtrOverride
 from mreg.models.network import NetGroupRegexPermission, Network
 from mreg.models.zone import ForwardZone, ReverseZone
 
+from mreg.middleware.context import get_request_id
+
 from mreg.mqsender import MQSender
+
+import structlog
+
+object_log = structlog.get_logger("mreg.object")
+
+
+def _identifier(instance):
+    """Return an identifier for an instance."""
+    if hasattr(instance, "id"):
+        return instance.id
+    return str(instance)
 
 
 @receiver(populate_user)
@@ -419,3 +432,38 @@ def send_event_host_removed(sender, instance, **kwargs):
         "action": "host_removed",
     }
     MQSender().send_event(obj, "host")
+
+
+@receiver(post_save)
+def log_object_creation(sender, instance, created, **kwargs):
+    """Log object creation."""
+    identifier = _identifier(instance)
+    model_name = sender.__name__
+
+    if created:
+        if model_name != "Migration":
+            object_log.bind(
+                model=model_name,
+                _request_id=get_request_id(),
+                id=identifier,
+                _str=str(instance),
+            ).info("created")
+    else:
+        object_log.bind(
+            model=model_name,
+            _request_id=get_request_id(),
+            id=identifier,
+            _str=str(instance),
+        ).info("updated")
+
+
+@receiver(post_delete)
+def log_object_deletion(sender, instance, **kwargs):
+    """Log object deletion."""
+
+    object_log.bind(
+        model=sender.__name__,
+        _request_id=get_request_id(),
+        id=_identifier(instance),
+        _str=str(instance),
+    ).info("deleted")
