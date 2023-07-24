@@ -80,7 +80,6 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    "mreg.middleware.context.ContextMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -199,6 +198,7 @@ TXT_AUTO_RECORDS = {
 # }
 
 processors = [
+    structlog.contextvars.merge_contextvars,
     mreg.log_processors.filter_sensitive_data,
     structlog.stdlib.filter_by_level,
     structlog.stdlib.add_log_level,
@@ -208,7 +208,6 @@ processors = [
     structlog.processors.format_exc_info,
     structlog.processors.StackInfoRenderer(),
     structlog.processors.UnicodeDecoder(),
-    mreg.log_processors.add_request_id_processor,
 ]
 
 if TESTING or DEBUG:

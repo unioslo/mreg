@@ -7,8 +7,6 @@ from rich.console import Console
 from rich.text import Text
 from structlog.typing import EventDict
 
-from mreg.middleware.context import get_request_id
-
 
 def _replace_token(token: str) -> str:
     """Replace a token with a shortened and safe version of it."""
@@ -30,15 +28,10 @@ def filter_sensitive_data(_: Any, __: Any, event_dict: EventDict) -> EventDict:
     return event_dict
 
 
-def add_request_id_processor(_: Any, __: Any, event_dict: EventDict) -> EventDict:
-    """Add the request_id to the event."""
-    event_dict["request_id"] = get_request_id()
-    return event_dict
-
-
 def collapse_request_id_processor(_: Any, __: Any, event_dict: EventDict) -> EventDict:
     """Collapse request_id into a shorter form."""
-    event_dict["request_id"] = _replace_token(event_dict["request_id"])
+    if "request_id" in event_dict:
+        event_dict["request_id"] = _replace_token(event_dict["request_id"])
     return event_dict
 
 
@@ -102,10 +95,13 @@ class RequestColorTracker:
         :param event_dict: The event dictionary of the log entry.
         :return: The modified event dictionary.
         """
-        request_id = event_dict.get("request_id", "None")
-        color = self.request_to_color[request_id]
-        colored_bubble = self._colorize(color, " • ")
+        request_id = event_dict.get("request_id")
 
+        color = "black"
+        if request_id:
+            color = self.request_to_color[request_id]
+
+        colored_bubble = self._colorize(color, " • ")
         event_dict["event"] = colored_bubble + event_dict.get("event", "")
 
         return event_dict

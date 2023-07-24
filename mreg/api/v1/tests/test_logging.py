@@ -15,7 +15,6 @@ from mreg.api.v1.tests.tests import MregAPITestCase
 from mreg.log_processors import (
     filter_sensitive_data,
     RequestColorTracker,
-    add_request_id_processor,
     collapse_request_id_processor,
     reorder_keys_processor,
 )
@@ -23,25 +22,6 @@ from mreg.log_processors import (
 
 class TestLoggingInternals(MregAPITestCase):
     """Test internals in the logging framework."""
-
-    def test_add_request_id_processor(self):
-        """Test that the request ID is added properly."""
-        # Simulate a series of logging events
-        events = [
-            {"event": "Event 1"},
-            {"event": "Event 2"},
-            {"event": "Event 3"},
-        ]
-        processed_events = []
-
-        # Process each event
-        for event in events:
-            processed_event = add_request_id_processor(None, None, event)
-            processed_events.append(processed_event)
-
-        # Check that the request ID has been added and is the same for all events
-        request_ids = [event["request_id"] for event in processed_events]
-        self.assertEqual(len(set(request_ids)), 1)
 
     def test_reorder_keys_processor(self) -> None:
         """Test that the keys are reordered properly."""

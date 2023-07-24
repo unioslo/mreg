@@ -2,13 +2,12 @@
 import http
 import logging
 import time
+import uuid
 from typing import Callable, cast
 
 import structlog
 from django.conf import settings
 from django.http import HttpRequest, HttpResponse
-
-from mreg.middleware.context import get_request_id
 
 mreg_logger = structlog.getLogger("mreg.http")
 
@@ -44,7 +43,6 @@ class LoggingMiddleware:
         """
         start_time = time.time()
 
-        request.id = get_request_id()
         self.log_request(request)
         response = self.get_response(request)
         self.log_response(request, response, start_time)
@@ -70,8 +68,31 @@ class LoggingMiddleware:
         # Limit the size of the body logged
         return body[: settings.LOGGING_MAX_BODY_LENGTH]
 
+    def _get_request_header(
+        self, request: HttpRequest, header_key: str, meta_key: str
+    ) -> str:
+        """Get the value of a header from the request, either via headers or META."""
+        print(request.__dict__)
+        print(request.headers)
+        if hasattr(request, "headers"):
+            print("hasattr")
+            return request.headers.get(header_key)
+
+        print(request.META)
+        return request.META.get(meta_key)
+
     def log_request(self, request: HttpRequest) -> None:
         """Log the request."""
+        request_id = self._get_request_header(
+            request, "x-request-id", "HTTP_X_REQUEST_ID"
+        ) or str(uuid.uuid4())
+        correlation_id = self._get_request_header(
+            request, "x-correlation-id", "HTTP_X_CORRELATION_ID"
+        )
+        structlog.contextvars.bind_contextvars(request_id=request_id)
+        if correlation_id:
+            structlog.contextvars.bind_contextvars(correlation_id=correlation_id)
+
         remote_ip = request.META.get("REMOTE_ADDR")
 
         # Check for a proxy address
@@ -121,7 +142,7 @@ class LoggingMiddleware:
             extra_data["slow_response"] = True
             log_level = LOGMAP[settings.REQUESTS_LOG_LEVEL_SLOW.upper()]
 
-        content = "[]"
+        content = ""
         if "application/json" in response.headers.get("Content-Type", ""):
             content = response.content.decode("utf-8")
 
@@ -137,5 +158,12 @@ class LoggingMiddleware:
             **extra_data,
             run_time_ms=round(run_time_ms, 2),
         ).log(log_level, "response")
+
+        contextvars = structlog.contextvars.get_contextvars()
+        response["X-Request-ID"] = contextvars["request_id"]
+        if "correlation_id" in contextvars:
+            response["X-Correlation-ID"] = contextvars["correlation_id"]
+
+        structlog.contextvars.clear_contextvars()
 
         return response
