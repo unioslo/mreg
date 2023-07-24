@@ -10,8 +10,6 @@ from structlog.typing import EventDict
 
 from mreg.middleware.context import get_request_id
 
-logger = get_logger("hubuum.manual")
-
 
 def _replace_token(token: str) -> str:
     """Replace a token with a shortened and safe version of it."""
