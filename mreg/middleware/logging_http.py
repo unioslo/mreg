@@ -72,13 +72,9 @@ class LoggingMiddleware:
         self, request: HttpRequest, header_key: str, meta_key: str
     ) -> str:
         """Get the value of a header from the request, either via headers or META."""
-        print(request.__dict__)
-        print(request.headers)
         if hasattr(request, "headers"):
-            print("hasattr")
             return request.headers.get(header_key)
 
-        print(request.META)
         return request.META.get(meta_key)
 
     def log_request(self, request: HttpRequest) -> None:
