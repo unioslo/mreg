@@ -432,33 +432,35 @@ def send_event_host_removed(sender, instance, **kwargs):
     MQSender().send_event(obj, "host")
 
 
+def _log_object_event(event, model, instance, level="info"):
+    """Log an object event."""
+    content = {
+        "model": model.__name__,
+        "id": _identifier(instance),
+        "_str": str(instance),
+    }
+
+    log_funcs = {
+        "debug": object_log.debug,
+        "info": object_log.info,
+        "warning": object_log.warning,
+    }
+    log_funcs.get(level, object_log.info)(event, **content)
+
+
 @receiver(post_save)
 def log_object_creation(sender, instance, created, **kwargs):
     """Log object creation."""
-    identifier = _identifier(instance)
     model_name = sender.__name__
 
     if created:
         if model_name != "Migration":
-            object_log.bind(
-                model=model_name,
-                id=identifier,
-                _str=str(instance),
-            ).info("created")
+            _log_object_event("created", sender, instance)
     else:
-        object_log.bind(
-            model=model_name,
-            id=identifier,
-            _str=str(instance),
-        ).info("updated")
+        _log_object_event("updated", sender, instance)
 
 
 @receiver(post_delete)
 def log_object_deletion(sender, instance, **kwargs):
     """Log object deletion."""
-
-    object_log.bind(
-        model=sender.__name__,
-        id=_identifier(instance),
-        _str=str(instance),
-    ).info("deleted")
+    _log_object_event("deleted", sender, instance)
