@@ -1,9 +1,14 @@
 """Logging processors for mreg."""
 
+from collections import defaultdict
 from typing import Any
 
+from rich.console import Console
+from rich.text import Text
 from structlog import get_logger
 from structlog.typing import EventDict
+
+from mreg.middleware.context import get_request_id
 
 logger = get_logger("hubuum.manual")
 
@@ -26,3 +31,84 @@ def filter_sensitive_data(_: Any, __: Any, event_dict: EventDict) -> EventDict:
         event_dict["id"] = clean_token
 
     return event_dict
+
+
+def add_request_id_processor(_: Any, __: Any, event_dict: EventDict) -> EventDict:
+    """Add the request_id to the event."""
+    event_dict["request_id"] = get_request_id()
+    return event_dict
+
+
+def collapse_request_id_processor(_: Any, __: Any, event_dict: EventDict) -> EventDict:
+    """Collapse request_id into the event."""
+    event_dict["request_id"] = _replace_token(event_dict["request_id"])
+    return event_dict
+
+
+def reorder_keys_processor(_: Any, __: Any, event_dict: EventDict) -> EventDict:
+    """Reorder keys in a structlogs event_dict, ensuring that request_id is first."""
+    event_dict = {
+        k: event_dict[k]
+        for k in sorted(event_dict.keys(), key=lambda k: k != "request_id")
+    }
+    return event_dict
+
+
+class RequestColorTracker:
+    """Add an easy to track colored bubbles based on an events request_id.
+
+    :ivar COLORS: A list of color names to use for the bubbles.
+    :ivar request_to_color: A dictionary mapping request_ids to colors.
+    """
+
+    COLORS = ["red", "white", "green", "yellow", "blue", "magenta", "cyan"]
+
+    def __init__(self):
+        """Initialize a new RequestColorizer.
+
+        Sets the initial mapping of request_ids to colors to be an empty defaultdict.
+        """
+        self.console = Console()
+        self.request_to_color = defaultdict(self._color_generator().__next__)
+
+    def _colorize(self, color: str, s: str) -> str:
+        """Colorize a string using Rich.
+
+        :param color: The name of the color to use.
+        :param s: The string to colorize.
+        :return: The colorized string.
+        """
+        text = Text(s, style=f"bold {color}")
+
+        with self.console.capture() as capture:
+            self.console.print(text)
+
+        output = capture.get()
+
+        return output.rstrip()  # remove trailing newline
+
+    def _color_generator(self):
+        """Create a generator that cycles through the colors.
+
+        :yield: A color from the COLORS list.
+        """
+        i = 0
+        while True:
+            yield self.COLORS[i % len(self.COLORS)]
+            i += 1
+
+    def __call__(self, _: Any, __: Any, event_dict: EventDict) -> EventDict:
+        """Add a colored bubble to the event message.
+
+        :param _: The logger instance. This argument is ignored.
+        :param __: The log level. This argument is ignored.
+        :param event_dict: The event dictionary of the log entry.
+        :return: The modified event dictionary.
+        """
+        request_id = event_dict.get("request_id", "None")
+        color = self.request_to_color[request_id]
+        colored_bubble = self._colorize(color, " • ")
+
+        event_dict["event"] = colored_bubble + event_dict.get("event", "")
+
+        return event_dict

@@ -36,6 +36,7 @@ REQUESTS_LOG_LEVEL_SLOW = "WARNING"
 REQUESTS_THRESHOLD_VERY_SLOW = 5000
 REQUESTS_LOG_LEVEL_VERY_SLOW = "CRITICAL"
 
+LOGGING_MAX_BODY_LENGTH = 3000
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True if "CI" in os.environ else False
@@ -79,7 +80,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    "mreg.middleware.logging_http.LoggingMiddleware",
+    "mreg.middleware.context.ContextMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -87,7 +88,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "mreg.middleware.context.ContextMiddleware",
+    "mreg.middleware.logging_http.LoggingMiddleware",
 ]
 
 ROOT_URLCONF = "mregsite.urls"
@@ -197,26 +198,36 @@ TXT_AUTO_RECORDS = {
 #    "password": "...",
 # }
 
+processors = [
+    mreg.log_processors.filter_sensitive_data,
+    structlog.stdlib.filter_by_level,
+    structlog.stdlib.add_log_level,
+    structlog.stdlib.add_logger_name,
+    structlog.processors.TimeStamper(fmt="iso"),
+    structlog.processors.StackInfoRenderer(),
+    structlog.processors.format_exc_info,
+    structlog.processors.StackInfoRenderer(),
+    structlog.processors.UnicodeDecoder(),
+    mreg.log_processors.add_request_id_processor,
+]
 
-log_output_type = structlog.processors.JSONRenderer()
 if TESTING or DEBUG:
-    log_output_type = structlog.dev.ConsoleRenderer(colors=True)
+    # If we are dumping to console, shorten the request_id and reorder keys to
+    # ensure that context_id comes first.
+    # We also give unique request_ids colored bubbles for easy tracking.
+    processors.extend(
+        [
+            mreg.log_processors.collapse_request_id_processor,
+            mreg.log_processors.reorder_keys_processor,
+            mreg.log_processors.RequestColorTracker(),
+            structlog.dev.ConsoleRenderer(colors=True, sort_keys=False),
+        ]
+    )
+else:
+    processors.append = structlog.processors.JSONRenderer()
 
 structlog.configure(
-    processors=[
-        mreg.log_processors.filter_sensitive_data,
-        structlog.stdlib.filter_by_level,
-        structlog.stdlib.add_log_level,
-        structlog.stdlib.add_logger_name,
-        structlog.processors.TimeStamper(fmt="iso"),
-        structlog.processors.StackInfoRenderer(),
-        structlog.processors.format_exc_info,
-        structlog.processors.StackInfoRenderer(),
-        structlog.processors.UnicodeDecoder(),
-        # This sets either consolelogger or jsonlogger as the output type,
-        # depending on if we're running in prod or testing production logging.
-        log_output_type,
-    ],  # type: ignore
+    processors=processors,
     context_class=dict,
     logger_factory=structlog.stdlib.LoggerFactory(),
     wrapper_class=structlog.stdlib.BoundLogger,

@@ -25,8 +25,6 @@ from mreg.models.host import Host, HostGroup, Ipaddress, PtrOverride
 from mreg.models.network import NetGroupRegexPermission, Network
 from mreg.models.zone import ForwardZone, ReverseZone
 
-from mreg.middleware.context import get_request_id
-
 from mreg.mqsender import MQSender
 
 import structlog
@@ -444,14 +442,12 @@ def log_object_creation(sender, instance, created, **kwargs):
         if model_name != "Migration":
             object_log.bind(
                 model=model_name,
-                _request_id=get_request_id(),
                 id=identifier,
                 _str=str(instance),
             ).info("created")
     else:
         object_log.bind(
             model=model_name,
-            _request_id=get_request_id(),
             id=identifier,
             _str=str(instance),
         ).info("updated")
@@ -463,7 +459,6 @@ def log_object_deletion(sender, instance, **kwargs):
 
     object_log.bind(
         model=sender.__name__,
-        _request_id=get_request_id(),
         id=_identifier(instance),
         _str=str(instance),
     ).info("deleted")
