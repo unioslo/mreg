@@ -1,4 +1,4 @@
-"""Middleware to handle logging."""
+"""Middleware to handle logging of HTTP requests and responses."""
 import http
 import logging
 import time
