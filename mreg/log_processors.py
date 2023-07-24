@@ -38,13 +38,13 @@ def add_request_id_processor(_: Any, __: Any, event_dict: EventDict) -> EventDic
 
 
 def collapse_request_id_processor(_: Any, __: Any, event_dict: EventDict) -> EventDict:
-    """Collapse request_id into the event."""
+    """Collapse request_id into a shorter form."""
     event_dict["request_id"] = _replace_token(event_dict["request_id"])
     return event_dict
 
 
 def reorder_keys_processor(_: Any, __: Any, event_dict: EventDict) -> EventDict:
-    """Reorder keys in a structlogs event_dict, ensuring that request_id is first."""
+    """Reorder keys in a structlogs event_dict, ensuring that request_id always comes first."""
     event_dict = {
         k: event_dict[k]
         for k in sorted(event_dict.keys(), key=lambda k: k != "request_id")
@@ -53,7 +53,7 @@ def reorder_keys_processor(_: Any, __: Any, event_dict: EventDict) -> EventDict:
 
 
 class RequestColorTracker:
-    """Add an easy to track colored bubbles based on an events request_id.
+    """Add an easy to track colored bubble based on an events request_id.
 
     :ivar COLORS: A list of color names to use for the bubbles.
     :ivar request_to_color: A dictionary mapping request_ids to colors.
