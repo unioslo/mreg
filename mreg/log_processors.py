@@ -5,7 +5,6 @@ from typing import Any
 
 from rich.console import Console
 from rich.text import Text
-from structlog import get_logger
 from structlog.typing import EventDict
 
 from mreg.middleware.context import get_request_id
