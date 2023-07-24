@@ -224,7 +224,7 @@ if TESTING or DEBUG:
         ]
     )
 else:
-    processors.append = structlog.processors.JSONRenderer()
+    processors.append(structlog.processors.JSONRenderer())
 
 structlog.configure(
     processors=processors,
