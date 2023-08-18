@@ -5,8 +5,7 @@ from django.test import RequestFactory
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.test import APIClient, force_authenticate
 
-from mreg.api.permissions import IsGrantedNetGroupRegexPermission, is_reserved_ip
-from mreg.models import Network, Host, Ipaddress
+from mreg.api.permissions import IsGrantedNetGroupRegexPermission
 
 from .tests import MregAPITestCase
 
@@ -15,9 +14,17 @@ class TestIsGrantedNetGroupRegexPermission(MregAPITestCase):
 
     @mock.patch('mreg.api.permissions.user_is_superuser', return_value=False)
     @mock.patch('mreg.api.permissions.user_is_adminuser', return_value=False)
-    @mock.patch('mreg.api.permissions.IsGrantedNetGroupRegexPermission.has_obj_perm', return_value=False)
-    @mock.patch('mreg.api.permissions.IsGrantedNetGroupRegexPermission._get_hostname_and_ips', return_value=('hostname', ['ip']))
-    def test_unhandled_view(self, mock_get_hostname_and_ips, mock_has_obj_perm, mock_is_adminuser, mock_is_superuser):
+    @mock.patch('mreg.api.permissions.IsGrantedNetGroupRegexPermission.has_obj_perm',
+                return_value=False)
+    @mock.patch('mreg.api.permissions.IsGrantedNetGroupRegexPermission._get_hostname_and_ips',
+                return_value=('hostname', ['ip']))
+    def test_unhandled_view(
+        self,
+        mock_get_hostname_and_ips,
+        mock_has_obj_perm,
+        mock_is_adminuser,
+        mock_is_superuser
+    ):
         request = RequestFactory().post('/')
         user = mock.Mock()
         user.group_list = []
