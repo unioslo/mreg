@@ -1,29 +1,20 @@
 from django_filters import rest_framework as filters
 
-from mreg.models import (
-    BACnetID,
-    Cname,
-    ForwardZone,
-    ForwardZoneDelegation,
-    Hinfo,
-    History,
-    Host,
-    HostGroup,
-    Ipaddress,
+from mreg.models.base import History
+from mreg.models.host import BACnetID, Host, HostGroup, Ipaddress, PtrOverride
+from mreg.models.network import (
     Label,
-    Loc,
-    Mx,
-    NameServer,
-    Naptr,
     NetGroupRegexPermission,
     Network,
     NetworkExcludedRange,
-    PtrOverride,
+)
+from mreg.models.resource_records import Cname, Hinfo, Loc, Mx, Naptr, Srv, Sshfp, Txt
+from mreg.models.zone import (
+    ForwardZone,
+    ForwardZoneDelegation,
+    NameServer,
     ReverseZone,
     ReverseZoneDelegation,
-    Srv,
-    Sshfp,
-    Txt,
 )
 
 

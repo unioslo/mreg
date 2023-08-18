@@ -15,11 +15,10 @@ from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from mreg.models.base import NameServer, History
-from mreg.models.host import Host, HostGroup, Ipaddress, PtrOverride
-from mreg.models.network import Network, NetworkExcludedRange, NetGroupRegexPermission
+from mreg.models.host import Host, Ipaddress, PtrOverride
+from mreg.models.network import Network, NetGroupRegexPermission
 from mreg.models.resource_records import Cname, Loc, Naptr, Srv, Sshfp, Txt, Hinfo, Mx
 
-import mreg.models
 from mreg.api.permissions import (
     IsAuthenticatedAndReadOnly,
     IsGrantedNetGroupRegexPermission,
