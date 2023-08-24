@@ -46,7 +46,11 @@ LOG_FILE_NAME = os.environ.get("MREG_LOG_FILE_NAME", "logs/app.log")
 # If the log directory doesn't exist, create it.
 log_dir = os.path.dirname(os.path.join(BASE_DIR, LOG_FILE_NAME))
 if not os.path.exists(log_dir):
-    os.makedirs(log_dir)
+    try:
+        os.makedirs(log_dir)
+    except OSError as e:
+        print(f"Failed to create log directory {log_dir}: {e}")
+        sys.exit(1)
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True if "CI" in os.environ else False
