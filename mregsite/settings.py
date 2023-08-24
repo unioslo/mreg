@@ -208,17 +208,17 @@ TXT_AUTO_RECORDS = {
 # }
 
 timestamper = structlog.processors.TimeStamper(fmt="iso")
-# The pre_chain setup here allows us to add support for loggers that aren't 
+# The pre_chain setup here allows us to add support for loggers that aren't
 # using structlog and wrap them semi-nicely into something mostly readable.
 # Disabled for now, but kept here for reference.
-#pre_chain = [
+# pre_chain = [
 #    structlog.stdlib.add_log_level,
 #    structlog.stdlib.ExtraAdder(),
 #    timestamper,
-#]
+# ]
 
 if TESTING or DEBUG:
-    console_processors = [        
+    console_processors = [
         mreg.log_processors.collapse_request_id_processor,
         mreg.log_processors.reorder_keys_processor,
         mreg.log_processors.RequestColorTracker(),
@@ -232,7 +232,8 @@ else:
     ]
 
 
-logging.config.dictConfig({
+logging.config.dictConfig(
+    {
         "version": 1,
         "disable_existing_loggers": False,
         "formatters": {
@@ -242,12 +243,12 @@ logging.config.dictConfig({
                     structlog.stdlib.ProcessorFormatter.remove_processors_meta,
                     structlog.processors.JSONRenderer(),
                 ],
-#                "foreign_pre_chain": pre_chain,
+                #                "foreign_pre_chain": pre_chain,
             },
             "colored": {
                 "()": structlog.stdlib.ProcessorFormatter,
                 "processors": console_processors,
-#                "foreign_pre_chain": pre_chain,
+                #                "foreign_pre_chain": pre_chain,
             },
         },
         "handlers": {
@@ -260,7 +261,7 @@ logging.config.dictConfig({
                 "level": LOG_LEVEL,
                 "class": "logging.handlers.RotatingFileHandler",
                 "maxBytes": LOG_FILE_SIZE,
-                "backupCount": LOG_FILE_COUNT,         
+                "backupCount": LOG_FILE_COUNT,
                 "filename": os.path.join(BASE_DIR, LOG_FILE_NAME),
                 "formatter": "plain",
             },
@@ -271,8 +272,9 @@ logging.config.dictConfig({
                 "level": "DEBUG",
                 "propagate": True,
             },
-        }
-})
+        },
+    }
+)
 structlog.configure(
     processors=[
         structlog.contextvars.merge_contextvars,
