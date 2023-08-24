@@ -41,6 +41,12 @@ LOGGING_MAX_BODY_LENGTH = 3000
 
 LOG_FILE_SIZE = os.environ.get("MREG_LOG_FILE_SIZE", 10 * 1024 * 1024)
 LOG_FILE_COUNT = os.environ.get("MREG_LOG_FILE_COUNT", 5)
+LOG_FILE_NAME = os.environ.get("MREG_LOG_FILE_NAME", "logs/app.log")
+
+# If the log directory doesn't exist, create it.
+log_dir = os.path.dirname(os.path.join(BASE_DIR, LOG_FILE_NAME))
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True if "CI" in os.environ else False
@@ -255,7 +261,7 @@ logging.config.dictConfig({
                 "class": "logging.handlers.RotatingFileHandler",
                 "maxBytes": LOG_FILE_SIZE,
                 "backupCount": LOG_FILE_COUNT,         
-                "filename": "logs/app.log",
+                "filename": os.path.join(BASE_DIR, LOG_FILE_NAME),
                 "formatter": "plain",
             },
         },
