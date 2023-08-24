@@ -41,7 +41,9 @@ LOGGING_MAX_BODY_LENGTH = 3000
 
 LOG_FILE_SIZE = os.environ.get("MREG_LOG_FILE_SIZE", 10 * 1024 * 1024)
 LOG_FILE_COUNT = os.environ.get("MREG_LOG_FILE_COUNT", 5)
-LOG_FILE_NAME = os.path.join(BASE_DIR, os.environ.get("MREG_LOG_FILE_NAME", "logs/app.log"))
+LOG_FILE_NAME = os.path.join(
+    BASE_DIR, os.environ.get("MREG_LOG_FILE_NAME", "logs/app.log")
+)
 
 # If the log directory doesn't exist, create it.
 log_dir = os.path.dirname(LOG_FILE_NAME)
@@ -61,7 +63,7 @@ if not os.access(log_dir, os.W_OK):
 if os.path.exists(LOG_FILE_NAME) and not os.access(LOG_FILE_NAME, os.W_OK):
     print(f"Log file {LOG_FILE_NAME} is not writable")
     sys.exit(1)
-    
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True if "CI" in os.environ else False
 
