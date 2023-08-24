@@ -10,12 +10,13 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/2.0/ref/settings/
 """
 
+import logging.config
 import os
 import sys
 
-import mreg.log_processors
-
 import structlog
+
+import mreg.log_processors
 
 TESTING = len(sys.argv) > 1 and sys.argv[1] == "test"
 
@@ -28,7 +29,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = ")e#67040xjxar=zl^y#@#b*zilv2dxtraj582$^(e6!wf++_n#"
 
-MREG_LOG_LEVEL = os.environ.get("MREG_LOG_LEVEL", "CRITICAL").upper()
+LOG_LEVEL = os.environ.get("MREG_LOG_LEVEL", "CRITICAL").upper()
 
 REQUESTS_THRESHOLD_SLOW = 1000
 REQUESTS_LOG_LEVEL_SLOW = "WARNING"
@@ -37,6 +38,9 @@ REQUESTS_THRESHOLD_VERY_SLOW = 5000
 REQUESTS_LOG_LEVEL_VERY_SLOW = "CRITICAL"
 
 LOGGING_MAX_BODY_LENGTH = 3000
+
+LOG_FILE_SIZE = os.environ.get("MREG_LOG_FILE_SIZE", 10 * 1024 * 1024)
+LOG_FILE_COUNT = os.environ.get("MREG_LOG_FILE_COUNT", 5)
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True if "CI" in os.environ else False
@@ -197,66 +201,96 @@ TXT_AUTO_RECORDS = {
 #    "password": "...",
 # }
 
-processors = [
-    structlog.contextvars.merge_contextvars,
-    mreg.log_processors.filter_sensitive_data,
-    structlog.stdlib.filter_by_level,
-    structlog.stdlib.add_log_level,
-    structlog.stdlib.add_logger_name,
-    structlog.processors.TimeStamper(fmt="iso"),
-    structlog.processors.StackInfoRenderer(),
-    structlog.processors.format_exc_info,
-    structlog.processors.StackInfoRenderer(),
-    structlog.processors.UnicodeDecoder(),
-]
+timestamper = structlog.processors.TimeStamper(fmt="iso")
+# The pre_chain setup here allows us to add support for loggers that aren't 
+# using structlog and wrap them semi-nicely into something mostly readable.
+# Disabled for now, but kept here for reference.
+#pre_chain = [
+#    structlog.stdlib.add_log_level,
+#    structlog.stdlib.ExtraAdder(),
+#    timestamper,
+#]
 
 if TESTING or DEBUG:
-    # If we are dumping to console, shorten the request_id and reorder keys to
-    # ensure that context_id comes first.
-    # We also give unique request_ids colored bubbles for easy tracking.
-    processors.extend(
-        [
-            mreg.log_processors.collapse_request_id_processor,
-            mreg.log_processors.reorder_keys_processor,
-            mreg.log_processors.RequestColorTracker(),
-            structlog.dev.ConsoleRenderer(colors=True, sort_keys=False),
-        ]
-    )
+    console_processors = [        
+        mreg.log_processors.collapse_request_id_processor,
+        mreg.log_processors.reorder_keys_processor,
+        mreg.log_processors.RequestColorTracker(),
+        structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+        structlog.dev.ConsoleRenderer(colors=True, sort_keys=False),
+    ]
 else:
-    processors.append(structlog.processors.JSONRenderer())
+    console_processors = [
+        structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+        structlog.processors.JSONRenderer(),
+    ]
 
+
+logging.config.dictConfig({
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "plain": {
+                "()": structlog.stdlib.ProcessorFormatter,
+                "processors": [
+                    structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+                    structlog.processors.JSONRenderer(),
+                ],
+#                "foreign_pre_chain": pre_chain,
+            },
+            "colored": {
+                "()": structlog.stdlib.ProcessorFormatter,
+                "processors": console_processors,
+#                "foreign_pre_chain": pre_chain,
+            },
+        },
+        "handlers": {
+            "default": {
+                "level": LOG_LEVEL,
+                "class": "logging.StreamHandler",
+                "formatter": "colored",
+            },
+            "file": {
+                "level": LOG_LEVEL,
+                "class": "logging.handlers.RotatingFileHandler",
+                "maxBytes": LOG_FILE_SIZE,
+                "backupCount": LOG_FILE_COUNT,         
+                "filename": "logs/app.log",
+                "formatter": "plain",
+            },
+        },
+        "loggers": {
+            "": {
+                "handlers": ["default", "file"],
+                "level": "DEBUG",
+                "propagate": True,
+            },
+        }
+})
 structlog.configure(
-    processors=processors,
-    context_class=dict,
+    processors=[
+        structlog.contextvars.merge_contextvars,
+        mreg.log_processors.filter_sensitive_data,
+        structlog.stdlib.filter_by_level,
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.PositionalArgumentsFormatter(),
+        structlog.processors.CallsiteParameterAdder(
+            {
+                structlog.processors.CallsiteParameter.FILENAME,
+                structlog.processors.CallsiteParameter.FUNC_NAME,
+                structlog.processors.CallsiteParameter.LINENO,
+            }
+        ),
+        timestamper,
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.format_exc_info,
+        structlog.processors.UnicodeDecoder(),
+        structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
+    ],
     logger_factory=structlog.stdlib.LoggerFactory(),
     wrapper_class=structlog.stdlib.BoundLogger,
     cache_logger_on_first_use=True,
 )
-
-LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": True,
-    "formatters": {
-        "console": {
-            "()": structlog.stdlib.ProcessorFormatter,
-            "processor": structlog.dev.ConsoleRenderer(),
-        },
-    },
-    "handlers": {
-        "console": {
-            "class": "logging.StreamHandler",
-            "formatter": "console",
-            "level": "DEBUG",
-        },
-    },
-    "loggers": {
-        "mreg": {
-            "handlers": ["console"],
-            "level": MREG_LOG_LEVEL,
-            "propagate": False,
-        },
-    },
-}
 
 # Import local settings that may override those in this file.
 try:
