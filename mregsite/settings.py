@@ -278,7 +278,7 @@ logging.config.dictConfig(
                 "class": "logging.handlers.RotatingFileHandler",
                 "maxBytes": LOG_FILE_SIZE,
                 "backupCount": LOG_FILE_COUNT,
-                "filename": os.path.join(BASE_DIR, LOG_FILE_NAME),
+                "filename": LOG_FILE_NAME,
                 "formatter": "plain",
             },
         },
