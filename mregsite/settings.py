@@ -251,7 +251,7 @@ else:
 logging.config.dictConfig(
     {
         "version": 1,
-        "disable_existing_loggers": False,
+        "disable_existing_loggers": True,
         "formatters": {
             "plain": {
                 "()": structlog.stdlib.ProcessorFormatter,
