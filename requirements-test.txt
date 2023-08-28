@@ -4,6 +4,8 @@ django-auth-ldap==4.0.0
 django-logging-json==1.15
 django-netfields==1.2.4
 django-filter==23.1
+structlog==23.1.0
+rich==13.4.2
 gunicorn==20.1.0
 idna==3.4
 psycopg2-binary==2.9.5

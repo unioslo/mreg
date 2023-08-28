@@ -92,19 +92,6 @@ LDAP_GROUP_RE = r"""^cn=(?P<group_name>[\w\-]+),cn=netgroups,"""
 # Application definition
 
 INSTALLED_APPS = [
-<<<<<<< HEAD
-    "django.contrib.admin",
-    "django.contrib.auth",
-    "django.contrib.contenttypes",
-    "django.contrib.sessions",
-    "django.contrib.messages",
-    "django.contrib.staticfiles",
-    "rest_framework",
-    "rest_framework.authtoken",
-    "netfields",
-    "mreg",
-    "hostpolicy",
-=======
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -113,12 +100,10 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework.authtoken',
-    'django_logging',
     'django_filters',
     'netfields',
     'mreg',
     'hostpolicy',
->>>>>>> acde594 (Fixes #487 by implementing option 5 in the issue.)
 ]
 
 MIDDLEWARE = [
@@ -213,11 +198,6 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "mreg.authentication.ExpiringTokenAuthentication",
     ),
-<<<<<<< HEAD
-    "DEFAULT_PAGINATION_CLASS": "mreg.api.v1.pagination.StandardResultsSetPagination",
-    "DEFAULT_PERMISSION_CLASSES": ("mreg.api.permissions.IsAuthenticatedAndReadOnly",),
-    "DEFAULT_SCHEMA_CLASS": "rest_framework.schemas.openapi.AutoSchema",
-=======
     'DEFAULT_FILTER_BACKENDS': (
         'django_filters.rest_framework.DjangoFilterBackend',
     ),
@@ -227,7 +207,6 @@ REST_FRAMEWORK = {
         'mreg.api.permissions.IsAuthenticatedAndReadOnly',
     ),
     'DEFAULT_SCHEMA_CLASS': 'rest_framework.schemas.openapi.AutoSchema',
->>>>>>> acde594 (Fixes #487 by implementing option 5 in the issue.)
 }
 
 REST_FRAMEWORK_EXTENSIONS = {
