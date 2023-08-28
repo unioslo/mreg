@@ -36,12 +36,12 @@ class TestHistoryLog(TestCase):
         # Mocking a method for save_log_m2m_alteration method
         method = mock.Mock(__name__='TestMethod')
 
-        with self.assertLogs('dl_logger', level='ERROR') as cm:
+        with self.assertLogs('mreg.history', level='ERROR') as cm:
             log.save_log('test_action', mock_serializer, data)
             log.save_log_m2m_alteration(method, instance)
 
         self.assertEqual(mock_full_clean.call_count, 2)
 
         # Assert that the error was logged twice, with tracebacks.
-        self.assertTrue(cm.output[0].startswith('ERROR:dl_logger:Traceback'))
-        self.assertTrue(cm.output[1].startswith('ERROR:dl_logger:Traceback'))
+        self.assertTrue(cm.output[0].startswith('ERROR:mreg.history:'))
+        self.assertTrue(cm.output[1].startswith('ERROR:mreg.history:'))
