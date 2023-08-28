@@ -57,11 +57,10 @@ class HistoryLog:
             data=json_data,
         )
 
-        # We should never fail at performing a clean on the testdata itself.
         try:
             history.full_clean()
         except ValidationError as e:
-            log.error(ErrorLogObject(None, e, None))
+            log.exception("ValidationError", e=e, exc_info=True)
             return
         history.save()
 
@@ -100,11 +99,10 @@ class HistoryLog:
             data=data,
         )
 
-        # We should never fail at performing a clean on the testdata itself.
         try:
             history.full_clean()
         except ValidationError as e:
-            log.error(ErrorLogObject(None, e, None))
+            log.exception("ValidationError", e=e, exc_info=True)
             return
         history.save()
 
