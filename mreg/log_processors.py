@@ -29,7 +29,7 @@ def filter_sensitive_data(_: Any, __: Any, event_dict: EventDict) -> EventDict:
 
     if "model" in event_dict and event_dict["model"] in ["ExpiringToken", "Session"]:
         event_dict["_str"] = _replace_token(event_dict["_str"])
-        event_dict["id"] = _replace_token(event_dict["_str"])
+        event_dict["id"] = _replace_token(event_dict["id"])
 
     is_login_event = (
         "path" in event_dict 
