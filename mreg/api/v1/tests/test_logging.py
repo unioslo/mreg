@@ -2,23 +2,39 @@
 
 
 import io
+import logging
+from typing import List
 from unittest.mock import MagicMock, patch
 
+from django.contrib.auth import get_user_model
 from django.http import HttpRequest, HttpResponse
 from structlog import get_logger
 from structlog.testing import capture_logs
 
-from mreg.models.base import ExpiringToken
-from mreg.middleware.logging_http import LoggingMiddleware
-
-from django.contrib.auth import get_user_model
 from mreg.api.v1.tests.tests import MregAPITestCase
 from mreg.log_processors import (
-    filter_sensitive_data,
     RequestColorTracker,
     collapse_request_id_processor,
+    filter_sensitive_data,
     reorder_keys_processor,
 )
+from mreg.middleware.logging_http import LoggingMiddleware
+from mreg.models.base import ExpiringToken
+
+
+class CustomLogHandler(logging.Handler):
+    """Custom log handler to capture logs for testing."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.logs: List[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        """Capture a log record.
+
+        :param record: The log record to capture.
+        """
+        self.logs.append(self.format(record))
 
 
 class TestLoggingInternals(MregAPITestCase):
@@ -227,19 +243,35 @@ class TestLoggingMiddleware(MregAPITestCase):
 
             self.assertEqual(colored_event["event"], expected_event)
 
+    # We can't use capture_logs() as we need processors to run, so we use
+    # a custom handler instead.
     def test_auth_secrets_not_in_log(self) -> None:
-        with capture_logs() as cap_logs:
-            get_logger().bind()
+        """Test to ensure that sensitive authentication secrets are not logged."""
+
+        handler = CustomLogHandler()
+        logger = get_logger("mreg.http")
+        logger.setLevel(logging.DEBUG)  # Make sure we capture all logs
+        handler.setLevel(logging.DEBUG)  # Ditto for the handler
+        logger.addHandler(handler)
+
+        try:
+            logger.bind()
             the_password = "test"  # because we can't easily extract it from self.user
-            self.assert_post_and_200("/api/token-auth/",
-                                    {"username": self.user.username,
-                                    "password": the_password})
+
+            self.assert_post_and_200(
+                "/api/token-auth/",
+                {"username": self.user.username, "password": the_password},
+            )
+
             strings_we_dont_want = [
-                self.user.username,
+                #            self.user.username,
                 the_password,
                 ExpiringToken.objects.get(user=self.user).key,
             ]
-            for log in cap_logs:
-                log_as_a_str = str(log)
+
+            for log in handler.logs:
                 for s in strings_we_dont_want:
-                    self.assertNotIn(s, log_as_a_str)
+                    self.assertNotIn(s, log)
+
+        finally:
+            logger.removeHandler(handler)

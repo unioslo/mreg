@@ -17,13 +17,37 @@ def _replace_token(token: str) -> str:
 
 
 def filter_sensitive_data(_: Any, __: Any, event_dict: EventDict) -> EventDict:
-    """Filter sensitive data from a structlogs event_dict."""
-    if "model" in event_dict and (
-        event_dict["model"] == "ExpiringToken" or event_dict["model"] == "Session"
-    ):
-        clean_token = _replace_token(event_dict["_str"])
-        event_dict["_str"] = clean_token
-        event_dict["id"] = clean_token
+    """Filter sensitive data from a structlogs event_dict.
+    
+    :param _: Unused parameter
+    :param __: Unused parameter
+    :param event_dict: Dictionary containing event data.
+    
+    :returns: Event dictionary with sensitive data filtered.
+    """
+    LOGIN_PATH = "/api/token-auth/"
+
+    if "model" in event_dict and event_dict["model"] in ["ExpiringToken", "Session"]:
+        event_dict["_str"] = _replace_token(event_dict["_str"])
+        event_dict["id"] = _replace_token(event_dict["_str"])
+
+    is_login_event = (
+        "path" in event_dict 
+        and event_dict["path"] == LOGIN_PATH 
+        and "method" in event_dict 
+        and event_dict["method"] == "POST"
+    )
+    
+    if is_login_event:
+        content: str = event_dict["content"]
+        event: str = event_dict["event"]
+
+        if event == "request" and "password" in content:
+            event_dict["content"]["password"] = '...'
+        
+        elif event == "response" and "token" in content:
+            token = content.split('"token":"')[1].split('"')[0]
+            event_dict["content"] = content.replace(token, _replace_token(token))
 
     return event_dict
 
