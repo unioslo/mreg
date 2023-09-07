@@ -89,6 +89,10 @@ jobs:
         pip install -e .
     - name: Run the tests
       run: mreg-cli-master/ci/run_testsuite_and_record.sh
+    - name: Upload the log as an artifact
+      uses: actions/upload-artifact@v3
+      with:
+        path: mreg-cli-master/ci/new_testsuite_log.json
 
   publish:
     name: Publish

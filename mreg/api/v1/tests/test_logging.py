@@ -8,6 +8,7 @@ from django.http import HttpRequest, HttpResponse
 from structlog import get_logger
 from structlog.testing import capture_logs
 
+from mreg.models.base import ExpiringToken
 from mreg.middleware.logging_http import LoggingMiddleware
 
 from django.contrib.auth import get_user_model
@@ -225,3 +226,20 @@ class TestLoggingMiddleware(MregAPITestCase):
             colored_event = color_tracker(None, None, event)
 
             self.assertEqual(colored_event["event"], expected_event)
+
+    def test_auth_secrets_not_in_log(self) -> None:
+        with capture_logs() as cap_logs:
+            get_logger().bind()
+            the_password = "test"  # because we can't easily extract it from self.user
+            self.assert_post_and_200("/api/token-auth/",
+                                    {"username": self.user.username,
+                                    "password": the_password})
+            strings_we_dont_want = [
+                self.user.username,
+                the_password,
+                ExpiringToken.objects.get(user=self.user).key,
+            ]
+            for log in cap_logs:
+                log_as_a_str = str(log)
+                for s in strings_we_dont_want:
+                    self.assertNotIn(s, log_as_a_str)
