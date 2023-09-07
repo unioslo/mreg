@@ -263,15 +263,15 @@ class TestLoggingMiddleware(MregAPITestCase):
                 {"username": self.user.username, "password": the_password},
             )
 
-            strings_we_dont_want = [
-                #            self.user.username,
-                the_password,
-                ExpiringToken.objects.get(user=self.user).key,
-            ]
+            the_token = ExpiringToken.objects.get(user=self.user).key
 
-            for log in handler.logs:
-                for s in strings_we_dont_want:
-                    self.assertNotIn(s, log)
+            req = handler.logs[0]
+            res = handler.logs[1]
+
+            self.assertNotIn(the_password, req)
+            self.assertNotIn(the_token, res)
+            self.assertIn("'password': '...'", req)
+            self.assertIn("...", res)
 
         finally:
             logger.removeHandler(handler)
