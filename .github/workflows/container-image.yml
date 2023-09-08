@@ -92,6 +92,7 @@ jobs:
     - name: Upload the log as an artifact
       uses: actions/upload-artifact@v3
       with:
+        name: new_testsuite_log.json
         path: mreg-cli-master/ci/new_testsuite_log.json
 
   publish:
