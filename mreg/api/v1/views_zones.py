@@ -364,7 +364,7 @@ class PlainTextRenderer(renderers.TemplateHTMLRenderer):
 
     def render(self, data, media_type=None, renderer_context=None):
         # Utilize TemplateHTMLRenderer's exception handling
-        if type(data) is dict:
+        if isinstance(data, dict):
             return super().render(data, accepted_media_type=None,
                                   renderer_context=renderer_context)
         return data.encode(self.charset)
