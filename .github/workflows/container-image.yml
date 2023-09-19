@@ -63,7 +63,7 @@ jobs:
 
   mreg-cli:
     name: Test with mreg-cli
-    needs: test
+    needs: build
     runs-on: ubuntu-latest
     steps:
     - name: Download artifact
@@ -95,11 +95,62 @@ jobs:
         name: new_testsuite_log.json
         path: mreg-cli-master/ci/new_testsuite_log.json
 
+  test-with-curl:
+    name: Test with curl
+    needs: build
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:latest
+        env:
+          POSTGRES_USER: mreg
+          POSTGRES_PASSWORD: mreg
+        # Set health checks to wait until postgres has started
+        options: >-
+          --health-cmd "pg_isready --username=mreg"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          # Map the containerized port to localhost.
+          - 5432:5432
+    steps:
+    - name: Download artifact
+      uses: actions/download-artifact@v3
+      with:
+        name: mreg
+    - name: Load container image
+      run: docker load --input mreg.tgz
+    - name: Start mreg
+      run: |
+        docker run --rm -t --network host --detach --name mreg \
+        -e MREG_DB_HOST=localhost -e MREG_DB_PASSWORD=mreg -e MREG_DB_USER=mreg \
+        mreg
+    - name: Wait for mreg to create the database schema and start up
+      run: sleep 10s
+    - name: Create a user
+      run: docker exec -t mreg /app/manage.py create_mreg_superuser --username test --password test123
+    - name: Authenticate using curl
+      shell: bash
+      run: |
+        curl http://127.0.0.1:8000/api/token-auth/  \
+          -X POST -H "Content-Type: application/json" \
+          --data "{\"username\":\"test\",\"password\":\"test123\"}" \
+          --output /tmp/curl_output.txt \
+          --verbose --no-progress-meter \
+          --write-out %{http_code} \
+          > /tmp/http_status_code.txt 2> /tmp/curl_errors.txt
+        STATUS=$(cat /tmp/http_status_code.txt)
+        if [ $STATUS -ge 400 ]; then
+          cat /tmp/curl_output.txt
+          exit 1
+        fi
+
   publish:
     name: Publish
     # only publish the image if this event was triggered on the master branch, and not by a pull request
     if: ${{ github.ref == 'refs/heads/master' && github.event_name != 'pull_request' }}
-    needs: mreg-cli
+    needs: [test, mreg-cli, test-with-curl]
     runs-on: ubuntu-latest
     permissions:
       packages: write
