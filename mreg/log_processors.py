@@ -2,6 +2,7 @@
 
 from collections import defaultdict
 from typing import Any
+import re
 
 from rich.console import Console
 from rich.text import Text
@@ -44,7 +45,10 @@ def filter_sensitive_data(_: Any, __: Any, event_dict: EventDict) -> EventDict:
         event: str = event_dict["event"]
 
         if event == "request" and "password" in content:
-            event_dict["content"]["password"] = '...'
+            if isinstance(event_dict["content"],dict):
+                event_dict["content"]["password"] = '...'
+            elif isinstance(event_dict["content"],str):
+                re.sub(r'"password"\s*=\s*".*?"', '"password"="..."', event_dict["content"])
         elif event == "response" and "token" in content:
             token = content.split('"token":"')[1].split('"')[0]
             event_dict["content"] = content.replace(token, _replace_token(token))
