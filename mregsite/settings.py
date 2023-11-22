@@ -39,8 +39,8 @@ REQUESTS_LOG_LEVEL_VERY_SLOW = "CRITICAL"
 
 LOGGING_MAX_BODY_LENGTH = 3000
 
-LOG_FILE_SIZE = os.environ.get("MREG_LOG_FILE_SIZE", 10 * 1024 * 1024)
-LOG_FILE_COUNT = os.environ.get("MREG_LOG_FILE_COUNT", 5)
+LOG_FILE_SIZE = os.environ.get("MREG_LOG_FILE_SIZE", 50 * 1024 * 1024)
+LOG_FILE_COUNT = os.environ.get("MREG_LOG_FILE_COUNT", 10)
 LOG_FILE_NAME = os.path.join(
     BASE_DIR, os.environ.get("MREG_LOG_FILE_NAME", "logs/app.log")
 )
