@@ -329,3 +329,4 @@ if TESTING or "CI" in os.environ:
     NETWORK_ADMIN_GROUP = "default-networkadmin-group"
     HOSTPOLICYADMIN_GROUP = "default-hostpolicyadmin-group"
     DNS_WILDCARD_GROUP = "default-dns-wildcard-group"
+    DNS_UNDERSCORE_GROUP = "default-dns-underscore-group"

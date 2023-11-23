@@ -282,9 +282,24 @@ class Txts(HostBasePermissions):
 
 
 class Underscore(MregAPITestCase):
-    """Test that only superusers can create entries with an underscore."""
 
+    """Test that superusers can create entries with an underscore, but regular users can't."""
     def test_can_create_hostname_with_prefix_underscore(self):
+        data1 = {'name': '_host1.example.org', 'ipaddress': '10.0.0.1'}
+        data2 = {'name': 'host2._sub.example.org', 'ipaddress': '10.0.0.2'}
+        superuser_client = self.client
+        self.client = self.get_token_client(superuser=False)
+        self.assert_post_and_403('/hosts/', data1)
+        self.assert_post_and_403('/hosts/', data2)
+        self.client = superuser_client
+        self.assert_post('/hosts/', data1)
+        self.assert_post('/hosts/', data2)
+
+    """Members in DNS_UNDERSCORE_GROUP can create entries with an underscore."""
+    def test_special_group_members_create_underscore(self):
+        self.client = self.get_token_client(superuser=False, adminuser=True)
+        self.add_user_to_groups('DNS_UNDERSCORE_GROUP')
+        path = '/api/v1/hosts/'
         data1 = {'name': '_host1.example.org', 'ipaddress': '10.0.0.1'}
         data2 = {'name': 'host2._sub.example.org', 'ipaddress': '10.0.0.2'}
         self.assert_post('/hosts/', data1)
