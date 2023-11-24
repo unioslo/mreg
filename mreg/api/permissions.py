@@ -10,6 +10,7 @@ NETWORK_ADMIN_GROUP = 'NETWORK_ADMIN_GROUP'
 SUPERUSER_GROUP = 'SUPERUSER_GROUP'
 ADMINUSER_GROUP = 'ADMINUSER_GROUP'
 DNS_WILDCARD_GROUP = 'DNS_WILDCARD_GROUP'
+DNS_UNDERSCORE_GROUP = 'DNS_UNDERSCORE_GROUP'
 
 
 def get_settings_groups(group_setting_name):
@@ -134,9 +135,11 @@ def _deny_superuser_only_names(data=None, name=None, view=None, request=None):
             if 'host' in data:
                 name = data['host'].name
 
-    # Underscore is allowed for non-superuser in SRV records
+    # Underscore is allowed for non-superuser in SRV records,
+    # and for members of <DNS_UNDERSCORE_GROUP> in all records.
     if '_' in name and not isinstance(view, (mreg.api.v1.views.SrvDetail,
-                                             mreg.api.v1.views.SrvList)):
+                                             mreg.api.v1.views.SrvList)) \
+                   and not request_in_settings_group(request, DNS_UNDERSCORE_GROUP):
         return True
 
     # Except for super-users, only members of the DNS wildcard group can create wildcard records.
