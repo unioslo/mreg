@@ -1,7 +1,8 @@
 # mreg [![Build Status](https://github.com/unioslo/mreg/actions/workflows/test.yml/badge.svg)](https://github.com/unioslo/mreg/actions/workflows/test.yml) [![Container Status](https://github.com/unioslo/mreg/actions/workflows/container-image.yml/badge.svg)](https://github.com/unioslo/mreg/actions/workflows/container-image.yml) [![Coverage Status](https://coveralls.io/repos/github/unioslo/mreg/badge.svg?branch=master)](https://coveralls.io/github/unioslo/mreg?branch=master)
 mreg is an API (intended to be as RESTful as possible) for managing DNS.
+
 An associated project for a command line interface using the mreg API is available at:
-[mreg-cli](https://github.com/usit-gd/mreg-cli)
+[mreg-cli](https://github.com/unioslo/mreg-cli/)
 
 ## Getting Started
 
@@ -11,20 +12,23 @@ If you want to set up your own PostgreSQL server by installing the necessary pac
 
 ### Installing
 
-#### Using Docker.
+#### Using Docker
 
 Pre-built Docker images are available from [`ghcr.io/unioslo/mreg`](https://ghcr.io/unioslo/mreg):
-```
+
+```bash
 docker pull ghcr.io/unioslo/mreg
 ```
+
 You can also build locally, from the source:
-```
+
+```bash
 docker build -t mreg .
 ```
 
 It is expected that you mount a custom "mregsite" directory on /app/mregsite:
 
-```
+```bash
 docker run \
   --mount type=bind,source=$HOME/customsettings,destination=/app/mregsite,readonly \
   ghcr.io/unioslo/mreg:latest
@@ -33,7 +37,8 @@ docker run \
 To access application logs outside the container, also mount `/app/logs`.
 
 It is also possible to not mount a settings directory, and to supply database login details in environment variables instead, overriding the default values found in `mregsite/settings.py`.
-```
+
+```bash
 docker run --network host \
   -e MREG_DB_HOST=my_postgres_host -e MREG_DB_NAME=mreg -e MREG_DB_USER=mreg -e MREG_DB_PASSWORD=mreg \
   ghcr.io/unioslo/mreg:latest
@@ -43,36 +48,48 @@ For a full example, see `docker-compose.yml`.
 
 #### Manually
 
-##### A step by step series of examples that tell you how to get a development env running:
+[!TIP] Depending on your operating system, you may need to install additional packages to get the necessary dependencies for the project. At the very least you will probably require development packages for Python 3.
+
+##### A step by step
 
 Start by cloning the project from github. You need a terminal, `python3`, and access to a package manager that can install the necessary requirements from `requirements.txt`. We use pip.
 
 When you've got your copy of the mreg directory, setup you virtual environment:
-```
+
+```bash
 > python3 -m venv venv
 > source venv/bin/activate
 ```
+
 Then install the required packages:
-```
+
+```bash
 > pip install -r requirements.txt
 ```
+
 Perform database migrations:
-```
+
+```bash
 > python manage.py migrate
 ```
+
 Load sample data from fixtures into the now migrated database:
-```
+
+```bash
 > python manage.py loaddata mreg/fixtures/fixtures.json
 ```
+
 And finally, run the server:
-```
+
+```bash
 > python manage.py runserver
 ```
 
 You should now be able to open up a browser and go to http://localhost:8000/hosts/ and see
 a list of hosts provided by the sample data. Or, you could perform a GET request to see
 the returned data.
-```
+
+```bash
 > curl -X GET http://localhost:8000/hosts/
 [{"name":"ns1.uio.no"},{"name":"ns2.uio.no"},{"name":"lucario.uio.no"},{"name":"stewie.uio.no"},{"name":"vepsebol.uio.no"}
 ```
@@ -80,26 +97,18 @@ the returned data.
 ## Running the tests
 
 To run the tests for the system, simply run
-```
+
+```bash
 > python manage.py test
 ```
 
-
-## Built With
-
-* [Django](https://www.djangoproject.com/)
-* [Django Rest Framework](http://www.django-rest-framework.org/)
-* [pip](https://pypi.org/project/pip/) - Dependency Management
-
-### Additional modules
-#### Logging
-* [django-logging](https://github.com/cipriantarta/django-logging)
-
 ## Local Settings
-To override entries in mregsite/settings.py, create a file mregsite/local_settings.py and add the entries there.
-For example, the default database setup in settings.py uses sqlite3, but if you set up your postgres database
-you'll want to override this when testing. To to this, just add the following to your local_settings.py file:
-```
+
+To override entries in `mregsite/settings.py`, create a file `mregsite/local_settings.py` and add the entries there.
+For example, the default database setup in `settings.py` uses sqlite3, but if you set up your postgres database
+you'll want to override this when testing. To to this, just add the following to your `local_settings.py` file:
+
+```python
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
@@ -112,6 +121,26 @@ DATABASES = {
 ```
 
 ## Contributing
+
+Patches and PRs are welcome. However, there are a number of intricacies in both code structure and internal
+expectations, so you should probably get in touch with the project maintainers before you start working on
+anything major. If in doubt, open an issue to start a discussion.
+
+## Reference material
+
+* [NS, 1](http://help.dnsmadeeasy.com/managed-dns/dns-record-types/ns-record/)
+* [NS, 2](https://www.digitalocean.com/community/questions/what-is-the-point-of-the-ns-records)
+* [SOA](https://en.wikipedia.org/wiki/SOA_record)
+* [A](https://en.wikipedia.org/wiki/List_of_DNS_record_types#A) / [AAAA](https://en.wikipedia.org/wiki/IPv6_address#Domain_Name_System)
+* [CNAME](https://en.wikipedia.org/wiki/CNAME_record)
+* [PTR](https://en.wikipedia.org/wiki/List_of_DNS_record_types#PTR)
+* [HINFO](https://en.wikipedia.org/wiki/List_of_DNS_record_types#HINFO)
+* [NAPTR](https://en.wikipedia.org/wiki/NAPTR_record)
+* [SRV](https://en.wikipedia.org/wiki/SRV_record)
+* [TXT](https://en.wikipedia.org/wiki/TXT_record)
+* [LOC](https://en.wikipedia.org/wiki/LOC_record)
+* [Other DNS record types](https://en.wikipedia.org/wiki/List_of_DNS_record_types)
+* [Telephone number mapping/ENUM](https://en.wikipedia.org/wiki/Telephone_number_mapping)
 
 ## Authors
 
@@ -127,123 +156,11 @@ DATABASES = {
 * **Tannaz Roshandel**
 * **Terje Kvernes**
 
-
 ## License
 
 This project is licensed under the GPL-3.0 License - see the [LICENSE.md](LICENSE.md) file for details
 
 ## Acknowledgments
 
-=================================================
-
-## Grunnlag for prosjektet:
-
-#### [Kravspec for MREG fra hostmaster](https://www.usit.uio.no/om/organisasjon/iti/gd/doc/hostmaster/mreg-krav.html)
-
-#### [Spesifikasjon for Hostpolicy-modulen](http://www.usit.uio.no/om/tjenestegrupper/cerebrum/utvikling/dokumentasjon/dns/hostpolicy.html)
-
-#### [Kort om dnsinfo ved USIT](https://www.usit.uio.no/om/organisasjon/iti/gd/doc/hostmaster/dnsinfo-dok.html)
-
-### Dokumentasjon(kravspesifikasjon):
-
-#### [API](API.md)
-
-### Nyttige lenker:
-
-##### Typer DNS-records
-- [SOA](https://en.wikipedia.org/wiki/SOA_record),
-[NS (1)](http://help.dnsmadeeasy.com/managed-dns/dns-record-types/ns-record/)
-[(2)](https://www.digitalocean.com/community/questions/what-is-the-point-of-the-ns-records)
-- [A](https://en.wikipedia.org/wiki/List_of_DNS_record_types#A) /
-[AAAA](https://en.wikipedia.org/wiki/IPv6_address#Domain_Name_System),
- [CNAME](https://en.wikipedia.org/wiki/CNAME_record),
- [PTR](https://en.wikipedia.org/wiki/List_of_DNS_record_types#PTR),
- [HINFO](https://en.wikipedia.org/wiki/List_of_DNS_record_types#HINFO)
-- [NAPTR](https://en.wikipedia.org/wiki/NAPTR_record),
-[SRV](https://en.wikipedia.org/wiki/SRV_record),
-[telefonnr-mapping/ENUM](https://en.wikipedia.org/wiki/Telephone_number_mapping)
-- [TXT](https://en.wikipedia.org/wiki/TXT_record)
-- [LOC](https://en.wikipedia.org/wiki/LOC_record)
-- [andre typer](https://en.wikipedia.org/wiki/List_of_DNS_record_types)
-
-
-
-#### Setup av sample-database i postgres (tar utgangspunkt i Fedora og python3)
-Trenger pakkene 'postgresql', 'postgresql-server', deretter initialiserer vi
-databaseclusteret og bygger sampledatabasen fra samples/sample_data_dump
-- Antar root
-```
-dnf update
-dnf install postgresql postgresql-server
-postgresql-setup --initdb
-service postgresql start
-```
-Nå som postgresql er oppe og går, trenger vi å klone (ev. forke) git-repoet
-og sette opp databasen med psql
-```
-dnf install git
-git clone git@github.com:usit-gd/mreg.git
-cp mreg/samples/sample_data_dump /tmp
-su - postgres
-psql -f /tmp/sample_data_dump postgres
-```
-Etter at dette har kjørt, er det på tide å få på plass ymse django dependencies.
-I repoet ligger det en fil 'requirements.txt' som inneholder alle pakkene som trengs for å sette i gang.
-Før den filen kommer til nytte, må vi ha på plass en package-manager for python som kan lese den. Her bruker vi pip.
-I tillegg setter vi opp et virtual environment for python-pakkene, så de ikke interagerer med eventuelt andre pakker som
-må være installert på systemet. Det kan python3 selv sette opp med 'venv'-kommandoen sammen med -m flagget.
-Her legger vi virtual-environmentet i mappen 'venv' inni repoet.
-```
-dnf install python-pip
-python3 -m venv venv
-source venv/bin/activate
-pip3 install -r requirements.txt
-```
-For at django skal connecte til lokal database, og for å kunne gjøre testing lokalt uten å måtte gjøre endringer
-i djangos settings-filer, kan man opprette en fil 'local_settings.py' i mappen 'mregsite'.
-Djangos egen settings.py leter gjennom denne filen etter definisjoner som overskriver djangos egne.
-For å connecte til lokal database kan man legge inn følgende:
-```
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'mreg_sample',
-        'USER': 'mreg_user',
-        'PASSWORD': 'mregdbpass',
-        'HOST': 'localhost',
-    }
-}
-
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': 'mreg_sample',
-#     }
-# }
-```
-Den utkommenterte DATABASES definisjonen brukes gjerne for å kjøre tester når man endrer noe i datamodellene,
-så slipper man å kjøre migreringer til ekstern database etc. før man vet at det funker.
-For at django skal få connecta til databasen må vi inn i en config-fil og gjøre et par små endringer.
-I filen '/var/lib/pgsql/data/pg_hba.conf' må 'METHOD' for IPv4 og IPv6 local connections endres fra 'ident' til 'md5',
-slik at den bruke passordautentisering. (Linjene er i bunn av filen)
-```
-# TYPE  DATABASE        USER            ADDRESS                 METHOD
-
-# "local" is for Unix domain socket connections only
-local   all             all                                     peer
-# IPv4 local connections:
-host    all             all             127.0.0.1/32            ident
-# IPv6 local connections:
-host    all             all             ::1/128                 ident
-```
-postgresql må restartes for at endringen skal tre i kraft
-```
-sudo service postgresql restart
-```
-Start django-serveren ved å kjøre
-```
-python manage.py runserver
-```
-psycopg2-pakken vil antagelig mase litt om en kommende rename. Det vil bli tatt høyde for senere.
-Du skal nå kunne gå til en browser og videre til http://localhost:8000/ressurs/
-for å bl.a se på hva API'et har av info, der 'ressurs' er f.eks 'hosts' eller 'subnets'.
+* [Django](https://www.djangoproject.com/)
+* [Django Rest Framework](http://www.django-rest-framework.org/)
