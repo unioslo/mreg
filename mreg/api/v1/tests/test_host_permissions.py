@@ -299,7 +299,6 @@ class Underscore(MregAPITestCase):
     def test_special_group_members_create_underscore(self):
         self.client = self.get_token_client(superuser=False, adminuser=True)
         self.add_user_to_groups('DNS_UNDERSCORE_GROUP')
-        path = '/api/v1/hosts/'
         data1 = {'name': '_host1.example.org', 'ipaddress': '10.0.0.1'}
         data2 = {'name': 'host2._sub.example.org', 'ipaddress': '10.0.0.2'}
         self.assert_post('/hosts/', data1)

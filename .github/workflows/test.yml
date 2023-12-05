@@ -3,6 +3,7 @@ on:
     paths-ignore:
       - 'ci/**'
       - 'README.md'
+
   pull_request:
     types: [opened, reopened, synchronize]
   workflow_dispatch:
@@ -31,11 +32,11 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         python-version:
-          - '3.7'
-          - '3.8'
-          - '3.9'
-          - '3.10'
-          - '3.11'
+          - "3.7"
+          - "3.8"
+          - "3.9"
+          - "3.10"
+          - "3.11"
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -57,16 +58,17 @@ jobs:
           # Needed to build the native python-ldap extension.
           sudo apt-get update
           sudo apt-get -y install libsasl2-dev libldap2-dev
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
+          python -m pip install --upgrade pip
+          python -m pip install tox tox-gh-actions
+          python -m pip install -r requirements-test.txt
+      - name: Test with tox
+        run: tox -r
+        env:
+          MREG_DB_PASSWORD: postgres
       - name: Check migrations
         run: python manage.py makemigrations --check
       - name: Export OpenAPI schema
         run: python manage.py generateschema > openapi.yml
-      - name: Test
-        run: coverage run manage.py test -v2
-        env:
-          MREG_DB_PASSWORD: postgres
       - name: Upload OpenAPI schema
         if: matrix.python-version == '3.10'
         uses: actions/upload-artifact@v3
@@ -88,11 +90,11 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         python-version:
-          - '3.7'
-          - '3.8'
-          - '3.9'
-          - '3.10'
-          - '3.11'
+          - "3.7"
+          - "3.8"
+          - "3.9"
+          - "3.10"
+          - "3.11"
     steps:
       - name: Checkout
         uses: actions/checkout@v3

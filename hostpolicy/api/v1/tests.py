@@ -100,6 +100,27 @@ class HostPolicyAtomTestCase(HostPolicyRoleTestCase):
         post_data = {"name": "orange", "description": "Round and orange", "create_date": "2018-07-07"}
         self.assert_post('/api/v1/hostpolicy/atoms/', post_data)
 
+    def test_get_atoms_200_ok(self):
+        """Getting an existing entry should return 200"""
+        self.assert_get('/api/v1/hostpolicy/atoms/testatom1')
+        ret1 = self.assert_get('/api/v1/hostpolicy/atoms/?name=testatom1')
+        self.assertEqual(ret1.json()['count'], 1)
+        self.assertEqual(ret1.json()['results'][0]['name'], 'testatom1')
+
+        ret2 = self.assert_get('/api/v1/hostpolicy/atoms/')
+        self.assertEqual(ret2.json()['count'], 2)
+
+    def test_get_atoms_filtered_200_ok(self):
+        """Test filtering on atoms"""
+        ret2 = self.assert_get('/api/v1/hostpolicy/atoms/?name=testatom2')
+        self.assertEqual(ret2.json()['count'], 1)
+
+        ret2 = self.assert_get('/api/v1/hostpolicy/atoms/?name__contains=testatom2')
+        self.assertEqual(ret2.json()['count'], 1)
+
+        ret2 = self.assert_get('/api/v1/hostpolicy/atoms/?name__regex=.*testatom2.*')
+        self.assertEqual(ret2.json()['count'], 1)
+
 
 class HostPolicyAdminRights(MregAPITestCase):
     """Test that all of the API for HostPolicy are available for the admin group

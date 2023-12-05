@@ -92,17 +92,18 @@ LDAP_GROUP_RE = r"""^cn=(?P<group_name>[\w\-]+),cn=netgroups,"""
 # Application definition
 
 INSTALLED_APPS = [
-    "django.contrib.admin",
-    "django.contrib.auth",
-    "django.contrib.contenttypes",
-    "django.contrib.sessions",
-    "django.contrib.messages",
-    "django.contrib.staticfiles",
-    "rest_framework",
-    "rest_framework.authtoken",
-    "netfields",
-    "mreg",
-    "hostpolicy",
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    'rest_framework',
+    'rest_framework.authtoken',
+    'django_filters',
+    'netfields',
+    'mreg',
+    'hostpolicy',
 ]
 
 MIDDLEWARE = [
@@ -197,9 +198,15 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "mreg.authentication.ExpiringTokenAuthentication",
     ),
-    "DEFAULT_PAGINATION_CLASS": "mreg.api.v1.pagination.StandardResultsSetPagination",
-    "DEFAULT_PERMISSION_CLASSES": ("mreg.api.permissions.IsAuthenticatedAndReadOnly",),
-    "DEFAULT_SCHEMA_CLASS": "rest_framework.schemas.openapi.AutoSchema",
+    'DEFAULT_FILTER_BACKENDS': (
+        'django_filters.rest_framework.DjangoFilterBackend',
+    ),
+    'DEFAULT_PAGINATION_CLASS':
+        'mreg.api.v1.pagination.StandardResultsSetPagination',
+    'DEFAULT_PERMISSION_CLASSES': (
+        'mreg.api.permissions.IsAuthenticatedAndReadOnly',
+    ),
+    'DEFAULT_SCHEMA_CLASS': 'rest_framework.schemas.openapi.AutoSchema',
 }
 
 REST_FRAMEWORK_EXTENSIONS = {
