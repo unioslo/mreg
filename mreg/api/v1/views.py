@@ -37,6 +37,7 @@ from .serializers import (CnameSerializer, HinfoSerializer,
                           PtrOverrideSerializer, SrvSerializer,
                           SshfpSerializer, TxtSerializer)
 
+from mreg.mixins import LowerCaseLookupMixin
 
 # These filtersets are used for applying generic filtering to all objects.
 class CnameFilterSet(ModelFilterSet):
@@ -271,6 +272,7 @@ class CnameList(HostPermissionsListCreateAPIView):
 
 
 class CnameDetail(HostPermissionsUpdateDestroy,
+                  LowerCaseLookupMixin,
                   MregRetrieveUpdateDestroyAPIView):
     """
     get:
@@ -304,6 +306,7 @@ class HinfoList(HostPermissionsListCreateAPIView):
 
 
 class HinfoDetail(HostPermissionsUpdateDestroy,
+                  LowerCaseLookupMixin,
                   MregRetrieveUpdateDestroyAPIView):
     """
     get:
@@ -409,6 +412,7 @@ class HostList(HostPermissionsListCreateAPIView):
 
 
 class HostDetail(HostPermissionsUpdateDestroy,
+                 LowerCaseLookupMixin,
                  MregRetrieveUpdateDestroyAPIView):
     """
     get:
