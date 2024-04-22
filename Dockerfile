@@ -1,5 +1,5 @@
 # build stage
-FROM python:3.10-alpine as builder
+FROM python:3.11-alpine as builder
 WORKDIR /usr/src/mreg
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
@@ -11,7 +11,7 @@ COPY requirements*.txt ./
 RUN pip wheel --no-cache-dir --wheel-dir /usr/src/mreg/wheels -r requirements.txt
 
 # final stage
-FROM alpine:3.17
+FROM alpine:3.18
 EXPOSE 8000
 
 COPY requirements*.txt entrypoint* manage.py /app/
