@@ -4,8 +4,6 @@ on:
     paths-ignore:
       - 'ci/**'
       - 'README.md'
-  schedule:
-    - cron: '40 08 * * 1'  # Run every week to get updated dependencies.
   pull_request:
     types: [opened, reopened, synchronize]
   workflow_dispatch:
@@ -16,13 +14,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     - name: Docker build
       run: docker build -t mreg .
     - name: Save image
       run: docker save mreg | gzip > mreg.tgz
     - name: Upload artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: mreg
         path: mreg.tgz
@@ -47,10 +45,8 @@ jobs:
           # Map the containerized port to localhost.
           - 5432:5432
     steps:
-    - name: Checkout
-      uses: actions/checkout@v3
     - name: Download artifact
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: mreg
     - name: Load image
@@ -67,7 +63,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Download artifact
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: mreg
     - name: Load container image
@@ -77,7 +73,7 @@ jobs:
       # but we want to use the newly built custom image
       run: docker tag mreg ghcr.io/unioslo/mreg:latest
     - name: Setup Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: 3.11
     - name: Install mreg-cli
@@ -90,7 +86,7 @@ jobs:
     - name: Run the tests
       run: mreg-cli-master/ci/run_testsuite_and_record.sh
     - name: Upload the log as an artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: new_testsuite_log.json
         path: mreg-cli-master/ci/new_testsuite_log.json
@@ -116,7 +112,7 @@ jobs:
           - 5432:5432
     steps:
     - name: Download artifact
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: mreg
     - name: Load container image
@@ -148,8 +144,8 @@ jobs:
 
   publish:
     name: Publish
-    # only publish the image if this event was triggered on the master branch, and not by a pull request
-    if: ${{ github.ref == 'refs/heads/master' && github.event_name != 'pull_request' }}
+    # only publish the image if this event was triggered by a version tag
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: [test, mreg-cli, test-with-curl]
     runs-on: ubuntu-latest
     permissions:
@@ -157,7 +153,7 @@ jobs:
       contents: read
     steps:
     - name: Download artifact
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: mreg
     - name: Load image
