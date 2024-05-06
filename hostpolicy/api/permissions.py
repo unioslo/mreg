@@ -30,6 +30,11 @@ class IsSuperOrHostPolicyAdminOrReadOnly(IsAuthenticated):
         if is_super_or_hostpolicy_admin(request.user):
             return True
 
+        # Handle the (possible) absence of 'name' during schema generation
+        name = view.kwargs.get('name')
+        if name is None: # pragma: no cover
+            return False
+
         # Is this request about atoms or something else that isn't a role?
         # In that case, non-admin-users shouldn't have access anyway, and we can deny the request.
         if not (view.__class__.__name__ == 'HostPolicyRoleHostsDetail' or
@@ -37,17 +42,18 @@ class IsSuperOrHostPolicyAdminOrReadOnly(IsAuthenticated):
             return False
 
         # Find out which labels are attached to this role
-        role_labels = HostPolicyRole.objects.filter(name=view.kwargs['name']).values_list('labels__name', flat=True)
+        role_labels = HostPolicyRole.objects.filter(name=name).values_list('labels__name', flat=True)
         if not any(role_labels):
             # if the role doesn't have any labels, there's no possibility of access at this point
             return False
 
         # Find all the NetGroupRegexPermission objects that correspond with
         # the ipaddress, hostname, and the groups that the user is a member of
-        if 'host' in view.kwargs:
-            hostname = view.kwargs['host']
-        else:
-            hostname = request.data.get("name")
+        # Also, ensure that the hostname is not empty.
+        hostname = view.kwargs.get('host', request.data.get("name"))
+        if not hostname: # pragma: no cover
+            return False
+
         ips = list(Host.objects.filter(
                         name=hostname
                     ).exclude(
