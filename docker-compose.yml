@@ -15,6 +15,9 @@ services:
        timeout: 5s
        retries: 5
        start_period: 5s
+    # Uncomment this if you want a persistent database
+    # volumes:
+    #   - ./postgres-data:/var/lib/postgresql/data
 
   # Uncomment this if you want a RabbitMQ server to send events to. See also MQ config in settings.py
   # rabbitmq:
@@ -28,7 +31,8 @@ services:
         condition: service_healthy
       #rabbitmq:
       #  condition: service_started
-    build: .
+    #build: .
+    image: mreg
     ports:
       - 8000:8000
     environment:
@@ -36,3 +40,8 @@ services:
       - MREG_DB_NAME=mreg
       - MREG_DB_USER=mreg
       - MREG_DB_PASSWORD=mreg
+      - MREG_LOG_LEVEL=INFO
+      - CI=yes
+    volumes:
+      - /mnt/oyvind/mreg/mregsite:/app/mregsite
+      - /mnt/oyvind/mreg/logs:/app/logs
