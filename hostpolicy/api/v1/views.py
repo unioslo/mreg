@@ -2,7 +2,7 @@ from django.db.models import Prefetch
 from rest_framework import status
 from rest_framework.response import Response
 
-from url_filter.filtersets import ModelFilterSet
+from django_filters import rest_framework as rest_filters
 
 from hostpolicy.models import HostPolicyAtom, HostPolicyRole
 from hostpolicy.api.permissions import IsSuperOrHostPolicyAdminOrReadOnly
@@ -20,15 +20,29 @@ from mreg.models.host import Host
 from . import serializers
 
 
-class HostPolicyAtomFilterSet(ModelFilterSet):
+# We can't use fields = '__all__' due to our use of LCI-fields:
+# https://github.com/unioslo/mreg/issues/489#issuecomment-1610209358
+# For the HostPolicyAtom model, this applies to the field "name"
+class HostPolicyAtomFilterSet(rest_filters.FilterSet):
     class Meta:
         model = HostPolicyAtom
+        fields = {
+            'name': ['exact', 'regex', 'contains'],
+        }
 
 
-class HostPolicyRoleFilterSet(ModelFilterSet):
+# We can't use fields = '__all__' due to our use of LCI-fields:
+# https://github.com/unioslo/mreg/issues/489#issuecomment-1610209358
+# For the HostPolicyRole model, this applies to the field "name"
+class HostPolicyRoleFilterSet(rest_filters.FilterSet):
     class Meta:
         model = HostPolicyRole
-
+        fields = {
+            'name': ['exact', 'regex', 'contains'],
+            'atoms__name': ['exact', 'regex', 'contains'],
+            'hosts__name': ['exact', 'regex', 'contains'],
+            'labels__name': ['exact', 'regex', 'contains'],
+        }
 
 class HostPolicyAtomLogMixin(HistoryLog):
 
@@ -61,10 +75,7 @@ class HostPolicyAtomList(HostPolicyAtomLogMixin, MregListCreateAPIView):
     serializer_class = serializers.HostPolicyAtomSerializer
     permission_classes = (IsSuperOrHostPolicyAdminOrReadOnly, )
     lookup_field = 'name'
-
-    def get_queryset(self):
-        qs = super().get_queryset()
-        return HostPolicyRoleFilterSet(data=self.request.GET, queryset=qs).filter()
+    filterset_class = HostPolicyAtomFilterSet
 
     def post(self, request, *args, **kwargs):
         if "name" in request.data:
@@ -96,10 +107,7 @@ class HostPolicyRoleList(HostPolicyRoleLogMixin, MregListCreateAPIView):
     serializer_class = serializers.HostPolicyRoleSerializer
     permission_classes = (IsSuperOrHostPolicyAdminOrReadOnly, )
     lookup_field = 'name'
-
-    def get_queryset(self):
-        qs = _role_prefetcher(super().get_queryset())
-        return HostPolicyRoleFilterSet(data=self.request.GET, queryset=qs).filter()
+    filterset_class = HostPolicyRoleFilterSet
 
     def post(self, request, *args, **kwargs):
         if "name" in request.data:
