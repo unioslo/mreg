@@ -38,9 +38,6 @@ class CnameFilterSet(filters.FilterSet):
         fields = "__all__"
 
 
-# Not that due to the email field being a CIEmailField, filtering on it
-# with lookups (email__contains=..., email__regex=..., etc) won't work.
-# This field is inherited from BaseZone.
 class ForwardZoneFilterSet(filters.FilterSet):
     class Meta:
         model = ForwardZone
@@ -73,19 +70,10 @@ class HostFilterSet(filters.FilterSet):
         fields = "__all__"
 
 
-# We can't use fields = '__all__' due to our use of LCI-fields:
-# https://github.com/unioslo/mreg/issues/489#issuecomment-1610209358
-# For the HostGroup model, this applies to the field "name"
 class HostGroupFilterSet(filters.FilterSet):
     class Meta:
         model = HostGroup
-        fields = {
-            "name": ["exact", "regex", "contains"],
-            "description": ["exact", "regex", "contains"],
-            "owners__name": ["exact", "regex", "contains"],
-            "parent__name": ["exact", "regex", "contains"],
-            "hosts__name": ["exact", "regex", "contains"],
-        }
+        fields = "__all__"
 
 
 class IpaddressFilterSet(filters.FilterSet):
@@ -94,16 +82,10 @@ class IpaddressFilterSet(filters.FilterSet):
         fields = "__all__"
 
 
-# We can't use fields = '__all__' due to our use of LCI-fields:
-# https://github.com/unioslo/mreg/issues/489#issuecomment-1610209358
-# For the Label model, this applies to the field "name"
 class LabelFilterSet(filters.FilterSet):
     class Meta:
         model = Label
-        fields = {
-            "name": ["exact", "regex", "contains"],
-            "description": ["exact", "regex", "contains"],
-        }
+        fields = "__all__"
 
 
 class LocFilterSet(filters.FilterSet):
@@ -174,21 +156,10 @@ class ReverseZoneDelegationFilterSet(filters.FilterSet):
         model = ReverseZoneDelegation
         fields = "__all__"
 
-# We can't use fields = '__all__' due to our use of LCI-fields:
-# https://github.com/unioslo/mreg/issues/489#issuecomment-1610209358
-# For the Srv model, this applies to the field "name"
-
 class SrvFilterSet(filters.FilterSet):
     class Meta:
         model = Srv
-        fields = {
-            "name": ["exact", "contains", "regex"],
-            "priority": ["exact", "lt", "gt"],
-            "weight": ["exact", "lt", "gt"],
-            "port": ["exact", "lt", "gt"],
-            "ttl": ["exact", "lt", "gt"],
-            "host__name": ["exact", "contains", "regex"],
-        }
+        fields = "__all__"
 
 
 class SshfpFilterSet(filters.FilterSet):
