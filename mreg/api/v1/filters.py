@@ -139,9 +139,6 @@ class PtrOverrideFilterSet(filters.FilterSet):
         model = PtrOverride
         fields = "__all__"
 
-# Not that due to the email field being a CIEmailField, filtering on it
-# with lookups (email__contains=..., email__regex=..., etc) won't work.
-# This field is inherited from BaseZone.
 
 class ReverseZoneFilterSet(filters.FilterSet):
     network = CIDRFieldExactFilter(field_name="network")

@@ -20,30 +20,26 @@ from mreg.models.host import Host
 
 from . import serializers
 
+# For some reason the name field for filtersets for HostPolicyAtom and HostPolicyRole does
+# not support operators (e.g. __contains, __regex) in the same way as other fields. Yes,
+# the name field is a LowerCaseCharField, but the operators work fine in mreg proper.
+# To resolve this issue, we create custom fields for the filtersets that use the name field.
 
-# We can't use fields = '__all__' due to our use of LCI-fields:
-# https://github.com/unioslo/mreg/issues/489#issuecomment-1610209358
-# For the HostPolicyAtom model, this applies to the field "name"
 class HostPolicyAtomFilterSet(rest_filters.FilterSet):
+    name__contains = rest_filters.CharFilter(field_name="name", lookup_expr="contains")
+    name__regex = rest_filters.CharFilter(field_name="name", lookup_expr="regex")
+
     class Meta:
         model = HostPolicyAtom
-        fields = {
-            'name': ['exact', 'regex', 'contains'],
-        }
+        fields = "__all__"
 
 
-# We can't use fields = '__all__' due to our use of LCI-fields:
-# https://github.com/unioslo/mreg/issues/489#issuecomment-1610209358
-# For the HostPolicyRole model, this applies to the field "name"
 class HostPolicyRoleFilterSet(rest_filters.FilterSet):
+    name__contains = rest_filters.CharFilter(field_name="name", lookup_expr="contains")
+    name__regex = rest_filters.CharFilter(field_name="name", lookup_expr="regex")
     class Meta:
         model = HostPolicyRole
-        fields = {
-            'name': ['exact', 'regex', 'contains'],
-            'atoms__name': ['exact', 'regex', 'contains'],
-            'hosts__name': ['exact', 'regex', 'contains'],
-            'labels__name': ['exact', 'regex', 'contains'],
-        }
+        fields = "__all__"
 
 class HostPolicyAtomLogMixin(HistoryLog):
 
