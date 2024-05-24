@@ -118,6 +118,9 @@ class HostPolicyAtomTestCase(HostPolicyRoleTestCase):
         ret2 = self.assert_get('/api/v1/hostpolicy/atoms/?name=testatom2')
         self.assertEqual(ret2.json()['count'], 1)
 
+        ret2 = self.assert_get('/api/v1/hostpolicy/atoms/?name=dontexist')
+        self.assertEqual(ret2.json()['count'], 0)
+
         ret2 = self.assert_get('/api/v1/hostpolicy/atoms/?name__contains=testatom2')
         self.assertEqual(ret2.json()['count'], 1)
 
