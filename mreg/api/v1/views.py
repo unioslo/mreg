@@ -343,13 +343,13 @@ class HostList(HostPermissionsListCreateAPIView):
                     ipdata = {"host": host.pk, "ipaddress": ipkey}
                     ip = Ipaddress()
                     ipserializer = IpaddressSerializer(ip, data=ipdata)
-                    if ipserializer.is_valid(raise_exception=True):
-                        self.perform_create(ipserializer)
-                        location = request.path + host.name
-                        return Response(
-                            status=status.HTTP_201_CREATED,
-                            headers={"Location": location},
-                        )
+                    ipserializer.is_valid(raise_exception=True)
+                    self.perform_create(ipserializer)
+                    location = request.path + host.name
+                    return Response(
+                        status=status.HTTP_201_CREATED,
+                        headers={"Location": location},
+                    )
         else:
             host = Host()
             hostserializer = HostSerializer(host, data=hostdata)
