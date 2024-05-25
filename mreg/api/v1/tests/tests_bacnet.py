@@ -52,14 +52,14 @@ class BACnetIDTest(MregAPITestCase):
         response = self.assert_post(self.basepath, post_data)
         response = self.assert_get(response['Location'])
         self.assertIn('id', response.data)
-        self.assertEquals(response.data['host'], self.host_two.id)
+        self.assertEqual(response.data['host'], self.host_two.id)
 
     def test_post_with_hostname_instead_of_id(self):
         post_data = {'hostname': self.host_two.name}
         response = self.assert_post(self.basepath, post_data)
         response = self.assert_get(response['Location'])
         self.assertIn('id', response.data)
-        self.assertEquals(response.data['host'], self.host_two.id)
+        self.assertEqual(response.data['host'], self.host_two.id)
 
     def test_post_without_host_400(self):
         """Posting a new entry without specifying a host should return 400 bad request"""
