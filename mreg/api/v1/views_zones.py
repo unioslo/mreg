@@ -7,6 +7,7 @@ from django.shortcuts import get_object_or_404
 from rest_framework import (generics, renderers, status)
 from rest_framework.decorators import (api_view, renderer_classes)
 from rest_framework.exceptions import ParseError
+from rest_framework.request import Request
 from rest_framework.response import Response
 
 from mreg.models.base import NameServer
@@ -72,13 +73,16 @@ class ZoneList(generics.ListCreateAPIView):
         qs = super().get_queryset()
         return self.filterset(data=self.request.GET, queryset=qs).qs
 
-    def post(self, request, *args, **kwargs):
+    def post(self, request: Request, *args, **kwargs):
         qs = self.get_queryset()
         if qs.filter(name=request.data["name"]).exists():
             content = {'ERROR': 'Zone name already in use'}
             return Response(content, status=status.HTTP_409_CONFLICT)
         # A copy is required since the original is immutable
-        nameservers = request.data.getlist('primary_ns')
+        if request.content_type == "application/x-www-form-urlencoded":
+            nameservers = request.data.getlist("primary_ns")
+        else:
+            nameservers = request.data["primary_ns"]
         _validate_nameservers(nameservers)
         data = request.data.copy()
         data['primary_ns'] = nameservers[0]
@@ -121,13 +125,16 @@ class ZoneDelegationList(generics.ListCreateAPIView):
         self.queryset = self.parentzone.delegations.all().order_by('id')
         return self.filterset(data=self.request.GET, queryset=self.queryset).qs
 
-    def post(self, request, *args, **kwargs):
+    def post(self, request: Request, *args, **kwargs):
         qs = self.get_queryset()
         if qs.filter(name=request.data[self.lookup_field]).exists():
             content = {'ERROR': 'Zone name already in use'}
             return Response(content, status=status.HTTP_409_CONFLICT)
 
-        nameservers = request.data.getlist('nameservers')
+        if request.content_type == "application/x-www-form-urlencoded":
+            nameservers = request.data.getlist("nameservers")
+        else:
+            nameservers = request.data["nameservers"]
         _validate_nameservers(nameservers)
         data = request.data.copy()
         data['zone'] = self.parentzone.pk
@@ -292,14 +299,17 @@ class ZoneNameServerDetail(MregRetrieveUpdateDestroyAPIView):
         zone = self.get_object()
         return Response([ns.name for ns in zone.nameservers.all()], status=status.HTTP_200_OK)
 
-    def patch(self, request, *args, **kwargs):
+    def patch(self, request: Request, *args, **kwargs):
         if 'primary_ns' not in request.data:
             return Response({'ERROR': 'No nameserver found in body'}, status=status.HTTP_400_BAD_REQUEST)
         zone = self.get_object()
-        nameservers = request.data.getlist('primary_ns')
+        if request.content_type == "application/x-www-form-urlencoded":
+            nameservers = request.data.getlist("primary_ns")
+        else:
+            nameservers = request.data["primary_ns"]
         _validate_nameservers(nameservers)
         zone.update_nameservers(nameservers)
-        zone.primary_ns = request.data.getlist('primary_ns')[0]
+        zone.primary_ns = nameservers[0]
         zone.updated = True
         self.perform_update(zone)
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': request.path})
