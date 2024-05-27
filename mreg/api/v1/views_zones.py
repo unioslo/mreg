@@ -79,10 +79,10 @@ class ZoneList(generics.ListCreateAPIView):
             content = {'ERROR': 'Zone name already in use'}
             return Response(content, status=status.HTTP_409_CONFLICT)
         # A copy is required since the original is immutable
-        if request.content_type == "application/x-www-form-urlencoded":
-            nameservers = request.data.getlist("primary_ns")
-        else:
+        if request.content_type == "application/json":
             nameservers = request.data["primary_ns"]
+        else:
+            nameservers = request.data.getlist("primary_ns")
         _validate_nameservers(nameservers)
         data = request.data.copy()
         data['primary_ns'] = nameservers[0]
@@ -131,10 +131,10 @@ class ZoneDelegationList(generics.ListCreateAPIView):
             content = {'ERROR': 'Zone name already in use'}
             return Response(content, status=status.HTTP_409_CONFLICT)
 
-        if request.content_type == "application/x-www-form-urlencoded":
-            nameservers = request.data.getlist("nameservers")
-        else:
+        if request.content_type == "application/json":
             nameservers = request.data["nameservers"]
+        else:
+            nameservers = request.data.getlist("nameservers")
         _validate_nameservers(nameservers)
         data = request.data.copy()
         data['zone'] = self.parentzone.pk
@@ -303,10 +303,10 @@ class ZoneNameServerDetail(MregRetrieveUpdateDestroyAPIView):
         if 'primary_ns' not in request.data:
             return Response({'ERROR': 'No nameserver found in body'}, status=status.HTTP_400_BAD_REQUEST)
         zone = self.get_object()
-        if request.content_type == "application/x-www-form-urlencoded":
-            nameservers = request.data.getlist("primary_ns")
-        else:
+        if request.content_type == "application/json":
             nameservers = request.data["primary_ns"]
+        else:
+            nameservers = request.data.getlist("primary_ns")
         _validate_nameservers(nameservers)
         zone.update_nameservers(nameservers)
         zone.primary_ns = nameservers[0]
