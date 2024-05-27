@@ -19,7 +19,7 @@ class LabelList(MregListCreateAPIView):
 
     def post(self, request, *args, **kwargs):
         if "name" in request.data:
-            if self.get_queryset().filter(name=request.data["name"]).exists():
+            if self.get_queryset().filter(name=request.data["name"].lower()).exists():
                 content = {"ERROR": "Label name already in use"}
                 return Response(content, status=status.HTTP_409_CONFLICT)
         self.lookup_field = "name"
@@ -43,8 +43,9 @@ class LabelDetail(LowerCaseLookupMixin, MregRetrieveUpdateDestroyAPIView):
     permission_classes = (IsSuperOrAdminOrReadOnly,)
 
 
-class LabelDetailByName(MregRetrieveUpdateDestroyAPIView):
+class LabelDetailByName(LowerCaseLookupMixin, MregRetrieveUpdateDestroyAPIView):
     queryset = Label.objects.all()
     serializer_class = serializers.LabelSerializer
     permission_classes = (IsSuperOrAdminOrReadOnly,)
+    filterset_class = LabelFilterSet
     lookup_field = "name"
