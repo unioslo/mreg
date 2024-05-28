@@ -1,3 +1,4 @@
+from typing import List
 import django.core.exceptions
 
 from django.db import transaction
@@ -56,7 +57,7 @@ def _validate_nameservers(names):
         done.add(name)
 
 
-def _get_request_nameservers(request: Request, field: str = "primary_ns") -> list[str]:
+def _get_request_nameservers(request: Request, field: str = "primary_ns") -> List[str]:
     """Extract nameservers from the request data."""
     if request.content_type == "application/json":
         return request.data.get(field, [])
