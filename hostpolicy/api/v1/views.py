@@ -66,7 +66,7 @@ class HostPolicyPermissionsUpdateDestroy(M2MPermissions,
     permission_classes = (IsSuperOrHostPolicyAdminOrReadOnly, )
 
 
-class HostPolicyAtomList(HostPolicyAtomLogMixin, MregListCreateAPIView):
+class HostPolicyAtomList(HostPolicyAtomLogMixin, LowerCaseLookupMixin, MregListCreateAPIView):
 
     queryset = HostPolicyAtom.objects.all()
     serializer_class = serializers.HostPolicyAtomSerializer
@@ -75,11 +75,9 @@ class HostPolicyAtomList(HostPolicyAtomLogMixin, MregListCreateAPIView):
     filterset_class = HostPolicyAtomFilterSet
 
     def post(self, request, *args, **kwargs):
-        if "name" in request.data:
-            # Due to the overriding of get_queryset, we need to manually use lower()
-            if self.get_queryset().filter(name=request.data['name'].lower()).exists():
-                content = {'ERROR': 'name already in use'}
-                return Response(content, status=status.HTTP_409_CONFLICT)
+        if self.get_object_from_request(request):
+            content = {"ERROR": "name already in use"}
+            return Response(content, status=status.HTTP_409_CONFLICT)
 
         return super().post(request, *args, **kwargs)
 
@@ -99,7 +97,7 @@ def _role_prefetcher(qs):
                 'atoms', queryset=HostPolicyAtom.objects.order_by('name')))
 
 
-class HostPolicyRoleList(HostPolicyRoleLogMixin, MregListCreateAPIView):
+class HostPolicyRoleList(HostPolicyRoleLogMixin, LowerCaseLookupMixin, MregListCreateAPIView):
 
     queryset = HostPolicyRole.objects.all()
     serializer_class = serializers.HostPolicyRoleSerializer
@@ -108,11 +106,9 @@ class HostPolicyRoleList(HostPolicyRoleLogMixin, MregListCreateAPIView):
     filterset_class = HostPolicyRoleFilterSet
 
     def post(self, request, *args, **kwargs):
-        if "name" in request.data:
-            # Due to the overriding of get_queryset, we need to manually use lower()
-            if self.get_queryset().filter(name=request.data['name'].lower()).exists():
-                content = {'ERROR': 'name already in use'}
-                return Response(content, status=status.HTTP_409_CONFLICT)
+        if self.get_object_from_request(request):
+            content = {"ERROR": "name already in use"}
+            return Response(content, status=status.HTTP_409_CONFLICT)
         return super().post(request, *args, **kwargs)
 
 

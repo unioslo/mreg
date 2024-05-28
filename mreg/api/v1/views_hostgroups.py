@@ -63,7 +63,7 @@ def _hostgroup_prefetcher(qs):
                  'owners', queryset=Group.objects.order_by('name')))
 
 
-class HostGroupList(HostGroupLogMixin, MregListCreateAPIView):
+class HostGroupList(HostGroupLogMixin, LowerCaseLookupMixin, MregListCreateAPIView):
     """
     get:
     Lists all hostgroups in use.
@@ -76,14 +76,12 @@ class HostGroupList(HostGroupLogMixin, MregListCreateAPIView):
     serializer_class = serializers.HostGroupSerializer
     permission_classes = (IsSuperOrGroupAdminOrReadOnly, )
     filterset_class = HostGroupFilterSet
+    lookup_field = 'name'
 
     def post(self, request, *args, **kwargs):
-        if "name" in request.data:
-            # We need to manually use lower() here due to the overriden get_queryset()
-            if self.get_queryset().filter(name=request.data['name'].lower()).exists():
-                content = {'ERROR': 'hostgroup name already in use'}
-                return Response(content, status=status.HTTP_409_CONFLICT)
-        self.lookup_field = 'name'
+        if self.get_object_from_request(request):
+            content = {'ERROR': 'hostgroup name already in use'}
+            return Response(content, status=status.HTTP_409_CONFLICT)
         return super().post(request, *args, **kwargs)
 
 
