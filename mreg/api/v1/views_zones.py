@@ -56,6 +56,13 @@ def _validate_nameservers(names):
         done.add(name)
 
 
+def _get_request_nameservers(request: Request, field: str = "primary_ns") -> list[str]:
+    """Extract nameservers from the request data."""
+    if request.content_type == "application/json":
+        return request.data.get(field, [])
+    return request.data.getlist(field, [])
+
+
 class ZoneList(generics.ListCreateAPIView):
     """
     get:
@@ -79,10 +86,7 @@ class ZoneList(generics.ListCreateAPIView):
             content = {'ERROR': 'Zone name already in use'}
             return Response(content, status=status.HTTP_409_CONFLICT)
         # A copy is required since the original is immutable
-        if request.content_type == "application/json":
-            nameservers = request.data["primary_ns"]
-        else:
-            nameservers = request.data.getlist("primary_ns")
+        nameservers = _get_request_nameservers(request)
         _validate_nameservers(nameservers)
         data = request.data.copy()
         data['primary_ns'] = nameservers[0]
@@ -130,11 +134,7 @@ class ZoneDelegationList(generics.ListCreateAPIView):
         if qs.filter(name=request.data[self.lookup_field]).exists():
             content = {'ERROR': 'Zone name already in use'}
             return Response(content, status=status.HTTP_409_CONFLICT)
-
-        if request.content_type == "application/json":
-            nameservers = request.data["nameservers"]
-        else:
-            nameservers = request.data.getlist("nameservers")
+        nameservers = _get_request_nameservers(request, "nameservers")
         _validate_nameservers(nameservers)
         data = request.data.copy()
         data['zone'] = self.parentzone.pk
@@ -303,10 +303,7 @@ class ZoneNameServerDetail(MregRetrieveUpdateDestroyAPIView):
         if 'primary_ns' not in request.data:
             return Response({'ERROR': 'No nameserver found in body'}, status=status.HTTP_400_BAD_REQUEST)
         zone = self.get_object()
-        if request.content_type == "application/json":
-            nameservers = request.data["primary_ns"]
-        else:
-            nameservers = request.data.getlist("primary_ns")
+        nameservers = _get_request_nameservers(request)
         _validate_nameservers(nameservers)
         zone.update_nameservers(nameservers)
         zone.primary_ns = nameservers[0]
