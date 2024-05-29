@@ -11,18 +11,17 @@ from . import serializers
 from .filters import LabelFilterSet
 
 
-class LabelList(MregListCreateAPIView):
+class LabelList(MregListCreateAPIView, LowerCaseLookupMixin):
     queryset = Label.objects.all()
     serializer_class = serializers.LabelSerializer
     permission_classes = (IsSuperOrAdminOrReadOnly,)
     filterset_class = LabelFilterSet
+    lookup_field = "name"
 
-    def post(self, request, *args, **kwargs):
-        if "name" in request.data:
-            if self.get_queryset().filter(name=request.data["name"]).exists():
-                content = {"ERROR": "Label name already in use"}
-                return Response(content, status=status.HTTP_409_CONFLICT)
-        self.lookup_field = "name"
+    def post(self, request, *args, **kwargs):        
+        if self.get_object_from_request(request):
+            content = {"ERROR": "Label name already in use"}
+            return Response(content, status=status.HTTP_409_CONFLICT)
         return super().post(request, *args, **kwargs)
 
 
@@ -43,8 +42,9 @@ class LabelDetail(LowerCaseLookupMixin, MregRetrieveUpdateDestroyAPIView):
     permission_classes = (IsSuperOrAdminOrReadOnly,)
 
 
-class LabelDetailByName(MregRetrieveUpdateDestroyAPIView):
+class LabelDetailByName(LowerCaseLookupMixin, MregRetrieveUpdateDestroyAPIView):
     queryset = Label.objects.all()
     serializer_class = serializers.LabelSerializer
     permission_classes = (IsSuperOrAdminOrReadOnly,)
+    filterset_class = LabelFilterSet
     lookup_field = "name"

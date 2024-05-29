@@ -40,3 +40,10 @@ class LabelTestCase(MregAPITestCase):
         response = self.assert_get('/api/v1/labels/')
         data = response.json()
         self.assertEqual("newname", data['results'][0]['name'])
+
+    def test_label_name_case_insensitive(self):
+        """Test that label names are case insensitive."""
+        self.assert_post('/api/v1/labels/', {'name': 'case_insensitive', 'description': 'Case insensitive'})
+        self.assert_post_and_409('/api/v1/labels/', {'name': 'CASE_INSENSITIVE', 'description': 'Case insensitive'})
+        self.assert_get_and_200('/api/v1/labels/name/case_insensitive')
+        self.assert_get_and_200('/api/v1/labels/name/CASE_INSENSITIVE')
