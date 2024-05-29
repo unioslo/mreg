@@ -65,6 +65,12 @@ class HistoryFilterSet(filters.FilterSet):
 
 
 class HostFilterSet(filters.FilterSet):
+
+    # It's weird that we have to define the id field here, but it's necessary for the filters to work.
+    id = filters.NumberFilter(field_name="id")
+    id__in = filters.BaseInFilter(field_name="id")
+    id__gt = filters.NumberFilter(field_name="id", lookup_expr="gt")
+    id__lt = filters.NumberFilter(field_name="id", lookup_expr="lt")
     class Meta:
         model = Host
         fields = "__all__"

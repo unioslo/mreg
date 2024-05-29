@@ -474,9 +474,38 @@ class APIHostsTestCase(MregAPITestCase):
         clean_and_save(self.host_one)
         clean_and_save(self.host_two)
 
+    def _one_hit_and_host_one(self, query: str):        
+        """Check that we only have one hit and it is host_one"""
+        response = self.assert_get(f"/hosts/?{query}")
+        hits = response.json()['results']
+        self.assertEqual(len(hits), 1)
+        self.assertEqual(hits[0]['name'], self.host_one.name)
+
     def test_hosts_get_200_ok(self):
         """"Getting an existing entry should return 200"""
-        self.assert_get('/hosts/%s' % self.host_one.name)
+        self.assert_get('/hosts/%s' % self.host_one.name)    
+
+    def test_host_get_200_ok_by_id(self):
+        """Getting an existing entry by id should return 200"""
+        self._one_hit_and_host_one(f"id={self.host_one.id}")
+
+    def test_host_get_200_ok_by_id_gt_and_lt(self):
+        """Getting an existing entry by id should return 200"""
+        id = self.host_one.id
+        (id_after, id_before) = (id + 1, id - 1)
+        self._one_hit_and_host_one(f"id__gt={id_before}&id__lt={id_after}")
+
+    def test_host_get_200_ok_by_id_in(self):
+        """Getting an existing entry by id should return 200"""
+        self._one_hit_and_host_one(f"id__in={self.host_one.id}")
+
+    def test_host_get_200_ok_by_contact(self):
+        """Getting an existing entry by ip should return 200"""
+        self._one_hit_and_host_one(f"contact={self.host_one.contact}")
+
+    def test_host_get_200_ok_by_name(self):
+        """Getting an existing entry by name should return 200"""
+        self._one_hit_and_host_one(f"name={self.host_one.name}")
 
     def test_hosts_get_case_insensitive_200_ok(self):
         """"Getting an existing entry should return 200"""
