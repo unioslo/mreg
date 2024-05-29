@@ -1,5 +1,5 @@
 
-from typing import Any, Dict
+from typing import Any, Dict, Type
 from django.db import models
 
 from .fields import LowerCaseCharField
@@ -48,7 +48,7 @@ class LowerCaseManager(models.Manager[Any]):
         return super().get(**self._lowercase_fields(**kwargs))
 
 
-def lower_case_manager_factory(base_manager: type[models.Manager[Any]]):
+def lower_case_manager_factory(base_manager: Type[models.Manager[Any]]):
     """A factory function to create a LowerCaseManager for a given base_manager."""
 
     class LowerCaseBaseManager(base_manager, LowerCaseManager):
