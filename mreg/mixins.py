@@ -1,7 +1,6 @@
 from typing import Protocol, Any, Dict, Union
 from django.shortcuts import get_object_or_404
 from django.http import HttpRequest
-from django.http.request import QueryDict
 from rest_framework.request import Request
 from django.db.models import QuerySet
 
@@ -46,26 +45,36 @@ class LowerCaseLookupMixin:
 
         return obj        
 
-    def get_object_from_request(self: DetailViewProtocol, request: Request) -> Union[Any, None]:
-        """Return the object defined by the key lookup_field in request.data, if any.
+    def get_object_from_request(
+            self: DetailViewProtocol, request: Request, field: Union[str, None] = None
+        ) -> Union[Any, None]:
+        """Return an object from the queryset based on data from the request, if any.
+        
+        The object is found in the queryset by querying with field = request.data[field]. If the field
+        is not defined, and the view offers a self.lookup_field, that field is used as a fallback.
 
-        Note: This is part of the LowerCaseLookupMixin, so the value of the lookup_field
-        in request.data will be lowercased.
+        Note: This is part of the LowerCaseLookupMixin, so the value of the field in request.data will
+        be lowercased when querying.
 
         :param request: The request object.
+        :param field: The field to use for the lookup. If None, the view's lookup_field is used. 
 
         :returns: The object from the queryset or None.
+
+        :raises AttributeError: If no field is specified and the view does not have a lookup_field defined.
         """
-        if not self.lookup_field:
-            raise AttributeError("lookup_field must be defined.")
-        
-        if not request.data or not isinstance(request.data, QueryDict):
+        if not field and not self.lookup_field:
+            raise AttributeError("If not specifying a field, the view must have lookup_field defined.")
+
+        lfield: str = field if field else self.lookup_field
+
+        if not request.data or not isinstance(request.data, dict):
             return None
         
         if self.lookup_field not in request.data:
             return None
         
         queryset = self.filter_queryset(self.get_queryset())
-        filter_kwargs: Dict[str, str] = {self.lookup_field: request.data[self.lookup_field].lower()}
+        filter_kwargs: Dict[str, str] = {lfield: request.data[lfield].lower()}
 
         return queryset.filter(**filter_kwargs).first()
