@@ -81,7 +81,7 @@ class MetaHeartbeat(APIView):
     permission_classes = (IsAuthenticated,)
 
     def get(self, request: Request):
-        uptime = int(start_time - time.time())
+        uptime = int(time.time() - start_time)
         data = {
             "start_time": start_time,
             "uptime": uptime,
