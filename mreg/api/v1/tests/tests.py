@@ -121,6 +121,9 @@ class MregAPITestCase(APITestCase):
     def assert_get_and_401(self, path, **kwargs):
         return self._assert_get_and_status(path, 401, **kwargs)
 
+    def assert_get_and_403(self, path, **kwargs):
+        return self._assert_get_and_status(path, 403, **kwargs)
+
     def assert_get_and_404(self, path, **kwargs):
         return self._assert_get_and_status(path, 404, **kwargs)
 
@@ -279,6 +282,26 @@ class APITokenAuthenticationTestCase(MregAPITestCase):
         """ Incorrect or missing arguments should still return 400 bad request """
         self.assert_post_and_400("/api/token-auth/", {"who": "someone", "why": "because"})
         self.assert_post_and_400("/api/token-auth/", {})
+
+class APIMetaTestCase(MregAPITestCase):
+    """Test the meta API endpoint."""
+
+    def test_meta_versions_admin_200_ok(self):
+        response = self.assert_get_and_200("/api/meta/versions")
+        for key in ('rest_framework_version', 'django_version', 'python_version'):
+            self.assertTrue(key in response.data)
+            print(key, response.data[key])
+
+    def test_meta_versions_user_403_forbidden(self):
+        self.client = self.get_token_client(superuser=False)
+        self.assert_get_and_403("/api/meta/versions")
+
+    def test_meta_heartbeat_user_200_ok(self):
+        self.client = self.get_token_client(superuser=False)
+        response = self.assert_get("/api/meta/heartbeat")
+        for key in ('uptime', 'start_time'):
+            self.assertTrue(key in response.data)
+            print(key, response.data[key])
 
 
 class APIAutoupdateZonesTestCase(MregAPITestCase):
