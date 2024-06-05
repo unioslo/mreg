@@ -289,8 +289,8 @@ class APIMetaTestCase(MregAPITestCase):
     def test_meta_versions_admin_200_ok(self):
         response = self.assert_get_and_200("/api/meta/versions")
         for key in ('rest_framework_version', 'django_version', 'python_version'):
-            self.assertTrue(key in response.data)
-            print(key, response.data[key])
+            with self.subTest(key=key):
+                self.assertTrue(key in response.data)
 
     def test_meta_versions_user_403_forbidden(self):
         self.client = self.get_token_client(superuser=False)
@@ -300,8 +300,8 @@ class APIMetaTestCase(MregAPITestCase):
         self.client = self.get_token_client(superuser=False)
         response = self.assert_get("/api/meta/heartbeat")
         for key in ('uptime', 'start_time'):
-            self.assertTrue(key in response.data)
-            print(key, response.data[key])
+            with self.subTest(key=key):
+                self.assertTrue(key in response.data)
 
 
 class APIAutoupdateZonesTestCase(MregAPITestCase):
