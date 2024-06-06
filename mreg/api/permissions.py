@@ -233,9 +233,7 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
             hostname = data['host'].name
         elif 'host' in data:
             hostname, ips = self._get_hostname_and_ips(data['host'])
-        else:  # pragma: no cover
-            # Testing these kinds of should-never-happen codepaths is hard.
-            # We have to basically mock a complete API call and then break it.
+        else:
             raise exceptions.PermissionDenied(f"Unhandled view: {view}")
 
         if ips and hostname:
@@ -252,9 +250,7 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
             pass
         elif hasattr(obj, 'host'):
             obj = obj.host
-        else:  # pragma: no cover
-            # Testing these kinds of should-never-happen codepaths is hard.
-            # We have to basically mock a complete API call and then break it.
+        else:
             raise exceptions.PermissionDenied(f"Unhandled view: {view}")
         if _deny_superuser_only_names(name=obj.name, view=view, request=request):
             return False
@@ -293,9 +289,7 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
                 if not self.has_obj_perm(request.user, data['host']):
                     return False
             return self.has_obj_perm(request.user, obj.host)
-        # Testing these kinds of should-never-happen codepaths is hard.
-        # We have to basically mock a complete API call and then break it.
-        raise exceptions.PermissionDenied(f"Unhandled view: {view}")  # pragma: no cover
+        raise exceptions.PermissionDenied(f"Unhandled view: {view}")
 
     def _get_hostname_and_ips(self, hostobject):
         ips = []
