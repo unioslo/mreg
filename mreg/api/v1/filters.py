@@ -17,6 +17,12 @@ from mreg.models.zone import (
     ReverseZoneDelegation,
 )
 
+class FilterWithID(filters.FilterSet):
+    id = filters.NumberFilter(field_name="id")
+    id__in = filters.BaseInFilter(field_name="id")
+    id__gt = filters.NumberFilter(field_name="id", lookup_expr="gt")
+    id__lt = filters.NumberFilter(field_name="id", lookup_expr="lt")
+
 
 class JSONFieldExactFilter(filters.CharFilter):
     pass
@@ -26,37 +32,37 @@ class CIDRFieldExactFilter(filters.CharFilter):
     pass
 
 
-class BACnetIDFilterSet(filters.FilterSet):
+class BACnetIDFilterSet(FilterWithID):
     class Meta:
         model = BACnetID
         fields = "__all__"
 
 
-class CnameFilterSet(filters.FilterSet):
+class CnameFilterSet(FilterWithID):
     class Meta:
         model = Cname
         fields = "__all__"
 
 
-class ForwardZoneFilterSet(filters.FilterSet):
+class ForwardZoneFilterSet(FilterWithID):
     class Meta:
         model = ForwardZone
         fields = "__all__"
 
 
-class ForwardZoneDelegationFilterSet(filters.FilterSet):
+class ForwardZoneDelegationFilterSet(FilterWithID):
     class Meta:
         model = ForwardZoneDelegation
         fields = "__all__"
 
 
-class HinfoFilterSet(filters.FilterSet):
+class HinfoFilterSet(FilterWithID):
     class Meta:
         model = Hinfo
         fields = "__all__"
 
 
-class HistoryFilterSet(filters.FilterSet):
+class HistoryFilterSet(FilterWithID):
     data = JSONFieldExactFilter(field_name="data")
 
     class Meta:
@@ -64,61 +70,55 @@ class HistoryFilterSet(filters.FilterSet):
         fields = "__all__"
 
 
-class HostFilterSet(filters.FilterSet):
-
-    # It's weird that we have to define the id field here, but it's necessary for the filters to work.
-    id = filters.NumberFilter(field_name="id")
-    id__in = filters.BaseInFilter(field_name="id")
-    id__gt = filters.NumberFilter(field_name="id", lookup_expr="gt")
-    id__lt = filters.NumberFilter(field_name="id", lookup_expr="lt")
+class HostFilterSet(FilterWithID):
     class Meta:
         model = Host
         fields = "__all__"
 
 
-class HostGroupFilterSet(filters.FilterSet):
+class HostGroupFilterSet(FilterWithID):
     class Meta:
         model = HostGroup
         fields = "__all__"
 
 
-class IpaddressFilterSet(filters.FilterSet):
+class IpaddressFilterSet(FilterWithID):
     class Meta:
         model = Ipaddress
         fields = "__all__"
 
 
-class LabelFilterSet(filters.FilterSet):
+class LabelFilterSet(FilterWithID):
     class Meta:
         model = Label
         fields = "__all__"
 
 
-class LocFilterSet(filters.FilterSet):
+class LocFilterSet(FilterWithID):
     class Meta:
         model = Loc
         fields = "__all__"
 
 
-class MxFilterSet(filters.FilterSet):
+class MxFilterSet(FilterWithID):
     class Meta:
         model = Mx
         fields = "__all__"
 
 
-class NameServerFilterSet(filters.FilterSet):
+class NameServerFilterSet(FilterWithID):
     class Meta:
         model = NameServer
         fields = "__all__"
 
 
-class NaptrFilterSet(filters.FilterSet):
+class NaptrFilterSet(FilterWithID):
     class Meta:
         model = Naptr
         fields = "__all__"
 
 
-class NetGroupRegexPermissionFilterSet(filters.FilterSet):
+class NetGroupRegexPermissionFilterSet(FilterWithID):
     range = CIDRFieldExactFilter(field_name="range")
 
     class Meta:
@@ -126,7 +126,7 @@ class NetGroupRegexPermissionFilterSet(filters.FilterSet):
         fields = "__all__"
 
 
-class NetworkFilterSet(filters.FilterSet):
+class NetworkFilterSet(FilterWithID):
     network = CIDRFieldExactFilter(field_name="network")
 
     class Meta:
@@ -134,19 +134,19 @@ class NetworkFilterSet(filters.FilterSet):
         fields = "__all__"
 
 
-class NetworkExcludedRangeFilterSet(filters.FilterSet):
+class NetworkExcludedRangeFilterSet(FilterWithID):
     class Meta:
         model = NetworkExcludedRange
         fields = "__all__"
 
 
-class PtrOverrideFilterSet(filters.FilterSet):
+class PtrOverrideFilterSet(FilterWithID):
     class Meta:
         model = PtrOverride
         fields = "__all__"
 
 
-class ReverseZoneFilterSet(filters.FilterSet):
+class ReverseZoneFilterSet(FilterWithID):
     network = CIDRFieldExactFilter(field_name="network")
 
     class Meta:
@@ -154,24 +154,24 @@ class ReverseZoneFilterSet(filters.FilterSet):
         fields = "__all__"
 
 
-class ReverseZoneDelegationFilterSet(filters.FilterSet):
+class ReverseZoneDelegationFilterSet(FilterWithID):
     class Meta:
         model = ReverseZoneDelegation
         fields = "__all__"
 
-class SrvFilterSet(filters.FilterSet):
+class SrvFilterSet(FilterWithID):
     class Meta:
         model = Srv
         fields = "__all__"
 
 
-class SshfpFilterSet(filters.FilterSet):
+class SshfpFilterSet(FilterWithID):
     class Meta:
         model = Sshfp
         fields = "__all__"
 
 
-class TxtFilterSet(filters.FilterSet):
+class TxtFilterSet(FilterWithID):
     class Meta:
         model = Txt
         fields = "__all__"
