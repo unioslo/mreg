@@ -8,12 +8,20 @@ from django_filters import rest_framework as filters
 
 from mreg.models.base import History
 from mreg.models.host import BACnetID, Host, HostGroup, Ipaddress, PtrOverride
-from mreg.models.network import (Label, NetGroupRegexPermission, Network,
-                                 NetworkExcludedRange)
-from mreg.models.resource_records import (Cname, Hinfo, Loc, Mx, Naptr, Srv,
-                                          Sshfp, Txt)
-from mreg.models.zone import (ForwardZone, ForwardZoneDelegation, NameServer,
-                              ReverseZone, ReverseZoneDelegation)
+from mreg.models.network import (
+    Label,
+    NetGroupRegexPermission,
+    Network,
+    NetworkExcludedRange,
+)
+from mreg.models.resource_records import Cname, Hinfo, Loc, Mx, Naptr, Srv, Sshfp, Txt
+from mreg.models.zone import (
+    ForwardZone,
+    ForwardZoneDelegation,
+    NameServer,
+    ReverseZone,
+    ReverseZoneDelegation,
+)
 
 mreg_log = structlog.getLogger(__name__)
 
@@ -31,6 +39,18 @@ STRING_OPERATORS: OperatorList = [
 ]
 INT_OPERATORS: OperatorList = ["exact", "in", "gt", "lt"]
 EXACT_OPERATORS: OperatorList = ["exact"]
+
+
+class JSONFieldFilter(filters.CharFilter):
+    def filter(self, qs, value):
+        if value:
+            queries = [
+                Q(**{f"data__{k}": v})
+                for k, v in self.parent.data.items()
+                if k.startswith("data__")
+            ]
+            return qs.filter(reduce(operator.and_, queries))
+        return qs
 
 
 class CIDRFieldExactFilter(filters.CharFilter):
@@ -99,19 +119,6 @@ class HinfoFilterSet(filters.FilterSet):
             "host": INT_OPERATORS,
             "os": STRING_OPERATORS,
         }
-
-
-class JSONFieldFilter(filters.CharFilter):
-    def filter(self, qs, value):
-        mreg_log.info("JSONFieldFilter called", value=value)
-        if value:
-            queries = [
-                Q(**{f"data__{k}": v})
-                for k, v in self.parent.data.items()
-                if k.startswith("data__")
-            ]
-            return qs.filter(reduce(operator.and_, queries))
-        return qs
 
 
 class HistoryFilterSet(filters.FilterSet):
