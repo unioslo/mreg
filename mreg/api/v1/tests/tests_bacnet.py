@@ -10,7 +10,7 @@ class BACnetIDTest(MregAPITestCase):
     basepath = '/api/v1/bacnet/ids/'
 
     def basejoin(self, path):
-        if type(path) != 'str':
+        if not isinstance(path, str):
             path = str(path)
         return self.basepath + path
 
