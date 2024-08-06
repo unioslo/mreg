@@ -106,6 +106,7 @@ class LoggingMiddleware:
             remote_ip=remote_ip,
             proxy_ip=proxy_ip,
             path=request.path_info,
+            query_string=request.META.get("QUERY_STRING"),
             request_size=request_size,
             content=self._get_body(request),
         ).info("request")
@@ -150,6 +151,7 @@ class LoggingMiddleware:
             status_code=status_code,
             status_label=status_label,
             path=request.path_info,
+            query_string=request.META.get("QUERY_STRING"),  
             content=content,
             **extra_data,
             run_time_ms=round(run_time_ms, 2),
