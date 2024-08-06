@@ -1,4 +1,3 @@
-import json
 import operator
 from functools import reduce
 from typing import List
@@ -33,32 +32,6 @@ STRING_OPERATORS: OperatorList = [
 INT_OPERATORS: OperatorList = ["exact", "in", "gt", "lt"]
 EXACT_OPERATORS: OperatorList = ["exact"]
 
-
-class JSONFieldFilter(filters.CharFilter):
-    def filter(self, qs, value):
-        if not value:
-            return qs
-
-        queries = []
-        for k, v in self.parent.data.items():
-            if k.startswith("data__"):
-                json_key = k.split("data__", 1)[1]
-
-                if json_key.endswith("__in"):
-                    json_key = json_key[:-4]
-                    try:
-                        values = json.loads(v)
-                        if not isinstance(values, list):
-                            continue
-                    except json.JSONDecodeError:
-                        continue
-                    queries.append(Q(**{f"data__{json_key}__in": values}))
-                else:
-                    queries.append(Q(**{f"data__{json_key}": v}))
-
-        if queries:
-            return qs.filter(reduce(operator.and_, queries))
-        return qs
 
 
 class CIDRFieldExactFilter(filters.CharFilter):
