@@ -1,3 +1,4 @@
+import json
 import operator
 from functools import reduce
 from typing import List
@@ -8,20 +9,12 @@ from django_filters import rest_framework as filters
 
 from mreg.models.base import History
 from mreg.models.host import BACnetID, Host, HostGroup, Ipaddress, PtrOverride
-from mreg.models.network import (
-    Label,
-    NetGroupRegexPermission,
-    Network,
-    NetworkExcludedRange,
-)
-from mreg.models.resource_records import Cname, Hinfo, Loc, Mx, Naptr, Srv, Sshfp, Txt
-from mreg.models.zone import (
-    ForwardZone,
-    ForwardZoneDelegation,
-    NameServer,
-    ReverseZone,
-    ReverseZoneDelegation,
-)
+from mreg.models.network import (Label, NetGroupRegexPermission, Network,
+                                 NetworkExcludedRange)
+from mreg.models.resource_records import (Cname, Hinfo, Loc, Mx, Naptr, Srv,
+                                          Sshfp, Txt)
+from mreg.models.zone import (ForwardZone, ForwardZoneDelegation, NameServer,
+                              ReverseZone, ReverseZoneDelegation)
 
 mreg_log = structlog.getLogger(__name__)
 
@@ -43,12 +36,27 @@ EXACT_OPERATORS: OperatorList = ["exact"]
 
 class JSONFieldFilter(filters.CharFilter):
     def filter(self, qs, value):
-        if value:
-            queries = [
-                Q(**{f"data__{k}": v})
-                for k, v in self.parent.data.items()
-                if k.startswith("data__")
-            ]
+        if not value:
+            return qs
+
+        queries = []
+        for k, v in self.parent.data.items():
+            if k.startswith("data__"):
+                json_key = k.split("data__", 1)[1]
+
+                if json_key.endswith("__in"):
+                    json_key = json_key[:-4]
+                    try:
+                        values = json.loads(v)
+                        if not isinstance(values, list):
+                            continue
+                    except json.JSONDecodeError:
+                        continue
+                    queries.append(Q(**{f"data__{json_key}__in": values}))
+                else:
+                    queries.append(Q(**{f"data__{json_key}": v}))
+
+        if queries:
             return qs.filter(reduce(operator.and_, queries))
         return qs
 
