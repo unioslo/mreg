@@ -1,4 +1,3 @@
-
 from typing import List
 
 from unittest_parametrize import ParametrizedTestCase, param, parametrize
@@ -21,14 +20,13 @@ class FilterTestCase(ParametrizedTestCase, MregAPITestCase):
         ("endpoint", "query_key", "target", "expected_hits"),
         [
             param("hosts", "name", "hostsname0.example.com", 1, id="hosts_name"),
-            param("cnames", "host__name",  "cnameshostname1.example.com", 1, id="cnames_host__name"),
-            param("cnames", "host__name__icontains",  "cnameshostnameicontains", 3, id="cnames_host__icontains"),
-            param("cnames", "host__name__iexact",  "cnameshostnameiexact1.example.com", 1, id="cnames_host__iexact"),
-            param("cnames", "host__name__startswith",  "cnameshostnamestartswith", 3, id="cnames_host__startswith"),
-            param("cnames", "host__name__endswith",  "endswith2.example.com", 1, id="cnames_host__endswith"),
-            param("cnames", "host__name__regex",  "cnameshostnameregex[0-9]", 3, id="cnames_host__regex"),
+            param("cnames", "host__name", "cnameshostname1.example.com", 1, id="cnames_host__name"),
+            param("cnames", "host__name__icontains", "cnameshostnameicontains", 3, id="cnames_host__icontains"),
+            param("cnames", "host__name__iexact", "cnameshostnameiexact1.example.com", 1, id="cnames_host__iexact"),
+            param("cnames", "host__name__startswith", "cnameshostnamestartswith", 3, id="cnames_host__startswith"),
+            param("cnames", "host__name__endswith", "endswith2.example.com", 1, id="cnames_host__endswith"),
+            param("cnames", "host__name__regex", "cnameshostnameregex[0-9]", 3, id="cnames_host__regex"),
         ],
-
     )
     def test_filtering_for_host(self, endpoint: str, query_key: str, target: str, expected_hits: str) -> None:
         """Test filtering on host."""
@@ -40,20 +38,18 @@ class FilterTestCase(ParametrizedTestCase, MregAPITestCase):
         cnames: List[Cname] = []
         for i in range(generate_count):
             hostname = f"{endpoint}{query_key}{i}.example.com".replace("_", "")
-            hosts.append(Host.objects.create(
-                name=hostname,
-                contact="admin@example.com",
-                ttl=3600,
-                comment="Test host",
-            ))
-        
+            hosts.append(
+                Host.objects.create(
+                    name=hostname,
+                    contact="admin@example.com",
+                    ttl=3600,
+                    comment="Test host",
+                )
+            )
+
         for i in range(generate_count):
             cname = f"cname.{endpoint}{query_key}{i}.example.com".replace("_", "")
-            cnames.append(Cname.objects.create(
-                host=hosts[i],
-                name=cname,
-                ttl=3600
-            ))
+            cnames.append(Cname.objects.create(host=hosts[i], name=cname, ttl=3600))
 
         hostname = hosts[0].name
         response = self.client.get(f"/api/v1/{endpoint}/?{query_key}={target}")
@@ -66,4 +62,3 @@ class FilterTestCase(ParametrizedTestCase, MregAPITestCase):
 
         for cname in cnames:
             cname.delete()
-
