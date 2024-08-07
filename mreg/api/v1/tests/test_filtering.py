@@ -23,6 +23,10 @@ class FilterTestCase(ParametrizedTestCase, MregAPITestCase):
             param("hosts", "name", "hostsname0.example.com", 1, id="hosts_name"),
             param("cnames", "host__name",  "cnameshostname1.example.com", 1, id="cnames_host__name"),
             param("cnames", "host__name__icontains",  "cnameshostnameicontains", 3, id="cnames_host__icontains"),
+            param("cnames", "host__name__iexact",  "cnameshostnameiexact1.example.com", 1, id="cnames_host__iexact"),
+            param("cnames", "host__name__startswith",  "cnameshostnamestartswith", 3, id="cnames_host__startswith"),
+            param("cnames", "host__name__endswith",  "endswith2.example.com", 1, id="cnames_host__endswith"),
+            param("cnames", "host__name__regex",  "cnameshostnameregex[0-9]", 3, id="cnames_host__regex"),
         ],
 
     )

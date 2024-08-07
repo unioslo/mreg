@@ -21,6 +21,7 @@ OperatorList = List[str]
 
 STRING_OPERATORS: OperatorList = [
     "exact",
+    "iexact",
     "regex",
     "contains",
     "icontains",
