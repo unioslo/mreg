@@ -32,7 +32,18 @@ STRING_OPERATORS: OperatorList = [
 INT_OPERATORS: OperatorList = ["exact", "in", "gt", "lt"]
 EXACT_OPERATORS: OperatorList = ["exact"]
 
+HOST_FIELDS = {
+    "host": INT_OPERATORS,
+    "host__comment": STRING_OPERATORS,
+    "host__contact": STRING_OPERATORS,
+    "host__name": STRING_OPERATORS,
+    "host__ttl": INT_OPERATORS,
+}
 
+CREATED_UPDATED = {
+    "created_at": INT_OPERATORS,
+    "updated_at": INT_OPERATORS,
+}
 
 class CIDRFieldExactFilter(filters.CharFilter):
     pass
@@ -43,11 +54,7 @@ class BACnetIDFilterSet(filters.FilterSet):
         model = BACnetID
         fields = {
             "id": INT_OPERATORS,
-            "host": INT_OPERATORS,
-            "host__comment": STRING_OPERATORS,
-            "host__contact": STRING_OPERATORS,
-            "host__name": STRING_OPERATORS,
-            "host__ttl": INT_OPERATORS,
+            **HOST_FIELDS,
         }
 
 
@@ -56,15 +63,10 @@ class CnameFilterSet(filters.FilterSet):
         model = Cname
         fields = {
             "id": INT_OPERATORS,
-            "created_at": INT_OPERATORS,
-            "updated_at": INT_OPERATORS,
-            "host": INT_OPERATORS,
-            "host__comment": STRING_OPERATORS,
-            "host__contact": STRING_OPERATORS,
-            "host__name": STRING_OPERATORS,
-            "host__ttl": INT_OPERATORS,
             "name": STRING_OPERATORS,
             "ttl": INT_OPERATORS,
+            **HOST_FIELDS,
+            **CREATED_UPDATED,
         }
 
 
@@ -73,9 +75,8 @@ class ForwardZoneFilterSet(filters.FilterSet):
         model = ForwardZone
         fields = {
             "id": INT_OPERATORS,
-            "created_at": INT_OPERATORS,
-            "updated_at": INT_OPERATORS,
             "name": STRING_OPERATORS,
+            **CREATED_UPDATED,
         }
 
 
@@ -84,11 +85,10 @@ class ForwardZoneDelegationFilterSet(filters.FilterSet):
         model = ForwardZoneDelegation
         fields = {
             "id": INT_OPERATORS,
-            "created_at": INT_OPERATORS,
-            "updated_at": INT_OPERATORS,
             "name": STRING_OPERATORS,
             "nameservers": INT_OPERATORS,
             "comment": STRING_OPERATORS,
+            **CREATED_UPDATED,
         }
 
 
@@ -141,8 +141,6 @@ class HostFilterSet(filters.FilterSet):
         model = Host
         fields = {
             "id": INT_OPERATORS,
-            "created_at": INT_OPERATORS,
-            "updated_at": INT_OPERATORS,
             "name": STRING_OPERATORS,
             "contact": STRING_OPERATORS,
             "ttl": INT_OPERATORS,
@@ -178,6 +176,7 @@ class HostFilterSet(filters.FilterSet):
             "srvs__weight": INT_OPERATORS,
             "srvs__port": INT_OPERATORS,
             "srvs__ttl": INT_OPERATORS,
+            **CREATED_UPDATED,
         }
 
 
@@ -186,13 +185,12 @@ class HostGroupFilterSet(filters.FilterSet):
         model = HostGroup
         fields = {
             "id": INT_OPERATORS,
-            "created_at": INT_OPERATORS,
-            "updated_at": INT_OPERATORS,
             "description": STRING_OPERATORS,
             "hosts": INT_OPERATORS,
             "name": STRING_OPERATORS,
             "owners": INT_OPERATORS,
             "parent": INT_OPERATORS,
+            **CREATED_UPDATED,
         }
 
 
@@ -203,11 +201,7 @@ class IpaddressFilterSet(filters.FilterSet):
             "id": INT_OPERATORS,
             "ipaddress": STRING_OPERATORS,
             "macaddress": STRING_OPERATORS,
-            "host": INT_OPERATORS,
-            "host__name": STRING_OPERATORS,
-            "host__ttl": INT_OPERATORS,
-            "host__contact": STRING_OPERATORS,
-            "host__comment": STRING_OPERATORS,
+            **HOST_FIELDS,
         }
 
 
@@ -216,10 +210,9 @@ class LabelFilterSet(filters.FilterSet):
         model = Label
         fields = {
             "id": INT_OPERATORS,
-            "created_at": INT_OPERATORS,
-            "updated_at": INT_OPERATORS,
             "description": STRING_OPERATORS,
             "name": STRING_OPERATORS,
+            **CREATED_UPDATED,
         }
 
 
@@ -227,12 +220,8 @@ class LocFilterSet(filters.FilterSet):
     class Meta:
         model = Loc
         fields = {
-            "host": INT_OPERATORS,
-            "host__comment": STRING_OPERATORS,
-            "host__contact": STRING_OPERATORS,
-            "host__name": STRING_OPERATORS,
-            "host__ttl": INT_OPERATORS,
             "loc": STRING_OPERATORS,
+            **HOST_FIELDS,
         }
 
 
@@ -241,15 +230,10 @@ class MxFilterSet(filters.FilterSet):
         model = Mx
         fields = {
             "id": INT_OPERATORS,
-            "created_at": INT_OPERATORS,
-            "updated_at": INT_OPERATORS,
-            "host": INT_OPERATORS,
-            "host__comment": STRING_OPERATORS,
-            "host__contact": STRING_OPERATORS,
-            "host__name": STRING_OPERATORS,
-            "host__ttl": INT_OPERATORS,
             "priority": INT_OPERATORS,
             "mx": STRING_OPERATORS,
+            **HOST_FIELDS,
+            **CREATED_UPDATED
         }
 
 
@@ -258,10 +242,9 @@ class NameServerFilterSet(filters.FilterSet):
         model = NameServer
         fields = {
             "id": INT_OPERATORS,
-            "created_at": INT_OPERATORS,
-            "updated_at": INT_OPERATORS,
             "name": STRING_OPERATORS,
             "ttl": INT_OPERATORS,
+            **CREATED_UPDATED,
         }
 
 
@@ -270,19 +253,14 @@ class NaptrFilterSet(filters.FilterSet):
         model = Naptr
         fields = {
             "id": INT_OPERATORS,
-            "created_at": INT_OPERATORS,
-            "updated_at": INT_OPERATORS,
-            "host": INT_OPERATORS,
-            "host__comment": STRING_OPERATORS,
-            "host__contact": STRING_OPERATORS,
-            "host__name": STRING_OPERATORS,
-            "host__ttl": INT_OPERATORS,
             "preference": INT_OPERATORS,
             "order": INT_OPERATORS,
             "flag": STRING_OPERATORS,
             "service": STRING_OPERATORS,
             "regex": STRING_OPERATORS,
             "replacement": STRING_OPERATORS,
+            **HOST_FIELDS,
+            **CREATED_UPDATED,
         }
 
 
@@ -293,11 +271,10 @@ class NetGroupRegexPermissionFilterSet(filters.FilterSet):
         model = NetGroupRegexPermission
         fields = {
             "id": INT_OPERATORS,
-            "created_at": INT_OPERATORS,
-            "updated_at": INT_OPERATORS,
             "group": STRING_OPERATORS,
             "regex": STRING_OPERATORS,
             "labels": INT_OPERATORS,
+            **CREATED_UPDATED,
         }
 
 
@@ -308,8 +285,6 @@ class NetworkFilterSet(filters.FilterSet):
         model = Network
         fields = {
             "id": INT_OPERATORS,
-            "created_at": INT_OPERATORS,
-            "updated_at": INT_OPERATORS,
             "description": STRING_OPERATORS,
             "vlan": INT_OPERATORS,
             "dns_delegated": EXACT_OPERATORS,
@@ -317,6 +292,7 @@ class NetworkFilterSet(filters.FilterSet):
             "location": STRING_OPERATORS,
             "frozen": EXACT_OPERATORS,
             "reserved": INT_OPERATORS,
+            **CREATED_UPDATED,
         }
 
 
@@ -325,8 +301,6 @@ class NetworkExcludedRangeFilterSet(filters.FilterSet):
         model = NetworkExcludedRange
         fields = {
             "id": INT_OPERATORS,
-            "created_at": INT_OPERATORS,
-            "updated_at": INT_OPERATORS,
             "network": INT_OPERATORS,
             "network__description": STRING_OPERATORS,
             "network__vlan": INT_OPERATORS,
@@ -337,6 +311,7 @@ class NetworkExcludedRangeFilterSet(filters.FilterSet):
             "network__reserved": INT_OPERATORS,
             "start_ip": STRING_OPERATORS,
             "end_ip": STRING_OPERATORS,
+            **CREATED_UPDATED,
         }
 
 
@@ -345,15 +320,11 @@ class PtrOverrideFilterSet(filters.FilterSet):
         model = PtrOverride
         fields = {
             "id": INT_OPERATORS,
-            "created_at": INT_OPERATORS,
-            "updated_at": INT_OPERATORS,
-            "host": INT_OPERATORS,
-            "host__comment": STRING_OPERATORS,
-            "host__contact": STRING_OPERATORS,
-            "host__name": STRING_OPERATORS,
-            "host__ttl": INT_OPERATORS,
             "ipaddress": EXACT_OPERATORS,
+            **HOST_FIELDS,
+            **CREATED_UPDATED,
         }
+
 
 
 class ReverseZoneFilterSet(filters.FilterSet):
@@ -363,9 +334,8 @@ class ReverseZoneFilterSet(filters.FilterSet):
         model = ReverseZone
         fields = {
             "id": INT_OPERATORS,
-            "created_at": INT_OPERATORS,
-            "updated_at": INT_OPERATORS,
             "name": STRING_OPERATORS,
+            **CREATED_UPDATED,
         }
 
 
@@ -374,13 +344,12 @@ class ReverseZoneDelegationFilterSet(filters.FilterSet):
         model = ReverseZoneDelegation
         fields = {
             "id": INT_OPERATORS,
-            "created_at": INT_OPERATORS,
-            "updated_at": INT_OPERATORS,
             "name": STRING_OPERATORS,
             "nameservers": INT_OPERATORS,
             "comment": STRING_OPERATORS,
             "zone": INT_OPERATORS,
             "zone__name": STRING_OPERATORS,
+            **CREATED_UPDATED,
         }
 
 
@@ -389,18 +358,13 @@ class SrvFilterSet(filters.FilterSet):
         model = Srv
         fields = {
             "id": INT_OPERATORS,
-            "created_at": INT_OPERATORS,
-            "updated_at": INT_OPERATORS,
-            "host": INT_OPERATORS,
-            "host__comment": STRING_OPERATORS,
-            "host__contact": STRING_OPERATORS,
-            "host__name": STRING_OPERATORS,
-            "host__ttl": INT_OPERATORS,
             "name": STRING_OPERATORS,
             "priority": INT_OPERATORS,
             "weight": INT_OPERATORS,
             "port": INT_OPERATORS,
             "ttl": INT_OPERATORS,
+            **HOST_FIELDS,
+            **CREATED_UPDATED,
         }
 
 
@@ -409,16 +373,11 @@ class SshfpFilterSet(filters.FilterSet):
         model = Sshfp
         fields = {
             "id": INT_OPERATORS,
-            "created_at": INT_OPERATORS,
-            "updated_at": INT_OPERATORS,
-            "host": INT_OPERATORS,
-            "host__comment": STRING_OPERATORS,
-            "host__contact": STRING_OPERATORS,
-            "host__name": STRING_OPERATORS,
-            "host__ttl": INT_OPERATORS,
             "algorithm": INT_OPERATORS,
             "hash_type": INT_OPERATORS,
             "fingerprint": STRING_OPERATORS,
+            **HOST_FIELDS,
+            **CREATED_UPDATED,
         }
 
 
@@ -427,12 +386,7 @@ class TxtFilterSet(filters.FilterSet):
         model = Txt
         fields = {
             "id": INT_OPERATORS,
-            "created_at": INT_OPERATORS,
-            "updated_at": INT_OPERATORS,
-            "host": INT_OPERATORS,
-            "host__comment": STRING_OPERATORS,
-            "host__contact": STRING_OPERATORS,
-            "host__name": STRING_OPERATORS,
-            "host__ttl": INT_OPERATORS,
             "txt": STRING_OPERATORS,
+            **HOST_FIELDS,
+            **CREATED_UPDATED,
         }
