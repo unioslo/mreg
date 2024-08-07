@@ -1,14 +1,12 @@
 
 from typing import List
 
+from unittest_parametrize import ParametrizedTestCase, param, parametrize
+
 from mreg.models.host import Host
 from mreg.models.resource_records import Cname
 
 from .tests import MregAPITestCase
-
-from unittest_parametrize import param
-from unittest_parametrize import parametrize
-from unittest_parametrize import ParametrizedTestCase
 
 
 class FilterTestCase(ParametrizedTestCase, MregAPITestCase):
