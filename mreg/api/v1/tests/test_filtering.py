@@ -224,3 +224,23 @@ class FilterTestCase(ParametrizedTestCase, MregAPITestCase):
 
         for obj in chain(roles, atoms, labels, hosts):
             obj.delete()
+
+    def test_filtering_on_host_id(self) -> None:
+        """Test filtering on host id."""
+
+        generate_count = 3
+        hosts = create_hosts("hosts", generate_count)
+
+        for host in hosts:
+            with self.subTest(host=host):
+                id = host.id # type: ignore
+                msg_prefix = f"hosts : id -> {id} => "
+
+                response = self.client.get(f"/api/v1/hosts/?id={id}")
+                self.assertEqual(response.status_code, 200, msg=f"{msg_prefix} {response.content}")
+                data = response.json()
+                self.assertEqual(data["results"][0]["id"], id, msg=f"{msg_prefix} {data}")
+                self.assertEqual(data["count"], 1, msg=f"{msg_prefix} {data}")
+
+        for obj in hosts:
+            obj.delete()
