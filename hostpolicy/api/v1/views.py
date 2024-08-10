@@ -37,7 +37,18 @@ class HostPolicyAtomFilterSet(filters.FilterSet):
 
 
 class HostPolicyRoleFilterSet(filters.FilterSet):
+    # This seems to be required due to the many-to-many relationships?
     atoms__name__exact = filters.CharFilter(field_name='atoms__name', lookup_expr='exact')
+    atoms__name__contains = filters.CharFilter(field_name='atoms__name', lookup_expr='contains')
+    atoms__name__regex = filters.CharFilter(field_name='atoms__name', lookup_expr='regex')
+
+    hosts__name__exact = filters.CharFilter(field_name='hosts__name', lookup_expr='exact')
+    hosts__name__contains = filters.CharFilter(field_name='hosts__name', lookup_expr='contains')
+    hosts__name__regex = filters.CharFilter(field_name='hosts__name', lookup_expr='regex')
+
+    labels__name__exact = filters.CharFilter(field_name='labels__name', lookup_expr='exact')
+    labels__name__contains = filters.CharFilter(field_name='labels__name', lookup_expr='contains')
+    labels__name__regex = filters.CharFilter(field_name='labels__name', lookup_expr='regex')
 
     class Meta:
         model = HostPolicyRole
