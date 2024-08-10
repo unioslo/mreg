@@ -58,6 +58,7 @@ def create_ipaddresses(hosts: List[Host]) -> List[Ipaddress]:
 
     return ipaddresses
 
+
 def create_labels(name: str, count: int) -> List[Label]:
     """Create labels."""
 
@@ -71,6 +72,7 @@ def create_labels(name: str, count: int) -> List[Label]:
         )
 
     return labels
+
 
 def create_atoms(name: str, count: int) -> List[HostPolicyAtom]:
     """Create atoms."""
@@ -104,17 +106,11 @@ def create_roles(
     roles: List[HostPolicyRole] = []
 
     for i, h in enumerate(hosts):
-        policy = HostPolicyRole.objects.create(
-                name=f"{name}host{i}".replace("_", ""),
-                description="Test role")
-        
+        policy = HostPolicyRole.objects.create(name=f"{name}host{i}".replace("_", ""), description="Test role")
         policy.hosts.add(h)
         policy.labels.add(labels[i])
         policy.atoms.add(atoms[i])
-
         roles.append(policy)
-        
-
     return (roles, atoms, labels)
 
 
@@ -126,7 +122,9 @@ class FilterTestCase(ParametrizedTestCase, MregAPITestCase):
     # NOTE: The generated hostnames are UNIQUE across every test case!
     # The format is: f"{endpoint}{query_key}{i}.example.com".replace("_", "")
     # where i is the index of the hostname (and we make three for each test).
-    @parametrize(("endpoint", "query_key", "target", "expected_hits"), [
+    @parametrize(
+        ("endpoint", "query_key", "target", "expected_hits"),
+        [
             # Direct host filtering
             param("hosts", "name", "hostsname0.example.com", 1, id="hosts_name"),
             param("hosts", "name__contains", "namecontains1", 1, id="hosts_name__contains"),
@@ -171,40 +169,37 @@ class FilterTestCase(ParametrizedTestCase, MregAPITestCase):
         for obj in chain(ipadresses, cnames, hosts):
             obj.delete()
 
-    @parametrize(("endpoint", "query_key", "target", "expected_hits"), [
-        param("roles", "name", "roleshost0", 1, id="roles_name"),
-        param("roles", "name__contains", "roleshost1", 1, id="roles_name__contains"),
-        param("roles", "name__icontains", "roleshost2", 1, id="roles_name__icontains"),
-        param("roles", "name__iexact", "roleshost2", 1, id="roles_name__iexact"),
-        param("roles", "name__startswith", "roleshost1", 1, id="roles_name__startswith"),
-        param("roles", "name__endswith", "host1", 1, id="roles_name__endswith"),
-        param("roles", "name__regex", "roleshost[0-1]", 2, id="roles_name__regex"),
-
-        param("roles", "atoms__name__exact", "rolesatomsnameexact1", 1, id="roles_atoms__name__exact"),
-        param("roles", "atoms__name__contains", "namecontains1", 1, id="roles_atoms__name__contains"),
-        param("roles", "atoms__name__regex", "nameregex[0-1]", 2, id="roles_atoms__name__regex"),
-
-        param("roles", "hosts__name__exact", "roleshostsnameexact1.example.com", 1, id="roles_hosts__name__exact"),
-        param("roles", "hosts__name__contains", "namecontains1", 1, id="roles_hosts__name__contains"),
-        param("roles", "hosts__name__regex", "nameregex[0-1].example.com", 2, id="roles_hosts__name__regex"),
-
-        param("roles", "labels__name__exact", "roleslabelsnameexact1", 1, id="roles_labels__name__exact"),
-        param("roles", "labels__name__contains", "namecontains1", 1, id="roles_labels__name__contains"),
-        param("roles", "labels__name__regex", "nameregex[0-1]", 2, id="roles_labels__name__regex"),
-
-        param("atoms", "name", "atomsname0", 1, id="atoms_name"),
-        param("atoms", "name__contains", "namecontains1", 1, id="atoms_name__contains"),
-        param("atoms", "name__icontains", "nameicontains2", 1, id="atoms_name__icontains"),
-        param("atoms", "name__iexact", "atomsnameiexact2", 1, id="atoms_name__iexact"),
-        param("atoms", "name__startswith", "atomsnamestartswith1", 1, id="atoms_name__startswith"),
-        param("atoms", "name__endswith", "endswith0", 1, id="atoms_name__endswith"),
-        param("atoms", "name__regex", "nameregex[0-1]", 2, id="atoms_name__regex"),
-
-        param("atoms", "description", "Test atom 1", 1, id="atoms_description"),
-        param("atoms", "description__contains", "Test atom", 3, id="atoms_description__contains"),
-        param("atoms", "description__regex", "Test atom [0-1]", 2, id="atoms_description__regex"),
-
-    ])
+    @parametrize(
+        ("endpoint", "query_key", "target", "expected_hits"),
+        [
+            param("roles", "name", "roleshost0", 1, id="roles_name"),
+            param("roles", "name__contains", "roleshost1", 1, id="roles_name__contains"),
+            param("roles", "name__icontains", "roleshost2", 1, id="roles_name__icontains"),
+            param("roles", "name__iexact", "roleshost2", 1, id="roles_name__iexact"),
+            param("roles", "name__startswith", "roleshost1", 1, id="roles_name__startswith"),
+            param("roles", "name__endswith", "host1", 1, id="roles_name__endswith"),
+            param("roles", "name__regex", "roleshost[0-1]", 2, id="roles_name__regex"),
+            param("roles", "atoms__name__exact", "rolesatomsnameexact1", 1, id="roles_atoms__name__exact"),
+            param("roles", "atoms__name__contains", "namecontains1", 1, id="roles_atoms__name__contains"),
+            param("roles", "atoms__name__regex", "nameregex[0-1]", 2, id="roles_atoms__name__regex"),
+            param("roles", "hosts__name__exact", "roleshostsnameexact1.example.com", 1, id="roles_hosts__name__exact"),
+            param("roles", "hosts__name__contains", "namecontains1", 1, id="roles_hosts__name__contains"),
+            param("roles", "hosts__name__regex", "nameregex[0-1].example.com", 2, id="roles_hosts__name__regex"),
+            param("roles", "labels__name__exact", "roleslabelsnameexact1", 1, id="roles_labels__name__exact"),
+            param("roles", "labels__name__contains", "namecontains1", 1, id="roles_labels__name__contains"),
+            param("roles", "labels__name__regex", "nameregex[0-1]", 2, id="roles_labels__name__regex"),
+            param("atoms", "name", "atomsname0", 1, id="atoms_name"),
+            param("atoms", "name__contains", "namecontains1", 1, id="atoms_name__contains"),
+            param("atoms", "name__icontains", "nameicontains2", 1, id="atoms_name__icontains"),
+            param("atoms", "name__iexact", "atomsnameiexact2", 1, id="atoms_name__iexact"),
+            param("atoms", "name__startswith", "atomsnamestartswith1", 1, id="atoms_name__startswith"),
+            param("atoms", "name__endswith", "endswith0", 1, id="atoms_name__endswith"),
+            param("atoms", "name__regex", "nameregex[0-1]", 2, id="atoms_name__regex"),
+            param("atoms", "description", "Test atom 1", 1, id="atoms_description"),
+            param("atoms", "description__contains", "Test atom", 3, id="atoms_description__contains"),
+            param("atoms", "description__regex", "Test atom [0-1]", 2, id="atoms_description__regex"),
+        ],
+    )
     def test_filtering_for_hostpolicy(self, endpoint: str, query_key: str, target: str, expected_hits: str) -> None:
         """Test filtering on hostpolicy."""
 
@@ -217,7 +212,7 @@ class FilterTestCase(ParametrizedTestCase, MregAPITestCase):
 
         roles, atoms, labels = create_roles(endpoint, hosts, atoms, labels)
 
-        response = self.client.get(f"/api/v1/hostpolicy/{endpoint}/?{query_key}={target}")        
+        response = self.client.get(f"/api/v1/hostpolicy/{endpoint}/?{query_key}={target}")
         self.assertEqual(response.status_code, 200, msg=f"{msg_prefix} {response.content}")
         data = response.json()
         self.assertEqual(data["count"], expected_hits, msg=f"{msg_prefix} {data}")
@@ -233,9 +228,8 @@ class FilterTestCase(ParametrizedTestCase, MregAPITestCase):
 
         for host in hosts:
             with self.subTest(host=host):
-                id = host.id # type: ignore
+                id = host.id  # type: ignore
                 msg_prefix = f"hosts : id -> {id} => "
-
                 response = self.client.get(f"/api/v1/hosts/?id={id}")
                 self.assertEqual(response.status_code, 200, msg=f"{msg_prefix} {response.content}")
                 data = response.json()
