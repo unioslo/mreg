@@ -6,6 +6,7 @@ from unittest_parametrize import ParametrizedTestCase, param, parametrize
 from hostpolicy.models import HostPolicyAtom, HostPolicyRole
 from mreg.models.base import Label
 from mreg.models.host import Host, Ipaddress
+from mreg.models.network import NetGroupRegexPermission
 from mreg.models.resource_records import Cname
 
 from .tests import MregAPITestCase
@@ -233,3 +234,33 @@ class FilterTestCase(ParametrizedTestCase, MregAPITestCase):
 
         for obj in chain(roles, atoms, labels, hosts):
             obj.delete()
+
+    @parametrize(("cidr", "exists"), [                 
+                param("10.0.0.0/24", True, id="cidr_0_true"),
+                param("10.0.1.0/24", True, id="cidr_1_true"),
+                param("10.0.2.0/24", True, id="cidr_2_true"),
+                param("10.0.3.0/24", False, id="cidr_3_false"),
+
+                param("10.0.0.1", True, id="ip_0_1_true"),
+                param("10.0.0.2", True, id="ip_0_2_true"),
+                param("10.0.1.1", True, id="ip_1_1_true"),
+                param("10.0.2.1", True, id="ip_2_1_true"),
+
+                param("10.0.3.1", False, id="ip_3_1_false"),
+        ],
+    )
+    def test_filter_netgroup_regex_permission(self, cidr: str, exists: bool) -> None:
+        """Test filtering on netgroup regex permission."""
+
+        generate_count = 3
+
+        for i in range(generate_count):
+            NetGroupRegexPermission.objects.create(
+                regex=".*",
+                range=f"10.0.{i}.0/24"
+            )
+
+        response = self.client.get(f"/api/v1/permissions/netgroupregex/?range={cidr}")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["count"], 1 if exists else 0)

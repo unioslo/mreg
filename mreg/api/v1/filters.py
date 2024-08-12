@@ -15,6 +15,8 @@ from mreg.models.resource_records import (Cname, Hinfo, Loc, Mx, Naptr, Srv,
 from mreg.models.zone import (ForwardZone, ForwardZoneDelegation, NameServer,
                               ReverseZone, ReverseZoneDelegation)
 
+from netaddr import IPNetwork, AddrFormatError
+
 mreg_log = structlog.getLogger(__name__)
 
 OperatorList = List[str]
@@ -45,10 +47,16 @@ CREATED_UPDATED = {
     "created_at": INT_OPERATORS,
     "updated_at": INT_OPERATORS,
 }
+class CIDRFieldFilter(filters.CharFilter):
+    def filter(self, qs, value):
+        if not value:
+            return qs
 
-class CIDRFieldExactFilter(filters.CharFilter):
-    pass
-
+        try:
+            cidr = IPNetwork(value)
+            return qs.filter(**{f"{self.field_name}__net_contains_or_equals": str(cidr)})
+        except AddrFormatError:
+            return qs.none()
 
 class BACnetIDFilterSet(filters.FilterSet):
     class Meta:
@@ -266,7 +274,7 @@ class NaptrFilterSet(filters.FilterSet):
 
 
 class NetGroupRegexPermissionFilterSet(filters.FilterSet):
-    range = CIDRFieldExactFilter(field_name="range")
+    range = CIDRFieldFilter(field_name="range")
 
     class Meta:
         model = NetGroupRegexPermission
@@ -280,7 +288,7 @@ class NetGroupRegexPermissionFilterSet(filters.FilterSet):
 
 
 class NetworkFilterSet(filters.FilterSet):
-    network = CIDRFieldExactFilter(field_name="network")
+    network = CIDRFieldFilter(field_name="network")
 
     class Meta:
         model = Network
@@ -329,7 +337,7 @@ class PtrOverrideFilterSet(filters.FilterSet):
 
 
 class ReverseZoneFilterSet(filters.FilterSet):
-    network = CIDRFieldExactFilter(field_name="network")
+    network = CIDRFieldFilter(field_name="network")
 
     class Meta:
         model = ReverseZone
