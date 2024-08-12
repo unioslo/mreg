@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Tuple, Union
 from itertools import chain
 
 from unittest_parametrize import ParametrizedTestCase, param, parametrize
@@ -113,7 +113,12 @@ def create_roles(
         roles.append(policy)
     return (roles, atoms, labels)
 
-
+def resolve_target(target: Union[str, List[str]]) -> List[int]:
+    if isinstance(target, str):
+        return [int(target)]
+    else:
+        return [int(t) for t in target]
+    
 class FilterTestCase(ParametrizedTestCase, MregAPITestCase):
     """Test filtering."""
 
@@ -126,13 +131,17 @@ class FilterTestCase(ParametrizedTestCase, MregAPITestCase):
         ("endpoint", "query_key", "target", "expected_hits"),
         [
             # Direct host filtering
+            param("hosts", "id", "1", 1, id="hosts_id"),
+            param("hosts", "id__in", "2", 1, id="hosts_id__in_2"),
+            param("hosts", "id__in", "1,2", 2, id="hosts_id__in_12"),
+            param("hosts", "id__in", "0,1,2", 3, id="hosts_id__in_012"),
             param("hosts", "name", "hostsname0.example.com", 1, id="hosts_name"),
             param("hosts", "name__contains", "namecontains1", 1, id="hosts_name__contains"),
             param("hosts", "name__icontains", "nameicontains2", 1, id="hosts_name__icontains"),
             param("hosts", "name__iexact", "hostsnameiexact2.example.com", 1, id="hosts_name__iexact"),
             param("hosts", "name__startswith", "hostsnamestartswith1", 1, id="hosts_name__startswith"),
             param("hosts", "name__endswith", "endswith0.example.com", 1, id="hosts_name__endswith"),
-            param("hosts", "name_regex", "nameregex[0-9].example.com", 3, id="hosts_name__regex"),
+            param("hosts", "name__regex", "nameregex[1-2].example.com", 2, id="hosts_name__regex"),
             # Reverse through Ipaddress
             param("hosts", "ipaddresses__ipaddress", "10.0.0.1", 1, id="hosts_ipaddresses__ipaddress"),
             # Reverse through Cname
@@ -148,18 +157,23 @@ class FilterTestCase(ParametrizedTestCase, MregAPITestCase):
             param("cnames", "host__name__iexact", "cnameshostnameiexact1.example.com", 1, id="cnames_host__iexact"),
             param("cnames", "host__name__startswith", "cnameshostnamestartswith", 3, id="cnames_host__startswith"),
             param("cnames", "host__name__endswith", "endswith2.example.com", 1, id="cnames_host__endswith"),
-            param("cnames", "host__name__regex", "cnameshostnameregex[0-9]", 3, id="cnames_host__regex"),
+            param("cnames", "host__name__regex", "cnameshostnameregex[0-1]", 2, id="cnames_host__regex"),
         ],
     )
     def test_filtering_for_host(self, endpoint: str, query_key: str, target: str, expected_hits: str) -> None:
         """Test filtering on host."""
 
-        generate_count = 3
-        msg_prefix = f"{endpoint} : {query_key} -> {target} => "
-
+        generate_count = 3     
         hosts = create_hosts(f"{endpoint}{query_key}", generate_count)
         cnames = create_cnames(hosts)
         ipadresses = create_ipaddresses(hosts)
+
+        if query_key.startswith("id"):
+            targets = target.split(",") if query_key.endswith("__in") else [target]
+            resolved_targets = resolve_target(targets)
+            target = ",".join(str(hosts[t].id) for t in resolved_targets) # type: ignore
+
+        msg_prefix = f"{endpoint} : {query_key} -> {target} => "
 
         response = self.client.get(f"/api/v1/{endpoint}/?{query_key}={target}")
         self.assertEqual(response.status_code, 200, msg=f"{msg_prefix} {response.content}")
@@ -218,23 +232,4 @@ class FilterTestCase(ParametrizedTestCase, MregAPITestCase):
         self.assertEqual(data["count"], expected_hits, msg=f"{msg_prefix} {data}")
 
         for obj in chain(roles, atoms, labels, hosts):
-            obj.delete()
-
-    def test_filtering_on_host_id(self) -> None:
-        """Test filtering on host id."""
-
-        generate_count = 3
-        hosts = create_hosts("hosts", generate_count)
-
-        for host in hosts:
-            with self.subTest(host=host):
-                id = host.id  # type: ignore
-                msg_prefix = f"hosts : id -> {id} => "
-                response = self.client.get(f"/api/v1/hosts/?id={id}")
-                self.assertEqual(response.status_code, 200, msg=f"{msg_prefix} {response.content}")
-                data = response.json()
-                self.assertEqual(data["results"][0]["id"], id, msg=f"{msg_prefix} {data}")
-                self.assertEqual(data["count"], 1, msg=f"{msg_prefix} {data}")
-
-        for obj in hosts:
             obj.delete()
