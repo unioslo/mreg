@@ -1,13 +1,3 @@
-[tool.ruff]
-# https://beta.ruff.rs/docs/rules/
-select = ["E", "F"]
-line-length = 119
-exclude = [
-    "mreg/migrations/",
-    "hostpolicy/migrations/",
-    ".tox",
-]
-
 [project]
 name = "mreg"
 version = "0.0.1"
@@ -22,3 +12,14 @@ requires = [
 
 [tool.setuptools]
 py-modules = ["mreg", "mregsite", "hostpolicy"] 
+
+[tool.ruff]
+# https://beta.ruff.rs/docs/rules/
+select = ["E", "F"]
+line-length = 119
+exclude = [
+    "mreg/migrations/",
+    "hostpolicy/migrations/",
+    ".tox",
+]
+

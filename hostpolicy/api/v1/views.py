@@ -2,7 +2,8 @@ from django.db.models import Prefetch
 from rest_framework import status
 from rest_framework.response import Response
 
-from django_filters import rest_framework as rest_filters
+from django_filters import rest_framework as filters
+from rest_framework import filters as rest_filters
 
 from hostpolicy.api.permissions import IsSuperOrHostPolicyAdminOrReadOnly
 from hostpolicy.models import HostPolicyAtom, HostPolicyRole
@@ -18,39 +19,71 @@ from mreg.api.v1.views_m2m import M2MDetail, M2MList, M2MPermissions
 from mreg.mixins import LowerCaseLookupMixin
 from mreg.models.host import Host
 
+from mreg.api.v1.filters import STRING_OPERATORS, INT_OPERATORS
+
 from . import serializers
 
-# For some reason the name field for filtersets for HostPolicyAtom and HostPolicyRole does
-# not support operators (e.g. __contains, __regex) in the same way as other fields. Yes,
-# the name field is a LowerCaseCharField, but the operators work fine in mreg proper.
-# To resolve this issue, we create custom fields for the filtersets that use the name field.
-
-class HostPolicyAtomFilterSet(rest_filters.FilterSet):
-    name__contains = rest_filters.CharFilter(field_name="name", lookup_expr="contains")
-    name__regex = rest_filters.CharFilter(field_name="name", lookup_expr="regex")
-
+# Note that related lookups don't work at the moment, so we need to do them explicitly.
+class HostPolicyAtomFilterSet(filters.FilterSet):
     class Meta:
         model = HostPolicyAtom
-        fields = "__all__"
+        fields = {
+            "name": STRING_OPERATORS,
+            "create_date": INT_OPERATORS,
+            "updated_at": INT_OPERATORS,
+            "description": STRING_OPERATORS,
+            "roles": INT_OPERATORS,
+        }
 
 
-class HostPolicyRoleFilterSet(rest_filters.FilterSet):
-    name__contains = rest_filters.CharFilter(field_name="name", lookup_expr="contains")
-    name__regex = rest_filters.CharFilter(field_name="name", lookup_expr="regex")
+class HostPolicyRoleFilterSet(filters.FilterSet):
+    # This seems to be required due to the many-to-many relationships?
+    atoms__name__exact = filters.CharFilter(field_name='atoms__name', lookup_expr='exact')
+    atoms__name__contains = filters.CharFilter(field_name='atoms__name', lookup_expr='contains')
+    atoms__name__regex = filters.CharFilter(field_name='atoms__name', lookup_expr='regex')
+
+    hosts__name__exact = filters.CharFilter(field_name='hosts__name', lookup_expr='exact')
+    hosts__name__contains = filters.CharFilter(field_name='hosts__name', lookup_expr='contains')
+    hosts__name__regex = filters.CharFilter(field_name='hosts__name', lookup_expr='regex')
+
+    labels__name__exact = filters.CharFilter(field_name='labels__name', lookup_expr='exact')
+    labels__name__contains = filters.CharFilter(field_name='labels__name', lookup_expr='contains')
+    labels__name__regex = filters.CharFilter(field_name='labels__name', lookup_expr='regex')
+
     class Meta:
         model = HostPolicyRole
-        fields = "__all__"
+        fields = {
+            "name": STRING_OPERATORS,
+            "create_date": INT_OPERATORS,
+            "updated_at": INT_OPERATORS,
+            "hosts": INT_OPERATORS,
+            "atoms": INT_OPERATORS,
+            "labels": INT_OPERATORS,
+        }
 
 class HostPolicyAtomLogMixin(HistoryLog):
 
     log_resource = 'hostpolicy_atom'
     model = HostPolicyAtom
+    filter_backends = (
+        rest_filters.SearchFilter,
+        filters.DjangoFilterBackend,
+        rest_filters.OrderingFilter,
+    )
+    ordering_fields = "__all__"
+
 
 
 class HostPolicyRoleLogMixin(HistoryLog):
 
     log_resource = 'hostpolicy_role'
     model = HostPolicyRole
+    filter_backends = (
+        rest_filters.SearchFilter,
+        filters.DjangoFilterBackend,
+        rest_filters.OrderingFilter,
+    )
+    ordering_fields = "__all__"
 
 
 class HostPolicyPermissionsListCreateAPIView(M2MPermissions,
