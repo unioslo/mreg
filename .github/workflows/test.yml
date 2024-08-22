@@ -67,14 +67,14 @@ jobs:
           MREG_DB_PASSWORD: postgres
       - name: Check migrations
         run: python manage.py makemigrations --check
-      - name: Export OpenAPI schema
-        run: python manage.py generateschema > openapi.yml
-      - name: Upload OpenAPI schema
-        if: matrix.python-version == '3.10'
-        uses: actions/upload-artifact@v3
-        with:
-          name: openapi.yml
-          path: openapi.yml
+#      - name: Export OpenAPI schema
+#        run: python manage.py generateschema > openapi.yml
+#      - name: Upload OpenAPI schema
+#        if: matrix.python-version == '3.10'
+#        uses: actions/upload-artifact@v3
+#        with:
+#          name: openapi.yml
+#          path: openapi.yml
       - name: Upload coverage
         uses: actions/upload-artifact@v3
         with:
