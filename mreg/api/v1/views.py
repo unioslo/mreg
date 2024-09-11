@@ -1,7 +1,6 @@
 import bisect
 import ipaddress
 from collections import Counter, defaultdict
-from typing import cast
 
 from django.db import transaction
 from django.db.models import Prefetch
@@ -314,22 +313,30 @@ class HostList(HostPermissionsListCreateAPIView):
         # request.data is immutable
         hostdata = request.data.copy()
 
+        # Hostdata *may* be MultiValueDict, which means that pop will return a list, even if get 
+        # would return a single value...
+
         if "network" in hostdata:
+            network_key = hostdata.pop("network")
+            if isinstance(network_key, list):
+                network_key = network_key[0]
+
             try:
-                ipaddress.ip_network(hostdata["network"])
+                ipaddress.ip_network(network_key)
             except ValueError as error:
                 content = {"ERROR": str(error)}
                 return Response(content, status=status.HTTP_400_BAD_REQUEST)
 
-            network = Network.objects.filter(network=hostdata["network"]).first()
+            network = Network.objects.filter(network=network_key).first()
             if not network:
                 content = {"ERROR": "no such network"}
                 return Response(content, status=status.HTTP_404_NOT_FOUND)
 
             try:
-                allocator = cast(str, hostdata.get("allocation_method", IPAllocationMethod.FIRST.value).lower())
-                request_ip_allocator = IPAllocationMethod(allocator)
-                del hostdata["allocation_method"]
+                allocation_key = hostdata.pop("allocation_method", IPAllocationMethod.FIRST.value)
+                if isinstance(allocation_key, list):
+                    allocation_key = allocation_key[0]
+                request_ip_allocator = IPAllocationMethod(allocation_key.lower())
             except ValueError:
                 options = [method.value for method in IPAllocationMethod]
                 content = {"ERROR": f"allocation_method must be one of {', '.join(options)}"}
@@ -345,11 +352,12 @@ class HostList(HostPermissionsListCreateAPIView):
                 return Response(content, status=status.HTTP_404_NOT_FOUND)
 
             hostdata["ipaddress"] = ip
-            del hostdata["network"]
 
         if "ipaddress" in hostdata:
-            ipkey = hostdata["ipaddress"]
-            del hostdata["ipaddress"]
+            ipkey = hostdata.pop("ipaddress")
+            if isinstance(ipkey, list):
+                ipkey = ipkey[0]
+                
             host = Host()
             hostserializer = HostSerializer(host, data=hostdata)
 
