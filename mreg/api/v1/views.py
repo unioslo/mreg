@@ -1,6 +1,7 @@
 import bisect
 import ipaddress
 from collections import Counter, defaultdict
+from typing import cast
 
 from django.db import transaction
 from django.db.models import Prefetch
@@ -18,6 +19,7 @@ from mreg.models.base import NameServer, History
 from mreg.models.host import Host, Ipaddress, PtrOverride
 from mreg.models.network import Network, NetGroupRegexPermission
 from mreg.models.resource_records import Cname, Loc, Naptr, Srv, Sshfp, Txt, Hinfo, Mx
+from mreg.types import IPAllocationMethod
 
 from mreg.api.permissions import (
     IsAuthenticatedAndReadOnly,
@@ -304,6 +306,11 @@ class HostList(HostPermissionsListCreateAPIView):
             content = {"ERROR": "'ipaddress' and 'network' is mutually exclusive"}
             return Response(content, status=status.HTTP_400_BAD_REQUEST)
 
+        if "allocation_method" in request.data and "network" not in request.data:
+            return Response(
+                {"ERROR": "allocation_method is only allowed with 'network'"},
+                status=status.HTTP_400_BAD_REQUEST)
+
         # request.data is immutable
         hostdata = request.data.copy()
 
@@ -319,7 +326,20 @@ class HostList(HostPermissionsListCreateAPIView):
                 content = {"ERROR": "no such network"}
                 return Response(content, status=status.HTTP_404_NOT_FOUND)
 
-            ip = network.get_random_unused()
+            try:
+                allocator = cast(str, hostdata.get("allocation_method", IPAllocationMethod.FIRST.value).lower())
+                request_ip_allocator = IPAllocationMethod(allocator)
+                del hostdata["allocation_method"]
+            except ValueError:
+                options = [method.value for method in IPAllocationMethod]
+                content = {"ERROR": f"allocation_method must be one of {', '.join(options)}"}
+                return Response(content, status=status.HTTP_400_BAD_REQUEST)
+
+            if request_ip_allocator == IPAllocationMethod.RANDOM:
+                ip = network.get_random_unused()
+            else:
+                ip = network.get_first_unused()
+
             if not ip:
                 content = {"ERROR": "no available IP in network"}
                 return Response(content, status=status.HTTP_404_NOT_FOUND)
