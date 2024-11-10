@@ -18,7 +18,7 @@ RUN  uv venv \
 ENTRYPOINT [ "/bin/sh" ]
 
 # final stage
-FROM python:3.11-alpine
+FROM alpine:3.18
 EXPOSE 8000
 
 COPY entrypoint* manage.py /app/
