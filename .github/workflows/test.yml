@@ -10,7 +10,6 @@ on:
 
 env:
   UV_FROZEN: 1
-  COVERAGE_DEBUG: dataio
 
 name: CI
 jobs:
