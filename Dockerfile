@@ -31,7 +31,7 @@ COPY --from=ghcr.io/astral-sh/uv:0.4.30 /uv /uvx /bin/
 RUN apk update && apk upgrade \
     && apk add libldap vim findutils \
     && uv venv \
-    && uv pip install /wheels/*
+    && uv pip install --no-cache /wheels/*
 RUN chmod a+x /app/entrypoint*
 
 CMD /app/entrypoint.sh
