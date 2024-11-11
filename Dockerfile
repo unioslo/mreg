@@ -18,7 +18,7 @@ RUN  uv venv \
 ENTRYPOINT [ "/bin/sh" ]
 
 # final stage
-FROM python:3.11-alpine
+FROM alpine:3.18
 EXPOSE 8000
 
 COPY entrypoint* manage.py /app/
@@ -29,7 +29,7 @@ COPY hostpolicy /app/hostpolicy/
 COPY --from=builder /usr/src/mreg/wheels /wheels
 COPY --from=ghcr.io/astral-sh/uv:0.4.30 /uv /uvx /bin/
 RUN apk update && apk upgrade \
-    && apk add libldap vim findutils \
+    && apk add python3 libldap vim findutils \
     && uv venv \
     && uv pip install --no-cache /wheels/*
 RUN chmod a+x /app/entrypoint*
