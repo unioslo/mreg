@@ -2,6 +2,7 @@ import ipaddress
 
 from django.contrib.auth.models import Group
 from django.utils import timezone
+from django.db import transaction
 
 from rest_framework import serializers
 
@@ -14,8 +15,7 @@ from mreg.models.network import Network, NetGroupRegexPermission, NetworkExclude
 
 from mreg.utils import (nonify, normalize_mac)
 from mreg.validators import (validate_keys, validate_normalizeable_mac_address)
-from mreg.api.errors import ValidationError409
-
+from mreg.api.exceptions import ValidationError409, ValidationError400
 
 class ValidationMixin:
     """Provides standard validation of data fields"""
@@ -363,18 +363,74 @@ class HostGroupSerializer(serializers.ModelSerializer):
         model = HostGroup
         fields = '__all__'
 
-
 def _validate_ip_not_in_network_excluded_range(ip):
     if ip is None:
         return
-    qs = NetworkExcludedRange.objects.filter(start_ip__lte=ip,
-                                                         end_ip__gte=ip)
+    qs = NetworkExcludedRange.objects.filter(start_ip__lte=ip, end_ip__gte=ip)
     if qs.exists():
-        raise serializers.ValidationError(
-                f"IP {ip} in an excluded range: {qs.first()}")
+        raise ValidationError400(f"IP {ip} in an excluded range: {qs.first()}")
 
 
 class LabelSerializer(serializers.ModelSerializer):
     class Meta:
         model = Label
         fields = '__all__'
+
+class HostCreateSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(required=True)
+    ipaddress = serializers.CharField(write_only=True, required=False)
+    network = serializers.CharField(write_only=True, required=False)
+    allocation_method = serializers.CharField(write_only=True, required=False)
+
+    class Meta:
+        model = Host
+        fields = ['id', 'name', 'ipaddress', 'network', 'allocation_method']
+        extra_kwargs = {'id': {'read_only': True}}
+
+    def validate_name(self, value):
+        # Check if name is already in use in Host
+        if Host.objects.filter(name=value).exists():
+            raise ValidationError409("name already in use")
+        # Check if name is already in use as a CNAME
+        if Cname.objects.filter(name=value).exists():
+            raise ValidationError409("name already in use as a cname")
+        return value
+
+    def validate_ipaddress(self, value):
+        try:
+            ipaddress.ip_address(value)
+        except ValueError as error:
+            raise ValidationError400(str(error))
+
+        return value
+
+    def validate(self, data):
+        # No need to call super().validate(data) since we're handling all validations here
+        ipaddress = data.get('ipaddress')
+        network = data.get('network')
+        allocation_method = data.get('allocation_method')
+
+        # 'ipaddress' and 'network' are mutually exclusive
+        if ipaddress and network:
+            raise ValidationError400("'ipaddress' and 'network' is mutually exclusive")
+
+        # 'allocation_method' is only allowed with 'network'
+        if allocation_method and not network:
+            raise ValidationError400("allocation_method is only allowed with 'network'")
+
+        return data
+
+    def create(self, validated_data):
+        ipaddress = validated_data.pop('ipaddress', None)
+
+        # Start atomic transaction
+        with transaction.atomic():
+            host = Host.objects.create(**validated_data)
+
+            if ipaddress:
+                self.validate_ipaddress(ipaddress)
+                Ipaddress.objects.create(host=host, ipaddress=ipaddress)
+            else:
+                pass
+
+        return host

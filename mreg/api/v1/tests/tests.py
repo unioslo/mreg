@@ -92,6 +92,8 @@ class MregAPITestCase(APITestCase):
         if client is None:
             client = self.client
         response = client.post(self._create_path(path), data)
+        if response.status_code != status_code:
+            print(f"Expected {status_code}. got {response.status_code}: {response.data}")
         self.assertEqual(response.status_code, status_code)
         return response
 

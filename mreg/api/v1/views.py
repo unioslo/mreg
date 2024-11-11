@@ -1,6 +1,7 @@
 import bisect
 import ipaddress
 from collections import Counter, defaultdict
+from typing import cast
 
 from django.db import transaction
 from django.db.models import Prefetch
@@ -17,8 +18,10 @@ from rest_framework.views import APIView
 from mreg.models.base import NameServer, History
 from mreg.models.host import Host, Ipaddress, PtrOverride
 from mreg.models.network import Network, NetGroupRegexPermission
-from mreg.models.resource_records import Cname, Loc, Naptr, Srv, Sshfp, Txt, Hinfo, Mx
 from mreg.types import IPAllocationMethod
+from mreg.models.resource_records import Cname, Loc, Naptr, Srv, Sshfp, Txt, Hinfo, Mx
+from mreg.models.auth import User
+from mreg.api.exceptions import NoIpAddressesError404, ValidationError400, ValidationError404
 
 from mreg.api.permissions import (
     IsAuthenticatedAndReadOnly,
@@ -64,6 +67,7 @@ from .serializers import (
     SrvSerializer,
     SshfpSerializer,
     TxtSerializer,
+    HostCreateSerializer,
 )
 
 from mreg.mixins import LowerCaseLookupMixin
@@ -295,99 +299,78 @@ class HostList(HostPermissionsListCreateAPIView):
         qs = _host_prefetcher(super().get_queryset())
         return HostFilterSet(data=self.request.GET, queryset=qs).qs
 
-    def post(self, request, *args, **kwargs):
-        if "name" in request.data:
-            if self.queryset.filter(name=request.data["name"]).exists():
-                content = {"ERROR": "name already in use"}
-                return Response(content, status=status.HTTP_409_CONFLICT)
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return HostCreateSerializer
+        return HostSerializer
 
-        if "ipaddress" in request.data and "network" in request.data:
-            content = {"ERROR": "'ipaddress' and 'network' is mutually exclusive"}
-            return Response(content, status=status.HTTP_400_BAD_REQUEST)
+    def post(self, request, *args, **kwargs):        
+        ip_address = request.data.get('ipaddress')
+        network = request.data.get('network')
+        allocation_method = request.data.get('allocation_method')
+        name = request.data.get('name')
+        user = cast(User, request.user)
 
-        if "allocation_method" in request.data and "network" not in request.data:
-            return Response(
-                {"ERROR": "allocation_method is only allowed with 'network'"},
-                status=status.HTTP_400_BAD_REQUEST)
+        print(f"ip_address: {ip_address} name: {name} network: {network} allocation_method: {allocation_method}")
 
-        # request.data is immutable
-        hostdata = request.data.copy()
+        if not name:
+            raise ValidationError400("You must specify a name for the new host.")
 
-        # Hostdata *may* be MultiValueDict, which means that pop will return a list, even if get 
-        # would return a single value...
+        user.is_permitted_to_use_dnsname_or_raise(name)
 
-        if "network" in hostdata:
-            network_key = hostdata.pop("network")
-            if isinstance(network_key, list):
-                network_key = network_key[0]
+        if ip_address and network:
+            raise ValidationError400("You can't specify both 'ipaddress' and 'network'")
+        
+        if allocation_method and not network:
+            raise ValidationError400("You must specify a network if you want to use 'allocation_method'")
 
+        if network:
+            # Check that we have a valid network
             try:
-                ipaddress.ip_network(network_key)
+                ipaddress.ip_network(network)
             except ValueError as error:
-                content = {"ERROR": str(error)}
-                return Response(content, status=status.HTTP_400_BAD_REQUEST)
-
-            network = Network.objects.filter(network=network_key).first()
-            if not network:
-                content = {"ERROR": "no such network"}
-                return Response(content, status=status.HTTP_404_NOT_FOUND)
+                raise ValidationError400(str(error))
 
             try:
-                allocation_key = hostdata.pop("allocation_method", IPAllocationMethod.FIRST.value)
-                if isinstance(allocation_key, list):
-                    allocation_key = allocation_key[0]
-                request_ip_allocator = IPAllocationMethod(allocation_key.lower())
-            except ValueError:
-                options = [method.value for method in IPAllocationMethod]
-                content = {"ERROR": f"allocation_method must be one of {', '.join(options)}"}
-                return Response(content, status=status.HTTP_400_BAD_REQUEST)
-
-            if request_ip_allocator == IPAllocationMethod.RANDOM:
-                ip = network.get_random_unused()
+                net = Network.objects.get(network=network)
+            except Network.DoesNotExist:
+                raise ValidationError404(f"Network {network} not found.")
+            
+            if allocation_method:
+                try:
+                    allocation_method_enum = IPAllocationMethod(allocation_method.lower())
+                except ValueError:
+                    options = [method.value for method in IPAllocationMethod]
+                    raise ValidationError400(f"allocation_method must be one of {', '.join(options)}")
             else:
-                ip = network.get_first_unused()
+                allocation_method_enum = IPAllocationMethod.FIRST
 
-            if not ip:
-                content = {"ERROR": "no available IP in network"}
-                return Response(content, status=status.HTTP_404_NOT_FOUND)
+            if allocation_method_enum == IPAllocationMethod.RANDOM:
+                ip_address = net.get_random_unused()
+            else:
+                ip_address = net.get_first_unused()
 
-            hostdata["ipaddress"] = ip
+            if not ip_address:
+                raise NoIpAddressesError404("No free ip addresses found in {net}.")
 
-        if "ipaddress" in hostdata:
-            ipkey = hostdata.pop("ipaddress")
-            if isinstance(ipkey, list):
-                ipkey = ipkey[0]
-                
-            host = Host()
-            hostserializer = HostSerializer(host, data=hostdata)
-
-            if hostserializer.is_valid(raise_exception=True):
-                with transaction.atomic():
-                    # XXX: must fix. perform_creates failes as it has no ipaddress and the
-                    # the permissions fails for most users. Maybe a nested serializer should fix it?
-                    # self.perform_create(hostserializer)
-                    hostserializer.save()
-                    self.save_log_create(hostserializer)
-                    ipdata = {"host": host.pk, "ipaddress": ipkey}
-                    ip = Ipaddress()
-                    ipserializer = IpaddressSerializer(ip, data=ipdata)
-                    ipserializer.is_valid(raise_exception=True)
-                    self.perform_create(ipserializer)
-                    location = request.path + host.name
-                    return Response(
-                        status=status.HTTP_201_CREATED,
-                        headers={"Location": location},
-                    )
+        if not ip_address:
+            user.is_permitted_to_create_host_without_ipaddress_or_raise()
+            serializer = self.get_serializer(data={"name": name})
         else:
-            host = Host()
-            hostserializer = HostSerializer(host, data=hostdata)
-            if hostserializer.is_valid(raise_exception=True):
-                self.perform_create(hostserializer)
-                location = request.path + host.name
-                return Response(
-                    status=status.HTTP_201_CREATED, headers={"Location": location}
-                )
+            serializer = self.get_serializer(data={"ipaddress": ip_address, "name": name})
+            user.is_permitted_to_use_ipaddress_or_raise(ip_address)
+        
+        serializer.is_valid(raise_exception=True)
 
+        with transaction.atomic():
+            host = serializer.save()
+            self.save_log_create(serializer)
+
+        location = f"{request.path}{host.name}"
+        return Response(
+            status=status.HTTP_201_CREATED,
+            headers={"Location": location},
+        )
 
 class HostDetail(HostPermissionsUpdateDestroy,
                  LowerCaseLookupMixin,

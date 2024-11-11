@@ -166,10 +166,12 @@ class APIZonefileTestCase(MregAPITestCase):
             {'name': 'delta', 'ip': '129.240.130.240', 'private': False},
             {'name': 'echo', 'ip': '2001:700:100:4003::29', 'private': False}
         ]
+        print("Initial:", self.forward)
         for h in testhosts:
-            self._add_host('{}.{}'.format(h['name'], self.forward.name), h['ip'])
+            print(self._add_host('{}.{}'.format(h['name'], self.forward.name), h['ip']))
         # get the forward zone file, verify it contains both private and non-private addresses
         data = self._get_zone(self.forward)
+        print("Zone after:", data)
         for h in testhosts:
             self.assertIn(h['ip'], data)
         # get the forward zone file but with private addresses excluded, verify it contains only public addresses
