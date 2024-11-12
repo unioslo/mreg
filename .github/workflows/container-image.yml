@@ -87,7 +87,7 @@ jobs:
         unzip master.zip
         cd mreg-cli-master
         pip install -r requirements-dev.txt
-        mreg-cli-master/ci/run_testsuite_and_record.sh
+        ci/run_testsuite_and_record.sh
     - name: Upload the log as an artifact
       uses: actions/upload-artifact@v4
       with:
