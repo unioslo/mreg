@@ -86,6 +86,7 @@ jobs:
         wget -nd https://github.com/unioslo/mreg-cli/archive/refs/heads/master.zip
         unzip master.zip
         cd mreg-cli-master
+        cp data/mreg-cli.conf ~/.config/mreg-cli.conf
         pip install -r requirements-dev.txt
         ci/run_testsuite_and_record.sh
     - name: Upload the log as an artifact
