@@ -80,7 +80,7 @@ jobs:
       run: |
         curl -L -o mreg-cli https://github.com/unioslo/mreg-cli/releases/download/1.0.1/mreg-cli-ubuntu-latest-3.12
         chmod 0755 mreg-cli
-        mv mreg-cli /usr/bin/
+        sudo mv mreg-cli /usr/bin/  # put it somewhere in $PATH
     - name: Run the tests
       run: |
         wget -nd https://github.com/unioslo/mreg-cli/archive/refs/heads/master.zip
