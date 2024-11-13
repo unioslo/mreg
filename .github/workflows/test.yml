@@ -101,7 +101,7 @@ jobs:
         with:
           name: coverage-${{ matrix.python-version }}
       - name: Install Coveralls
-        run: uv sync --group ci
+        run: uv pip install coveralls
       - name: Run Coveralls
         run: coveralls
         env:
