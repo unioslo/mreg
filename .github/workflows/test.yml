@@ -101,9 +101,11 @@ jobs:
         with:
           name: coverage-${{ matrix.python-version }}
       - name: Install Coveralls
-        run: uv pip install coveralls
+        run: |
+          uv venv
+          uv pip install coveralls
       - name: Run Coveralls
-        run: coveralls
+        run: uv run coveralls
         env:
           # Note: Set service name to work around
           # https://github.com/TheKevJames/coveralls-python/issues/252
