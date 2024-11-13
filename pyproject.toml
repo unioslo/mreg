@@ -37,7 +37,7 @@ dev = [
 ]
 ci = [
     # Explictly include dev group for non-uv package managers
-    # (dev group is automatically installed in uv)
+    # (dev group is automatically installed with uv)
     {include-group = "dev"},
     "tox-gh-actions", 
     "coveralls",
