@@ -78,13 +78,17 @@ jobs:
         python-version: 3.11
     - name: Install mreg-cli
       run: |
+        curl -L -o mreg-cli https://github.com/unioslo/mreg-cli/releases/download/1.0.1/mreg-cli-ubuntu-latest-3.12
+        chmod 0755 mreg-cli
+        sudo mv mreg-cli /usr/bin/  # put it somewhere in $PATH
+    - name: Run the tests
+      run: |
         wget -nd https://github.com/unioslo/mreg-cli/archive/refs/heads/master.zip
         unzip master.zip
         cd mreg-cli-master
-        pip install -r requirements.txt
-        pip install -e .
-    - name: Run the tests
-      run: mreg-cli-master/ci/run_testsuite_and_record.sh
+        cp data/mreg-cli.conf ~/.config/mreg-cli.conf
+        pip install -r requirements-dev.txt
+        ci/run_testsuite_and_record.sh
     - name: Upload the log as an artifact
       uses: actions/upload-artifact@v4
       with:
