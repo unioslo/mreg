@@ -8,18 +8,18 @@ requires-python = ">=3.8"
 dependencies = [
     "Django>4",
     "djangorestframework==3.14.0",
-    "django-auth-ldap==4.8.0",
-    "django-logging-json==1.15",
-    "django-netfields==1.3.2",
-    "django-filter==24.2",
-    "structlog==24.1.0",
-    "rich==13.7.1",
-    "gunicorn==22.0.0",
-    "idna==3.7",
-    "psycopg2-binary==2.9.9",
-    "pika==1.3.2",
-    "sentry-sdk==2.3.1",
-    "tzdata==2024.1",
+    "django-auth-ldap>=4.8.0",
+    "django-logging-json>=1.15",
+    "django-netfields>=1.3.2",
+    "django-filter>=24.2",
+    "structlog>=24.1.0",
+    "rich>=13.7.1",
+    "gunicorn>=22.0.0",
+    "idna>=3.7",
+    "psycopg2-binary>=2.9.9",
+    "pika>=1.3.2",
+    "sentry-sdk>=2.3.1",
+    "tzdata>=2024.1",
     # For OpenAPI schema generation.
     "uritemplate",
     "pyyaml",
@@ -36,7 +36,8 @@ dev = [
     "unittest-parametrize",
 ]
 ci = [
-    # Explictly include dev group for non-uv based setups
+    # Explictly include dev group for non-uv package managers
+    # (dev group is automatically installed in uv)
     {include-group = "dev"},
     "tox-gh-actions", 
     "coveralls",
