@@ -7,7 +7,7 @@ name = "mreg"
 requires-python = ">=3.9"
 dependencies = [
     "Django>4",
-    "djangorestframework>=3.14.0",
+    "djangorestframework==3.14.0",
     "django-auth-ldap>=4.8.0",
     "django-logging-json>=1.15",
     "django-netfields>=1.3.2",
