@@ -2,9 +2,14 @@ from django.conf import settings
 from rest_framework import exceptions
 from rest_framework.permissions import IsAuthenticated, SAFE_METHODS
 
+from typing import cast, TYPE_CHECKING
+
 from mreg.api.v1.serializers import HostSerializer
 from mreg.models.host import HostGroup
 from mreg.models.network import NetGroupRegexPermission, Network
+
+if TYPE_CHECKING:
+    from mreg.models.auth import User
 
 NETWORK_ADMIN_GROUP = 'NETWORK_ADMIN_GROUP'
 SUPERUSER_GROUP = 'SUPERUSER_GROUP'
@@ -36,24 +41,23 @@ def _list_in_list(list_a, list_b):
     return any(i in list_b for i in list_a)
 
 
-def user_is_superuser(user):
+def user_object_is_superuser(user: "User") -> bool:
     return user_in_settings_group(user, 'SUPERUSER_GROUP')
 
-
-def user_is_adminuser(user):
+def user_object_is_adminuser(user: "User") -> bool:
     return user_in_settings_group(user, 'ADMINUSER_GROUP')
 
-
-def user_is_group_adminuser(user):
+def user_object_is_group_adminuser(user: "User") -> bool:
     return user_in_settings_group(user, 'GROUPADMINUSER_GROUP')
 
+def user_object_is_network_adminuser(user: "User") -> bool:
+    return user_in_settings_group(user, 'NETWORK_ADMIN_GROUP')
 
-def is_super_or_admin(user):
-    return user_is_superuser(user) or user_is_adminuser(user)
+def is_super_or_admin(user: "User") -> bool:
+    return user_object_is_superuser(user) or user_object_is_adminuser(user)
 
-
-def is_super_or_group_admin(user):
-    return user_is_superuser(user) or user_is_group_adminuser(user)
+def is_super_or_group_admin(user: "User") -> bool:
+    return user_object_is_superuser(user) or user_object_is_group_adminuser(user)
 
 
 class IsAuthenticatedAndReadOnly(IsAuthenticated):
@@ -84,7 +88,7 @@ class IsSuperOrAdminOrReadOnly(IsAuthenticated):
             return False
         if request.method in SAFE_METHODS:
             return True
-        return is_super_or_admin(request.user)
+        return is_super_or_admin(cast("User", request.user))
 
 
 class IsSuperOrNetworkAdminMember(IsAuthenticated):
@@ -97,7 +101,7 @@ class IsSuperOrNetworkAdminMember(IsAuthenticated):
         import mreg.api.v1.views
         if not super().has_permission(request, view):
             return False
-        if user_is_superuser(request.user):
+        if user_object_is_superuser(cast("User", request.user)):
             return True
         if request_in_settings_group(request, NETWORK_ADMIN_GROUP):
             if isinstance(view, mreg.api.v1.views.NetworkDetail):
@@ -122,7 +126,7 @@ class IsSuperOrGroupAdminOrReadOnly(IsAuthenticated):
             return False
         if request.method in SAFE_METHODS:
             return True
-        return is_super_or_group_admin(request.user)
+        return is_super_or_group_admin(cast("User", request.user))
 
 
 def _deny_superuser_only_names(data=None, name=None, view=None, request=None):
@@ -134,6 +138,9 @@ def _deny_superuser_only_names(data=None, name=None, view=None, request=None):
         if not name:
             if 'host' in data:
                 name = data['host'].name
+
+    if name is None:
+        return False
 
     # Underscore is allowed for non-superuser in SRV records,
     # and for members of <DNS_UNDERSCORE_GROUP> in all records.
@@ -150,8 +157,10 @@ def _deny_superuser_only_names(data=None, name=None, view=None, request=None):
     return False
 
 
-def is_reserved_ip(ip):
-    network = Network.objects.filter(network__net_contains=ip).first()
+def is_reserved_ip(ip, network=None):
+    if network is None:
+        network = Network.objects.filter(network__net_contains=ip).first()
+
     if network:
         return any(ip == str(i) for i in network.get_reserved_ipaddresses())
     return False
@@ -174,17 +183,18 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
     """
 
     def has_permission(self, request, view):
+        user = cast("User", request.user)
         # This method is called before the view is executed, so
         # just do some preliminary checks.
         if not super().has_permission(request, view):
             return False
         if request.method in SAFE_METHODS:
             return True
-        if is_super_or_admin(request.user):
+        if is_super_or_admin(user):
             return True
         # Will do do more object checks later, but initially refuse any
         # unwarranted requests.
-        if NetGroupRegexPermission.objects.filter(group__in=request.user.group_list
+        if NetGroupRegexPermission.objects.filter(group__in=user.group_list
                                                   ).exists():
             return True
         return False
@@ -200,7 +210,7 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
     def has_create_permission(self, request, view, validated_serializer):
         import mreg.api.v1.views
 
-        if user_is_superuser(request.user):
+        if user_object_is_superuser(request.user):
             return True
 
         hostname = None
@@ -211,7 +221,7 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
         if 'ipaddress' in data:
             if _deny_reserved_ipaddress(data['ipaddress'], request):
                 return False
-        if user_is_adminuser(request.user):
+        if user_object_is_adminuser(request.user):
             return True
         if isinstance(view, (mreg.api.v1.views.IpaddressList,
                              mreg.api.v1.views.PtrOverrideList)):
@@ -245,7 +255,7 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
     def has_destroy_permission(self, request, view, validated_serializer):
         import mreg.api.v1.views
 
-        if user_is_superuser(request.user):
+        if user_object_is_superuser(request.user):
             return True
         obj = view.get_object()
         if isinstance(view, mreg.api.v1.views.HostDetail):
@@ -261,13 +271,13 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
         if hasattr(obj, 'ipaddress'):
             if _deny_reserved_ipaddress(obj.ipaddress, request):
                 return False
-        if user_is_adminuser(request.user):
+        if user_object_is_adminuser(request.user):
             return True
         return self.has_obj_perm(request.user, obj)
 
     def has_update_permission(self, request, view, validated_serializer):
         import mreg.api.v1.views
-        if user_is_superuser(request.user):
+        if user_object_is_superuser(request.user):
             return True
         data = validated_serializer.validated_data
         if _deny_superuser_only_names(data=data, view=view, request=request):
@@ -275,7 +285,7 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
         if 'ipaddress' in data:
             if _deny_reserved_ipaddress(data['ipaddress'], request):
                 return False
-        if user_is_adminuser(request.user):
+        if user_object_is_adminuser(request.user):
             return True
         obj = view.get_object()
         if isinstance(view, mreg.api.v1.views.HostDetail):
@@ -308,17 +318,18 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
 class HostGroupPermission(IsAuthenticated):
 
     def has_permission(self, request, view):
+        user = cast("User", request.user)
         # This method is called before the view is executed, so
         # just do some preliminary checks.
         if not super().has_permission(request, view):
             return False
         if request.method in SAFE_METHODS:
             return True
-        if is_super_or_group_admin(request.user):
+        if is_super_or_group_admin(user):
             return True
         # Will do do more object checks later, but initially refuse any
         # unwarranted requests.
-        if HostGroup.objects.filter(owners__name__in=request.user.group_list).exists():
+        if HostGroup.objects.filter(owners__name__in=user.group_list).exists():
             return True
         return False
 

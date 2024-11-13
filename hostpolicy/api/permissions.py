@@ -1,6 +1,6 @@
 from rest_framework.permissions import IsAuthenticated, SAFE_METHODS
 
-from mreg.api.permissions import user_is_superuser, user_in_settings_group
+from mreg.api.permissions import user_object_is_superuser, user_in_settings_group
 
 from mreg.models.host import Host
 from mreg.models.network import NetGroupRegexPermission
@@ -12,7 +12,7 @@ def user_is_hostpolicy_adminuser(user):
 
 
 def is_super_or_hostpolicy_admin(user):
-    return user_is_superuser(user) or user_is_hostpolicy_adminuser(user)
+    return user_object_is_superuser(user) or user_is_hostpolicy_adminuser(user)
 
 
 class IsSuperOrHostPolicyAdminOrReadOnly(IsAuthenticated):

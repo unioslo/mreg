@@ -1,5 +1,5 @@
-import functools
 import re
+import functools
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -117,7 +117,8 @@ def updated_ipaddress_fix_ptroverride(
 def _common_update_zone(signal, sender, instance):
     @functools.lru_cache()
     def _get_zone_for_ip(ip):
-        return ReverseZone.get_zone_by_ip(ip)
+        zone = ReverseZone.get_zone_by_ip(ip)
+        return zone
 
     zones = set()
 
@@ -133,7 +134,7 @@ def _common_update_zone(signal, sender, instance):
             oldzone = Host.objects.get(id=instance.host.id).zone
             zones.add(oldzone)
 
-    if sender in (Ipaddress, PtrOverride):
+    if sender in (Ipaddress, PtrOverride):        
         zone = _get_zone_for_ip(instance.ipaddress)
         zones.add(zone)
 

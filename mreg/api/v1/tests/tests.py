@@ -15,6 +15,7 @@ from mreg.models.network import Network
 from mreg.models.host import Host, Ipaddress, PtrOverride
 from mreg.models.zone import ForwardZone, ReverseZone
 from mreg.models.resource_records import Txt
+from mreg.types import IPAllocationMethod
 
 from mreg.utils import nonify
 
@@ -91,6 +92,8 @@ class MregAPITestCase(APITestCase):
         if client is None:
             client = self.client
         response = client.post(self._create_path(path), data)
+        if response.status_code != status_code:
+            print(f"Expected {status_code}. got {response.status_code}: {response.data}")
         self.assertEqual(response.status_code, status_code)
         return response
 
@@ -556,6 +559,36 @@ class APIHostsTestCase(MregAPITestCase):
         data['name'] = data['name'].upper()
         response = self.assert_post_and_201('/hosts/', data)
         self.assertEqual(response['Location'], '/api/v1/hosts/%s' % self.post_data['name'])
+
+    def prepare_allocator_data(self, allocation_method):
+        network = '10.0.0.0/24'
+        Network.objects.create(network=network)
+        data = self.post_data.copy()
+        data['allocation_method'] = allocation_method
+        data['network'] = network
+        del data['ipaddress']
+        return data
+
+    def assert_successful_allocation(self, allocation_method):
+        data = self.prepare_allocator_data(allocation_method)
+        response = self.assert_post_and_201('/hosts/', data)
+        self.assertEqual(response['Location'], f'/api/v1/hosts/{self.post_data["name"]}')
+        # TODO: Implement validation for IP address allocation
+        Network.objects.get(network=data['network']).delete()
+
+    def test_hosts_post_with_allocation_first_201_created(self):
+        """Posting a new host with an allocator of 'first' should return 201"""
+        self.assert_successful_allocation(IPAllocationMethod.FIRST.value)        
+
+    def test_hosts_post_with_allocation_random_201_created(self):
+        """Posting a new host with an allocator of 'random' should return 201"""
+        self.assert_successful_allocation(IPAllocationMethod.RANDOM.value)
+
+    def test_hosts_post_with_allocation_broken_400_bad_request(self):
+        """Posting a new host with an invalid allocator should return 400"""
+        data = self.prepare_allocator_data("broken")
+        self.assert_post_and_400('/hosts/', data)
+        Network.objects.get(network=data['network']).delete()
 
     def test_hosts_post_400_invalid_ip(self):
         """"Posting a new host with an invalid IP should return 400"""
