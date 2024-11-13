@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mreg"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
-    "Django>4",
+    "Django>=5",
     "djangorestframework==3.14.0",
     "django-auth-ldap>=4.8.0",
     "django-logging-json>=1.15",
