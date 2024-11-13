@@ -56,8 +56,10 @@ jobs:
         run: uv run tox -r
         env:
           MREG_DB_PASSWORD: postgres
-      # - name: Check migrations
-      #   run: uv run manage.py makemigrations --check
+      - name: Check migrations
+        run: |
+          export MREG_DB_NAME=mreg MREG_DB_USER=mreg MREG_DB_PASSWORD=postgres
+          uv run manage.py makemigrations --check
       # - name: Export OpenAPI schema
       #   run: uv run manage.py generateschema > openapi.yml
       # - name: Upload OpenAPI schema
