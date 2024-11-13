@@ -6,6 +6,12 @@ ENV PYTHONUNBUFFERED 1
 
 RUN apk update
 RUN apk add --virtual build-deps gcc python3-dev openldap-dev musl-dev git
+# Copy entire build context to the image.
+# In order to build the project, we need both the .git directory and project files.
+# However, we cannot mix files and directories in the COPY command, because
+# COPY will unpack the contents of source directories into the target directory,
+# and we need to keep the .git directory intact.
+# The workaround is to copy everything, but limit it with .dockerignore.
 COPY . .
 COPY --from=ghcr.io/astral-sh/uv:0.4.30 /uv /uvx /bin/
 RUN  uv venv \
