@@ -23,6 +23,8 @@ dependencies = [
     # For OpenAPI schema generation.
     "uritemplate",
     "pyyaml",
+    # For testing inside Docker image
+    "unittest-parametrize"
 ]
 dynamic = ["version"]
 
@@ -33,7 +35,6 @@ dev = [
     "coverage",
     "pytest",
     "pytest-django",
-    "unittest-parametrize",
 ]
 ci = [
     # Explictly include dev group for non-uv package managers
