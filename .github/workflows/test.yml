@@ -103,7 +103,7 @@ jobs:
           uv venv --no-project
           uv pip install coveralls
       - name: Run Coveralls
-        run: uv run coveralls
+        run: uv run --no-project coveralls
         env:
           # Note: Set service name to work around
           # https://github.com/TheKevJames/coveralls-python/issues/252
