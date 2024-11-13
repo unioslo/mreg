@@ -16,7 +16,7 @@ COPY . .
 COPY --from=ghcr.io/astral-sh/uv:0.4.30 /uv /uvx /bin/
 RUN  uv venv \
     && uv sync --frozen --no-dev  \
-    && uv pip compile pyproject.toml -o requirements.txt \
+    && uv export --no-hashes -o requirements.txt \
     && uv run python -m ensurepip --upgrade \
     && uv run python -m pip wheel --no-cache-dir --wheel-dir /usr/src/mreg/wheels -r requirements.txt \
     && uv build --wheel --out-dir /usr/src/mreg/wheels
