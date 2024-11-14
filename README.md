@@ -61,7 +61,7 @@ Start by cloning the project from github. You need a terminal and the [uv](https
 When you've got your copy of the mreg directory, set up the venv and install the dependencies:
 
 ```bash
-> uv sync --frozen
+uv sync --frozen
 ```
 
 <details>
@@ -79,19 +79,19 @@ Activating the venv allows you to run the commands with `python` instead of `uv 
 Perform database migrations:
 
 ```bash
-> uv run manage.py migrate
+uv run manage.py migrate
 ```
 
 Load sample data from fixtures into the now migrated database:
 
 ```bash
-> uv run manage.py loaddata mreg/fixtures/fixtures.json
+uv run manage.py loaddata mreg/fixtures/fixtures.json
 ```
 
 And finally, run the server:
 
 ```bash
-> uv run manage.py runserver
+uv run manage.py runserver
 ```
 
 You should now be able to open up a browser and go to http://localhost:8000/hosts/ and see
@@ -99,7 +99,10 @@ a list of hosts provided by the sample data. Or, you could perform a GET request
 the returned data.
 
 ```bash
-> curl -X GET http://localhost:8000/hosts/
+curl -X GET http://localhost:8000/hosts/
+```
+
+```json
 [{"name":"ns1.uio.no"},{"name":"ns2.uio.no"},{"name":"lucario.uio.no"},{"name":"stewie.uio.no"},{"name":"vepsebol.uio.no"}
 ```
 
@@ -108,7 +111,7 @@ the returned data.
 To run the tests for the system, simply run
 
 ```bash
-> uv run manage.py test
+uv run manage.py test
 ```
 
 ## Local Settings
