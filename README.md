@@ -65,7 +65,7 @@ When you've got your copy of the mreg directory, set up the venv and install the
 ```
 
 <details>
-  <summary>Activating the venv (optional)</summary>
+  <summary>Activate the venv (optional)</summary>
 
 Optionally, you can also activate the created virtual environment. However, we will use `uv run` to run the commands in the virtual environment in this guide, which foregoes the need to activate the environment.
 
@@ -134,6 +134,8 @@ DATABASES = {
 Patches and PRs are welcome. However, there are a number of intricacies in both code structure and internal
 expectations, so you should probably get in touch with the project maintainers before you start working on
 anything major. If in doubt, open an issue to start a discussion.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for more information.
 
 ## Reference material
 
