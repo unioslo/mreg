@@ -103,7 +103,7 @@ curl -X GET http://localhost:8000/hosts/
 ```
 
 ```json
-[{"name":"ns1.uio.no"},{"name":"ns2.uio.no"},{"name":"lucario.uio.no"},{"name":"stewie.uio.no"},{"name":"vepsebol.uio.no"}
+[{"name":"ns1.uio.no"},{"name":"ns2.uio.no"},{"name":"lucario.uio.no"},{"name":"stewie.uio.no"},{"name":"vepsebol.uio.no"}]
 ```
 
 ## Running the tests
