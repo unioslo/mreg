@@ -18,6 +18,7 @@ from mreg.models.base import NameServer, History
 from mreg.models.host import Host, Ipaddress, PtrOverride
 from mreg.models.network import Network, NetGroupRegexPermission
 from mreg.models.resource_records import Cname, Loc, Naptr, Srv, Sshfp, Txt, Hinfo, Mx
+from mreg.types import IPAllocationMethod
 
 from mreg.api.permissions import (
     IsAuthenticatedAndReadOnly,
@@ -304,32 +305,59 @@ class HostList(HostPermissionsListCreateAPIView):
             content = {"ERROR": "'ipaddress' and 'network' is mutually exclusive"}
             return Response(content, status=status.HTTP_400_BAD_REQUEST)
 
+        if "allocation_method" in request.data and "network" not in request.data:
+            return Response(
+                {"ERROR": "allocation_method is only allowed with 'network'"},
+                status=status.HTTP_400_BAD_REQUEST)
+
         # request.data is immutable
         hostdata = request.data.copy()
 
+        # Hostdata *may* be MultiValueDict, which means that pop will return a list, even if get 
+        # would return a single value...
+
         if "network" in hostdata:
+            network_key = hostdata.pop("network")
+            if isinstance(network_key, list):
+                network_key = network_key[0]
+
             try:
-                ipaddress.ip_network(hostdata["network"])
+                ipaddress.ip_network(network_key)
             except ValueError as error:
                 content = {"ERROR": str(error)}
                 return Response(content, status=status.HTTP_400_BAD_REQUEST)
 
-            network = Network.objects.filter(network=hostdata["network"]).first()
+            network = Network.objects.filter(network=network_key).first()
             if not network:
                 content = {"ERROR": "no such network"}
                 return Response(content, status=status.HTTP_404_NOT_FOUND)
 
-            ip = network.get_random_unused()
+            try:
+                allocation_key = hostdata.pop("allocation_method", IPAllocationMethod.FIRST.value)
+                if isinstance(allocation_key, list):
+                    allocation_key = allocation_key[0]
+                request_ip_allocator = IPAllocationMethod(allocation_key.lower())
+            except ValueError:
+                options = [method.value for method in IPAllocationMethod]
+                content = {"ERROR": f"allocation_method must be one of {', '.join(options)}"}
+                return Response(content, status=status.HTTP_400_BAD_REQUEST)
+
+            if request_ip_allocator == IPAllocationMethod.RANDOM:
+                ip = network.get_random_unused()
+            else:
+                ip = network.get_first_unused()
+
             if not ip:
                 content = {"ERROR": "no available IP in network"}
                 return Response(content, status=status.HTTP_404_NOT_FOUND)
 
             hostdata["ipaddress"] = ip
-            del hostdata["network"]
 
         if "ipaddress" in hostdata:
-            ipkey = hostdata["ipaddress"]
-            del hostdata["ipaddress"]
+            ipkey = hostdata.pop("ipaddress")
+            if isinstance(ipkey, list):
+                ipkey = ipkey[0]
+                
             host = Host()
             hostserializer = HostSerializer(host, data=hostdata)
 
