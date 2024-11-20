@@ -41,7 +41,7 @@ class LoggingMiddleware:
         :param request: The incoming request.
         :return: A response object
         """
-        start_time = time.time()
+        start_time = int(time.time())
 
         self.log_request(request)
         response = self.get_response(request)
@@ -98,6 +98,8 @@ class LoggingMiddleware:
         else:
             proxy_ip = ""
 
+        user_agent = self._get_request_header(request, "user-agent", "HTTP_USER_AGENT")
+
         # Size of request
         request_size = len(request.body)
 
@@ -105,6 +107,7 @@ class LoggingMiddleware:
             method=request.method,
             remote_ip=remote_ip,
             proxy_ip=proxy_ip,
+            user_agent=user_agent,
             path=request.path_info,
             query_string=request.META.get("QUERY_STRING"),
             request_size=request_size,
@@ -145,9 +148,12 @@ class LoggingMiddleware:
 
         username = request.user.username
 
+        user_agent = self._get_request_header(request, "user-agent", "HTTP_USER_AGENT")
+
         mreg_logger.bind(
             user=username,
             method=request.method,
+            user_agent=user_agent,
             status_code=status_code,
             status_label=status_label,
             path=request.path_info,
