@@ -48,41 +48,50 @@ For a full example, see `docker-compose.yml`.
 
 #### Manually
 
-[!TIP] Depending on your operating system, you may need to install additional packages to get the necessary dependencies for the project. At the very least you will probably require development packages for Python 3.
+> [!TIP] 
+> Depending on your operating system, you may need to install additional packages to get the necessary dependencies for the project. At the very least you will probably require development packages for Python 3.
 
 ##### A step by step
 
-Start by cloning the project from github. You need a terminal, `python3`, and access to a package manager that can install the necessary requirements from `requirements.txt`. We use pip.
+Start by cloning the project from github. You need a terminal and the [uv](https://docs.astral.sh/uv/) package manager.
 
-When you've got your copy of the mreg directory, setup you virtual environment:
+> [!IMPORTANT]  
+> mreg relies on PEP 735 dependency groups for development, which is [not supported by pip](https://github.com/pypa/pip/issues/12963) as of version 24.3.1.
 
-```bash
-> python3 -m venv venv
-> source venv/bin/activate
-```
-
-Then install the required packages:
+When you've got your copy of the mreg directory, set up the venv and install the dependencies:
 
 ```bash
-> pip install -r requirements.txt
+uv sync --frozen
 ```
+
+<details>
+  <summary>Activate the venv (optional)</summary>
+
+Optionally, you can also activate the created virtual environment. However, we will use `uv run` to run the commands in the virtual environment in this guide, which foregoes the need to activate the environment.
+
+```bash
+. .venv/bin/activate
+```
+
+Activating the venv allows you to run the commands with `python` instead of `uv run`.
+</details>
 
 Perform database migrations:
 
 ```bash
-> python manage.py migrate
+uv run manage.py migrate
 ```
 
 Load sample data from fixtures into the now migrated database:
 
 ```bash
-> python manage.py loaddata mreg/fixtures/fixtures.json
+uv run manage.py loaddata mreg/fixtures/fixtures.json
 ```
 
 And finally, run the server:
 
 ```bash
-> python manage.py runserver
+uv run manage.py runserver
 ```
 
 You should now be able to open up a browser and go to http://localhost:8000/hosts/ and see
@@ -90,8 +99,11 @@ a list of hosts provided by the sample data. Or, you could perform a GET request
 the returned data.
 
 ```bash
-> curl -X GET http://localhost:8000/hosts/
-[{"name":"ns1.uio.no"},{"name":"ns2.uio.no"},{"name":"lucario.uio.no"},{"name":"stewie.uio.no"},{"name":"vepsebol.uio.no"}
+curl -X GET http://localhost:8000/hosts/
+```
+
+```json
+[{"name":"ns1.uio.no"},{"name":"ns2.uio.no"},{"name":"lucario.uio.no"},{"name":"stewie.uio.no"},{"name":"vepsebol.uio.no"}]
 ```
 
 ## Running the tests
@@ -99,7 +111,7 @@ the returned data.
 To run the tests for the system, simply run
 
 ```bash
-> python manage.py test
+uv run manage.py test
 ```
 
 ## Local Settings
@@ -125,6 +137,8 @@ DATABASES = {
 Patches and PRs are welcome. However, there are a number of intricacies in both code structure and internal
 expectations, so you should probably get in touch with the project maintainers before you start working on
 anything major. If in doubt, open an issue to start a discussion.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for more information.
 
 ## Reference material
 

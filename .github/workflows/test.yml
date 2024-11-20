@@ -8,6 +8,9 @@ on:
     types: [opened, reopened, synchronize]
   workflow_dispatch:
 
+env:
+  UV_FROZEN: 1
+
 name: CI
 jobs:
   test:
@@ -32,54 +35,45 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         python-version:
-          - "3.8"
-          - "3.9"
           - "3.10"
           - "3.11"
           - "3.12"
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
-      - name: Cache pip
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: v1-pip-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('requirements-*.txt') }}
-          restore-keys: |
-            v1-pip-${{ runner.os }}-${{ matrix.python-version }}
-            v1-pip-${{ runner.os }}
-            v1-pip-
-      - name: Install Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
+        uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
       - name: Install dependencies
         run: |
           # Needed to build the native python-ldap extension.
           sudo apt-get update
           sudo apt-get -y install libsasl2-dev libldap2-dev
-          python -m pip install --upgrade pip
-          python -m pip install tox tox-gh-actions
-          python -m pip install -r requirements-test.txt
+          uv sync --group ci
       - name: Test with tox
-        run: tox -r
+        run: uv run tox -r
         env:
           MREG_DB_PASSWORD: postgres
       - name: Check migrations
-        run: python manage.py makemigrations --check
-#      - name: Export OpenAPI schema
-#        run: python manage.py generateschema > openapi.yml
-#      - name: Upload OpenAPI schema
-#        if: matrix.python-version == '3.10'
-#        uses: actions/upload-artifact@v3
-#        with:
-#          name: openapi.yml
-#          path: openapi.yml
+        run: |
+          export MREG_DB_NAME=mreg MREG_DB_USER=mreg MREG_DB_PASSWORD=postgres
+          uv run manage.py makemigrations --check
+      # - name: Export OpenAPI schema
+      #   run: uv run manage.py generateschema > openapi.yml
+      # - name: Upload OpenAPI schema
+      #   if: matrix.python-version == '3.10'
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: openapi.yml
+      #     path: openapi.yml
       - name: Upload coverage
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: coverage-${{ matrix.python-version }}
           path: .coverage
+          if-no-files-found: error
+          include-hidden-files: true
 
   coveralls:
     if: ${{ github.event_name == 'pull_request' || github.repository == 'unioslo/mreg' }}
@@ -90,34 +84,26 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         python-version:
-          - "3.8"
-          - "3.9"
           - "3.10"
           - "3.11"
           - "3.12"
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
-      - name: Cache pip
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: v1-pip-${{ runner.os }}-${{ matrix.python-version }}
-          restore-keys: |
-            v1-pip-${{ runner.os }}
-            v1-pip-
-      - name: Install Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
+        uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
       - name: Download coverage
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: coverage-${{ matrix.python-version }}
       - name: Install Coveralls
-        run: pip install coveralls
+        run: |
+          uv venv --no-project
+          uv pip install coveralls
       - name: Run Coveralls
-        run: coveralls
+        run: uv run --no-project coveralls
         env:
           # Note: Set service name to work around
           # https://github.com/TheKevJames/coveralls-python/issues/252
