@@ -6,6 +6,7 @@ import uuid
 from typing import Callable, cast
 
 import structlog
+import traceback
 from django.conf import settings
 from django.http import HttpRequest, HttpResponse
 
@@ -44,6 +45,13 @@ class LoggingMiddleware:
         start_time = int(time.time())
 
         self.log_request(request)
+ 
+        try:
+            response = self.get_response(request)
+        except Exception as e:
+            self.log_exception(request, e, start_time)
+            raise
+
         response = self.get_response(request)
         self.log_response(request, response, start_time)
         return response
@@ -171,3 +179,28 @@ class LoggingMiddleware:
         structlog.contextvars.clear_contextvars()
 
         return response
+
+    def log_exception(self, request: HttpRequest, exception: Exception, start_time: float) -> None:
+        """Log an exception that occurred during request processing."""
+        end_time = time.time()
+        run_time_ms = (end_time - start_time) * 1000
+
+        stack_trace = traceback.format_exc()
+
+        username = getattr(request.user, 'username')
+        user_agent = self._get_request_header(request, "user-agent", "HTTP_USER_AGENT")
+
+        # Log the exception with stack trace
+        mreg_logger.bind(
+            user=username,
+            method=request.method,
+            user_agent=user_agent,
+            path=request.path_info,
+            query_string=request.META.get("QUERY_STRING"),
+            run_time_ms=round(run_time_ms, 2),
+        ).error(
+            "Unhandled exception occurred",
+            exception_string=str(exception),
+            exception_type=type(exception).__name__,
+            stack_trace=stack_trace,
+        )
