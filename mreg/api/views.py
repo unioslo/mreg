@@ -85,6 +85,12 @@ class TokenLogout(APIView):
         request.user.delete()
         return Response(status=status.HTTP_200_OK)
 
+class TokenIsValid(APIView):
+
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request: Request):
+        return Response(status=status.HTTP_200_OK)  
 
 class MregVersion(APIView):
     
