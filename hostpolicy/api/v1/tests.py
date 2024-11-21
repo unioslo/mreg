@@ -87,6 +87,15 @@ class HostPolicyRoleTestCase(MregAPITestCase):
         self.assert_patch_and_400(self.basejoin(self.object_one.name),
                                   {'name': self.object_two.name})
 
+    def test_filter_200_ok(self):
+        """Filtering should return 200"""
+        response = self.assert_get(f"{self.basepath}?name={self.object_one.name}")
+        self.assertEqual(response.json()['count'], 1)
+        self.assertEqual(response.json()['results'][0]['name'], self.object_one.name)
+
+        response = self.assert_get(f"{self.basepath}?id={self.object_one.id}")
+        self.assertEqual(response.json()['count'], 1)
+        self.assertEqual(response.json()['results'][0]['name'], self.object_one.name)
 
 class HostPolicyAtomTestCase(HostPolicyRoleTestCase):
     """This class defines the test suite for api/hostpolicyroles"""
@@ -126,6 +135,11 @@ class HostPolicyAtomTestCase(HostPolicyRoleTestCase):
 
         ret2 = self.assert_get('/api/v1/hostpolicy/atoms/?name__regex=.*testatom2.*')
         self.assertEqual(ret2.json()['count'], 1)
+
+        ret2 = self.assert_get(f'/api/v1/hostpolicy/atoms/?id={self.object_two.id}')
+        self.assertEqual(ret2.json()['count'], 1)
+        self.assertEqual(ret2.json()['results'][0]['name'], self.object_two.name)
+
 
 
 class HostPolicyAdminRights(MregAPITestCase):

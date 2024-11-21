@@ -28,6 +28,7 @@ class HostPolicyAtomFilterSet(filters.FilterSet):
     class Meta:
         model = HostPolicyAtom
         fields = {
+            "id": INT_OPERATORS,
             "name": STRING_OPERATORS,
             "create_date": INT_OPERATORS,
             "updated_at": INT_OPERATORS,
@@ -53,6 +54,7 @@ class HostPolicyRoleFilterSet(filters.FilterSet):
     class Meta:
         model = HostPolicyRole
         fields = {
+            "id": INT_OPERATORS,
             "name": STRING_OPERATORS,
             "create_date": INT_OPERATORS,
             "updated_at": INT_OPERATORS,
