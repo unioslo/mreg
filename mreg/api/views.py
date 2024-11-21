@@ -3,7 +3,8 @@ import time
 from typing import Any, cast
 
 import django
-from rest_framework import __version__ as res_version
+import structlog
+
 from rest_framework import serializers, status
 from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.exceptions import AuthenticationFailed
@@ -11,18 +12,33 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from importlib.metadata import version  
 
-from django_auth_ldap import __version__ as ldap_version
-from django_filters import __version__ as filters_version
-from gunicorn import __version__ as gunicorn_version
-from sentry_sdk import VERSION as sentry_sdk_version
 from psycopg2 import __libpq_version__ as libpq_version
 
 from mreg.api.permissions import IsSuperOrNetworkAdminMember
 from mreg.models.base import ExpiringToken
 from mreg.__about__ import __version__ as mreg_version
 
+logger = structlog.getLogger(__name__)
+
 start_time = int(time.time())
+
+# Note the order here. This order is preserved in the response.
+# Also, we add libpq-data to the end of this list so letting psycopg2-binary
+# be last makes the context of the libpq version more clear.
+LIBRARIES_TO_REPORT = [
+    "djangorestframework",
+    "django-auth-ldap",
+    "django-filter", 
+    "django-logging-json",
+    "django-netfields",
+    "gunicorn", 
+    "sentry-sdk",
+    "structlog",
+    "rich",
+    "psycopg2-binary","idontexist"
+]
 
 
 class ObtainExpiringAuthToken(ObtainAuthToken):
@@ -88,13 +104,16 @@ class MetaVersions(APIView):
         data = {
             "python": platform.python_version(),
             "django": django.get_version(),
-            "djangorestframework": res_version,
-            "django_auth_ldap": ldap_version,
-            "django_filters": filters_version,
-            "gunicorn": gunicorn_version,
-            "sentry_sdk": sentry_sdk_version,
-            "libpq": libpq_version,
         }
+
+        for library in LIBRARIES_TO_REPORT:
+            try:
+                data[library] = version(library)
+            except Exception as e:
+                logger.warning(event="library", reason=f"Failed to get version for {library}: {e}")
+                data[library] = "<unknown>"
+        
+        data["libpq"] = str(libpq_version)
         return Response(status=status.HTTP_200_OK, data=data)
 
 
