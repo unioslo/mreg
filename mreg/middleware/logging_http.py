@@ -6,6 +6,7 @@ import uuid
 from typing import Callable, cast
 
 import structlog
+import sentry_sdk
 import traceback
 from django.conf import settings
 from django.http import HttpRequest, HttpResponse
@@ -52,7 +53,6 @@ class LoggingMiddleware:
             self.log_exception(request, e, start_time)
             raise
 
-        response = self.get_response(request)
         self.log_response(request, response, start_time)
         return response
 
@@ -187,7 +187,7 @@ class LoggingMiddleware:
 
         stack_trace = traceback.format_exc()
 
-        username = getattr(request.user, 'username')
+        username = getattr(request.user, 'username', 'AnonymousUser')
         user_agent = self._get_request_header(request, "user-agent", "HTTP_USER_AGENT")
 
         # Log the exception with stack trace
@@ -204,3 +204,19 @@ class LoggingMiddleware:
             exception_type=type(exception).__name__,
             stack_trace=stack_trace,
         )
+
+        # Capture the exception with Sentry and add context
+        with sentry_sdk.push_scope() as scope:
+            scope.set_user({"username": username})
+            scope.set_extra("method", request.method)
+            scope.set_extra("user_agent", user_agent)
+            scope.set_extra("path", request.path_info)
+            scope.set_extra("query_string", request.META.get("QUERY_STRING"))
+            scope.set_extra("run_time_ms", round(run_time_ms, 2))
+            scope.set_extra("exception_string", str(exception))
+            scope.set_extra("stack_trace", stack_trace)
+
+            scope.set_extra("request_body", self._get_body(request))
+
+            # Capture the exception
+            sentry_sdk.capture_exception(exception)
