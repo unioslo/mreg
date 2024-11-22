@@ -40,7 +40,7 @@ LIBRARIES_TO_REPORT = [
     "sentry-sdk",
     "structlog",
     "rich",
-    "psycopg2-binary","idontexist"
+    "psycopg2-binary",
 ]
 
 
