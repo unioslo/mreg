@@ -106,14 +106,11 @@ class UserInfo(APIView):
     def get(self, request: Request):
         # Identify the requesting user
         user = request.user
-        groups = user.groups.all()
-        is_mreg_superuser = settings.SUPERUSER_GROUP in [group.name for group in groups]
-        is_mreg_admin = settings.ADMINUSER_GROUP in [group.name for group in groups]
-        is_mreg_group_admin = settings.GROUPADMINUSER_GROUP in [group.name for group in groups]
-        is_mreg_network_admin = settings.NETWORK_ADMIN_GROUP in [group.name for group in groups]
-        is_mreg_hostpolicy_admin = settings.HOSTPOLICYADMIN_GROUP in [group.name for group in groups]
-        is_mreg_dns_wildcard_admin = settings.DNS_WILDCARD_GROUP in [group.name for group in groups]
-        is_mreg_dns_underscore_admin = settings.DNS_UNDERSCORE_GROUP in [group.name for group in groups]
+        req_groups = user.groups.all()
+        req_is_mreg_superuser = settings.SUPERUSER_GROUP in [group.name for group in req_groups]
+        req_is_mreg_admin = settings.ADMINUSER_GROUP in [group.name for group in req_groups]
+        req_is_mreg_group_admin = settings.GROUPADMINUSER_GROUP in [group.name for group in req_groups]
+        req_is_mreg_network_admin = settings.NETWORK_ADMIN_GROUP in [group.name for group in req_groups]
 
         # Determine target user (default is the requesting user)
         username = request.query_params.get("username")
@@ -121,7 +118,7 @@ class UserInfo(APIView):
 
         if username:
             # Only allow access to other user data if the requester is an mreg superuser
-            if not is_mreg_superuser or is_mreg_admin or is_mreg_group_admin or is_mreg_network_admin:
+            if not req_is_mreg_superuser or req_is_mreg_admin or req_is_mreg_group_admin or req_is_mreg_network_admin:
                 raise PermissionDenied("You do not have permission to view other users' details.")
             try:
                 target_user = User.objects.get(username=username)
@@ -133,6 +130,14 @@ class UserInfo(APIView):
         target_permissions = NetGroupRegexPermission.objects.filter(
             group__in=[group.name for group in target_groups]
         )
+        
+        is_mreg_superuser = settings.SUPERUSER_GROUP in [group.name for group in target_groups]
+        is_mreg_admin = settings.ADMINUSER_GROUP in [group.name for group in target_groups]
+        is_mreg_group_admin = settings.GROUPADMINUSER_GROUP in [group.name for group in target_groups]
+        is_mreg_network_admin = settings.NETWORK_ADMIN_GROUP in [group.name for group in target_groups]
+        is_mreg_hostpolicy_admin = settings.HOSTPOLICYADMIN_GROUP in [group.name for group in target_groups]
+        is_mreg_dns_wildcard_admin = settings.DNS_WILDCARD_GROUP in [group.name for group in target_groups]
+        is_mreg_dns_underscore_admin = settings.DNS_UNDERSCORE_GROUP in [group.name for group in target_groups]
 
         data = {
             "username": target_user.username,
