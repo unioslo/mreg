@@ -307,6 +307,22 @@ class APIMetaTestCase(MregAPITestCase):
         response = self.assert_get("/api/meta/version")
         self.assertTrue('version' in response.data)
 
+    def test_meta_user_info_self_200_ok(self):
+        self.client = self.get_token_client(superuser=False)
+        response = self.assert_get("/api/meta/user")
+        self.assertTrue('username' in response.data)
+    
+    def test_meta_user_info_admin_other_target_200_ok(self):
+        response = self.assert_get("/api/meta/user?username=superuser")
+        self.assertTrue('username' in response.data)
+
+    def test_meta_user_info_user_other_target_403_forbidden(self):
+        self.client = self.get_token_client(superuser=False)
+        self.assert_get_and_403("/api/meta/user?username=superuser")
+
+    def test_meta_user_info_user_not_found_404_not_found(self):
+        self.assert_get_and_404("/api/meta/user?username=nonexistent")
+
     def test_meta_heartbeat_user_200_ok(self):
         self.client = self.get_token_client(superuser=False)
         response = self.assert_get("/api/meta/heartbeat")
