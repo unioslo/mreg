@@ -11,7 +11,7 @@ from django.contrib.auth.models import Group
 from rest_framework.test import APIClient, APITestCase
 
 from mreg.models.base import ExpiringToken
-from mreg.models.network import Network
+from mreg.models.network import Network, NetGroupRegexPermission
 from mreg.models.host import Host, Ipaddress, PtrOverride
 from mreg.models.zone import ForwardZone, ReverseZone
 from mreg.models.resource_records import Txt
@@ -316,6 +316,27 @@ class APIMetaTestCase(MregAPITestCase):
         response = self.assert_get("/api/meta/user?username=superuser")
         self.assertTrue('username' in response.data)
 
+    def test_meta_user_info_admin_other_target_with_permissions_200_ok(self):        
+        groupname = 'permission_group_testing'
+        username = 'permission_user_testing'
+        user, _ = get_user_model().objects.get_or_create(username=username, password='test')
+        group, _ = Group.objects.get_or_create(name=groupname)
+        user.groups.add(group)
+        permission, _ = NetGroupRegexPermission.objects.get_or_create(
+            group=group, range="10.0.0.0/24", regex='.*\\.example\\.org')
+
+        response = self.assert_get(f"/api/meta/user?username={username}")
+        self.assertTrue('username' in response.data)
+        self.assertTrue('permissions' in response.data)
+        self.assertEqual(len(response.data['permissions']), 1)
+        self.assertEqual(response.data['permissions'][0]['group'], groupname)
+        self.assertEqual(response.data['permissions'][0]['range'], "10.0.0.0/24")
+        self.assertEqual(response.data['permissions'][0]['regex'], '.*\\.example\\.org')
+
+        permission.delete()
+        group.delete()
+        user.delete()
+        
     def test_meta_user_info_user_other_target_403_forbidden(self):
         self.client = self.get_token_client(superuser=False)
         self.assert_get_and_403("/api/meta/user?username=superuser")
