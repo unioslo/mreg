@@ -12,7 +12,7 @@ from mreg.models.zone import ForwardZone
 from .tests import MregAPITestCase
 
 
-class Internals(MregAPITestCase):    
+class Internals(MregAPITestCase):
     """Test internal structures in permissions."""
     
     @override_settings(SUPERUSER_GROUP=None) 
