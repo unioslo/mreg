@@ -111,7 +111,6 @@ class UserInfo(APIView):
         target_user = req_user
 
         if username and username != req_user.username:
-            # Only allow access to other user data if the requester is an mreg superuser or admin
             if not (req_user.is_mreg_superuser_or_admin or req_user.is_mreg_hostgroup_admin):
                 raise PermissionDenied("You do not have permission to view other users' details.")
             try:
