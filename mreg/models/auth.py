@@ -8,29 +8,34 @@ from django.conf import settings
 
 from rest_framework import exceptions
 
-class MregAdminGroup(enum.Enum):
+from structlog import get_logger
 
-    SUPERUSER = 'SUPERUSER_GROUP'
-    ADMINUSER = 'ADMINUSER_GROUP'
-    GROUP_ADMIN = 'GROUPADMINUSER_GROUP'
-    NETWORK_ADMIN = 'NETWORK_ADMIN_GROUP'
-    DNS_WILDCARD = 'DNS_WILDCARD_GROUP'
-    DNS_UNDERSCORE = 'DNS_UNDERSCORE_GROUP'
-    HOSTPOLICY_ADMIN = 'HOSTPOLICYADMIN_GROUP'
+
+logger = get_logger(__name__)
+
+
+class MregAdminGroup(enum.Enum):
+    SUPERUSER = "SUPERUSER_GROUP"
+    ADMINUSER = "ADMINUSER_GROUP"
+    GROUP_ADMIN = "GROUPADMINUSER_GROUP"
+    NETWORK_ADMIN = "NETWORK_ADMIN_GROUP"
+    DNS_WILDCARD = "DNS_WILDCARD_GROUP"
+    DNS_UNDERSCORE = "DNS_UNDERSCORE_GROUP"
+    HOSTPOLICY_ADMIN = "HOSTPOLICYADMIN_GROUP"
 
     def settings_groups_or_raise(self) -> list[str]:
         groupnames = getattr(settings, self.value, None)
         if groupnames is None:
-            raise exceptions.APIException(detail=f'{self.value} is unset in config')
-        
+            raise exceptions.APIException(detail=f"{self.value} is unset in config")
+
         # This bit of semantics is retained from the original implementation
         if isinstance(groupnames, str):
             groupnames = [groupnames]
 
         return groupnames
 
-class User(AbstractUser):
 
+class User(AbstractUser):
     _group_list = None
 
     @property
@@ -54,11 +59,11 @@ class User(AbstractUser):
     @property
     def is_mreg_network_admin(self):
         return self.is_member_of_any(MregAdminGroup.NETWORK_ADMIN.settings_groups_or_raise())
-    
+
     @property
     def is_mreg_dns_wildcard_admin(self):
         return self.is_member_of_any(MregAdminGroup.DNS_WILDCARD.settings_groups_or_raise())
-    
+
     @property
     def is_mreg_dns_underscore_admin(self):
         return self.is_member_of_any(MregAdminGroup.DNS_UNDERSCORE.settings_groups_or_raise())
@@ -76,15 +81,21 @@ class User(AbstractUser):
         return self.is_mreg_hostpolicy_admin or self.is_mreg_superuser
 
     @classmethod
-    def from_request(cls, request: HttpRequest) -> 'User':
+    def from_request(cls, request: HttpRequest) -> "User":
         if not request.user.is_authenticated:
-            raise exceptions.NotAuthenticated("Attempted to coerce an authenticated user from unauthenticated request")
+            logger.error(
+                "user",
+                message="Attempted to coerce an authenticated user from unauthenticated request",
+                user=request.user,
+                url=request.path_info,
+                method=request.method,
+            )
+            raise exceptions.NotAuthenticated("Not authenticated")
 
         return cast(cls, request.user)
 
     def is_member_of(self, groupname: str) -> bool:
         return groupname in self.group_list
-    
+
     def is_member_of_any(self, groupnames: list[str]) -> bool:
         return any(self.is_member_of(groupname) for groupname in groupnames)
-
