@@ -1,3 +1,4 @@
+
 from django.contrib.auth.models import Group
 from django.db.models import Prefetch
 
@@ -7,6 +8,7 @@ from rest_framework.response import Response
 from mreg.api.permissions import (HostGroupPermission,
                                   IsSuperOrGroupAdminOrReadOnly)
 from mreg.models.host import Host, HostGroup
+from mreg.models.auth import User
 
 from mreg.mixins import LowerCaseLookupMixin
 
@@ -27,7 +29,8 @@ class HostGroupM2MPermissions(M2MPermissions):
     def check_m2m_update_permission(self, request):
         for permission in self.get_permissions():
             if isinstance(self, (HostGroupOwnersList, HostGroupOwnersDetail)):
-                if not permission.is_super_or_group_admin(request):
+                user = User.from_request(request)
+                if not (user.is_mreg_superuser or user.is_mreg_group_admin):
                     self.permission_denied(request)
             else:
                 if not permission.has_m2m_change_permission(request, self):
