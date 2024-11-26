@@ -5,7 +5,7 @@ from typing import cast
 # functools.cached_property over django.utils.functional.cached_property.
 # See https://stackoverflow.com/questions/68593165/what-is-the-difference-between-cached-property-in-django-vs-pythons-functools
 # for more information.
-# 2) Cached properties have a life cycle that is tied to the instance of the class.
+# 2) Cached properties have a life cycle that is tied to the instance itself.
 # This means that the next connection creating a new user object will recache the
 # properties in question. This ensures both performance and that during the lifetime
 # of a given request users permissions will be persistent.
