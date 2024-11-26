@@ -1,6 +1,6 @@
-from unittest import skip
 
 from django.contrib.auth.models import Group
+from django.test import override_settings
 
 from rest_framework import exceptions
 
@@ -12,29 +12,23 @@ from mreg.models.zone import ForwardZone
 from .tests import MregAPITestCase
 
 
-# None of these tests work as overriding settings is still weirdly broken:
-# https://docs.djangoproject.com/en/5.1/topics/testing/tools/#overriding-settings
-# We still get the default value of the SUPERUSER groups: 'default-super-group'
 class Internals(MregAPITestCase):    
     """Test internal structures in permissions."""
     
-    @skip("Overriding settings is broken")
+    @override_settings(SUPERUSER_GROUP=None) 
     def test_missing_group_settings(self):
         """Ensure that missing group settings are caught if requested."""
         with self.assertRaises(exceptions.APIException):
-            self.settings(SUPERUSER_GROUP=None)
             MregAdminGroup.SUPERUSER.settings_groups_or_raise()
 
-    @skip("Overriding settings is broken")
+    @override_settings(SUPERUSER_GROUP='superuser') 
     def test_groups_always_a_list_from_str(self):
         """Ensure that the settings are always a list, even if there is only one group."""
-        self.settings(SUPERUSER_GROUP='superuser')
         self.assertEqual(MregAdminGroup.SUPERUSER.settings_groups_or_raise(), ['superuser'])
 
-    @skip("Overriding settings is broken")
+    @override_settings(SUPERUSER_GROUP=['superuser']) 
     def test_groups_always_a_list_from_list(self):
         """Ensure that the settings are always a list, even if there is only one group."""
-        self.settings(SUPERUSER_GROUP=['superuser'])
         self.assertEqual(MregAdminGroup.SUPERUSER.settings_groups_or_raise(), ['superuser'])
 
 class HostsNoRights(MregAPITestCase):

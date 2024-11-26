@@ -76,7 +76,7 @@ class IsSuperOrGroupAdminOrReadOnly(IsAuthenticated):
             return False
         if request.method in SAFE_METHODS:
             return True
-        return user.is_mreg_superuser or user.is_mreg_group_admin
+        return user.is_mreg_superuser or user.is_mreg_hostgroup_admin
 
 
 def _deny_superuser_only_names(data=None, name=None, view=None, request=None):
@@ -279,7 +279,7 @@ class HostGroupPermission(IsAuthenticated):
             return False
         if request.method in SAFE_METHODS:
             return True
-        if user.is_mreg_superuser or user.is_mreg_group_admin:
+        if user.is_mreg_superuser or user.is_mreg_hostgroup_admin:
             return True
         # Will do do more object checks later, but initially refuse any
         # unwarranted requests.
@@ -294,14 +294,14 @@ class HostGroupPermission(IsAuthenticated):
 
     def has_m2m_change_permission(self, request, view):
         user = User.from_request(request)
-        if user.is_mreg_superuser or user.is_mreg_group_admin:
+        if user.is_mreg_superuser or user.is_mreg_hostgroup_admin:
             return True
         return self._request_user_is_owner(view.object, request)
 
     # patch will only happen on HostGroupDetail
     def has_update_permission(self, request, view, validated_serializer):
         user = User.from_request(request)
-        if user.is_mreg_superuser or user.is_mreg_group_admin:
+        if user.is_mreg_superuser or user.is_mreg_hostgroup_admin:
             return True
         if 'description' in validated_serializer.validated_data:
             return self._request_user_is_owner(view.get_object(), request)
@@ -309,6 +309,6 @@ class HostGroupPermission(IsAuthenticated):
 
     def has_destroy_permission(self, request, view, validated_serializer):
         user = User.from_request(request)
-        if user.is_mreg_superuser or user.is_mreg_group_admin:
+        if user.is_mreg_superuser or user.is_mreg_hostgroup_admin:
             return True
         return False

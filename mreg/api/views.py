@@ -111,8 +111,8 @@ class UserInfo(APIView):
         target_user = req_user
 
         if username and username != req_user.username:
-            # Only allow access to other user data if the requester is an mreg superuser
-            if not (req_user.is_mreg_superuser_or_admin or req_user.is_mreg_group_admin or req_user.is_mreg_network_admin):
+            # Only allow access to other user data if the requester is an mreg superuser or admin
+            if not (req_user.is_mreg_superuser_or_admin or req_user.is_mreg_hostgroup_admin):
                 raise PermissionDenied("You do not have permission to view other users' details.")
             try:
                 target_user = User.objects.get(username=username)
@@ -135,7 +135,7 @@ class UserInfo(APIView):
             "mreg_status": {
                 "superuser": target_user.is_mreg_superuser,
                 "admin": target_user.is_mreg_admin,
-                "group_admin": target_user.is_mreg_group_admin,
+                "group_admin": target_user.is_mreg_hostgroup_admin,
                 "network_admin": target_user.is_mreg_network_admin,
                 "hostpolicy_admin": target_user.is_mreg_hostpolicy_admin,
                 "dns_wildcard_admin": target_user.is_mreg_dns_wildcard_admin,

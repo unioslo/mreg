@@ -30,7 +30,7 @@ class HostGroupM2MPermissions(M2MPermissions):
         for permission in self.get_permissions():
             if isinstance(self, (HostGroupOwnersList, HostGroupOwnersDetail)):
                 user = User.from_request(request)
-                if not (user.is_mreg_superuser or user.is_mreg_group_admin):
+                if not (user.is_mreg_superuser or user.is_mreg_hostgroup_admin):
                     self.permission_denied(request)
             else:
                 if not permission.has_m2m_change_permission(request, self):
