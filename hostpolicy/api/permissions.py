@@ -1,18 +1,9 @@
 from rest_framework.permissions import IsAuthenticated, SAFE_METHODS
 
-from mreg.api.permissions import user_is_superuser, user_in_settings_group
-
+from mreg.models.auth import User
 from mreg.models.host import Host
 from mreg.models.network import NetGroupRegexPermission
 from hostpolicy.models import HostPolicyRole
-
-
-def user_is_hostpolicy_adminuser(user):
-    return user_in_settings_group(user, 'HOSTPOLICYADMIN_GROUP')
-
-
-def is_super_or_hostpolicy_admin(user):
-    return user_is_superuser(user) or user_is_hostpolicy_adminuser(user)
 
 
 class IsSuperOrHostPolicyAdminOrReadOnly(IsAuthenticated):
@@ -22,12 +13,14 @@ class IsSuperOrHostPolicyAdminOrReadOnly(IsAuthenticated):
     """
 
     def has_permission(self, request, view):
+        user = User.from_request(request)
+        
         if not super().has_permission(request, view):
             # Not even reading is allowed if you're not authenticated
             return False
         if request.method in SAFE_METHODS:
             return True
-        if is_super_or_hostpolicy_admin(request.user):
+        if user.is_mreg_superuser_or_hostpolicy_admin:
             return True
 
         # Handle the (possible) absence of 'name' during schema generation

@@ -1,8 +1,11 @@
+
 from django.contrib.auth.models import Group
+from django.test import override_settings
+
 from rest_framework import exceptions
 
-from mreg.api.permissions import get_settings_groups
 from mreg.models.host import Host, Ipaddress, PtrOverride
+from mreg.models.auth import MregAdminGroup
 from mreg.models.network import NetGroupRegexPermission, Network
 from mreg.models.zone import ForwardZone
 
@@ -11,11 +14,22 @@ from .tests import MregAPITestCase
 
 class Internals(MregAPITestCase):
     """Test internal structures in permissions."""
+    
+    @override_settings(SUPERUSER_GROUP=None) 
     def test_missing_group_settings(self):
         """Ensure that missing group settings are caught if requested."""
         with self.assertRaises(exceptions.APIException):
-            get_settings_groups("NO_SUCH_SETTINGS_GROUP")
+            MregAdminGroup.SUPERUSER.settings_groups_or_raise()
 
+    @override_settings(SUPERUSER_GROUP='superuser') 
+    def test_groups_always_a_list_from_str(self):
+        """Ensure that the settings are always a list, even if there is only one group."""
+        self.assertEqual(MregAdminGroup.SUPERUSER.settings_groups_or_raise(), ['superuser'])
+
+    @override_settings(SUPERUSER_GROUP=['superuser']) 
+    def test_groups_always_a_list_from_list(self):
+        """Ensure that the settings are always a list, even if there is only one group."""
+        self.assertEqual(MregAdminGroup.SUPERUSER.settings_groups_or_raise(), ['superuser'])
 
 class HostsNoRights(MregAPITestCase):
 

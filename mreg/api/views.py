@@ -3,7 +3,6 @@ import time
 from typing import Any, cast
 
 import django
-from django.conf import settings
 import structlog
 
 from rest_framework import serializers, status
@@ -105,20 +104,14 @@ class UserInfo(APIView):
 
     def get(self, request: Request):
         # Identify the requesting user
-        user = request.user
-        req_groups = user.groups.all()
-        req_is_mreg_superuser = settings.SUPERUSER_GROUP in [group.name for group in req_groups]
-        req_is_mreg_admin = settings.ADMINUSER_GROUP in [group.name for group in req_groups]
-        req_is_mreg_group_admin = settings.GROUPADMINUSER_GROUP in [group.name for group in req_groups]
-        req_is_mreg_network_admin = settings.NETWORK_ADMIN_GROUP in [group.name for group in req_groups]
+        req_user = User.from_request(request)
 
         # Determine target user (default is the requesting user)
         username = request.query_params.get("username")
-        target_user = user
+        target_user = req_user
 
-        if username and username != user.username:
-            # Only allow access to other user data if the requester is an mreg superuser
-            if not (req_is_mreg_superuser or req_is_mreg_admin or req_is_mreg_group_admin or req_is_mreg_network_admin):
+        if username and username != req_user.username:
+            if not (req_user.is_mreg_superuser_or_admin or req_user.is_mreg_hostgroup_admin):
                 raise PermissionDenied("You do not have permission to view other users' details.")
             try:
                 target_user = User.objects.get(username=username)
@@ -131,14 +124,6 @@ class UserInfo(APIView):
             group__in=[group.name for group in target_groups]
         )
         
-        is_mreg_superuser = settings.SUPERUSER_GROUP in [group.name for group in target_groups]
-        is_mreg_admin = settings.ADMINUSER_GROUP in [group.name for group in target_groups]
-        is_mreg_group_admin = settings.GROUPADMINUSER_GROUP in [group.name for group in target_groups]
-        is_mreg_network_admin = settings.NETWORK_ADMIN_GROUP in [group.name for group in target_groups]
-        is_mreg_hostpolicy_admin = settings.HOSTPOLICYADMIN_GROUP in [group.name for group in target_groups]
-        is_mreg_dns_wildcard_admin = settings.DNS_WILDCARD_GROUP in [group.name for group in target_groups]
-        is_mreg_dns_underscore_admin = settings.DNS_UNDERSCORE_GROUP in [group.name for group in target_groups]
-
         data = {
             "username": target_user.username,
             "django_status": {
@@ -147,13 +132,13 @@ class UserInfo(APIView):
                 "active": target_user.is_active,
             },
             "mreg_status": {
-                "superuser": is_mreg_superuser,
-                "admin": is_mreg_admin,
-                "group_admin": is_mreg_group_admin,
-                "network_admin": is_mreg_network_admin,
-                "hostpolicy_admin": is_mreg_hostpolicy_admin,
-                "dns_wildcard_admin": is_mreg_dns_wildcard_admin,
-                "underscore_admin": is_mreg_dns_underscore_admin
+                "superuser": target_user.is_mreg_superuser,
+                "admin": target_user.is_mreg_admin,
+                "group_admin": target_user.is_mreg_hostgroup_admin,
+                "network_admin": target_user.is_mreg_network_admin,
+                "hostpolicy_admin": target_user.is_mreg_hostpolicy_admin,
+                "dns_wildcard_admin": target_user.is_mreg_dns_wildcard_admin,
+                "underscore_admin": target_user.is_mreg_dns_underscore_admin,
             },
             "groups": [group.name for group in target_groups],
             "permissions": [
