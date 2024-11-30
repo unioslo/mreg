@@ -1,6 +1,9 @@
 import ipaddress
 
+from structlog import get_logger
+
 from django.contrib.auth.models import Group
+from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 
 from rest_framework import serializers
@@ -8,6 +11,7 @@ from rest_framework import serializers
 from mreg.models.base import NameServer, Label, History
 from mreg.models.zone import ForwardZone, ReverseZone, ForwardZoneDelegation, ReverseZoneDelegation
 from mreg.models.host import Host, HostGroup, BACnetID, Ipaddress, PtrOverride
+from mreg.models.policy import ApprovedModelForPolicy
 from mreg.models.resource_records import Cname, Loc, Naptr, Srv, Sshfp, Txt, Hinfo, Mx
 
 from mreg.models.network import Network, NetGroupRegexPermission, NetworkExcludedRange
@@ -16,6 +20,7 @@ from mreg.utils import (nonify, normalize_mac)
 from mreg.validators import (validate_keys, validate_normalizeable_mac_address)
 from mreg.api.errors import ValidationError409
 
+logger = get_logger()
 
 class ValidationMixin:
     """Provides standard validation of data fields"""
@@ -378,3 +383,58 @@ class LabelSerializer(serializers.ModelSerializer):
     class Meta:
         model = Label
         fields = '__all__'
+
+
+class ApprovedModelSerializer(serializers.ModelSerializer):
+    """Serializer for ApprovedModel.
+
+    Note: This maps the content_type field from a string facing the user (both in and out)
+    to a content_type ID internally.
+    """
+
+    content_type = serializers.CharField()
+
+    class Meta:
+        model = ApprovedModelForPolicy
+        fields = ['id', 'content_type']
+
+    def to_internal_value(self, data):
+        """
+        Convert the string model name to a ContentType instance.
+        """
+        logpoint = "ApprovedModelSerializer.to_internal_value"
+
+        logger.debug(logpoint, data=data)
+        internal_value = super().to_internal_value(data)
+
+        # Convert string name (app_label.ModelName) to ContentType
+        content_type_str = internal_value.get('content_type')
+        if not content_type_str:
+            raise serializers.ValidationError({"content_type": "This field is required."})
+
+        logger.debug(logpoint, content_type_str=content_type_str)
+
+        try:
+            model = content_type_str
+            app_label = "mreg"
+            logger.debug(logpoint, app_label=app_label, model=model)
+            content_type = ContentType.objects.get(app_label=app_label, model=model.lower())
+            logger.debug(logpoint, content_type=content_type)
+        except ContentType.DoesNotExist:
+            msg = f"Resource '{content_type_str}' does not exist."
+            logger.warning(logpoint, msg=msg, content_type=content_type_str) 
+            raise serializers.ValidationError({"content_type": msg})
+
+        internal_value['content_type'] = content_type
+        return internal_value
+
+    def to_representation(self, instance):
+        """
+        Convert the ContentType instance back to a string.
+        """
+        representation = super().to_representation(instance)
+        content_type = instance.content_type
+        # Note, we ignore the app_label here, as it is always 'mreg'. No, we do not want o
+        # apply Policies for HostPolicy structures.
+        representation['content_type'] = content_type.model 
+        return representation

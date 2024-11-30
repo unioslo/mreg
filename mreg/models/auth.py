@@ -34,7 +34,7 @@ class MregAdminGroup(enum.Enum):
     NETWORK_ADMIN = "NETWORK_ADMIN_GROUP"
     DNS_WILDCARD = "DNS_WILDCARD_GROUP"
     DNS_UNDERSCORE = "DNS_UNDERSCORE_GROUP"
-    HOSTPOLICY_ADMIN = "HOSTPOLICYADMIN_GROUP"
+    POLICY_ADMIN = "HOSTPOLICYADMIN_GROUP"
 
     def settings_groups_or_raise(self) -> list[str]:
         """Get the group names from the settings, or raise an exception if unset.
@@ -128,7 +128,7 @@ class User(AbstractUser):
         
         A user with this permission can create, delete, and modify hostpolicy roles / atoms.
         """
-        return self.is_member_of_any(MregAdminGroup.HOSTPOLICY_ADMIN.settings_groups_or_raise())
+        return self.is_member_of_any(MregAdminGroup.POLICY_ADMIN.settings_groups_or_raise())
 
     @cached_property
     def is_mreg_superuser_or_admin(self) -> bool:
@@ -139,7 +139,7 @@ class User(AbstractUser):
     def is_mreg_superuser_or_hostpolicy_admin(self) -> bool:
         """Check if the user is a superuser or a hostpolicy admin."""
         return self.is_mreg_hostpolicy_admin or self.is_mreg_superuser
-
+    
     @classmethod
     def from_request(cls, request: Request) -> "User":
         """Get the authenticated user from a request, or raise if not authenticated.

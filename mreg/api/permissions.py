@@ -1,12 +1,16 @@
 from rest_framework import exceptions
 from rest_framework.permissions import IsAuthenticated, SAFE_METHODS
 
+from structlog import get_logger
+
 from mreg.api.v1.serializers import HostSerializer
-from mreg.models.host import HostGroup
+from mreg.models.host import HostGroup, Host
 from mreg.models.network import NetGroupRegexPermission, Network
+from mreg.models.policy import PolicyRole
 
 from mreg.models.auth import User
 
+logger = get_logger()
 
 class IsAuthenticatedAndReadOnly(IsAuthenticated):
     def has_permission(self, request, view):
@@ -309,3 +313,69 @@ class HostGroupPermission(IsAuthenticated):
         if user.is_mreg_superuser or user.is_mreg_hostgroup_admin:
             return True
         return False
+
+class IsSuperOrPolicyAdminOrReadOnly(IsAuthenticated):
+    """Permit user if in super or host policy admin group, else read only."""
+
+    def has_permission(self, request, view):
+        user = User.from_request(request)
+        logpoint = "IsSuperOrPolicyAdminOrReadOnly.has_permission"
+
+        logger.debug(logpoint, user=user)
+
+        if not super().has_permission(request, view):
+            logger.debug(logpoint, authenticated=False, result="Denied")
+            return False
+        if request.method in SAFE_METHODS:
+            logger.debug(logpoint, method=request.method, safe_methods=True, result="Allowed")
+            return True
+        if user.is_mreg_superuser_or_hostpolicy_admin:
+            logger.debug(logpoint, is_admin_or_hostpolicy_admin=True, result="Allowed")
+            return True
+
+        # We now turn to testing for user write access. This requires there to be a Label attached to the PolicyRole
+        # in question. If there is no Label, we deny access, if there is a Label, we check if the user has been granted
+        # access through a NetGroupRegexPermission.
+        role_name = view.kwargs.get('name')
+        if role_name is None:
+            logger.debug(logpoint, role_name=None, result="Denied")
+            return False
+        
+        # Find out which labels are attached to this role
+        role_labels = PolicyRole.objects.filter(name=role_name).values_list('labels__name', flat=True)
+        if not any(role_labels):
+            # if the role doesn't have any labels, there's no possibility of access at this point
+            logger.debug(logpoint, role_labels=None, result="Denied")
+            return False
+        
+        # Find all the NetGroupRegexPermission objects that correspond with
+        # the ipaddress, hostname, and the groups that the user is a member of
+        # Also, ensure that the hostname is not empty.
+        hostname = view.kwargs.get('host', request.data.get("name"))
+        if not hostname:
+            logger.debug(logpoint, hostname=None, result="Denied")
+            return False
+        
+        ips = list(Host.objects.filter(name=hostname).exclude(
+                        ipaddresses__ipaddress=None
+                    ).values_list('ipaddresses__ipaddress', flat=True))
+        logger.debug(logpoint, hostname=hostname, ips=ips)
+        qs = NetGroupRegexPermission.find_perm(user.group_list, hostname, ips)
+
+        # If no permissions matched the host/ip, we deny access
+        if not qs.exists():
+            logger.debug(logpoint, netgroupregexpermission="Empty set", result="Denied")
+            return False
+
+        # Do any of those permissions have labels that match the labels attached to this role?
+        # If so, access is granted
+        perm_labels = qs.values_list('labels__name', flat=True)
+        if any(label in perm_labels for label in role_labels):
+            logger.debug(logpoint, perm_labels=perm_labels, role_labels=role_labels, result="Allowed")
+            return True
+
+        logger.debug(logpoint, perm_labels=perm_labels, role_labels=role_labels, result="Denied")
+        return False
+
+    def has_m2m_change_permission(self, request, view):
+        return True
