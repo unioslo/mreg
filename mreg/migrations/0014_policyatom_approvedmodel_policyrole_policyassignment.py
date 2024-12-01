@@ -30,7 +30,7 @@ class Migration(migrations.Migration):
             },
         ),
         migrations.CreateModel(
-            name='ApprovedModel',
+            name='ApprovedModelForPolicy',
             fields=[
                 ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('content_type', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='contenttypes.contenttype')),
