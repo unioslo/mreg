@@ -1,4 +1,3 @@
-import datetime
 
 from abc import abstractmethod
 
@@ -7,8 +6,10 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.db import models
 
+
 from structlog import get_logger
 
+from mreg.models.base import BaseModel
 from mreg.fields import LowerCaseCharField
 from mreg.managers import LowerCaseManager
 from mreg.models.base import Label
@@ -16,15 +17,13 @@ from mreg.models.base import Label
 logger = get_logger()
 
 
-class PolicyComponent(models.Model):
+class PolicyComponent(BaseModel):
     """Abstract base class for policy components.
 
     This class provides common fields and methods for policy-related models.
     Subclasses are expected to define a 'name' field.
     """
 
-    updated_at = models.DateTimeField(auto_now=True)
-    create_date = models.DateField(default=datetime.date.today)
     description = models.CharField(max_length=150)
 
     class Meta:
@@ -93,7 +92,7 @@ class PolicyRole(PolicyComponent):
         ordering = ("name",)
 
 
-class ApprovedModelForPolicy(models.Model):
+class ApprovedModelForPolicy(BaseModel):
     """
     Model representing an approved model for policy assignments.
 
@@ -112,7 +111,7 @@ class ApprovedModelForPolicy(models.Model):
         db_table = "approved_model_for_policy"
 
 
-class PolicyAssignment(models.Model):
+class PolicyAssignment(BaseModel):
     """
     Model representing the assignment of a policy role to an object.
 
