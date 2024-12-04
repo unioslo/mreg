@@ -13,11 +13,12 @@ class IsSuperOrHostPolicyAdminOrReadOnly(IsAuthenticated):
     """
 
     def has_permission(self, request, view):
-        user = User.from_request(request)
-        
         if not super().has_permission(request, view):
             # Not even reading is allowed if you're not authenticated
             return False
+        
+        user = User.from_request(request)
+        
         if request.method in SAFE_METHODS:
             return True
         if user.is_mreg_superuser_or_hostpolicy_admin:
