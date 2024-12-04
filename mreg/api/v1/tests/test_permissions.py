@@ -12,30 +12,31 @@ from .tests import MregAPITestCase
 
 class TestIsGrantedNetGroupRegexPermission(MregAPITestCase):
 
-    @mock.patch('mreg.api.permissions.user_is_superuser', return_value=False)
-    @mock.patch('mreg.api.permissions.user_is_adminuser', return_value=False)
-    @mock.patch('mreg.api.permissions.IsGrantedNetGroupRegexPermission.has_obj_perm',
-                return_value=False)
+    @mock.patch('mreg.api.permissions.User.from_request')
+    @mock.patch('mreg.api.permissions.IsGrantedNetGroupRegexPermission.has_obj_perm', return_value=False)
     @mock.patch('mreg.api.permissions.IsGrantedNetGroupRegexPermission._get_hostname_and_ips',
                 return_value=('hostname', ['ip']))
     def test_unhandled_view(
         self,
         mock_get_hostname_and_ips,
         mock_has_obj_perm,
-        mock_is_adminuser,
-        mock_is_superuser
+        mock_user_from_request
     ):
         request = RequestFactory().post('/')
         user = mock.Mock()
         user.group_list = []
+        user.is_mreg_superuser = False
+        user.is_mreg_admin = False
         request.user = user
+        # Make it so every time we call User.from_request, it returns the same user object
+        # that we created above.
+        mock_user_from_request.return_value = user
         force_authenticate(request, user=user)
 
         # Mock view that is not an instance of any of the checked classes
         view = mock.Mock()
 
         # Mock object that doesn't have 'host' attribute
-        # This is for has_{update,destroy}_permission
         view.get_object = mock.Mock(return_value=None)
 
         # Mock serializer with data that doesn't have 'host' or 'ipaddress'
@@ -43,7 +44,7 @@ class TestIsGrantedNetGroupRegexPermission(MregAPITestCase):
         serializer.validated_data = {}
 
         permission = IsGrantedNetGroupRegexPermission()
-        
+
         with self.assertRaises(PermissionDenied):
             permission.has_create_permission(request, view, serializer)
 
@@ -52,6 +53,7 @@ class TestIsGrantedNetGroupRegexPermission(MregAPITestCase):
 
         with self.assertRaises(PermissionDenied):
             permission.has_destroy_permission(request, view, serializer)
+
 
 class NetGroupRegexPermissionTestCase(MregAPITestCase):
 
