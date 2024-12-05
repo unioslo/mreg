@@ -60,7 +60,7 @@ if not os.access(log_dir, os.W_OK): # pragma: no cover
     sys.exit(1)
 
 # Check if LOG_FILE_NAME exists and if it is writable.
-if os.path.exists(LOG_FILE_NAME) and not os.access(LOG_FILE_NAME, os.W_OK):
+if os.path.exists(LOG_FILE_NAME) and not os.access(LOG_FILE_NAME, os.W_OK): # pragma: no cover
     print(f"Log file {LOG_FILE_NAME} is not writable")
     sys.exit(1)
 
