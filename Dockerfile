@@ -1,5 +1,5 @@
 # build stage
-FROM python:3.11-alpine as builder
+FROM python:3.11-alpine AS builder
 WORKDIR /usr/src/mreg
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
