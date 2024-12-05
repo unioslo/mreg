@@ -3,6 +3,8 @@ from operator import itemgetter
 from unittest import skip
 
 import unittest.mock as mock
+from unittest_parametrize import ParametrizedTestCase, param, parametrize
+
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -188,6 +190,17 @@ def create_reverse_zone(name='10.10.in-addr.arpa', primary_ns='ns.example.org',
                         email='hostmaster@example.org'):
     return ReverseZone.objects.create(name=name, primary_ns=primary_ns, email=email)
 
+
+class MregPutNotAllowedTestCase(ParametrizedTestCase, MregAPITestCase):
+
+    @parametrize(('path',), [
+        param('/hosts/'),
+        param('/networks/'),
+        param('/zones/forward/'),
+    ])
+    def test_put_not_allowed(self, path: str):
+        response = self.client.put(self._create_path(path))
+        self.assertEqual(response.status_code, 405)
 
 class APITestInternals(MregAPITestCase):
     """Test internal methods."""
