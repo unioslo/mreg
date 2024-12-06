@@ -95,13 +95,13 @@ def create_roles(
 ) -> Tuple[List[HostPolicyRole], List[HostPolicyAtom], List[Label]]:
     """Create roles."""
 
-    if not atoms:
+    if not atoms: # pragma: no cover
         atoms = create_atoms(f"{name}atom", len(hosts))
 
-    if not labels:
+    if not labels: # pragma: no cover
         labels = create_labels(f"{name}label", len(hosts))
 
-    if len(hosts) != len(atoms) or len(hosts) != len(labels):
+    if len(hosts) != len(atoms) or len(hosts) != len(labels): # pragma: no cover
         raise ValueError("Hosts, Atoms, and Labels must be the same length.")
 
     roles: List[HostPolicyRole] = []

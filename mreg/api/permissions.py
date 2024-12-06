@@ -46,10 +46,12 @@ class IsSuperOrNetworkAdminMember(IsAuthenticated):
     """
 
     def has_permission(self, request, view):
-        user = User.from_request(request)
         import mreg.api.v1.views
         if not super().has_permission(request, view):
             return False
+
+        user = User.from_request(request)
+
         if user.is_mreg_superuser:
             return True
         if user.is_mreg_network_admin:
@@ -71,9 +73,9 @@ class IsSuperOrGroupAdminOrReadOnly(IsAuthenticated):
     """
 
     def has_permission(self, request, view):
-        user = User.from_request(request)
         if not super().has_permission(request, view):
             return False
+        user = User.from_request(request)
         if request.method in SAFE_METHODS:
             return True
         return user.is_mreg_superuser or user.is_mreg_hostgroup_admin
@@ -133,11 +135,11 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
     """
 
     def has_permission(self, request, view):
-        user = User.from_request(request)
         # This method is called before the view is executed, so
         # just do some preliminary checks.
         if not super().has_permission(request, view):
             return False
+        user = User.from_request(request)
         if request.method in SAFE_METHODS:
             return True
         if user.is_mreg_superuser_or_admin:
@@ -193,9 +195,7 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
             hostname = data['host'].name
         elif 'host' in data:
             hostname, ips = self._get_hostname_and_ips(data['host'])
-        else:  # pragma: no cover
-            # Testing these kinds of should-never-happen codepaths is hard.
-            # We have to basically mock a complete API call and then break it.
+        else:
             raise exceptions.PermissionDenied(f"Unhandled view: {view}")
 
         if ips and hostname:
@@ -213,9 +213,7 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
             pass
         elif hasattr(obj, 'host'):
             obj = obj.host
-        else:  # pragma: no cover
-            # Testing these kinds of should-never-happen codepaths is hard.
-            # We have to basically mock a complete API call and then break it.
+        else:
             raise exceptions.PermissionDenied(f"Unhandled view: {view}")
         if _deny_superuser_only_names(name=obj.name, view=view, request=request):
             return False
@@ -273,10 +271,9 @@ class HostGroupPermission(IsAuthenticated):
     def has_permission(self, request, view):
         # This method is called before the view is executed, so
         # just do some preliminary checks.
-        user = User.from_request(request)
-
         if not super().has_permission(request, view):
             return False
+        user = User.from_request(request)
         if request.method in SAFE_METHODS:
             return True
         if user.is_mreg_superuser or user.is_mreg_hostgroup_admin:

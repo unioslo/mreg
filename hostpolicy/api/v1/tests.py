@@ -16,6 +16,15 @@ class HostPolicyUniqueNameSpace(MregAPITestCase):
         self.assert_post('/api/v1/hostpolicy/atoms/', data)
         self.assert_post_and_400('/api/v1/hostpolicy/roles/', data)
 
+class HostPolicyBasicTestCase(MregAPITestCase):
+
+    def test_get_unauthenticated_401_unauthenticated(self):
+        """Unauthenticated users should get 401 on all endpoints"""
+        self.client.logout()
+        self.assert_get_and_401('/api/v1/hostpolicy/roles/')
+        self.assert_get_and_401('/api/v1/hostpolicy/atoms/')
+
+
 
 class HostPolicyRoleTestCase(MregAPITestCase):
     """This class defines the test suite for api/hostpolicyroles"""

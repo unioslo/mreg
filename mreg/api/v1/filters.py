@@ -5,6 +5,7 @@ from typing import List
 import structlog
 from django.db.models import Q
 from django_filters import rest_framework as filters
+from rest_framework import exceptions
 
 from mreg.models.base import History
 from mreg.models.host import BACnetID, Host, HostGroup, Ipaddress, PtrOverride
@@ -56,7 +57,7 @@ class CIDRFieldFilter(filters.CharFilter):
             cidr = IPNetwork(value)
             return qs.filter(**{f"{self.field_name}__net_contains_or_equals": str(cidr)})
         except AddrFormatError:
-            return qs.none()
+            raise exceptions.ValidationError(f"Invalid CIDR: {value}")
 
 class BACnetIDFilterSet(filters.FilterSet):
     class Meta:

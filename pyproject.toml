@@ -32,7 +32,7 @@ dynamic = ["version"]
 [dependency-groups]
 dev = [
     "tox-uv",
-    "coverage",
+    "coverage[toml]",
     "pytest",
     "pytest-django",
 ]
