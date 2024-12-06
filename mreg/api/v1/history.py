@@ -11,7 +11,7 @@ from django.forms import model_to_dict
 
 from mreg.models.base import History
 
-log = structlog.get_logger(__name__)
+log = structlog.get_logger("mreg.history")
 
 
 class DjangoJSONModelEncoder(DjangoJSONEncoder):
@@ -57,11 +57,10 @@ class HistoryLog:
             data=json_data,
         )
 
-        # We should never fail at performing a clean on the testdata itself.
         try:
             history.full_clean()
-        except ValidationError as e:  # pragma: no cover
-            print(e)
+        except ValidationError:
+            log.exception("ValidationError occured during full_clean()", exc_info=True)
             return
         history.save()
 
@@ -100,11 +99,10 @@ class HistoryLog:
             data=data,
         )
 
-        # We should never fail at performing a clean on the testdata itself.
         try:
             history.full_clean()
-        except ValidationError as e:  # pragma: no cover
-            print(e)
+        except ValidationError:
+            log.exception("ValidationError occured during full_clean()", exc_info=True)
             return
         history.save()
 

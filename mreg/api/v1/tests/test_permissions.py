@@ -1,6 +1,58 @@
-from rest_framework.test import APIClient
+
+from unittest import mock
+
+from django.test import RequestFactory
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.test import APIClient, force_authenticate
+
+from mreg.api.permissions import IsGrantedNetGroupRegexPermission
 
 from .tests import MregAPITestCase
+
+
+class TestIsGrantedNetGroupRegexPermission(MregAPITestCase):
+
+    @mock.patch('mreg.api.permissions.User.from_request')
+    @mock.patch('mreg.api.permissions.IsGrantedNetGroupRegexPermission.has_obj_perm', return_value=False)
+    @mock.patch('mreg.api.permissions.IsGrantedNetGroupRegexPermission._get_hostname_and_ips',
+                return_value=('hostname', ['ip']))
+    def test_unhandled_view(
+        self,
+        mock_get_hostname_and_ips,
+        mock_has_obj_perm,
+        mock_user_from_request
+    ):
+        request = RequestFactory().post('/')
+        user = mock.Mock()
+        user.group_list = []
+        user.is_mreg_superuser = False
+        user.is_mreg_admin = False
+        request.user = user
+        # Make it so every time we call User.from_request, it returns the same user object
+        # that we created above.
+        mock_user_from_request.return_value = user
+        force_authenticate(request, user=user)
+
+        # Mock view that is not an instance of any of the checked classes
+        view = mock.Mock()
+
+        # Mock object that doesn't have 'host' attribute
+        view.get_object = mock.Mock(return_value=None)
+
+        # Mock serializer with data that doesn't have 'host' or 'ipaddress'
+        serializer = mock.Mock()
+        serializer.validated_data = {}
+
+        permission = IsGrantedNetGroupRegexPermission()
+
+        with self.assertRaises(PermissionDenied):
+            permission.has_create_permission(request, view, serializer)
+
+        with self.assertRaises(PermissionDenied):
+            permission.has_update_permission(request, view, serializer)
+
+        with self.assertRaises(PermissionDenied):
+            permission.has_destroy_permission(request, view, serializer)
 
 
 class NetGroupRegexPermissionTestCase(MregAPITestCase):

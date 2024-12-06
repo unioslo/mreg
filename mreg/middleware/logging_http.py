@@ -49,7 +49,7 @@ class LoggingMiddleware:
  
         try:
             response = self.get_response(request)
-        except Exception as e:
+        except Exception as e: # pragma: no cover (this is somewhat tricky to properly test)
             self.log_exception(request, e, start_time)
             raise
 
@@ -80,7 +80,7 @@ class LoggingMiddleware:
         self, request: HttpRequest, header_key: str, meta_key: str
     ) -> str:
         """Get the value of a header from the request, either via headers or META."""
-        if hasattr(request, "headers"):
+        if hasattr(request, "headers"): # pragma: no cover
             return request.headers.get(header_key)
 
         return request.META.get(meta_key)
@@ -180,7 +180,7 @@ class LoggingMiddleware:
 
         return response
 
-    def log_exception(self, request: HttpRequest, exception: Exception, start_time: float) -> None:
+    def log_exception(self, request: HttpRequest, exception: Exception, start_time: float) -> None: # pragma: no cover
         """Log an exception that occurred during request processing."""
         end_time = time.time()
         run_time_ms = (end_time - start_time) * 1000

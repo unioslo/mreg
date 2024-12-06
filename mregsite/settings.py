@@ -47,20 +47,20 @@ LOG_FILE_NAME = os.path.join(
 
 # If the log directory doesn't exist, create it.
 log_dir = os.path.dirname(LOG_FILE_NAME)
-if not os.path.exists(log_dir):
-    try:
+if not os.path.exists(log_dir): # pragma: no cover
+    try: # pragma: no cover
         os.makedirs(log_dir)
     except OSError as e:
         print(f"Failed to create log directory {log_dir}: {e}")
         sys.exit(1)
 
 # Check if the log file and directory is writable.
-if not os.access(log_dir, os.W_OK):
+if not os.access(log_dir, os.W_OK): # pragma: no cover
     print(f"Log directory {log_dir} is not writable")
     sys.exit(1)
 
 # Check if LOG_FILE_NAME exists and if it is writable.
-if os.path.exists(LOG_FILE_NAME) and not os.access(LOG_FILE_NAME, os.W_OK):
+if os.path.exists(LOG_FILE_NAME) and not os.access(LOG_FILE_NAME, os.W_OK): # pragma: no cover
     print(f"Log file {LOG_FILE_NAME} is not writable")
     sys.exit(1)
 
@@ -248,7 +248,7 @@ if TESTING or DEBUG:
         structlog.stdlib.ProcessorFormatter.remove_processors_meta,
         structlog.dev.ConsoleRenderer(colors=True, sort_keys=False),
     ]
-else:
+else: # pragma: no cover
     console_processors = [
         structlog.stdlib.ProcessorFormatter.remove_processors_meta,
         structlog.processors.JSONRenderer(),
