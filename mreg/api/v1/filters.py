@@ -15,6 +15,7 @@ from mreg.models.resource_records import (Cname, Hinfo, Loc, Mx, Naptr, Srv,
                                           Sshfp, Txt)
 from mreg.models.zone import (ForwardZone, ForwardZoneDelegation, NameServer,
                               ReverseZone, ReverseZoneDelegation)
+from mreg.models.policy import ApprovedModelForPolicy
 
 from netaddr import IPNetwork, AddrFormatError
 
@@ -399,4 +400,16 @@ class TxtFilterSet(filters.FilterSet):
             "txt": STRING_OPERATORS,
             **HOST_FIELDS,
             **CREATED_UPDATED,
+        }
+
+class ApprovedModelFilterSet(filters.FilterSet):
+    content_type = filters.CharFilter(field_name="content_type__model", lookup_expr="iexact")
+    content_type__exact = filters.CharFilter(field_name="content_type__model", lookup_expr="iexact")
+    content_type__contains = filters.CharFilter(field_name="content_type__model", lookup_expr="icontains")
+    content_type__regex = filters.CharFilter(field_name="content_type__model", lookup_expr="regex")    
+
+    class Meta:
+        model = ApprovedModelForPolicy
+        fields = {
+            "id": INT_OPERATORS,
         }

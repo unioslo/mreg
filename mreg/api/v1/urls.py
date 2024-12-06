@@ -1,6 +1,6 @@
 from django.urls import path, re_path
 
-from . import views, views_hostgroups, views_zones, views_labels, views_bacnet
+from . import views, views_hostgroups, views_zones, views_labels, views_bacnet, views_policy
 
 urlpatterns = [
     path('bacnet/ids/', views_bacnet.BACnetIDList.as_view()),
@@ -79,4 +79,7 @@ urlpatterns = [
     re_path(r'^zonefiles/(?P<name>(\d+/)?[^/]+)', views_zones.zone_file_detail),
     path('permissions/netgroupregex/', views.NetGroupRegexPermissionList.as_view()),
     path('permissions/netgroupregex/<pk>', views.NetGroupRegexPermissionDetail.as_view()),
+
+    path('policy/approvals/', views_policy.ApprovedModelForPolicylListCreateAPIView.as_view(), name='approved-model-list'),
+    path('policy/approvals/<int:pk>', views_policy.ApprovedModelForPolicyDetailAPIView.as_view(), name='approved-model-detail'),
 ]

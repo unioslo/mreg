@@ -1,6 +1,8 @@
 from datetime import timedelta
 from operator import itemgetter
 from unittest import skip
+from contextlib import contextmanager
+from typing import cast
 
 import unittest.mock as mock
 from unittest_parametrize import ParametrizedTestCase, param, parametrize
@@ -16,11 +18,11 @@ from mreg.models.base import ExpiringToken
 from mreg.models.network import Network, NetGroupRegexPermission
 from mreg.models.host import Host, Ipaddress, PtrOverride
 from mreg.models.zone import ForwardZone, ReverseZone
+from mreg.models.auth import MregAdminGroup, User
 from mreg.models.resource_records import Txt
 from mreg.types import IPAllocationMethod
 
 from mreg.utils import nonify
-
 
 class MissingSettings(Exception):
     pass
@@ -28,25 +30,88 @@ class MissingSettings(Exception):
 
 class MregAPITestCase(APITestCase):
 
+    @contextmanager
+    def temporary_client(self, **kwargs):
+        """
+        Temporarily switch the client to a different configuration.
+
+        :param kwargs: Arguments to configure the temporary client.
+        :yields: None, while the client is temporarily switched.
+
+        Example:
+
+        with self.temporary_client(superuser=True):
+            self.assert_get('/hosts/')  
+        """
+        original_client = self.client
+        try:
+            self.client = self.get_token_client(**kwargs)
+            yield
+        finally:
+            self.client = original_client
+
+    @contextmanager
+    def temporary_client_as_superuser(self):
+        """
+        Temporarily switch the client to a superuser configuration.
+
+        :yields: None, while the client is temporarily switched.
+        """
+        if self.user.is_mreg_superuser:
+            yield
+        else:
+            with self.temporary_client(superuser=True):
+                yield
+
+    @contextmanager
+    def temporary_client_as_policy_admin(self):
+        """
+        Temporarily switch the client to a policy admin configuration.
+
+        :yields: None, while the client is temporarily switched.
+        """
+        if self.user.is_mreg_hostpolicy_admin:
+            yield
+        else:
+            with self.temporary_client(superuser=False, policyadmin=True):
+                yield
+    
+    @contextmanager
+    def temporary_client_as_normal_user(self):
+        """
+        Temporarily switch the client to a normal user configuration.
+
+        :yields: None, while the client is temporarily switched.
+        """
+        with self.temporary_client(superuser=False, policyadmin=False, adminuser=False):
+            yield
+
+
     def setUp(self):
         self.client = self.get_token_client()
 
-    def get_token_client(self, username=None, superuser=True, adminuser=False):
+    def get_token_client(self, username=None, superuser=True, adminuser=False, policyadmin=False):
         if username is None:
             if superuser:
                 username = 'superuser'
             elif adminuser:
                 username = 'adminuser'
+            elif policyadmin:
+                username = 'policyadmin'
             else:
                 username = 'nobody'
-        self.user = get_user_model().objects.create_user(username=username,
-                                                         password="test")
+       
+        user = get_user_model().objects.create_user(username=username, password="test")
+        self.user = cast(User, user)   
+
         self.user.groups.clear()
-        token, created = ExpiringToken.objects.get_or_create(user=self.user)
+        token, _ = ExpiringToken.objects.get_or_create(user=self.user)
         if superuser:
-            self.add_user_to_groups('SUPERUSER_GROUP')
+            self.add_user_to_groups(MregAdminGroup.SUPERUSER.value)
         if adminuser:
-            self.add_user_to_groups('ADMINUSER_GROUP')
+            self.add_user_to_groups(MregAdminGroup.ADMINUSER.value)
+        if policyadmin:
+            self.add_user_to_groups(MregAdminGroup.POLICY_ADMIN.value)
         client = APIClient()
         client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
         return client
