@@ -8,6 +8,10 @@ on:
     types: [opened, reopened, synchronize]
   workflow_dispatch:
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   build:
     name: Build image
@@ -72,30 +76,28 @@ jobs:
       # There's a docker-compose.yml file in the mreg-cli repo that wants the image from ghcr.io,
       # but we want to use the newly built custom image
       run: docker tag mreg ghcr.io/unioslo/mreg:latest
-    - name: Install uv
-      uses: astral-sh/setup-uv@v3
-    - name: Set up Python
-      run: uv python install 3.11
-    - name: Install git
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Download mreg-cli
+      run: git clone https://github.com/unioslo/mreg-cli.git
+    - name: Check out a previous version of mreg-cli
+      if: ${{ hashFiles('ci/MREG-CLI_COMMIT') != '' }}
       run: |
-        sudo apt-get update
-        sudo apt-get install -y git
-    - name: Install mreg-cli
-      run: |
-        git clone https://github.com/unioslo/mreg-cli.git
+        cp -r mreg-cli/ci /tmp
+        C=$(cat ci/MREG-CLI_COMMIT)
         cd mreg-cli
-        uv venv
-        uv pip install -e ".[dev]"
+        git -c advice.detachedHead=false checkout $C
+        cp --no-clobber /tmp/ci/* ci/
     - name: Run the tests
+      run: mreg-cli/ci/run_testsuite_and_record_V2.sh
+    - name: Comment on the commit that the tests worked
       run: |
-        cd mreg-cli
-        . .venv/bin/activate
-        uv run ci/run_testsuite_and_record.sh
-    - name: Upload the log as an artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: new_testsuite_log.json
-        path: mreg-cli/ci/new_testsuite_log.json
+        C=$(cd mreg-cli && git rev-parse HEAD)
+        jq -nc "{\"body\": \"Works with https://github.com/unioslo/mreg-cli/commit/$C\"}" | \
+        curl -sL  -X POST -d @- \
+          -H "Content-Type: application/json" \
+          -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          "https://api.github.com/repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/comments"
 
   test-with-curl:
     name: Test with curl
