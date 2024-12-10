@@ -112,8 +112,8 @@ Filtering (via HostPolicyAtomFilterSet and HostPolicyRoleFilterSet) enable searc
 
 Special endpoints exist for managing the Many-to-Many relationships, for example:
 
-`hostpolicy/roles/<name>/atoms/` for listing or adding atoms to a role.
-`hostpolicy/roles/<name>/hosts/` for listing or adding hosts to a role.
+- `hostpolicy/roles/<name>/atoms/` for listing or adding atoms to a role.
+- `hostpolicy/roles/<name>/hosts/` for listing or adding hosts to a role.
 
 Through these endpoints, an external system or user can manage which policies apply to which hosts and track changes over time.
 
