@@ -1,4 +1,6 @@
 from datetime import timedelta
+from contextlib import contextmanager
+from enum import Enum
 from operator import itemgetter
 from unittest import skip
 
@@ -23,6 +25,9 @@ from mreg.types import IPAllocationMethod
 
 from mreg.utils import nonify
 
+class ClientTestFormat(Enum):
+    JSON = 'json'
+    MULTIPART = 'multipart'
 
 class MissingSettings(Exception):
     pass
@@ -32,6 +37,43 @@ class MregAPITestCase(APITestCase):
 
     def setUp(self):
         self.client = self.get_token_client()
+        self._ensure_format_is_set()
+
+    def _ensure_format_is_set(self):
+        if not hasattr(self, "format"):
+            self.format = ClientTestFormat.MULTIPART
+
+    def set_client_format(self, format: ClientTestFormat):
+        """Set the client format to a supported ClientFormat."""
+        self.format = format
+
+    def set_client_format_json(self):
+        """Set the client format to JSON."""
+        self.set_client_format(ClientTestFormat.JSON)
+
+    def set_client_format_multipart(self):
+        """Set the client format to multipart."""
+        self.set_client_format(ClientTestFormat.MULTIPART)
+
+    @contextmanager
+    def client_format(self, format: ClientTestFormat):
+        """Context manager for setting the client format."""
+        original_format = self.format
+        self.set_client_format(format)
+        yield
+        self.set_client_format(original_format)
+    
+    @contextmanager
+    def client_format_json(self):
+        """Context manager for setting the client format to JSON."""
+        with self.client_format(ClientTestFormat.JSON):
+            yield
+    
+    @contextmanager
+    def client_format_multipart(self):
+        """Context manager for setting the client format to multipart."""
+        with self.client_format(ClientTestFormat.MULTIPART):
+            yield
 
     def get_token_client(self, username=None, superuser=True, adminuser=False):
         if username is None:
@@ -65,7 +107,10 @@ class MregAPITestCase(APITestCase):
 
     @staticmethod
     def _create_path(path):
-        if path.startswith('/api/'):
+        # from request.build_absolute_uri we get protocol to boot.
+        if path.startswith('http'):
+            return path
+        elif path.startswith('/api/'):
             return path
         elif path.startswith('/'):
             return f'/api/v1/{path[1:]}'
@@ -74,28 +119,32 @@ class MregAPITestCase(APITestCase):
     def _assert_delete_and_status(self, path, status_code, client=None):
         if client is None:
             client = self.client
-        response = client.delete(self._create_path(path))
+        self._ensure_format_is_set()
+        response = client.delete(self._create_path(path), format=self.format.value)
         self.assertEqual(response.status_code, status_code)
         return response
 
     def _assert_get_and_status(self, path, status_code, client=None):
         if client is None:
             client = self.client
-        response = client.get(self._create_path(path))
+        self._ensure_format_is_set()
+        response = client.get(self._create_path(path), format=self.format.value)
         self.assertEqual(response.status_code, status_code)
         return response
 
     def _assert_patch_and_status(self, path, status_code, data=None, client=None):
         if client is None:
             client = self.client
-        response = client.patch(self._create_path(path), data)
+        self._ensure_format_is_set()
+        response = client.patch(self._create_path(path), data, format=self.format.value)
         self.assertEqual(response.status_code, status_code)
         return response
 
     def _assert_post_and_status(self, path, status_code, data=None, client=None):
         if client is None:
             client = self.client
-        response = client.post(self._create_path(path), data)
+        self._ensure_format_is_set()
+        response = client.post(self._create_path(path), data, format=self.format.value)
         self.assertEqual(response.status_code, status_code)
         return response
 
@@ -134,6 +183,9 @@ class MregAPITestCase(APITestCase):
 
     def assert_patch(self, path, *args, **kwargs):
         return self.assert_patch_and_204(path, *args, **kwargs)
+
+    def assert_patch_and_200(self, path, *args, **kwargs):
+        return self._assert_patch_and_status(path, 200, *args, **kwargs)
 
     def assert_patch_and_204(self, path, *args, **kwargs):
         return self._assert_patch_and_status(path, 204, *args, **kwargs)

@@ -10,7 +10,7 @@ from django_filters import rest_framework as rest_filters
 
 from rest_framework import filters, generics, status
 from rest_framework.decorators import api_view
-from rest_framework.exceptions import MethodNotAllowed, ParseError
+from rest_framework.exceptions import MethodNotAllowed, ParseError, UnsupportedMediaType
 from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -68,6 +68,59 @@ from .serializers import (
 
 from mreg.mixins import LowerCaseLookupMixin
 
+class JSONContentTypeMixin:
+    """A view mixin that requires POST, PUT, PATCH and DELETE operations to this view have a JSON content type.
+
+    - Checks that CONTENT_TYPE starts with application/json for POST, PUT, PATCH and DELETE requests.
+    - Checks that there was a body in the request.
+    - Throws rest_framework.exceptions.UnsupportedMediaType if the content type is not JSON and there was a body.
+    """
+
+    required_content_type = 'application/json'
+    methods_to_check = ['POST', 'PUT', 'PATCH', 'DELETE']
+
+    def dispatch(self, request, *args, **kwargs):
+        if request.method in self.methods_to_check:
+            has_body = self._has_request_body(request)
+            if has_body:
+                content_type = request.headers.get('Content-Type', '')
+                if not content_type.startswith(self.required_content_type):
+                    url = request.build_absolute_uri()
+                    detail_message = (
+                        f'Content-Type for {request.method} request to {url} '
+                        f'must be {self.required_content_type} (was {content_type})'
+                    )
+                    raise UnsupportedMediaType(detail_message)
+
+        return super().dispatch(request, *args, **kwargs) # type: ignore
+
+    def _has_request_body(self, request):
+        """
+        Determines if the request has a body.
+
+        Returns:
+            bool: True if the request has a body, False otherwise.
+        """
+        # Check Content-Length header
+        content_length = request.META.get('CONTENT_LENGTH')
+        if content_length:
+            try:
+                return int(content_length) > 0
+            except (ValueError, TypeError):
+                return False
+
+        # Check Transfer-Encoding header for chunked requests
+        transfer_encoding = request.META.get('HTTP_TRANSFER_ENCODING', '').lower()
+        if 'chunked' in transfer_encoding:
+            return True
+
+        # Fallback: attempt to read a small portion of the body
+        # Note: Accessing request.body will cache the body for later use
+        try:
+            return bool(request.body)
+        except Exception:
+            return False
+        
 class MregMixin:
     filter_backends = (
         filters.SearchFilter,

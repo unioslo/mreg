@@ -1,6 +1,6 @@
 from django.urls import path, re_path
 
-from . import views, views_hostgroups, views_zones, views_labels, views_bacnet
+from . import views, views_hostgroups, views_zones, views_labels, views_bacnet, views_network_policy
 
 urlpatterns = [
     path('bacnet/ids/', views_bacnet.BACnetIDList.as_view()),
@@ -79,4 +79,10 @@ urlpatterns = [
     re_path(r'^zonefiles/(?P<name>(\d+/)?[^/]+)', views_zones.zone_file_detail),
     path('permissions/netgroupregex/', views.NetGroupRegexPermissionList.as_view()),
     path('permissions/netgroupregex/<pk>', views.NetGroupRegexPermissionDetail.as_view()),
+    path("networkpolicies/", views_network_policy.NetworkPolicyList.as_view(), name='networkpolicy-list'),
+    path("networkpolicies/<int:pk>", views_network_policy.NetworkPolicyDetail.as_view(), name='networkpolicy-detail'),
+    path("networkpolicies/<int:pk>/communities/", views_network_policy.NetworkCommunityList.as_view(), name='networkpolicy-communities-list'),
+    path("networkpolicies/<int:pk>/communities/<int:cpk>", views_network_policy.NetworkCommunityDetail.as_view(), name='networkpolicy-community-detail'),
+    path("networkpolicyattributes/", views_network_policy.NetworkPolicyAttributeList.as_view(), name='networkpolicyattribute-list'),
+
 ]

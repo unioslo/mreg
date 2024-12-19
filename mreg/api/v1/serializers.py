@@ -2,6 +2,7 @@ import ipaddress
 
 from django.contrib.auth.models import Group
 from django.utils import timezone
+from django.db import transaction
 
 from rest_framework import serializers
 
@@ -9,6 +10,7 @@ from mreg.models.base import NameServer, Label, History
 from mreg.models.zone import ForwardZone, ReverseZone, ForwardZoneDelegation, ReverseZoneDelegation
 from mreg.models.host import Host, HostGroup, BACnetID, Ipaddress, PtrOverride
 from mreg.models.resource_records import Cname, Loc, Naptr, Srv, Sshfp, Txt, Hinfo, Mx
+from mreg.models.network_policy import NetworkPolicy, NetworkPolicyAttribute, NetworkPolicyAttributeValue, Community
 
 from mreg.models.network import Network, NetGroupRegexPermission, NetworkExcludedRange
 
@@ -199,6 +201,13 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
     loc = LocSerializer(read_only=True)
     bacnetid = BACnetID_ID_Serializer(read_only=True)
 
+    network_community = serializers.PrimaryKeyRelatedField(
+        queryset=Community.objects.all(),
+        required=False,
+        allow_null=True,
+        help_text="Community to which the host belongs."
+    )
+
     class Meta:
         model = Host
         fields = '__all__'
@@ -206,9 +215,91 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
     def validate(self, data):
         data = super().validate(data)
         name = data.get('name')
-        if name and Cname.objects.filter(name=name).exists():
-            raise ValidationError409("CNAME record exists for {}".format(name))
+        if name:
+            if Cname.objects.filter(name=name).exists():
+                raise ValidationError409("CNAME record exists for {}".format(name))
+            if Host.objects.filter(name=name).exists():
+                raise ValidationError409("Host already exists with name {}".format(name))
+    
+        # We defer all validation of community data to update and create as we cannot
+        # validate community information before IP address creation has potentially
+        # taken place during create or update.
         return data
+    
+    def create(self, validated_data):
+        ipaddr = validated_data.pop('ipaddress', None)
+        community = validated_data.pop('network_community', None)
+        
+        with transaction.atomic():
+            host = Host.objects.create(**validated_data)
+
+            if ipaddr:
+                try:
+                    ipaddress.ip_address(ipaddr)
+                except ValueError:
+                    raise serializers.ValidationError({"ipaddress": "Invalid IP address."})
+                Ipaddress.objects.create(host=host, ipaddress=ipaddr)
+            
+            # Assign community if provided
+            if community:
+                self._assign_community(host, community)
+        
+        return host
+    
+    def update(self, instance, validated_data):
+        ipaddr = validated_data.pop('ipaddress', None)
+        community = validated_data.pop('network_community', None)
+        
+        with transaction.atomic():
+            # Update host fields
+            for attr, value in validated_data.items():
+                setattr(instance, attr, value)
+            instance.save()
+            
+            # Update IP addresses if provided
+            if ipaddr is not None:
+                # We won't touch existing IPs. This is a semantic debate of
+                # patch vs put at some point.
+                # instance.ipaddresses.all().delete()
+                try:
+                    ipaddress.ip_address(ipaddr)
+                except ValueError:
+                    raise serializers.ValidationError({"ipaddress": "Invalid IP address."})
+                Ipaddress.objects.create(host=instance, ipaddress=ipaddr)
+            
+            # Assign or unassign community
+            if community is not None:
+                if community:
+                    self._assign_community(instance, community)
+                else:
+                    instance.network_community = None
+                    instance.save()
+        
+        return instance
+    
+    def _assign_community(self, host, community):
+        """
+        Assigns the community to the host after validating network compatibility.
+        """
+        policy = community.policy
+        if not policy:
+            raise serializers.ValidationError({"network_community": "Community must be associated with a NetworkPolicy."})
+        
+        # Check if any of the host's IPs are within the networks
+        compatible = False
+        for ip in host.ipaddresses.all():
+            if Network.objects.filter(network__contains=ip.ipaddress, policy=policy).exists():
+                compatible = True
+                break
+        
+        if not compatible:
+            raise serializers.ValidationError({
+                "network_community": "Host's IP addresses do not match the community's network policy."
+            })
+        
+        # Assign community
+        host.network_community = community
+        host.save()    
 
 
 class HostNameSerializer(ValidationMixin, serializers.ModelSerializer):
@@ -378,3 +469,142 @@ class LabelSerializer(serializers.ModelSerializer):
     class Meta:
         model = Label
         fields = '__all__'
+
+
+class NetworkPolicyAttributeValueSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(write_only=True)
+    value = serializers.BooleanField()
+
+    class Meta:
+        model = NetworkPolicyAttributeValue
+        fields = ['name', 'value']
+
+    def to_representation(self, instance):
+        return {
+            'name': instance.attribute.name,
+            'value': instance.value
+        }
+
+    def create(self, validated_data):
+        name = validated_data.pop('name')
+        try:
+            attribute = NetworkPolicyAttribute.objects.get(name=name)
+        except NetworkPolicyAttribute.DoesNotExist:
+            raise serializers.ValidationError(
+                f"NetworkPolicyAttribute with name '{name}' does not exist."
+            )
+        policy = self.context.get('policy')
+        if not policy:
+            raise serializers.ValidationError("Policy context is required.")
+        return NetworkPolicyAttributeValue.objects.create(
+            attribute=attribute, value=validated_data.get('value', False), policy=policy
+        )
+
+    def update(self, instance, validated_data):
+        name = validated_data.get('name', instance.attribute.name)
+        value = validated_data.get('value', instance.value)
+
+        if name != instance.attribute.name:
+            try:
+                attribute = NetworkPolicyAttribute.objects.get(name=name)
+            except NetworkPolicyAttribute.DoesNotExist:
+                raise serializers.ValidationError(
+                    f"NetworkPolicyAttribute with name '{name}' does not exist."
+                )
+            instance.attribute = attribute
+
+        instance.value = value
+        instance.save()
+        return instance
+
+
+class CommunitySerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Community
+        fields = ['id', 'name', 'description', 'policy', 'created_at', 'updated_at']
+
+class NetworkPolicySerializer(serializers.ModelSerializer):
+    attributes = NetworkPolicyAttributeValueSerializer(
+        many=True,
+        source='network_policy_attribute_values',
+        required=False
+    )
+    communities = CommunitySerializer(many=True, read_only=True)
+
+    class Meta:
+        model = NetworkPolicy
+        fields = ['id', 'name', 'attributes', 'communities', 'created_at', 'updated_at']
+
+    def validate_name(self, value):
+        value = value.lower()
+        if self.instance:
+            if NetworkPolicy.objects.exclude(id=self.instance.id).filter(name=value).exists():
+                raise serializers.ValidationError("NetworkPolicy with this name already exists.")
+        else:
+            if NetworkPolicy.objects.filter(name=value).exists():
+                raise serializers.ValidationError("NetworkPolicy with this name already exists.")
+        return value
+
+    def validate_attributes(self, value):
+        if not isinstance(value, list):
+            raise serializers.ValidationError("Attributes must be a list of dictionaries.")
+        
+        for element in value:
+            if not isinstance(element, dict):
+                raise serializers.ValidationError("Each attribute must be a dictionary.")
+
+        attribute_names = [attr['name'] for attr in value]
+        existing_attributes = NetworkPolicyAttribute.objects.filter(
+            name__in=attribute_names
+        ).values_list('name', flat=True)
+        missing_attributes = set(attribute_names) - set(existing_attributes)
+        if missing_attributes:
+            raise serializers.ValidationError(
+                f"The following attributes do not exist: {', '.join(missing_attributes)}"
+            )
+        return value
+
+    @transaction.atomic
+    def create(self, validated_data):
+        attributes_data = validated_data.pop('network_policy_attribute_values', [])
+        network_policy = NetworkPolicy.objects.create(**validated_data)
+
+        # Pass the policy instance to the nested serializer via context
+        for attr in attributes_data:
+            serializer = NetworkPolicyAttributeValueSerializer(
+                data=attr,
+                context={'policy': network_policy}
+            )
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+
+        return network_policy
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        attributes_data = validated_data.pop('network_policy_attribute_values', None)
+
+        # Update the NetworkPolicy fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        if attributes_data is not None:
+            # Clear existing attributes
+            NetworkPolicyAttributeValue.objects.filter(policy=instance).delete()
+            # Recreate attributes
+            for attr in attributes_data:
+                serializer = NetworkPolicyAttributeValueSerializer(
+                    data=attr,
+                    context={'policy': instance}
+                )
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+
+        return instance
+
+class NetworkPolicyAttributeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = NetworkPolicyAttribute
+        fields = ['id', 'name', 'description', 'created_at', 'updated_at']
