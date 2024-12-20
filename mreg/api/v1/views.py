@@ -18,6 +18,7 @@ from mreg.models.base import NameServer, History
 from mreg.models.host import Host, Ipaddress, PtrOverride
 from mreg.models.network import Network, NetGroupRegexPermission
 from mreg.models.resource_records import Cname, Loc, Naptr, Srv, Sshfp, Txt, Hinfo, Mx
+from mreg.models.network_policy import NetworkPolicy, Community
 from mreg.types import IPAllocationMethod
 
 from mreg.api.permissions import (
@@ -349,6 +350,14 @@ class HostList(HostPermissionsListCreateAPIView):
         return HostFilterSet(data=self.request.GET, queryset=qs).qs
 
     def post(self, request, *args, **kwargs):
+        community = None
+        if "network_community" in request.data:
+            community_id = request.data.pop("network_community")
+            community = Community.objects.filter(id=community_id).first()
+            if not community:
+                content = {"ERROR": f"Community '{community_id}' not found"}
+                return Response(content, status=status.HTTP_404_NOT_FOUND)
+
         if "name" in request.data:
             if self.queryset.filter(name=request.data["name"]).exists():
                 content = {"ERROR": "name already in use"}
@@ -426,12 +435,22 @@ class HostList(HostPermissionsListCreateAPIView):
                     ipserializer = IpaddressSerializer(ip, data=ipdata)
                     ipserializer.is_valid(raise_exception=True)
                     self.perform_create(ipserializer)
+
+                    if community:
+                        if not host.set_community(community):
+                            content = {"ERROR": "Unable to assign community to host"}
+                            return Response(content, status=status.HTTP_406_NOT_ACCEPTABLE)
+
                     location = request.path + host.name
                     return Response(
                         status=status.HTTP_201_CREATED,
                         headers={"Location": location},
                     )
         else:
+            if community:
+                content = {"ERROR": "Unable to assign community to host as it has no IP address"}
+                return Response(content, status=status.HTTP_406_NOT_ACCEPTABLE)
+
             host = Host()
             hostserializer = HostSerializer(host, data=hostdata)
             if hostserializer.is_valid(raise_exception=True):

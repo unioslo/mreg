@@ -31,6 +31,29 @@ class Host(ForwardZoneMember):
     def __str__(self):
         return str(self.name)
 
+    def community(self):
+        return self.network_community
+    
+    def set_community(self, community: Community) -> bool:
+        """Set the community for this host.
+        
+        :param community: The community to set.
+        :return: True if the community was set, False otherwise
+        """
+        # We need to check that the community is applicable to the same
+        # network as one of the IP addresses of the host.
+        for ipaddress in self.ipaddresses.all(): # type: ignore
+            from mreg.models.network import Network
+            try:
+                network = Network.objects.get(network__net_contains=ipaddress.ipaddress)
+                if community.policy.networks.filter(network=network).exists(): # type: ignore
+                    self.network_community = community
+                    self.save()
+                    return True
+            except Network.DoesNotExist as e:
+                return False
+            
+        return False
 
 class Ipaddress(BaseModel):
     host = models.ForeignKey(

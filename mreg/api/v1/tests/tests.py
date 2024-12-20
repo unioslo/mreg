@@ -226,6 +226,9 @@ class MregAPITestCase(APITestCase):
     def assert_post_and_404(self, path, *args, **kwargs):
         return self._assert_post_and_status(path, 404, *args, **kwargs)
 
+    def assert_post_and_406(self, path, *args, **kwargs):
+        return self._assert_post_and_status(path, 406, *args, **kwargs)
+
     def assert_post_and_409(self, path, *args, **kwargs):
         return self._assert_post_and_status(path, 409, *args, **kwargs)
 

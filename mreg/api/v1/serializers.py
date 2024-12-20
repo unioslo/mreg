@@ -29,6 +29,13 @@ class ValidationMixin:
         return data
 
 
+class CommunitySerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Community
+        fields = ['id', 'name', 'description', 'policy', 'created_at', 'updated_at']
+
+
 class ForwardZoneMixin(ValidationMixin):
     """Create a zone entry from the hostname."""
 
@@ -201,8 +208,7 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
     loc = LocSerializer(read_only=True)
     bacnetid = BACnetID_ID_Serializer(read_only=True)
 
-    network_community = serializers.PrimaryKeyRelatedField(
-        queryset=Community.objects.all(),
+    network_community = CommunitySerializer(
         required=False,
         allow_null=True,
         help_text="Community to which the host belongs."
@@ -288,7 +294,7 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
         # Check if any of the host's IPs are within the networks
         compatible = False
         for ip in host.ipaddresses.all():
-            if Network.objects.filter(network__contains=ip.ipaddress, policy=policy).exists():
+            if Network.objects.filter(network__net_contains=ip.ipaddress, policy=policy).exists():
                 compatible = True
                 break
         
@@ -517,12 +523,6 @@ class NetworkPolicyAttributeValueSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
 
-
-class CommunitySerializer(serializers.ModelSerializer):
-
-    class Meta:
-        model = Community
-        fields = ['id', 'name', 'description', 'policy', 'created_at', 'updated_at']
 
 class NetworkPolicySerializer(serializers.ModelSerializer):
     attributes = NetworkPolicyAttributeValueSerializer(

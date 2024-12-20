@@ -2,7 +2,7 @@ from unittest_parametrize import ParametrizedTestCase, param, parametrize
 from django.db import transaction
 
 from mreg.models.network_policy import NetworkPolicy, NetworkPolicyAttribute, NetworkPolicyAttributeValue, Community
-
+from mreg.models.network import Network
 
 from .tests import MregAPITestCase
 
@@ -38,7 +38,13 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
 
     def _delete_attributes(self, names: list[str]):
         for name in names:
-            NetworkPolicyAttribute.objects.get(name=name).delete()  
+            NetworkPolicyAttribute.objects.get(name=name).delete()
+
+    def _create_community(self, name: str, description: str, policy: NetworkPolicy) -> Community:
+        return Community.objects.create(name=name, description=description, policy=policy)
+    
+    def _delete_community(self, name: str):
+        Community.objects.get(name=name).delete()
 
     @parametrize(
         ('name', 'attributes'),
@@ -159,3 +165,64 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         }
         self.assert_post_and_400(f'{POLICY_ENDPOINT}9999/communities/', data=data)
         self.assertEqual(Community.objects.count(), 0)
+
+    def test_create_host_with_community_no_network(self):
+        """Test that adding a community during host creation without IP."""
+        np = self._create_network_policy("host_with_community", [])
+        community = self._create_community("community", "community desc", np)
+
+        data = {
+            "name": "hostwithcommunity.example.com",
+            "network_community": community.pk,
+        }
+        self.assert_post_and_406('/api/v1/hosts/', data=data)
+
+    def test_create_host_with_community_network_missing_policy(self):
+        """Test that adding a community during host creation with network missing policy fails."""
+        np = self._create_network_policy("host_with_community", [])
+        community = self._create_community("community", "community desc", np)
+        # Note, no policy is set on the network
+        net = Network.objects.create(network="10.0.0.0/24", description="test_network")
+
+        data = {
+            "name": "hostwithcommunity.example.com",
+            "network_community": community.pk,
+            "network": net.network
+        }
+        self.assert_post_and_406('/api/v1/hosts/', data=data)
+        net.delete()        
+
+    def test_create_host_with_community_network_missing_policy_wrong_network(self):
+        """Test that adding a community during host creation with network missing policy fails.
+        
+        In this test, another network has the policy.
+        """
+        np = self._create_network_policy("host_with_community", [])
+        community = self._create_community("community", "community desc", np)
+        net_empty = Network.objects.create(network="10.0.0.0/24", description="test_network")
+        net_policy = Network.objects.create(network="10.0.1.0/24", description="test_network", policy=np)
+
+        data = {
+            "name": "hostwithcommunity.example.com",
+            "network_community": community.pk,
+            "network": net_empty.network
+        }
+        self.assert_post_and_406('/api/v1/hosts/', data=data)
+        net_empty.delete()
+        net_policy.delete()
+
+    def test_create_host_with_community_ok(self):
+        """Test that adding a community during host creation with network and policy."""
+        np = self._create_network_policy("host_with_community", [])
+        community = self._create_community("community", "community desc", np)
+        net = Network.objects.create(network="10.0.0.0/24", description="test_network", policy=np)
+
+        data = {
+            "name": "hostwithcommunity.example.com",
+            "network_community": community.pk,
+            "network": net.network
+        }
+        ret = self.assert_post_and_201('/api/v1/hosts/', data=data)
+        ret = self.assert_get(ret.headers['Location'])
+        print(ret.json())
+        net.delete()
