@@ -359,7 +359,7 @@ class APIMetaTestCase(MregAPITestCase):
 
     def test_meta_heartbeat_user_200_ok(self):
         self.client = self.get_token_client(superuser=False)
-        response = self.assert_get("/api/meta/heartbeat")
+        response = self.assert_get("/api/meta/health/heartbeat")
         for key in ('uptime', 'start_time'):
             with self.subTest(key=key):
                 self.assertTrue(key in response.data)
