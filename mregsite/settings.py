@@ -82,6 +82,8 @@ AUTH_LDAP_SERVER_URI = "ldap://ldap.example.com"
 AUTH_LDAP_USER_DN_TEMPLATE = "uid=%(user)s,ou=users,dc=example,dc=com"
 AUTH_LDAP_START_TLS = True
 AUTH_LDAP_CACHE_TIMEOUT = 3600
+AUTH_LDAP_BIND_DN = ""
+AUTH_LDAP_BIND_PASSWORD = ""
 
 # Used by signals.py populate_user_from_ldap to match attributes
 # via a regexp to groups, which are added to the logged in user.

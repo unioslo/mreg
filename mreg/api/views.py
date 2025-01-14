@@ -1,26 +1,29 @@
 import platform
 import time
-from typing import Any, cast
+from dataclasses import asdict, dataclass
+from importlib.metadata import version
+from typing import Any, Optional, cast
 
 import django
+import ldap
 import structlog
-
+from django.conf import settings
+from django_auth_ldap.backend import LDAPBackend
+from django_auth_ldap.config import LDAPSearch
+from psycopg2 import __libpq_version__ as libpq_version
 from rest_framework import serializers, status
 from rest_framework.authtoken.views import ObtainAuthToken
-from rest_framework.exceptions import AuthenticationFailed, PermissionDenied, NotFound
+from rest_framework.exceptions import AuthenticationFailed, NotFound, PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from importlib.metadata import version  
 
-from psycopg2 import __libpq_version__ as libpq_version
-
-from mreg.api.permissions import IsSuperOrNetworkAdminMember
-from mreg.models.base import ExpiringToken
-from mreg.models.auth import User
-from mreg.models.network import NetGroupRegexPermission
 from mreg.__about__ import __version__ as mreg_version
+from mreg.api.permissions import IsSuperOrNetworkAdminMember
+from mreg.models.auth import User
+from mreg.models.base import ExpiringToken
+from mreg.models.network import NetGroupRegexPermission
 
 logger = structlog.getLogger(__name__)
 
@@ -188,7 +191,7 @@ class MetaVersions(APIView):
         return Response(status=status.HTTP_200_OK, data=data)
 
 
-class MetaHeartbeat(APIView):
+class HealthHeartbeat(APIView):
 
     permission_classes = (IsAuthenticated,)
 
@@ -199,3 +202,98 @@ class MetaHeartbeat(APIView):
             "uptime": uptime,
         }
         return Response(status=status.HTTP_200_OK, data=data)
+
+@dataclass
+class LDAPDetails:
+    """Details about the LDAP connection and search test."""
+    connection_successful: bool = False
+    search_successful: bool = False
+    error: Optional[str] = None
+
+    @property
+    def healthy(self) -> bool:
+        return not self.error and all([self.connection_successful, self.search_successful])
+
+    def to_dict(self) -> dict[str, Any]:
+        d = asdict(self)
+        d["healthy"] = self.healthy
+        return d
+
+class HealthLDAP(APIView):
+
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request: Request):
+        details = self._check_ldap_connection()
+        st = status.HTTP_200_OK if details.healthy else status.HTTP_503_SERVICE_UNAVAILABLE
+        return Response(status=st, data=details.to_dict())
+    
+    def _get_search_config(self) -> Optional[tuple[str, int, str]]:
+        """Extract search configuration from django-auth-ldap settings.
+
+        :return: Tuple of (base_dn, scope, filter_string) if configured, None otherwise
+        :rtype: Optional[Tuple[str, int, str]]
+        """
+        user_search = getattr(settings, 'AUTH_LDAP_USER_SEARCH', None)
+        if isinstance(user_search, LDAPSearch):
+            return user_search.base_dn, user_search.scope, user_search.filterstr
+        return None
+    
+    def _check_ldap_connection(self) -> LDAPDetails:
+        """Perform LDAP connection and search test.
+
+        Attempts to establish an LDAP connection using configured settings
+        and perform a basic search operation.
+
+        :return: A tuple containing overall health status and check details
+        :rtype: LDAPDetails
+    
+        :raises: No exceptions are raised; all errors are caught and returned in the details dict
+        """
+        details = LDAPDetails()
+
+        try:
+            # Initialize LDAP backend and connection
+            ldap_backend = LDAPBackend()
+            connection = ldap_backend.ldap.initialize(settings.AUTH_LDAP_SERVER_URI)
+            
+            connection.timeout = getattr(settings, 'AUTH_LDAP_TIMEOUT', 10)
+            
+            connection.simple_bind_s(
+                settings.AUTH_LDAP_BIND_DN,
+                settings.AUTH_LDAP_BIND_PASSWORD
+            )
+
+            details.connection_successful = True
+
+            search_config = self._get_search_config()
+            if search_config:
+                base_dn, scope, filterstr = search_config
+                # Perform a search with a limit of 1 to verify search functionality
+                connection.search_s(
+                    base_dn,
+                    scope,
+                    filterstr.replace('%(user)s', '*'),  # Replace user template with wildcard
+                    attrlist=['dn'],
+                    sizelimit=1
+                )
+                details.search_successful = True
+            else:
+                # If no search is configured, we'll just mark it as successful
+                # since it's not required for basic LDAP functionality
+                details.search_successful = True
+                logger.debug("No LDAP search configuration found, skipping search test")
+
+            return details
+
+        except ldap.LDAPError as e:
+            error_msg = f"LDAP connection error: {str(e)}"
+            logger.error(error_msg)
+            details.error = error_msg
+            return details
+
+        except Exception as e:
+            error_msg = f"Unexpected error during LDAP check: {str(e)}"
+            logger.error(error_msg)
+            details.error = error_msg
+            return details
