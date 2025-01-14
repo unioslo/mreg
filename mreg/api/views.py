@@ -206,13 +206,13 @@ class HealthHeartbeat(APIView):
 @dataclass
 class LDAPDetails:
     """Details about the LDAP connection and search test."""
-    connection_successful: bool = False
-    search_successful: bool = False
+    connect: bool = False
+    search: bool = False
     error: Optional[str] = None
 
     @property
     def healthy(self) -> bool:
-        return not self.error and all([self.connection_successful, self.search_successful])
+        return not self.error and all([self.connect, self.search])
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
@@ -264,7 +264,7 @@ class HealthLDAP(APIView):
                 settings.AUTH_LDAP_BIND_PASSWORD
             )
 
-            details.connection_successful = True
+            details.connect = True
 
             search_config = self._get_search_config()
             if search_config:
@@ -277,11 +277,11 @@ class HealthLDAP(APIView):
                     attrlist=['dn'],
                     sizelimit=1
                 )
-                details.search_successful = True
+                details.search = True
             else:
                 # If no search is configured, we'll just mark it as successful
                 # since it's not required for basic LDAP functionality
-                details.search_successful = True
+                details.search = True
                 logger.debug("No LDAP search configuration found, skipping search test")
 
             return details
