@@ -229,16 +229,16 @@ class HealthLDAP(APIView):
         return Response(status=st, data=details.to_dict())
 
     def _check_ldap_connection(self) -> LDAPDetails:
-        """Perform LDAP connection test.
+        """Perform LDAP connection and search test.
 
         Attempts to establish an LDAP connection using configured settings
-        and verify the DN template by attempting a bind.
+        and perform a basic search operation.
 
         :return: Details about the LDAP connection health status
         :rtype: LDAPDetails
         """
         details = LDAPDetails()
-        connection = None # may be bound in the try block
+        connection = None # may be set in the try block
 
         try:
             ldap_backend = LDAPBackend()
@@ -268,7 +268,7 @@ class HealthLDAP(APIView):
                 )
                 
                 details.search = bool(results)
-                if details.search:
+                if not details.search:
                     logger.warning("No users found in LDAP search. Is the LDAP server empty?", base=test_dn)
 
                     
