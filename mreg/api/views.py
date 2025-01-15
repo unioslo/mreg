@@ -219,81 +219,79 @@ class LDAPDetails:
         d["healthy"] = self.healthy
         return d
 
-class HealthLDAP(APIView):
 
+class HealthLDAP(APIView):
     permission_classes = (IsAuthenticated,)
 
     def get(self, request: Request):
         details = self._check_ldap_connection()
         st = status.HTTP_200_OK if details.healthy else status.HTTP_503_SERVICE_UNAVAILABLE
         return Response(status=st, data=details.to_dict())
-    
-    def _get_search_config(self) -> Optional[tuple[str, int, str]]:
-        """Extract search configuration from django-auth-ldap settings.
 
-        :return: Tuple of (base_dn, scope, filter_string) if configured, None otherwise
-        :rtype: Optional[Tuple[str, int, str]]
-        """
-        user_search = getattr(settings, 'AUTH_LDAP_USER_SEARCH', None)
-        if isinstance(user_search, LDAPSearch):
-            return user_search.base_dn, user_search.scope, user_search.filterstr
-        return None
-    
     def _check_ldap_connection(self) -> LDAPDetails:
-        """Perform LDAP connection and search test.
+        """Perform LDAP connection test.
 
         Attempts to establish an LDAP connection using configured settings
-        and perform a basic search operation.
+        and verify the DN template by attempting a bind.
 
-        :return: A tuple containing overall health status and check details
+        :return: Details about the LDAP connection health status
         :rtype: LDAPDetails
-    
-        :raises: No exceptions are raised; all errors are caught and returned in the details dict
         """
         details = LDAPDetails()
+        connection = None # may be bound in the try block
 
         try:
-            # Initialize LDAP backend and connection
             ldap_backend = LDAPBackend()
             connection = ldap_backend.ldap.initialize(settings.AUTH_LDAP_SERVER_URI)
-            
             connection.timeout = getattr(settings, 'AUTH_LDAP_TIMEOUT', 10)
             
+            # Test connectivity
             connection.simple_bind_s(
                 settings.AUTH_LDAP_BIND_DN,
                 settings.AUTH_LDAP_BIND_PASSWORD
             )
-
             details.connect = True
+            
+            # Test search
+            try:
+                if "%(user)" not in settings.AUTH_LDAP_USER_DN_TEMPLATE:
+                    raise Exception("Cannot test LDAP search without a user DN template")
+                
+                test_dn = settings.AUTH_LDAP_USER_DN_TEMPLATE % {"user": "*"}
 
-            search_config = self._get_search_config()
-            if search_config:
-                base_dn, scope, filterstr = search_config
-                # Perform a search with a limit of 1 to verify search functionality
-                connection.search_s(
-                    base_dn,
-                    scope,
-                    filterstr.replace('%(user)s', '*'),  # Replace user template with wildcard
-                    attrlist=['dn'],
+                results = connection.search_s(
+                    test_dn,
+                    ldap.SCOPE_BASE,
+                    "(objectClass=*)",
+                    attrlist=[], # No attributes needed
                     sizelimit=1
                 )
-                details.search = True
-            else:
-                # If no search is configured, we'll just mark it as successful
-                # since it's not required for basic LDAP functionality
-                details.search = True
-                logger.debug("No LDAP search configuration found, skipping search test")
+                
+                details.search = bool(results)
+                if details.search:
+                    logger.warning("No users found in LDAP search. Is the LDAP server empty?", base=test_dn)
+
+                    
+            except ldap.LDAPError as e:
+                details.error = f"LDAP search error: {str(e)}"
+
+            except Exception as e:
+                details.error = f"Unexpected error during LDAP search: {str(e)}"
 
             return details
 
         except ldap.LDAPError as e:
-            error_msg = f"LDAP connection error: {str(e)}"
-            logger.error(error_msg)
-            details.error = error_msg
+            details.error = f"LDAP connection error: {str(e)}"
             return details
 
         except Exception as e:
-            error_msg = f"Unexpected error during LDAP check: {str(e)}"
-            logger.error(error_msg)
-            details.error = error_msg
+            details.error = f"Unexpected error during LDAP check: {str(e)}"
             return details
+        
+        finally:
+            # We may have established a connection, so we should close it
+            if connection and details.connect:
+                try:
+                    connection.unbind_s()
+                except Exception:
+                    logger.exception("Failed to unbind from LDAP server")
