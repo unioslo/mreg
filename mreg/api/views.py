@@ -261,8 +261,7 @@ class HealthLDAP(APIView):
 
                 results = connection.search_s(
                     test_dn,
-                    ldap.SCOPE_BASE,
-                    "(objectClass=*)",
+                    ldap.SCOPE_SUBTREE,
                     attrlist=[], # No attributes needed
                     sizelimit=1
                 )
