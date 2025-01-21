@@ -9,7 +9,6 @@ import ldap
 import structlog
 from django.conf import settings
 from django_auth_ldap.backend import LDAPBackend
-from django_auth_ldap.config import LDAPSearch
 from psycopg2 import __libpq_version__ as libpq_version
 from rest_framework import serializers, status
 from rest_framework.authtoken.views import ObtainAuthToken
@@ -203,9 +202,11 @@ class HealthHeartbeat(APIView):
         }
         return Response(status=status.HTTP_200_OK, data=data)
 
+
 @dataclass
 class LDAPDetails:
     """Details about the LDAP connection and search test."""
+
     connect: bool = False
     search: bool = False
     error: Optional[str] = None
@@ -238,39 +239,37 @@ class HealthLDAP(APIView):
         :rtype: LDAPDetails
         """
         details = LDAPDetails()
-        connection = None # may be set in the try block
+        connection = None  # may be set in the try block
 
         try:
             ldap_backend = LDAPBackend()
             connection = ldap_backend.ldap.initialize(settings.AUTH_LDAP_SERVER_URI)
-            connection.timeout = getattr(settings, 'AUTH_LDAP_TIMEOUT', 10)
-            
+            connection.timeout = getattr(settings, "AUTH_LDAP_TIMEOUT", 10)
+
             # Test connectivity
-            connection.simple_bind_s(
-                settings.AUTH_LDAP_BIND_DN,
-                settings.AUTH_LDAP_BIND_PASSWORD
-            )
+            connection.simple_bind_s(settings.AUTH_LDAP_BIND_DN, settings.AUTH_LDAP_BIND_PASSWORD)
             details.connect = True
-            
+
             # Test search
             try:
-                if "%(user)" not in settings.AUTH_LDAP_USER_DN_TEMPLATE:
+                user_dn = settings.AUTH_LDAP_USER_DN_TEMPLATE
+                if not user_dn:
                     raise Exception("Cannot test LDAP search without a user DN template")
-                
-                test_dn = settings.AUTH_LDAP_USER_DN_TEMPLATE % {"user": "*"}
 
-                results = connection.search_s(
-                    test_dn,
-                    ldap.SCOPE_SUBTREE,
-                    attrlist=[], # No attributes needed
-                    sizelimit=1
+                # Search in the user base DN. Get rid of the user placeholder.
+                if "%(user)s," in user_dn:
+                    user_dn = user_dn.partition(",")[2]
+
+                results = connection.search_ext_s(
+                    user_dn,
+                    ldap.SCOPE_BASE,
+                    sizelimit=1,
                 )
-                
+
                 details.search = bool(results)
                 if not details.search:
-                    logger.warning("No users found in LDAP search. Is the LDAP server empty?", base=test_dn)
+                    logger.warning("No results found in LDAP search. Is the LDAP server empty?", base=user_dn)
 
-                    
             except ldap.LDAPError as e:
                 details.error = f"LDAP search error: {str(e)}"
 
@@ -286,7 +285,7 @@ class HealthLDAP(APIView):
         except Exception as e:
             details.error = f"Unexpected error during LDAP check: {str(e)}"
             return details
-        
+
         finally:
             # We may have established a connection, so we should close it
             if connection and details.connect:
