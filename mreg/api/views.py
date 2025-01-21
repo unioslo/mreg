@@ -192,8 +192,6 @@ class MetaVersions(APIView):
 
 class HealthHeartbeat(APIView):
 
-    permission_classes = (IsAuthenticated,)
-
     def get(self, request: Request):
         uptime = int(time.time() - start_time)
         data = {
@@ -222,7 +220,6 @@ class LDAPDetails:
 
 
 class HealthLDAP(APIView):
-    permission_classes = (IsAuthenticated,)
 
     def get(self, request: Request):
         details = self._check_ldap_connection()
