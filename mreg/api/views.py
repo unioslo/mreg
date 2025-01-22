@@ -201,7 +201,7 @@ class HealthHeartbeat(APIView):
 
 class HealthLDAP(APIView):
     def get(self, request: Request) -> Response:
-        ok = self._check_ldap_connection()
+        ok = self.check_ldap_connection()
         st = status.HTTP_200_OK if ok else status.HTTP_503_SERVICE_UNAVAILABLE
         return Response(status=st)
 
@@ -213,12 +213,11 @@ class HealthLDAP(APIView):
         """
         try:
             self._check_ldap_connection()
+            return True
         except ldap.LDAPError as e:
             logger.exception("LDAP connection error", error=str(e))
         except Exception as e:
-            logger.exception("Error during LDAP connection check", error=str(e))
-        else:
-            return True
+            logger.exception("Error during LDAP check", error=str(e))
         return False
     
     def _check_ldap_connection(self) -> None:
