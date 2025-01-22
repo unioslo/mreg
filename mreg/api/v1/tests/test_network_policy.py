@@ -2,6 +2,7 @@ from unittest_parametrize import ParametrizedTestCase, param, parametrize
 from django.db import transaction
 
 from mreg.models.network_policy import NetworkPolicy, NetworkPolicyAttribute, NetworkPolicyAttributeValue, Community
+from mreg.models.host import Host, Ipaddress
 from mreg.models.network import Network
 
 from .tests import MregAPITestCase
@@ -224,5 +225,90 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         }
         ret = self.assert_post_and_201('/api/v1/hosts/', data=data)
         ret = self.assert_get(ret.headers['Location'])
-        print(ret.json())
         net.delete()
+
+    def create_policy_setup(self,
+                            community_name: str = "test_community",
+                            host_name: str = "hostwithcommunity.example.com",
+                            ip_address: str = "10.0.0.1",
+                            network: str = "10.0.0.0/24",
+                            policy_name: str = "test_policy",
+                            ):
+        np = self._create_network_policy(policy_name, [])
+        community = self._create_community(community_name, "community desc", np)
+        net = Network.objects.create(network=network, description="test_network", policy=np)
+        host = Host.objects.create(name=host_name)
+        ip = Ipaddress.objects.create(host=host, ipaddress=ip_address)
+
+        self.addCleanup(host.delete)
+        self.addCleanup(ip.delete)
+        self.addCleanup(net.delete)
+        self.addCleanup(community.delete)
+        self.addCleanup(np.delete)
+
+        return np, community, net, host, ip
+
+    def test_add_host_to_community_ok(self):
+        """Test adding a host to a community."""
+        np, community, _, host, _ = self.create_policy_setup()
+
+        data = {
+            "id": host.pk
+        }
+
+        ret = self.assert_post_and_201(f'{POLICY_ENDPOINT}{np.pk}/communities/{community.pk}/hosts/', data=data)
+        self.assertEqual(ret.json()['name'], "hostwithcommunity.example.com")
+
+        ret = self.assert_get(f'{POLICY_ENDPOINT}{np.pk}/communities/{community.pk}/hosts/')
+        self.assertEqual(len(ret.json()['results']), 1)
+        self.assertEqual(ret.json()['results'][0]['name'], "hostwithcommunity.example.com")
+
+
+    def test_get_individual_host_from_community_ok(self):
+        """Test getting a host from a community."""
+        np, community, _, host, _ = self.create_policy_setup()
+        host.set_community(community)
+
+        ret = self.assert_get(f'{POLICY_ENDPOINT}{np.pk}/communities/{community.pk}/hosts/{host.pk}')
+        self.assertEqual(ret.json()['name'], "hostwithcommunity.example.com")
+
+    def test_get_individual_host_from_community_host_does_not_exist(self):
+        """Test getting a host from a community where host does not exist."""
+        np, community, _, _, _ = self.create_policy_setup()
+
+        self.assert_get_and_404(f'{POLICY_ENDPOINT}{np.pk}/communities/{community.pk}/hosts/99999999')
+
+    def test_add_host_to_community_ip_not_in_network(self):
+        """Test adding a host to a community when the hosts IP is not in the network for the policy."""
+        np, community, _, host, _ = self.create_policy_setup(ip_address="10.0.1.0")
+
+        data = {
+            "id": host.pk
+        }
+
+        self.assert_post_and_400(f'{POLICY_ENDPOINT}{np.pk}/communities/{community.pk}/hosts/', data=data)
+
+    def test_delete_host_from_community_ok(self):
+        """Test deleting a host from a community."""
+        np, community, _, host, _ = self.create_policy_setup()
+        host.set_community(community)
+
+        self.assert_delete_and_204(f'{POLICY_ENDPOINT}{np.pk}/communities/{community.pk}/hosts/{host.pk}')
+
+        ret = self.assert_get(f'{POLICY_ENDPOINT}{np.pk}/communities/{community.pk}/hosts/')
+        self.assertEqual(len(ret.json()['results']), 0)        
+
+    
+    def test_delete_host_from_community_not_in_community(self):
+        """Test deleting a host from a community."""
+        np, community, _, host, _ = self.create_policy_setup()
+        self.assert_delete_and_404(f'{POLICY_ENDPOINT}{np.pk}/communities/{community.pk}/hosts/{host.pk}')
+
+        # Add to a different community, just to make sure
+        community_other = self._create_community("community_other", "community desc", np)
+        host.set_community(community_other)
+
+        self.assert_delete_and_404(f'{POLICY_ENDPOINT}{np.pk}/communities/{community.pk}/hosts/{host.pk}')
+
+        community_other.delete()
+                                      

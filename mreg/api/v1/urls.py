@@ -79,10 +79,19 @@ urlpatterns = [
     re_path(r'^zonefiles/(?P<name>(\d+/)?[^/]+)', views_zones.zone_file_detail),
     path('permissions/netgroupregex/', views.NetGroupRegexPermissionList.as_view()),
     path('permissions/netgroupregex/<pk>', views.NetGroupRegexPermissionDetail.as_view()),
+
+    # Network Policy-related endpoints
     path("networkpolicies/", views_network_policy.NetworkPolicyList.as_view(), name='networkpolicy-list'),
     path("networkpolicies/<int:pk>", views_network_policy.NetworkPolicyDetail.as_view(), name='networkpolicy-detail'),
-    path("networkpolicies/<int:pk>/communities/", views_network_policy.NetworkCommunityList.as_view(), name='networkpolicy-communities-list'),
-    path("networkpolicies/<int:pk>/communities/<int:cpk>", views_network_policy.NetworkCommunityDetail.as_view(), name='networkpolicy-community-detail'),
-    path("networkpolicyattributes/", views_network_policy.NetworkPolicyAttributeList.as_view(), name='networkpolicyattribute-list'),
+    path("networkpolicies/<int:pk>/communities/",
+         views_network_policy.NetworkCommunityList.as_view(), name='networkpolicy-communities-list'),
+    path("networkpolicies/<int:pk>/communities/<int:cpk>",
+         views_network_policy.NetworkCommunityDetail.as_view(), name='networkpolicy-community-detail'),
+    path("networkpolicies/<int:pk>/communities/<int:cpk>/hosts/",
+         views_network_policy.NetworkCommunityHostList.as_view(), name='networkpolicy-community-hosts-list'),
+    path("networkpolicies/<int:pk>/communities/<int:cpk>/hosts/<int:hostpk>",
+         views_network_policy.NetworkCommunityHostDetail.as_view(), name='networkpolicy-community-host-detail'),
+    path("networkpolicyattributes/",
+         views_network_policy.NetworkPolicyAttributeList.as_view(), name='networkpolicyattribute-list'),
 
 ]

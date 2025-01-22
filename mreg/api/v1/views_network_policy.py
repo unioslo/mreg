@@ -3,10 +3,12 @@ from django.urls import reverse
 
 from rest_framework import generics, exceptions, status, response
 from mreg.models.network_policy import NetworkPolicy, NetworkPolicyAttribute, Community
+from mreg.models.host import Host
 from mreg.api.v1.serializers import (
     NetworkPolicySerializer,
     NetworkPolicyAttributeSerializer,
-    CommunitySerializer
+    CommunitySerializer,
+    HostSerializer,
 )
 from mreg.api.v1.views import JSONContentTypeMixin
 from mreg.api.permissions import IsGrantedNetGroupRegexPermission, IsSuperOrNetworkAdminMember
@@ -80,7 +82,7 @@ class NetworkCommunityList(JSONContentTypeMixin, generics.ListCreateAPIView):
             raise exceptions.NotFound("NetworkPolicy not found.")
         serializer.save(policy=policy)
 
-# Retrieve, update, or delete a specific Community under a specific NetworkPolicy
+# Retrieve, update, or delete a specific Community under a specific Network
 class NetworkCommunityDetail(JSONContentTypeMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = CommunitySerializer
     permission_classes = (IsGrantedNetGroupRegexPermission,)
@@ -94,3 +96,70 @@ class NetworkCommunityDetail(JSONContentTypeMixin, generics.RetrieveUpdateDestro
         cpk = self.kwargs.get('cpk')
         obj = generics.get_object_or_404(queryset, pk=cpk)
         return obj
+
+class HostInCommunityMixin(JSONContentTypeMixin):
+    def get_policy_and_community(self):
+        policy_pk = self.kwargs.get('pk') # type: ignore
+        cpk = self.kwargs.get('cpk') # type: ignore
+
+        try:
+            policy = NetworkPolicy.objects.get(pk=policy_pk)
+        except NetworkPolicy.DoesNotExist:
+            raise exceptions.NotFound("NetworkPolicy not found.")
+        
+        try:
+            community = Community.objects.get(pk=cpk)
+        except Community.DoesNotExist:
+            raise exceptions.NotFound("Community not found.")
+        
+        if community.policy != policy:
+            raise exceptions.NotFound("Community does not belong to the requested policy.")
+        
+        return policy, community
+
+# List all hosts in a specific community, or add a host to a community
+class NetworkCommunityHostList(HostInCommunityMixin, generics.ListCreateAPIView):
+    serializer_class = HostSerializer
+    permission_classes = (IsSuperOrNetworkAdminMember,)
+
+    def get_queryset(self):
+        # Retrieve community via helper. The policy is not used directly here.
+        _, community = self.get_policy_and_community()
+        return Host.objects.filter(network_community=community)
+
+    def create(self, request, *args, **kwargs):
+        _, community = self.get_policy_and_community()
+        host_id = request.data.get('id')
+
+        # Ensure host exists. If not, an appropriate 404 is raised.
+        host = generics.get_object_or_404(Host, pk=host_id)
+
+        # Attempt to set the community (this method will validate if the host has an IP in a network
+        # that is associated with the policy in which this community is defined).
+        if not host.set_community(community):
+            # If set_community returns False, then either the host has no IP address that matches
+            # any network in the community's policy, or there was another problem.            
+            raise exceptions.ValidationError("Host cannot be associated with the specified community (IP mismatch?)")
+
+        return response.Response(HostSerializer(host).data, status=status.HTTP_201_CREATED)
+    
+# Retrieve or delete a specific host in a specific community
+class NetworkCommunityHostDetail(HostInCommunityMixin, generics.RetrieveDestroyAPIView):
+    serializer_class = HostSerializer
+    permission_classes = (IsSuperOrNetworkAdminMember,)
+
+    def get_queryset(self):
+        _, community = self.get_policy_and_community()
+        return Host.objects.filter(network_community=community)
+
+    def get_object(self):
+        queryset = self.get_queryset()
+        host_id = self.kwargs.get('hostpk')
+        obj = generics.get_object_or_404(queryset, pk=host_id)
+        return obj
+    
+    def delete(self, request, *args, **kwargs):
+        host = self.get_object()
+        host.network_community = None
+        host.save()
+        return response.Response(status=status.HTTP_204_NO_CONTENT)

@@ -50,7 +50,7 @@ class Host(ForwardZoneMember):
                     self.network_community = community
                     self.save()
                     return True
-            except Network.DoesNotExist as e:
+            except Network.DoesNotExist:
                 return False
             
         return False
