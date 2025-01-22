@@ -166,8 +166,8 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         self.assert_post_and_400(f'{POLICY_ENDPOINT}9999/communities/', data=data)
         self.assertEqual(Community.objects.count(), 0)
 
-    def test_create_host_with_community_no_network(self):
-        """Test that adding a community during host creation without IP."""
+    def test_create_host_with_community_no_network_406(self):
+        """Test that adding a community during host creation without IP gives 406."""
         np = self._create_network_policy("host_with_community", [])
         community = self._create_community("community", "community desc", np)
 
