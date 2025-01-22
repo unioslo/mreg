@@ -3,12 +3,14 @@ from operator import itemgetter
 from unittest import skip
 
 import unittest.mock as mock
+import ldap
 from unittest_parametrize import ParametrizedTestCase, param, parametrize
 
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
+from django_auth_ldap.backend import LDAPBackend
 
 from rest_framework.test import APIClient, APITestCase
 
@@ -357,12 +359,80 @@ class APIMetaTestCase(MregAPITestCase):
     def test_meta_user_info_user_not_found_404_not_found(self):
         self.assert_get_and_404("/api/meta/user?username=nonexistent")
 
-    def test_meta_heartbeat_user_200_ok(self):
+
+class APIHealthHeartbeatTestCase(MregAPITestCase):
+    """Test the heartbeat API endpoint"""
+
+    def test_meta_heartbeat_user_200_ok(self) -> None:
         self.client = self.get_token_client(superuser=False)
-        response = self.assert_get("/api/meta/heartbeat")
-        for key in ('uptime', 'start_time'):
+        response = self.assert_get("/api/meta/health/heartbeat")
+        for key in ("uptime", "start_time"):
             with self.subTest(key=key):
                 self.assertTrue(key in response.data)
+
+
+class APIHealthLDAPTestCase(MregAPITestCase):
+    """Test the health API endpoint with mocked LDAP backend."""
+
+    def setUp(self):
+        super().setUp()
+
+        # Create the mock connection that will be returned by initialize
+        self.mock_connection = mock.MagicMock()
+
+        # Create a mock LDAP backend instance
+        self.mock_ldap_backend = mock.MagicMock(spec=LDAPBackend)
+        # Configure the ldap attribute and its initialize method
+        self.mock_ldap_backend.ldap.initialize.return_value = self.mock_connection
+
+        # Patch LDAPBackend in the views module
+        self.backend_patcher = mock.patch("mreg.api.views.LDAPBackend", return_value=self.mock_ldap_backend)
+        self.mock_backend_class = self.backend_patcher.start()
+        self.addCleanup(self.backend_patcher.stop)
+
+    def test_health_ldap_ok(self) -> None:
+        """Test successful LDAP health check."""
+        self.client = self.get_token_client(superuser=False)
+        
+        self.assert_get("/api/meta/health/ldap")
+
+        # Verify the connection was properly initialized and cleaned up
+        self.mock_ldap_backend.ldap.initialize.assert_called_once_with(settings.AUTH_LDAP_SERVER_URI)
+        self.mock_connection.simple_bind_s.assert_called_once_with(
+            settings.AUTH_LDAP_BIND_DN, settings.AUTH_LDAP_BIND_PASSWORD
+        )
+        self.mock_connection.unbind_s.assert_called_once()
+
+    def test_health_ldap_503_unavailable_ldap_error(self) -> None:
+        """Test LDAP health check when connection fails with LDAPError."""
+        self.client = self.get_token_client(superuser=False)
+        self.mock_connection.simple_bind_s.side_effect = ldap.LDAPError("LDAP connection error")
+
+        self._assert_get_and_status("/api/meta/health/ldap", 503)
+
+        # Verify cleanup was attempted even after error
+        self.mock_connection.unbind_s.assert_called_once()
+
+    def test_health_ldap_503_unavailable_unknown_error(self) -> None:
+        """Test LDAP health check when connection fails with unexpected error."""
+        self.client = self.get_token_client(superuser=False)
+        self.mock_connection.simple_bind_s.side_effect = Exception("LDAP is down")
+
+        self._assert_get_and_status("/api/meta/health/ldap", 503)
+
+        # Verify cleanup was attempted even after error
+        self.mock_connection.unbind_s.assert_called_once()
+
+    def test_health_ldap_cleanup_handles_unbind_error(self) -> None:
+        """Test LDAP health check properly handles errors during unbind."""
+        self.client = self.get_token_client(superuser=False)
+        self.mock_connection.unbind_s.side_effect = ldap.LDAPError("Unbind failed")
+
+        self.assert_get("/api/meta/health/ldap")
+
+        # Verify both bind and unbind were attempted
+        self.mock_connection.simple_bind_s.assert_called_once()
+        self.mock_connection.unbind_s.assert_called_once()
 
 
 class APIAutoupdateZonesTestCase(MregAPITestCase):

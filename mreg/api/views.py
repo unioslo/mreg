@@ -1,26 +1,27 @@
 import platform
 import time
+from importlib.metadata import version
 from typing import Any, cast
 
 import django
+import ldap
 import structlog
-
+from django.conf import settings
+from django_auth_ldap.backend import LDAPBackend
+from psycopg2 import __libpq_version__ as libpq_version
 from rest_framework import serializers, status
 from rest_framework.authtoken.views import ObtainAuthToken
-from rest_framework.exceptions import AuthenticationFailed, PermissionDenied, NotFound
+from rest_framework.exceptions import AuthenticationFailed, NotFound, PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from importlib.metadata import version  
 
-from psycopg2 import __libpq_version__ as libpq_version
-
-from mreg.api.permissions import IsSuperOrNetworkAdminMember
-from mreg.models.base import ExpiringToken
-from mreg.models.auth import User
-from mreg.models.network import NetGroupRegexPermission
 from mreg.__about__ import __version__ as mreg_version
+from mreg.api.permissions import IsSuperOrNetworkAdminMember
+from mreg.models.auth import User
+from mreg.models.base import ExpiringToken
+from mreg.models.network import NetGroupRegexPermission
 
 logger = structlog.getLogger(__name__)
 
@@ -188,10 +189,7 @@ class MetaVersions(APIView):
         return Response(status=status.HTTP_200_OK, data=data)
 
 
-class MetaHeartbeat(APIView):
-
-    permission_classes = (IsAuthenticated,)
-
+class HealthHeartbeat(APIView):
     def get(self, request: Request):
         uptime = int(time.time() - start_time)
         data = {
@@ -199,3 +197,40 @@ class MetaHeartbeat(APIView):
             "uptime": uptime,
         }
         return Response(status=status.HTTP_200_OK, data=data)
+
+
+class HealthLDAP(APIView):
+    def get(self, request: Request) -> Response:
+        ok = self.check_ldap_connection()
+        st = status.HTTP_200_OK if ok else status.HTTP_503_SERVICE_UNAVAILABLE
+        return Response(status=st)
+
+    def check_ldap_connection(self) -> bool:
+        """Check if we can connect to LDAP.
+
+        :return: Whether the LDAP connection test was successful.
+        :rtype: bool
+        """
+        try:
+            self._check_ldap_connection()
+            return True
+        except ldap.LDAPError as e:
+            logger.exception("LDAP connection error", error=str(e))
+        except Exception as e:
+            logger.exception("Error during LDAP check", error=str(e))
+        return False
+    
+    def _check_ldap_connection(self) -> None:
+        connection = None  # may be set in the try block
+
+        try:
+            ldap_backend = LDAPBackend()
+            connection = ldap_backend.ldap.initialize(settings.AUTH_LDAP_SERVER_URI)
+            connection.simple_bind_s(settings.AUTH_LDAP_BIND_DN, settings.AUTH_LDAP_BIND_PASSWORD)
+        finally:
+            # We may have established a connection, so we should close it
+            if connection:
+                try:
+                    connection.unbind_s()
+                except Exception:
+                    logger.exception("Failed to unbind from LDAP server")
