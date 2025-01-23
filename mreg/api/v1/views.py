@@ -18,7 +18,7 @@ from mreg.models.base import NameServer, History
 from mreg.models.host import Host, Ipaddress, PtrOverride
 from mreg.models.network import Network, NetGroupRegexPermission
 from mreg.models.resource_records import Cname, Loc, Naptr, Srv, Sshfp, Txt, Hinfo, Mx
-from mreg.models.network_policy import NetworkPolicy, Community
+from mreg.models.network_policy import Community
 from mreg.types import IPAllocationMethod
 
 from mreg.api.permissions import (
@@ -529,6 +529,32 @@ class IpaddressDetail(HostPermissionsUpdateDestroy, MregRetrieveUpdateDestroyAPI
     queryset = Ipaddress.objects.all()
     serializer_class = IpaddressSerializer
 
+    def patch(self, request, *args, **kwargs):
+        # Here we must check if the host is a member of a network community, and if the new IP address
+        # is a member of the same network as the community. If not, we must return an error.
+
+        ipaddress = self.get_object()
+        host = ipaddress.host
+        community = host.network_community
+
+        if community and "ipaddress" in request.data:
+            new_ip = request.data["ipaddress"]
+            try:
+                network = Network.objects.get(network__net_contains=new_ip)
+            except Network.DoesNotExist:
+                return Response(
+                    {"ERROR": "No network found for the new IP address, cannot update due to community membership"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            if not community.policy.networks.filter(network=network).exists():
+                return Response(
+                    {"ERROR": "Network does not belong to community policy"},
+                    status=status.HTTP_409_CONFLICT,
+                )
+
+        return super().patch(request, *args, **kwargs)
+
 
 class LocList(HostPermissionsListCreateAPIView):
     """
@@ -805,6 +831,15 @@ class NetworkDetail(MregRetrieveUpdateDestroyAPIView):
             error = _overlap_check(request.data["network"], exclude=network)
             if error:
                 return error
+            
+        policy = network.policy
+        if policy and "policy" in request.data:
+            if policy.communites.count() > 0:
+                return Response(
+                    {"ERROR": "Can not change policy, network policy has communities"},
+                    status=status.HTTP_409_CONFLICT,
+                )
+
         return super().patch(request, *args, **kwargs)
 
     def delete(self, request, *args, **kwargs):

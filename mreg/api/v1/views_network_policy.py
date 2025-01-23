@@ -120,7 +120,7 @@ class HostInCommunityMixin(JSONContentTypeMixin):
 # List all hosts in a specific community, or add a host to a community
 class NetworkCommunityHostList(HostInCommunityMixin, generics.ListCreateAPIView):
     serializer_class = HostSerializer
-    permission_classes = (IsSuperOrNetworkAdminMember,)
+    permission_classes = (IsGrantedNetGroupRegexPermission,IsSuperOrNetworkAdminMember)
 
     def get_queryset(self):
         # Retrieve community via helper. The policy is not used directly here.
@@ -146,7 +146,7 @@ class NetworkCommunityHostList(HostInCommunityMixin, generics.ListCreateAPIView)
 # Retrieve or delete a specific host in a specific community
 class NetworkCommunityHostDetail(HostInCommunityMixin, generics.RetrieveDestroyAPIView):
     serializer_class = HostSerializer
-    permission_classes = (IsSuperOrNetworkAdminMember,)
+    permission_classes = (IsGrantedNetGroupRegexPermission, IsSuperOrNetworkAdminMember)
 
     def get_queryset(self):
         _, community = self.get_policy_and_community()

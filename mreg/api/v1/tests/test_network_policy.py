@@ -311,4 +311,23 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         self.assert_delete_and_404(f'{POLICY_ENDPOINT}{np.pk}/communities/{community.pk}/hosts/{host.pk}')
 
         community_other.delete()
-                                      
+                                    
+    def test_change_ip_of_host_to_outside_of_community_gives_409(self):
+        """Test changing the IP of a host to an IP outside the community."""
+        _, community, _, host, ip = self.create_policy_setup()
+        host.set_community(community)
+
+        data = {
+            "ipaddress": "10.0.1.0"        
+        }
+
+        # The IP above does not belong a network, so we get a 404
+        self.assert_patch_and_404(f'/api/v1/ipaddresses/{ip.pk}', data=data)
+
+        # Then we create the networ, but don't associate it with the policy
+        new_network = Network.objects.create(network="10.0.1.0/24", description="test_network")
+        # Now we get a 409 as the IP is not in the network associated with the policy
+        self.assert_patch_and_409(f'/api/v1/ipaddresses/{ip.pk}', data=data)
+
+        new_network.delete()
+
