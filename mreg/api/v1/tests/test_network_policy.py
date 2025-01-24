@@ -324,7 +324,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         # The IP above does not belong a network, so we get a 404
         self.assert_patch_and_404(f'/api/v1/ipaddresses/{ip.pk}', data=data)
 
-        # Then we create the networ, but don't associate it with the policy
+        # Then we create the network, but don't associate it with the policy
         new_network = Network.objects.create(network="10.0.1.0/24", description="test_network")
         # Now we get a 409 as the IP is not in the network associated with the policy
         self.assert_patch_and_409(f'/api/v1/ipaddresses/{ip.pk}', data=data)
