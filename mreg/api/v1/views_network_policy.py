@@ -10,6 +10,9 @@ from mreg.api.v1.serializers import (
     CommunitySerializer,
     HostSerializer,
 )
+
+from mreg.api.v1.filters import NetworkPolicyAttributeFilterSet, NetworkPolicyFilterSet, CommunityFilterSet, HostFilterSet
+
 from mreg.api.v1.views import JSONContentTypeMixin
 from mreg.api.permissions import IsGrantedNetGroupRegexPermission, IsSuperOrNetworkAdminMember
 
@@ -20,6 +23,7 @@ class NetworkPolicyList(JSONContentTypeMixin, generics.ListCreateAPIView):
     serializer_class = NetworkPolicySerializer
     permission_classes = (IsGrantedNetGroupRegexPermission,)
     ordering_fields = ('id',)
+    filterset_class = NetworkPolicyFilterSet
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -55,6 +59,7 @@ class NetworkPolicyAttributeList(JSONContentTypeMixin, generics.ListCreateAPIVie
     queryset = NetworkPolicyAttribute.objects.all()
     serializer_class = NetworkPolicyAttributeSerializer
     permission_classes = (IsSuperOrNetworkAdminMember,)
+    filterset_class = NetworkPolicyAttributeFilterSet
     ordering_fields = ('id',)
 
 class NetworkPolicyAttributeDetail(JSONContentTypeMixin, generics.RetrieveUpdateDestroyAPIView):
@@ -65,6 +70,7 @@ class NetworkPolicyAttributeDetail(JSONContentTypeMixin, generics.RetrieveUpdate
 class NetworkCommunityList(JSONContentTypeMixin, generics.ListCreateAPIView):
     serializer_class = CommunitySerializer
     permission_classes = (IsSuperOrNetworkAdminMember,)
+    filterset_class = CommunityFilterSet
 
     def get_queryset(self):
         policy_pk = self.kwargs.get('pk')
@@ -125,7 +131,7 @@ class NetworkCommunityHostList(HostInCommunityMixin, generics.ListCreateAPIView)
     def get_queryset(self):
         # Retrieve community via helper. The policy is not used directly here.
         _, community = self.get_policy_and_community()
-        return Host.objects.filter(network_community=community)
+        return HostFilterSet(data=self.request.GET, queryset=Host.objects.filter(network_community=community).order_by('id')).qs
 
     def create(self, request, *args, **kwargs):
         _, community = self.get_policy_and_community()
@@ -150,7 +156,7 @@ class NetworkCommunityHostDetail(HostInCommunityMixin, generics.RetrieveDestroyA
 
     def get_queryset(self):
         _, community = self.get_policy_and_community()
-        return Host.objects.filter(network_community=community)
+        return HostFilterSet(data=self.request.GET, queryset=Host.objects.filter(network_community=community).order_by('id')).qs
 
     def get_object(self):
         queryset = self.get_queryset()

@@ -16,6 +16,7 @@ class NetworkPolicy(BaseModel):
     Represents a network policy which consists of a set of NetworkPolicyAttributes.
     """
     name = models.CharField(max_length=100, unique=True, help_text="Name of the network policy.")
+    description = models.TextField(blank=True, help_text="Description of the network policy.")
     attributes = models.ManyToManyField(
         NetworkPolicyAttribute,
         through='NetworkPolicyAttributeValue',

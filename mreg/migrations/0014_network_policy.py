@@ -31,6 +31,7 @@ class Migration(migrations.Migration):
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
                 ('name', models.CharField(help_text='Name of the network policy.', max_length=100, unique=True)),
+                ('description', models.TextField(blank=True, help_text='Description of the network policy.')),
             ],
             options={
                 'abstract': False,
