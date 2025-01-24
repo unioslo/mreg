@@ -250,7 +250,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
 
     def test_add_host_to_community_ok(self):
         """Test adding a host to a community."""
-        np, community, _, host, _ = self.create_policy_setup()
+        np, community, network, host, _ = self.create_policy_setup()
 
         data = {
             "id": host.pk
@@ -262,7 +262,6 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         ret = self.assert_get(f'{POLICY_ENDPOINT}{np.pk}/communities/{community.pk}/hosts/')
         self.assertEqual(len(ret.json()['results']), 1)
         self.assertEqual(ret.json()['results'][0]['name'], "hostwithcommunity.example.com")
-
 
     def test_get_individual_host_from_community_ok(self):
         """Test getting a host from a community."""

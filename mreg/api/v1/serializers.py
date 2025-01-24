@@ -31,9 +31,15 @@ class ValidationMixin:
 
 class CommunitySerializer(serializers.ModelSerializer):
 
+    # Members are all the hosts that have this community assigned.
+    hosts = serializers.SerializerMethodField("get_hosts", read_only=True)
+
+    def get_hosts(self, obj):
+        return [host.name for host in obj.hosts.all()]
+    
     class Meta:
         model = Community
-        fields = ['id', 'name', 'description', 'policy', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'description', 'policy', 'hosts', 'created_at', 'updated_at']
 
 
 class ForwardZoneMixin(ValidationMixin):
@@ -365,12 +371,6 @@ class NetworkExcludedRangeSerializer(ValidationMixin, serializers.ModelSerialize
         return data
 
 
-class NetworkSerializer(ValidationMixin, serializers.ModelSerializer):
-    excluded_ranges = NetworkExcludedRangeSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = Network
-        fields = '__all__'
 
 
 class NetGroupRegexPermissionSerializer(ValidationMixin, serializers.ModelSerializer):
@@ -608,3 +608,14 @@ class NetworkPolicyAttributeSerializer(serializers.ModelSerializer):
     class Meta:
         model = NetworkPolicyAttribute
         fields = ['id', 'name', 'description', 'created_at', 'updated_at']
+
+
+class NetworkSerializer(ValidationMixin, serializers.ModelSerializer):
+    excluded_ranges = NetworkExcludedRangeSerializer(many=True, read_only=True)
+    
+    # Expand the entire policy object
+    policy = NetworkPolicySerializer(read_only=True)
+
+    class Meta:
+        model = Network
+        fields = '__all__'

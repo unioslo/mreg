@@ -6,28 +6,31 @@ This document describes the **Network Policies API**, which manages **Network Po
 
 ## Table of Contents
 
-- [Overview](#overview)
-  - [Network Policy](#network-policy)
-  - [Policy Attributes](#policy-attributes)
-  - [Community](#community)
-  - [Host Membership](#host-membership)
-- [Authentication and Permissions](#authentication-and-permissions)
-- [Endpoints](#endpoints)
-  - [Network Policy Endpoints](#network-policy-endpoints)
-    - [List / Create](#list--create)
-    - [Retrieve / Update / Delete](#retrieve--update--delete)
-  - [Policy Attribute Endpoints](#policy-attribute-endpoints)
-    - [List / Create](#list--create-1)
-    - [Retrieve / Update / Delete](#retrieve--update--delete-1)
-  - [Community Endpoints](#community-endpoints)
-    - [List / Create](#list--create-2)
-    - [Retrieve / Update / Delete](#retrieve--update--delete-2)
-  - [Hosts in a Community](#hosts-in-a-community)
-    - [List / Add Host to a Community](#list--add-host-to-a-community)
-    - [Retrieve / Remove Host from a Community](#retrieve--remove-host-from-a-community)
-- [Usage Examples](#usage-examples)
-- [Error Handling](#error-handling)
-- [Conclusion](#conclusion)
+- [Network Policies API Documentation](#network-policies-api-documentation)
+  - [Table of Contents](#table-of-contents)
+  - [Overview](#overview)
+    - [Network Policy](#network-policy)
+    - [Policy Attributes](#policy-attributes)
+    - [Community](#community)
+    - [Host Membership](#host-membership)
+  - [Authentication and Permissions](#authentication-and-permissions)
+  - [Endpoints](#endpoints)
+    - [Network Policy Endpoints](#network-policy-endpoints)
+      - [List / Create](#list--create)
+      - [Retrieve / Update / Delete](#retrieve--update--delete)
+    - [Policy Attribute Endpoints](#policy-attribute-endpoints)
+      - [List / Create](#list--create-1)
+      - [Retrieve / Update / Delete](#retrieve--update--delete-1)
+    - [Community Endpoints](#community-endpoints)
+      - [List / Create](#list--create-2)
+      - [Retrieve / Update / Delete](#retrieve--update--delete-2)
+    - [Hosts in a Community](#hosts-in-a-community)
+      - [List / Add Host to a Community](#list--add-host-to-a-community)
+      - [Retrieve / Remove Host from a Community](#retrieve--remove-host-from-a-community)
+  - [Usage Examples](#usage-examples)
+  - [Error Handling](#error-handling)
+  - [Notes](#notes)
+  - [Conclusion](#conclusion)
 
 ---
 
@@ -42,9 +45,10 @@ A **Network Policy** is a named entity grouping a set of attributes (via **Polic
 
 ### Policy Attributes
 
-A **Policy Attribute** is a simple boolean flag or marker. Policy Attributes do *not* by themselves define system behavior. Instead, each attribute is a type of marker that can be set for a given policy. 
+A **Policy Attribute** is a simple boolean flag or marker. Policy Attributes do *not* by themselves define system behavior. Instead, each attribute is a type of marker that can be set for a given policy.
 
 **Important**:  
+
 - Attributes must first be defined globally (e.g., "isolated," "public," "private") using the **Policy Attribute** endpoints.  
 - Then, they are associated with a **Network Policy** and given a value (true/false).  
 
@@ -81,6 +85,7 @@ A **Community** is a named collection of **Hosts** within a **single** Network P
 - **Create (POST)**: Creates a new policy with a name and optional attributes (specified by already-created `NetworkPolicyAttribute` IDs).
 
 **Example (POST Request)**:
+
 ```json
 {
   "name": "SecurePolicy",
@@ -105,7 +110,6 @@ A **Community** is a named collection of **Hosts** within a **single** Network P
 - **PATCH (or PUT):** Update the name or attributes.
 - **DELETE:** Remove the policy entirely (and any related communities).
 
-
 ### Policy Attribute Endpoints
 
 #### List / Create
@@ -117,12 +121,14 @@ A **Community** is a named collection of **Hosts** within a **single** Network P
 - **Create (POST):** Define a new policy attribute with a name and description that can be used in policies.
 
 **Example (POST Request):**
+
 ```json
 {
   "name": "Isolated",
   "description": "Marks network isolation if set to true."
 }
 ```
+
 - Response: 201 Created
 
 #### Retrieve / Update / Delete
@@ -146,24 +152,42 @@ A **Community** is a named collection of **Hosts** within a **single** Network P
 - **Create (POST):** Create a new community under a specific policy.
 
 **Example (POST Request):**
+
 ```json
 {
   "name": "FrontendServers",
   "description": "Handles all front-end servers."
 }
 ```
+
 - Response: 201 Created
 
 #### Retrieve / Update / Delete
 
-**`GET /api/v1/networkpolicies/<pk>/communities/<cpk>/`**
-**`PATCH /api/v1/networkpolicies/<pk>/communities/<cpk>/`**
-**`DELETE /api/v1/networkpolicies/<pk>/communities/<cpk>/`**
+**`GET /api/v1/networkpolicies/<pk>/communities/<cpk>`**
+**`PATCH /api/v1/networkpolicies/<pk>/communities/<cpk>`**
+**`DELETE /api/v1/networkpolicies/<pk>/communities/<cpk>`**
 
 - **GET:** Get details for a specific community.
 - **PATCH:** Update the name/description of a community.
 - **DELETE:** Remove the community from the policy.
 
+
+**Example (GET Response):**
+
+```json
+{
+   "id":1,
+   "name":"test_community",
+   "description":"community desc",
+   "policy":1,
+   "hosts":[
+      "hostwithcommunity.example.com"
+   ],
+   "created_at":"2025-01-24T12:24:35.676621+01:00",
+   "updated_at":"2025-01-24T12:24:35.676630+01:00"
+}
+```
 
 ### Hosts in a Community
 
@@ -176,6 +200,7 @@ A **Community** is a named collection of **Hosts** within a **single** Network P
 - **POST:** Associates an existing host with this community if it meets the network criteria.
 
 **Example (POST Request):**
+
 ```json
 {
   "id": 5  // ID of the existing Host
@@ -185,7 +210,6 @@ A **Community** is a named collection of **Hosts** within a **single** Network P
 The host’s IP address(es) must match a network that is configured with the same policy. Otherwise, the request will fail with a 400 Bad reqeust error.
 
 #### Retrieve / Remove Host from a Community
-
 
 **`GET /api/v1/networkpolicies/<pk>/communities/<cpk>/hosts/<hostpk>`**
 **`DELETE /api/v1/networkpolicies/<pk>/communities/<cpk>/hosts/<hostpk>`**
@@ -199,6 +223,7 @@ The host’s IP address(es) must match a network that is configured with the sam
 1. Creating a Network Policy Attribute
 
 **POST /api/v1/networkpolicyattributes/**
+
 ```json
 {
   "name": "Isolated",
@@ -221,6 +246,7 @@ The host’s IP address(es) must match a network that is configured with the sam
 3. Creating a Community under a Policy
 
 **POST /api/v1/networkpolicies/1/communities/**
+
 ```json
 {
   "name": "BackendServices",
@@ -231,6 +257,7 @@ The host’s IP address(es) must match a network that is configured with the sam
 4. Adding a Host to a Community
 
 **POST /api/v1/networkpolicies/1/communities/2/hosts/**
+
 ```json
 {
   "id": 42
@@ -246,6 +273,53 @@ Response: 201 Created (on success), or 409 Conflict (if the host’s IP doesn’
 - **400 Bad request**: Invalid request data or failed validation (e.g., IP mismatch when adding a host to a community).
 - **403 Forbidden**: Insufficient permissions for the requested operation.
 - **404 Not Found**: Policy, community, attribute, or host not found in the system.
+
+## Notes
+
+Fetching a network will now include the policy object in full, as such:
+
+**GET /api/v1/networks/10.0.0.0/24**
+
+```json
+{
+   "id":1,
+   "excluded_ranges":[
+      
+   ],
+   "policy":{
+      "id":1,
+      "name":"test_policy",
+      "attributes":[
+         
+      ],
+      "communities":[
+         {
+            "id":1,
+            "name":"test_community",
+            "description":"community desc",
+            "policy":1,
+            "hosts":[
+               "hostwithcommunity.example.com"
+            ],
+            "created_at":"2025-01-24T12:24:35.676621+01:00",
+            "updated_at":"2025-01-24T12:24:35.676630+01:00"
+         }
+      ],
+      "created_at":"2025-01-24T12:24:35.664231+01:00",
+      "updated_at":"2025-01-24T12:24:35.664241+01:00"
+   },
+   "created_at":"2025-01-24T12:24:35.683213+01:00",
+   "updated_at":"2025-01-24T12:24:35.683219+01:00",
+   "network":"10.0.0.0/24",
+   "description":"test_network",
+   "vlan":"None",
+   "dns_delegated":false,
+   "category":"",
+   "location":"",
+   "frozen":false,
+   "reserved":3
+}
+```
 
 ## Conclusion
 
