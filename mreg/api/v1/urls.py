@@ -2,6 +2,8 @@ from django.urls import path, re_path
 
 from . import views, views_hostgroups, views_zones, views_labels, views_bacnet, views_network_policy
 
+from .endpoints import URL
+
 urlpatterns = [
     path('bacnet/ids/', views_bacnet.BACnetIDList.as_view()),
     path('bacnet/ids/<id>', views_bacnet.BACnetIDDetail.as_view()),
@@ -81,17 +83,19 @@ urlpatterns = [
     path('permissions/netgroupregex/<pk>', views.NetGroupRegexPermissionDetail.as_view()),
 
     # Network Policy-related endpoints
-    path("networkpolicies/", views_network_policy.NetworkPolicyList.as_view(), name='networkpolicy-list'),
-    path("networkpolicies/<int:pk>", views_network_policy.NetworkPolicyDetail.as_view(), name='networkpolicy-detail'),
+    path("networkpolicies/",
+         views_network_policy.NetworkPolicyList.as_view(), name=URL.NetworkPolicy.LIST),
+    path("networkpolicies/<int:pk>",
+         views_network_policy.NetworkPolicyDetail.as_view(), name=URL.NetworkPolicy.DETAIL),
     path("networkpolicies/<int:pk>/communities/",
-         views_network_policy.NetworkCommunityList.as_view(), name='networkpolicy-communities-list'),
+         views_network_policy.NetworkCommunityList.as_view(), name=URL.NetworkPolicy.COMMUNITIES_LIST),
     path("networkpolicies/<int:pk>/communities/<int:cpk>",
-         views_network_policy.NetworkCommunityDetail.as_view(), name='networkpolicy-community-detail'),
+         views_network_policy.NetworkCommunityDetail.as_view(), name=URL.NetworkPolicy.COMMUNITY_DETAIL),
     path("networkpolicies/<int:pk>/communities/<int:cpk>/hosts/",
-         views_network_policy.NetworkCommunityHostList.as_view(), name='networkpolicy-community-hosts-list'),
+         views_network_policy.NetworkCommunityHostList.as_view(), name=URL.NetworkPolicy.COMMUNITY_HOSTS_LIST),
     path("networkpolicies/<int:pk>/communities/<int:cpk>/hosts/<int:hostpk>",
-         views_network_policy.NetworkCommunityHostDetail.as_view(), name='networkpolicy-community-host-detail'),
+         views_network_policy.NetworkCommunityHostDetail.as_view(), name=URL.NetworkPolicy.COMMUNITY_HOST_DETAIL),
     path("networkpolicyattributes/",
-         views_network_policy.NetworkPolicyAttributeList.as_view(), name='networkpolicyattribute-list'),
+         views_network_policy.NetworkPolicyAttributeList.as_view(), name=URL.NetworkPolicy.ATTRIBUTE_LIST),
 
 ]

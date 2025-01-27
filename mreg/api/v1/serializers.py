@@ -40,6 +40,7 @@ class CommunitySerializer(serializers.ModelSerializer):
     class Meta:
         model = Community
         fields = ['id', 'name', 'description', 'policy', 'hosts', 'created_at', 'updated_at']
+        read_only_fields = ['policy'] # The policy comes from the URL, so it should not be settable.
 
 
 class ForwardZoneMixin(ValidationMixin):

@@ -188,6 +188,10 @@ class MregRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class MregListCreateAPIView(MregMixin, generics.ListCreateAPIView):
+    # TODO: Redo this type of implementation.
+    # 1) We shouldn't use request.path but instead reverse on an api.vX.endpoint enum value
+    # 2) We should let each view set a POST location root, and then append the lookup_field
+    # This is the root cause of https://github.com/unioslo/mreg/issues/528
     def _get_location(self, request, serializer):
         return request.path + str(serializer.validated_data[self.lookup_field])
 
