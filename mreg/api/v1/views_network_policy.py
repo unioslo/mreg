@@ -16,8 +16,6 @@ from mreg.api.v1.filters import NetworkPolicyAttributeFilterSet, NetworkPolicyFi
 from mreg.api.v1.views import JSONContentTypeMixin
 from mreg.api.permissions import IsGrantedNetGroupRegexPermission, IsSuperOrNetworkAdminMember
 
-BASE_PATH = '/api/v1/networkpolicies/'
-
 class NetworkPolicyList(JSONContentTypeMixin, generics.ListCreateAPIView):
     queryset = NetworkPolicy.objects.all()
     serializer_class = NetworkPolicySerializer
