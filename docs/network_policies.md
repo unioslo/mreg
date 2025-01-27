@@ -231,7 +231,7 @@ The host’s IP address(es) must match a network that is configured with the sam
 }
 ```
 
-2. Creating a Network Policya
+2. Creating a Network Policy
 
 **POST /api/v1/networkpolicies/**
 ```json
