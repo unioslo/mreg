@@ -18,6 +18,8 @@ from mreg.api.v1.filters import (
     HostFilterSet,
 )
 
+from mreg.api.errors import ValidationError409
+
 from mreg.api.v1.views import JSONContentTypeMixin
 from mreg.api.permissions import IsGrantedNetGroupRegexPermission, IsSuperOrNetworkAdminMember
 from mreg.api.v1.endpoints import URL
@@ -91,6 +93,13 @@ class NetworkCommunityList(JSONContentTypeMixin, generics.ListCreateAPIView):
             policy = NetworkPolicy.objects.get(pk=policy_pk)
         except NetworkPolicy.DoesNotExist:  # pragma: no cover
             raise exceptions.NotFound("NetworkPolicy not found.")
+        
+        try:
+            Community.objects.get(name=serializer.validated_data["name"], policy=policy)
+            raise ValidationError409(detail="Community with this name already exists.")
+        except Community.DoesNotExist:
+            pass
+        
         serializer.save(policy=policy)
 
 

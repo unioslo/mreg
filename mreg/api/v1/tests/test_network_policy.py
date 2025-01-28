@@ -132,6 +132,36 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         self._delete_network_policy(name)
         self.assertFalse(Community.objects.filter(pk=community_id).exists())  # Cascade delete
 
+    def test_create_community_name_already_exists_in_same_policy_409(self):
+        """Test creating a community with the same name in different policies works."""
+        np1 = self._create_network_policy("policy1", [])
+        np2 = self._create_network_policy("policy2", [])
+
+        data = {
+            "name": "community",
+            "description": "community desc",
+        }
+
+        self.assert_post_and_201(f"{POLICY_ENDPOINT}{np1.pk}/communities/", data=data)
+        self.assert_post_and_201(f"{POLICY_ENDPOINT}{np2.pk}/communities/", data=data)
+
+        np1.delete()
+        np2.delete()
+
+    def test_create_community_name_already_exists_in_different_policy_ok(self):
+        """Test creating a community with the same name in a different policy."""
+        np1 = self._create_network_policy("policy_with_community1", [])
+        np2 = self._create_network_policy("policy_with_community2", [])
+        data = {
+            "name": "community",
+            "description": "community desc",
+        }
+        self.assert_post_and_201(f"{POLICY_ENDPOINT}{np1.pk}/communities/", data=data)
+        self.assert_post_and_201(f"{POLICY_ENDPOINT}{np2.pk}/communities/", data=data)
+
+        self._delete_network_policy("policy_with_community1")
+        self._delete_network_policy("policy_with_community2")
+
     def test_delete_community(self):
         """Test deleting a community."""
         name = "policy_with_community"

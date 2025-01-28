@@ -57,7 +57,7 @@ class Community(BaseModel):
     Represents a community within a NetworkPolicy. Hosts can belong to a community.
     """
 
-    name = models.CharField(max_length=100, unique=True, help_text="Unique name of the community.")
+    name = models.CharField(max_length=100, help_text="Policy-unique name of the community.")
     description = models.CharField(blank=True, max_length=250, help_text="Description of the community.")
     policy = models.ForeignKey(
         NetworkPolicy,
@@ -68,3 +68,7 @@ class Community(BaseModel):
 
     def __str__(self):
         return self.name
+    
+    class Meta:
+        ordering = ("name",)
+        unique_together = ("name", "policy")
