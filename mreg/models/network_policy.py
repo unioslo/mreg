@@ -1,5 +1,6 @@
 from django.db import models
 from mreg.models.base import BaseModel
+from mreg.fields import LowerCaseCharField
 
 
 class NetworkPolicyAttribute(BaseModel):
@@ -7,7 +8,7 @@ class NetworkPolicyAttribute(BaseModel):
     Represents an attribute that can be applied to a NetworkPolicy.
     """
 
-    name = models.CharField(max_length=100, unique=True)
+    name = LowerCaseCharField(max_length=100, unique=True)
     description = models.TextField(blank=True, help_text="Description of the attribute.")
 
     def __str__(self):
@@ -19,7 +20,7 @@ class NetworkPolicy(BaseModel):
     Represents a network policy which consists of a set of NetworkPolicyAttributes.
     """
 
-    name = models.CharField(max_length=100, unique=True, help_text="Name of the network policy.")
+    name = LowerCaseCharField(max_length=100, unique=True, help_text="Name of the network policy.")
     description = models.TextField(blank=True, help_text="Description of the network policy.")
     attributes = models.ManyToManyField(
         NetworkPolicyAttribute,
@@ -57,7 +58,7 @@ class Community(BaseModel):
     Represents a community within a NetworkPolicy. Hosts can belong to a community.
     """
 
-    name = models.CharField(max_length=100, help_text="Policy-unique name of the community.")
+    name = LowerCaseCharField(max_length=100, help_text="Policy-unique name of the community.")
     description = models.CharField(blank=True, max_length=250, help_text="Description of the community.")
     policy = models.ForeignKey(
         NetworkPolicy,
