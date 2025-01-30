@@ -40,12 +40,17 @@ This document describes the **Network Policies API**, which manages **Network Po
 
 A **Network Policy** is a named entity grouping a set of attributes (via **Policy Attributes**) and referencing any number of **Communities**. Policies are used to configure or categorize network-related aspects of your infrastructure.
 
-- **Name**: Human-readable identifier of the policy.
+- **Name**: Human-readable case insensitive identifier of the policy.
 - **Attributes**: A list of attributes that apply to this policy (see below).
 
 ### Policy Attributes
 
 A **Policy Attribute** is a simple boolean flag or marker. Policy Attributes do *not* by themselves define system behavior. Instead, each attribute is a type of marker that can be set for a given policy.
+
+- **Name**: Human-readable case insensitive identifier of the attribute.
+- **Description**: A brief description of the attribute.
+
+Note: The attribute 'isolated' is a special attribute that is used to mark a network as isolated, this attribute is hardcoded and cannot be deleted, updated or created (but you may still change its description).
 
 **Important**:  
 
@@ -54,7 +59,7 @@ A **Policy Attribute** is a simple boolean flag or marker. Policy Attributes do 
 
 ### Community
 
-A **Community** is a named collection of **Hosts** within a **single** Network Policy. Each community belongs to exactly one policy, enabling further subdivision of hosts adhering to that policy. Communities allow you to group hosts based on function, location, access, or other logical groupings.
+A **Community** is a named (case insensitive) collection of **Hosts** within a **single** Network Policy. Each community belongs to exactly one policy, enabling further subdivision of hosts adhering to that policy. Communities allow you to group hosts based on function, location, access, or other logical groupings.
 
 ### Host Membership
 
@@ -88,7 +93,7 @@ A **Community** is a named collection of **Hosts** within a **single** Network P
 
 ```json
 {
-  "name": "SecurePolicy",
+  "name": "SecurePolicy", // This will be turned into "securepolicy" internally
   "attributes": [
     {
       "attribute": 1,   // ID of an existing NetworkPolicyAttribute

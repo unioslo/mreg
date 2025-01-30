@@ -33,6 +33,18 @@ class NetworkPolicyList(JSONContentTypeMixin, generics.ListCreateAPIView):
     filterset_class = NetworkPolicyFilterSet
 
     def create(self, request, *args, **kwargs):
+        # Note, we can't use the serializer's is_valid method here because that'll raise a 400 exception
+        # if the data is invalid (even if something exists). We need to catch that and raise a 409 instead.
+        name = request.data.get("name")
+        if not name:
+            raise exceptions.ValidationError("'name' is required.")
+
+        try:
+            NetworkPolicy.objects.get(name=name)
+            raise ValidationError409(detail="NetworkPolicy with this name already exists.")
+        except NetworkPolicy.DoesNotExist:
+            pass
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         with transaction.atomic():
@@ -68,6 +80,30 @@ class NetworkPolicyAttributeList(JSONContentTypeMixin, generics.ListCreateAPIVie
     ordering_fields = ("id",)
 
 
+    def create(self, request, *args, **kwargs):
+        name = request.data.get("name")
+        if not name:
+            raise exceptions.ValidationError("'name' is required.")
+        
+        try:
+            NetworkPolicyAttribute.objects.get(name=name)
+            raise ValidationError409(detail="NetworkPolicyAttribute with this name already exists.")
+        except NetworkPolicyAttribute.DoesNotExist:
+            pass
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        with transaction.atomic():
+            network_policy_attribute = serializer.save()
+
+        headers = self.get_success_headers(serializer.data)
+        headers["Location"] = request.build_absolute_uri(
+            reverse(URL.NetworkPolicy.ATTRIBUTE_DETAIL, kwargs={"pk": network_policy_attribute.id})
+        )
+
+        return response.Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
 class NetworkPolicyAttributeDetail(JSONContentTypeMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = NetworkPolicyAttribute.objects.all()
     serializer_class = NetworkPolicyAttributeSerializer
@@ -83,24 +119,43 @@ class NetworkCommunityList(JSONContentTypeMixin, generics.ListCreateAPIView):
         policy_pk = self.kwargs.get("pk")
         return Community.objects.filter(policy__pk=policy_pk).order_by("id")
 
-    def perform_create(self, serializer):
+    def create(self, request, *args, **kwargs):
         policy_pk = self.kwargs.get("pk")
 
-        # Ensure the NetworkPolicy exists, even though the queryset has already done this
-        # This is in case the NetworkPolicy is deleted between the time the queryset is called and
-        # the time this create is called
+        if not policy_pk:
+            raise exceptions.ValidationError("NetworkPolicy ID is required.")
+
+        # Note, we can't use the serializer's is_valid method here because that'll raise a 400 exception
+        # if the data is invalid (even if something exists). We need to catch that and raise a 409 instead.
+        name = request.data.get("name")
+        if not name:
+            raise exceptions.ValidationError("'name' is required.")
+
         try:
             policy = NetworkPolicy.objects.get(pk=policy_pk)
         except NetworkPolicy.DoesNotExist:  # pragma: no cover
             raise exceptions.NotFound("NetworkPolicy not found.")
         
+        # We do not have to worry about case sensitivity here, as the LowerCaseManager for the model will handle that.
         try:
-            Community.objects.get(name=serializer.validated_data["name"], policy=policy)
+            Community.objects.get(name=name, policy=policy)
             raise ValidationError409(detail="Community with this name already exists.")
         except Community.DoesNotExist:
             pass
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         
-        serializer.save(policy=policy)
+        with transaction.atomic():
+            community = serializer.save(policy=policy)
+        headers = self.get_success_headers(serializer.data)
+
+        # Dynamically generate the Location URL
+        headers["Location"] = request.build_absolute_uri(
+            reverse(URL.NetworkPolicy.COMMUNITY_DETAIL, kwargs={"pk": policy.id, "cpk": community.id})
+        )
+        return response.Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)        
+
 
 
 # Retrieve, update, or delete a specific Community under a specific Network

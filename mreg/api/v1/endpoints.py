@@ -10,3 +10,4 @@ class URL:
         COMMUNITY_HOSTS_LIST = "networkpolicy-community-hosts-list"
         COMMUNITY_HOST_DETAIL = "networkpolicy-community-host-detail"
         ATTRIBUTE_LIST = "networkpolicyattribute-list"
+        ATTRIBUTE_DETAIL = "networkpolicyattribute-detail"        

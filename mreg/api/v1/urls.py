@@ -97,5 +97,7 @@ urlpatterns = [
          views_network_policy.NetworkCommunityHostDetail.as_view(), name=URL.NetworkPolicy.COMMUNITY_HOST_DETAIL),
     path("networkpolicyattributes/",
          views_network_policy.NetworkPolicyAttributeList.as_view(), name=URL.NetworkPolicy.ATTRIBUTE_LIST),
+     path("networkpolicyattributes/<int:pk>",
+           views_network_policy.NetworkPolicyAttributeDetail.as_view(), name=URL.NetworkPolicy.ATTRIBUTE_DETAIL),
 
 ]

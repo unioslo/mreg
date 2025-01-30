@@ -10,7 +10,6 @@ from .tests import MregAPITestCase
 POLICY_ENDPOINT = "/api/v1/networkpolicies/"
 ATTRIBUTE_ENDPOINT = "/api/v1/networkpolicyattributes/"
 
-
 class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
     def setUp(self):
         super().setUp()
@@ -41,6 +40,104 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
 
     def _delete_community(self, name: str):
         Community.objects.get(name=name).delete()
+
+    def _get_protected_attribute_isolated(self) -> NetworkPolicyAttribute:
+        return NetworkPolicyAttribute.objects.get(name="isolated")
+    
+    def _get_protected_attribute(self, name: str) -> NetworkPolicyAttribute:
+        return NetworkPolicyAttribute.objects.get(name=name)
+
+    def _try_get_protected_attribute(self, name: str) -> NetworkPolicyAttribute | None:
+        try:
+            return self._get_protected_attribute(name)
+        except NetworkPolicyAttribute.DoesNotExist:
+            return None
+
+    def test_isolated_attribute_protected_exists(self):
+        """Test that the isolated attribute is protected and exists."""
+        self.assertIsNotNone(self._get_protected_attribute_isolated())
+    
+    def test_create_attribute_protected_409(self):
+        """Test creating a protected network policy attribute."""
+        data = {"name": "isolated", "description": "attribute desc"}
+        self.assert_post_and_409(ATTRIBUTE_ENDPOINT, data=data)
+
+        data["name"] = data["name"].upper()
+        self.assert_post_and_409(ATTRIBUTE_ENDPOINT, data=data)
+
+    def test_delete_attribute_protected_403(self):
+        """Test deleting a protected network policy attribute."""
+        isolated = self._get_protected_attribute_isolated()
+        self.assert_delete_and_403(f"{ATTRIBUTE_ENDPOINT}{isolated.pk}")
+
+    def test_patch_attribute_protected_name_403(self):
+        """Test updating a protected network policy attribute."""
+        isolated = self._get_protected_attribute_isolated()
+        data = {"name": "new_attribute", "description": "new attribute desc"}
+        self.assert_patch_and_403(f"{ATTRIBUTE_ENDPOINT}{isolated.pk}", data=data)
+
+    def test_patch_attribute_protected_description_201(self):
+        """Test updating a protected network policy attribute."""
+        isolated = self._get_protected_attribute_isolated()
+        data = {"description": "new attribute desc"}
+        self.assert_patch_and_200(f"{ATTRIBUTE_ENDPOINT}{isolated.pk}", data=data)
+
+    def test_create_attribute(self):
+        """Test creating a network policy attribute."""
+        data = {"name": "attribute", "description": "attribute desc"}
+        ret = self.assert_post_and_201(ATTRIBUTE_ENDPOINT, data=data)
+        self.assertEqual(ret.json()["name"], "attribute")
+        self.assertEqual(ret.json()["description"], "attribute desc")
+
+        self._delete_attributes(["attribute"])
+
+    def test_create_attribute_duplicate_name_409(self):
+        """Test creating a network policy attribute with a duplicate name."""
+        data = {"name": "attribute", "description": "attribute desc"}
+        self.assert_post_and_201(ATTRIBUTE_ENDPOINT, data=data)
+        self.assert_post_and_409(ATTRIBUTE_ENDPOINT, data=data)
+
+        data["name"] = data["name"].upper()
+        self.assert_post_and_409(ATTRIBUTE_ENDPOINT, data=data)
+
+        self._delete_attributes(["attribute"])
+
+    def test_get_attribute(self):
+        """Test getting a network policy attribute."""
+        data = {"name": "attribute", "description": "attribute desc"}
+        ret = self.assert_post_and_201(ATTRIBUTE_ENDPOINT, data=data)
+        attribute_id = ret.json()["id"]
+
+        ret = self.assert_get(f"{ATTRIBUTE_ENDPOINT}{attribute_id}")
+        self.assertEqual(ret.json()["name"], "attribute")
+        self.assertEqual(ret.json()["description"], "attribute desc")
+
+        self._delete_attributes(["attribute"])
+
+    def test_delete_attribute(self):
+        """Test deleting a network policy attribute."""
+        data = {"name": "attribute", "description": "attribute desc"}
+        ret = self.assert_post_and_201(ATTRIBUTE_ENDPOINT, data=data)
+        attribute_id = ret.json()["id"]
+
+        self.assert_delete_and_204(f"{ATTRIBUTE_ENDPOINT}{attribute_id}")
+    
+    def test_patch_attribute(self):
+        """Test updating a network policy attribute."""
+        data = {"name": "attribute", "description": "attribute desc"}
+        ret = self.assert_post_and_201(ATTRIBUTE_ENDPOINT, data=data)
+        attribute_id = ret.json()["id"]
+
+        data = {"name": "new_attribute", "description": "new attribute desc"}
+        ret = self.assert_patch_and_200(f"{ATTRIBUTE_ENDPOINT}{attribute_id}", data=data)
+        self.assertEqual(ret.json()["name"], "new_attribute")
+        self.assertEqual(ret.json()["description"], "new attribute desc")
+
+        self._delete_attributes(["new_attribute"])
+
+    def test_get_attribute_not_exists_404(self):
+        """Test getting a network policy attribute that does not exist."""
+        self.assert_get_and_404(f"{ATTRIBUTE_ENDPOINT}99999999")
 
     @parametrize(
         ("name", "attributes"),
@@ -105,6 +202,18 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         self.assertEqual(ret.json()["name"], "new_name")
         self._delete_network_policy("new_name")
 
+    def test_duplicate_np_name_409(self):
+        """Test creating a network policy with a duplicate name."""
+        name = "policy_duplicate"
+        data = {"name": name, "attributes": []}
+        self.assert_post_and_201(POLICY_ENDPOINT, data=data)
+        # Check exact match
+        self.assert_post_and_409(POLICY_ENDPOINT, data=data)
+        # Check case insensitivity
+        data = {"name": name.upper(), "attributes": []}
+        self.assert_post_and_409(POLICY_ENDPOINT, data=data)
+        self._delete_network_policy(name)
+
     def test_create_community_ok(self):
         """Test creating a community."""
         name = "policy_with_community"
@@ -115,6 +224,12 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         }
         ret = self.assert_post_and_201(f"{POLICY_ENDPOINT}{np.pk}/communities/", data=data)
         community_id = ret.json()["id"]
+
+        location = ret.headers["Location"]
+        self.assertIsNotNone(location, "Location header not set")
+
+        path = f"{POLICY_ENDPOINT}{np.pk}/communities/{community_id}"
+        self.assertTrue(location.endswith(path))
 
         get_res = self.assert_get(f"{POLICY_ENDPOINT}{np.pk}/communities/{community_id}")
         self.assertEqual(get_res.json()["name"], "community")
@@ -147,6 +262,22 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
 
         np1.delete()
         np2.delete()
+
+    def test_create_community_duplicate_name_same_policy_409(self):
+        """Test that creating a community with the same name in the same policy fails."""
+        name = "policy_with_community"
+        np = self._create_network_policy(name, [])
+        data = {
+            "name": "community",
+            "description": "community desc",
+        }
+        self.assert_post_and_201(f"{POLICY_ENDPOINT}{np.pk}/communities/", data=data)
+        self.assert_post_and_409(f"{POLICY_ENDPOINT}{np.pk}/communities/", data=data)
+
+        data["name"] = data["name"].upper()    
+        self.assert_post_and_409(f"{POLICY_ENDPOINT}{np.pk}/communities/", data=data)
+
+        self._delete_network_policy(name)
 
     def test_create_community_name_already_exists_in_different_policy_ok(self):
         """Test creating a community with the same name in a different policy."""

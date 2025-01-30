@@ -4,6 +4,13 @@ import django.db.models.deletion
 import mreg.fields
 from django.db import migrations, models
 
+def create_protected_attributes(apps, schema_editor):
+    """Ensures the 'isolated' attribute is always created."""
+    NetworkPolicyAttribute = apps.get_model("mreg", "NetworkPolicyAttribute")
+    NetworkPolicyAttribute.objects.get_or_create(
+        name="isolated",
+        defaults={"description": "The network uses client isolation"},
+    )
 
 class Migration(migrations.Migration):
 
@@ -51,6 +58,7 @@ class Migration(migrations.Migration):
                 'abstract': False,
             },
         ),
+        migrations.RunPython(create_protected_attributes),
         migrations.AddField(
             model_name='host',
             name='network_community',
