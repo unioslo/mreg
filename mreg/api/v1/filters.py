@@ -186,6 +186,8 @@ class HostFilterSet(filters.FilterSet):
             "srvs__weight": INT_OPERATORS,
             "srvs__port": INT_OPERATORS,
             "srvs__ttl": INT_OPERATORS,
+            "zone": INT_OPERATORS,
+            "zone__name": STRING_OPERATORS,
             **CREATED_UPDATED,
         }
 
