@@ -1,5 +1,7 @@
 from unittest_parametrize import ParametrizedTestCase, param, parametrize
 from django.db import transaction
+from django.test import override_settings
+from django.conf import settings
 
 from mreg.models.network_policy import NetworkPolicy, NetworkPolicyAttribute, NetworkPolicyAttributeValue, Community
 from mreg.models.host import Host, Ipaddress
@@ -29,14 +31,20 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
 
     def _create_attributes(self, names: list[str]):
         for name in names:
+            # Skip protected attributes, they are already created
+            if name in settings.MREG_PROTECTED_POLICY_ATTRIBUTES:
+                continue
             self.assert_post_and_201(ATTRIBUTE_ENDPOINT, data={"name": name, "description": f"{name} desc"})
 
     def _delete_attributes(self, names: list[str]):
         for name in names:
+            # Skip protected attributes, they cannot be deleted
+            if name in settings.MREG_PROTECTED_POLICY_ATTRIBUTES:
+                continue
             NetworkPolicyAttribute.objects.get(name=name).delete()
 
-    def _create_community(self, name: str, description: str, policy: NetworkPolicy) -> Community:
-        return Community.objects.create(name=name, description=description, policy=policy)
+    def _create_community(self, name: str, description: str, network: Network) -> Community:
+        return Community.objects.create(name=name, description=description, network=network)
 
     def _delete_community(self, name: str):
         Community.objects.get(name=name).delete()
@@ -216,112 +224,99 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
 
     def test_create_community_ok(self):
         """Test creating a community."""
-        name = "policy_with_community"
-        np = self._create_network_policy(name, [])
+        network = Network.objects.create(network="10.0.0.0/24", description="test_network")
         data = {
             "name": "community",
             "description": "community desc",
         }
-        ret = self.assert_post_and_201(f"{POLICY_ENDPOINT}{np.pk}/communities/", data=data)
+        ret = self.assert_post_and_201(f"networks/{network.network}/communities/", data=data)
         community_id = ret.json()["id"]
 
         location = ret.headers["Location"]
         self.assertIsNotNone(location, "Location header not set")
 
-        path = f"{POLICY_ENDPOINT}{np.pk}/communities/{community_id}"
+        path = f"networks/{network.network}/communities/{community_id}"
         self.assertTrue(location.endswith(path))
 
-        get_res = self.assert_get(f"{POLICY_ENDPOINT}{np.pk}/communities/{community_id}")
+        get_res = self.assert_get(f"networks/{network.network}/communities/{community_id}")
         self.assertEqual(get_res.json()["name"], "community")
         self.assertEqual(get_res.json()["description"], "community desc")
-        self.assertEqual(get_res.json()["policy"], np.pk)
+        self.assertEqual(get_res.json()["network"], network.pk)
 
-        list_res = self.assert_get(f"{POLICY_ENDPOINT}{np.pk}/communities/")
+        list_res = self.assert_get(f"/networks/{network.network}/communities/")
         self.assertEqual(len(list_res.json()["results"]), 1)
 
-        policy_res = self.assert_get(f"{POLICY_ENDPOINT}{np.pk}")
-        self.assertEqual(len(policy_res.json()["communities"]), 1)
-        self.assertEqual(policy_res.json()["communities"][0]["id"], community_id)
-        self.assertEqual(policy_res.json()["communities"][0]["name"], "community")
+        # This testes the reverse relationship from network to community
+        network_res = self.assert_get(f"/networks/{network.network}")
+        self.assertEqual(len(network_res.json()["communities"]), 1)
+        self.assertEqual(network_res.json()["communities"][0]["id"], community_id)
+        self.assertEqual(network_res.json()["communities"][0]["name"], "community")
 
-        self._delete_network_policy(name)
+        network.delete()
         self.assertFalse(Community.objects.filter(pk=community_id).exists())  # Cascade delete
 
-    def test_create_community_name_already_exists_in_same_policy_409(self):
-        """Test creating a community with the same name in different policies works."""
-        np1 = self._create_network_policy("policy1", [])
-        np2 = self._create_network_policy("policy2", [])
+    def test_create_community_name_already_exists_in_same_network_409(self):
+        """Test creating a community with the same name in different networks works."""
+        net1 = Network.objects.create(network="10.0.0.0/24", description="test_network1")
+        net2 = Network.objects.create(network="10.0.1.0/24", description="test_network2")
 
         data = {
             "name": "community",
             "description": "community desc",
         }
 
-        self.assert_post_and_201(f"{POLICY_ENDPOINT}{np1.pk}/communities/", data=data)
-        self.assert_post_and_201(f"{POLICY_ENDPOINT}{np2.pk}/communities/", data=data)
+        self.assert_post_and_201(f"/networks/{net1.network}/communities/", data=data)
+        self.assert_post_and_201(f"/networks/{net2.network}/communities/", data=data)
 
-        np1.delete()
-        np2.delete()
+        self.assert_post_and_409(f"/networks/{net1.network}/communities/", data=data)
+        self.assert_post_and_409(f"/networks/{net2.network}/communities/", data=data)
 
-    def test_create_community_duplicate_name_same_policy_409(self):
-        """Test that creating a community with the same name in the same policy fails."""
-        name = "policy_with_community"
-        np = self._create_network_policy(name, [])
+        net1.delete()
+        net2.delete()
+
+    def test_create_community_duplicate_name_same_network_also_case_insensitive_409(self):
+        """Test that creating a community with the same name in the same network fails."""
+        network = Network.objects.create(network="10.0.0.0/24", description="test_network")
         data = {
             "name": "community",
             "description": "community desc",
         }
-        self.assert_post_and_201(f"{POLICY_ENDPOINT}{np.pk}/communities/", data=data)
-        self.assert_post_and_409(f"{POLICY_ENDPOINT}{np.pk}/communities/", data=data)
+        self.assert_post_and_201(f"/networks/{network.network}/communities/", data=data)
+        self.assert_post_and_409(f"/networks/{network.network}/communities/", data=data)
 
         data["name"] = data["name"].upper()    
-        self.assert_post_and_409(f"{POLICY_ENDPOINT}{np.pk}/communities/", data=data)
+        self.assert_post_and_409(f"/networks/{network.network}/communities/", data=data)
 
-        self._delete_network_policy(name)
-
-    def test_create_community_name_already_exists_in_different_policy_ok(self):
-        """Test creating a community with the same name in a different policy."""
-        np1 = self._create_network_policy("policy_with_community1", [])
-        np2 = self._create_network_policy("policy_with_community2", [])
-        data = {
-            "name": "community",
-            "description": "community desc",
-        }
-        self.assert_post_and_201(f"{POLICY_ENDPOINT}{np1.pk}/communities/", data=data)
-        self.assert_post_and_201(f"{POLICY_ENDPOINT}{np2.pk}/communities/", data=data)
-
-        self._delete_network_policy("policy_with_community1")
-        self._delete_network_policy("policy_with_community2")
+        network.delete()
 
     def test_delete_community(self):
         """Test deleting a community."""
-        name = "policy_with_community"
-        np = self._create_network_policy(name, [])
+        net = Network.objects.create(network="10.0.0.0/24", description="test_network")
         data = {
             "name": "community",
             "description": "community desc",
         }
-        ret = self.assert_post_and_201(f"{POLICY_ENDPOINT}{np.pk}/communities/", data=data)
+        ret = self.assert_post_and_201(f"/networks/{net.network}/communities/", data=data)
         community_id = ret.json()["id"]
 
-        self.assert_delete_and_204(f"{POLICY_ENDPOINT}{np.pk}/communities/{community_id}")
+        self.assert_delete_and_204(f"/networks/{net.network}/communities/{community_id}")
 
         self.assertFalse(Community.objects.filter(pk=community_id).exists())
-        self._delete_network_policy(name)
+        net.delete()
 
-    def test_create_community_invalid_policy(self):
-        """Test creating a community with an invalid policy."""
+    def test_create_community_invalid_network(self):
+        """Test creating a community with an invalid network."""
         data = {
             "name": "community",
             "description": "community desc",
         }
-        self.assert_post_and_404(f"{POLICY_ENDPOINT}9999/communities/", data=data)
+        self.assert_post_and_404("/networks/10.1.0.0/24/communities/", data=data)
         self.assertEqual(Community.objects.count(), 0)
 
     def test_create_host_with_community_no_network_406(self):
         """Test that adding a community during host creation without IP gives 406."""
-        np = self._create_network_policy("host_with_community", [])
-        community = self._create_community("community", "community desc", np)
+        network = Network.objects.create(network="10.0.0.0/24", description="test_network")
+        community = self._create_community("community", "community desc", network)
 
         data = {
             "name": "hostwithcommunity.example.com",
@@ -329,45 +324,76 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         }
         self.assert_post_and_406("/api/v1/hosts/", data=data)
 
-    def test_create_host_with_community_network_missing_policy(self):
-        """Test that adding a community during host creation with network missing policy fails."""
-        np = self._create_network_policy("host_with_community", [])
-        community = self._create_community("community", "community desc", np)
-        # Note, no policy is set on the network
+    @override_settings(MREG_CREATING_COMMUNITY_REQUIRES_POLICY_WITH_ATTRIBUTES=["isolated"])
+    def test_create_community_network_missing_policy_attribute(self):
+        """Test that adding a community during host creation with network missing policy attribute fails."""
+        np = self._create_network_policy("empty_policy", [])
         net = Network.objects.create(network="10.0.0.0/24", description="test_network")
 
-        data = {"name": "hostwithcommunity.example.com", "network_community": community.pk, "network": net.network}
-        self.assert_post_and_406("/api/v1/hosts/", data=data)
-        net.delete()
+        res = self.assert_post_and_400(f"/networks/{net.network}/communities/",
+                                       data={"name": "community", "description": "community desc"})
 
-    def test_create_host_with_community_network_missing_policy_wrong_network(self):
-        """Test that adding a community during host creation with network missing policy fails.
+        self.assertEqual(res.json()[0], "Network does not have a policy. The policy must have the following attributes: ['isolated']")
+
+        net.policy = np # type: ignore
+        net.save()
+
+        res = self.assert_post_and_400(f"/networks/{net.network}/communities/",
+                                       data={"name": "community", "description": "community desc"})
+
+        self.assertEqual(res.json()[0], "Network policy 'empty_policy' is missing the following required attributes: ['isolated']")
+
+        np.attributes.set([self._get_protected_attribute("isolated")])
+        np.save()
+
+        res = self.assert_post(f"/networks/{net.network}/communities/",
+                               data={"name": "community", "description": "community desc"})
+        
+        community_id = res.json()["id"]
+
+        self.assert_get(f"/networks/{net.network}/communities/{community_id}")
+
+        Community.objects.get(pk=community_id).delete()
+
+        net.delete()
+        np.delete()
+
+    def test_create_host_with_community_wrong_network(self):
+        """Test that adding a community during host creation with the wrong network fails.
 
         In this test, another network has the policy.
         """
-        np = self._create_network_policy("host_with_community", [])
-        community = self._create_community("community", "community desc", np)
         net_empty = Network.objects.create(network="10.0.0.0/24", description="test_network")
-        net_policy = Network.objects.create(network="10.0.1.0/24", description="test_network", policy=np)
+        net_policy = Network.objects.create(network="10.0.1.0/24", description="test_network")
+        community = self._create_community("community", "community desc", net_policy)
 
         data = {
             "name": "hostwithcommunity.example.com",
             "network_community": community.pk,
-            "network": net_empty.network,
+            "ipaddress": "10.0.0.1",
         }
+        # Wrong network, 406.
         self.assert_post_and_406("/api/v1/hosts/", data=data)
+        self.assertFalse(Host.objects.filter(name="hostwithcommunity.example.com").exists())
+
+        # Fix the network, all good.
+        data['ipaddress'] = "10.0.1.1"
+        res = self.assert_post("/api/v1/hosts/", data=data)
+        host = self.assert_get(res.headers["Location"])
+        Host.objects.get(pk=host.json()["id"]).delete()
+
         net_empty.delete()
         net_policy.delete()
 
     def test_create_host_with_community_ok(self):
         """Test that adding a community during host creation with network and policy."""
-        np = self._create_network_policy("host_with_community", [])
-        community = self._create_community("community", "community desc", np)
-        net = Network.objects.create(network="10.0.0.0/24", description="test_network", policy=np)
+        net = Network.objects.create(network="10.0.0.0/24", description="test_network")
+        community = self._create_community("community", "community desc", net)
 
         data = {"name": "hostwithcommunity.example.com", "network_community": community.pk, "network": net.network}
         ret = self.assert_post_and_201("/api/v1/hosts/", data=data)
         ret = self.assert_get(ret.headers["Location"])
+        Host.objects.get(pk=ret.json()["id"]).delete()
         net.delete()
 
     def create_policy_setup(
@@ -379,8 +405,8 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         policy_name: str = "test_policy",
     ):
         np = self._create_network_policy(policy_name, [])
-        community = self._create_community(community_name, "community desc", np)
         net = Network.objects.create(network=network, description="test_network", policy=np)
+        community = self._create_community(community_name, "community desc", net)
         host = Host.objects.create(name=host_name)
         ip = Ipaddress.objects.create(host=host, ipaddress=ip_address)
 
@@ -394,59 +420,59 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
 
     def test_add_host_to_community_ok(self):
         """Test adding a host to a community."""
-        np, community, network, host, _ = self.create_policy_setup()
+        _, community, network, host, _ = self.create_policy_setup()
 
         data = {"id": host.pk}
 
-        ret = self.assert_post_and_201(f"{POLICY_ENDPOINT}{np.pk}/communities/{community.pk}/hosts/", data=data)
+        ret = self.assert_post_and_201(f"/networks/{network.network}/communities/{community.pk}/hosts/", data=data)
         self.assertEqual(ret.json()["name"], "hostwithcommunity.example.com")
 
-        ret = self.assert_get(f"{POLICY_ENDPOINT}{np.pk}/communities/{community.pk}/hosts/")
+        ret = self.assert_get(f"/networks/{network.network}/communities/{community.pk}/hosts/")
         self.assertEqual(len(ret.json()["results"]), 1)
         self.assertEqual(ret.json()["results"][0]["name"], "hostwithcommunity.example.com")
 
     def test_get_individual_host_from_community_ok(self):
         """Test getting a host from a community."""
-        np, community, _, host, _ = self.create_policy_setup()
+        _, community, network, host, _ = self.create_policy_setup()
         host.set_community(community)
 
-        ret = self.assert_get(f"{POLICY_ENDPOINT}{np.pk}/communities/{community.pk}/hosts/{host.pk}")
+        ret = self.assert_get(f"/networks/{network.network}/communities/{community.pk}/hosts/{host.pk}")
         self.assertEqual(ret.json()["name"], "hostwithcommunity.example.com")
 
     def test_get_individual_host_from_community_host_does_not_exist(self):
         """Test getting a host from a community where host does not exist."""
-        np, community, _, _, _ = self.create_policy_setup()
+        _, community, network, _, _ = self.create_policy_setup()
 
-        self.assert_get_and_404(f"{POLICY_ENDPOINT}{np.pk}/communities/{community.pk}/hosts/99999999")
+        self.assert_get_and_404(f"/networks/{network.network}/communities/{community.pk}/hosts/99999999")
 
     def test_add_host_to_community_ip_not_in_network(self):
         """Test adding a host to a community when the hosts IP is not in the network for the policy."""
-        np, community, _, host, _ = self.create_policy_setup(ip_address="10.0.1.0")
+        _, community, network, host, _ = self.create_policy_setup(ip_address="10.0.1.0")
 
         data = {"id": host.pk}
 
-        self.assert_post_and_400(f"{POLICY_ENDPOINT}{np.pk}/communities/{community.pk}/hosts/", data=data)
+        self.assert_post_and_400(f"/networks/{network.network}/communities/{community.pk}/hosts/", data=data)
 
     def test_delete_host_from_community_ok(self):
         """Test deleting a host from a community."""
-        np, community, _, host, _ = self.create_policy_setup()
+        _, community, network, host, _ = self.create_policy_setup()
         host.set_community(community)
 
-        self.assert_delete_and_204(f"{POLICY_ENDPOINT}{np.pk}/communities/{community.pk}/hosts/{host.pk}")
+        self.assert_delete_and_204(f"/networks/{network.network}/communities/{community.pk}/hosts/{host.pk}")
 
-        ret = self.assert_get(f"{POLICY_ENDPOINT}{np.pk}/communities/{community.pk}/hosts/")
+        ret = self.assert_get(f"/networks/{network.network}/communities/{community.pk}/hosts/")
         self.assertEqual(len(ret.json()["results"]), 0)
 
     def test_delete_host_from_community_not_in_community(self):
         """Test deleting a host from a community."""
-        np, community, _, host, _ = self.create_policy_setup()
-        self.assert_delete_and_404(f"{POLICY_ENDPOINT}{np.pk}/communities/{community.pk}/hosts/{host.pk}")
+        _, community, network, host, _ = self.create_policy_setup()
+        self.assert_delete_and_404(f"/networks/{network.network}/communities/{community.pk}/hosts/{host.pk}")
 
         # Add to a different community, just to make sure
-        community_other = self._create_community("community_other", "community desc", np)
+        community_other = self._create_community("community_other", "community desc", network)
         host.set_community(community_other)
 
-        self.assert_delete_and_404(f"{POLICY_ENDPOINT}{np.pk}/communities/{community.pk}/hosts/{host.pk}")
+        self.assert_delete_and_404(f"/networks/{network.network}/communities/{community.pk}/hosts/{host.pk}")
 
         community_other.delete()
 

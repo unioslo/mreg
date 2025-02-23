@@ -3,6 +3,7 @@ from django.urls import reverse
 
 from rest_framework import generics, exceptions, status, response
 from mreg.models.network_policy import NetworkPolicy, NetworkPolicyAttribute, Community
+from mreg.models.network import Network
 from mreg.models.host import Host
 from mreg.api.v1.serializers import (
     NetworkPolicySerializer,
@@ -41,7 +42,7 @@ class NetworkPolicyList(JSONContentTypeMixin, generics.ListCreateAPIView):
 
         try:
             NetworkPolicy.objects.get(name=name)
-            raise ValidationError409(detail="NetworkPolicy with this name already exists.")
+            raise ValidationError409(detail=f"NetworkPolicy with the name '{name}' already exists.")
         except NetworkPolicy.DoesNotExist:
             pass
 
@@ -87,7 +88,7 @@ class NetworkPolicyAttributeList(JSONContentTypeMixin, generics.ListCreateAPIVie
         
         try:
             NetworkPolicyAttribute.objects.get(name=name)
-            raise ValidationError409(detail="NetworkPolicyAttribute with this name already exists.")
+            raise ValidationError409(detail=f"NetworkPolicyAttribute with the name '{name}' already exists.")
         except NetworkPolicyAttribute.DoesNotExist:
             pass
 
@@ -116,14 +117,14 @@ class NetworkCommunityList(JSONContentTypeMixin, generics.ListCreateAPIView):
     filterset_class = CommunityFilterSet
 
     def get_queryset(self):
-        policy_pk = self.kwargs.get("pk")
-        return Community.objects.filter(policy__pk=policy_pk).order_by("id")
+        network = self.kwargs.get("network")
+        return Community.objects.filter(network__network=network).order_by("id")
 
     def create(self, request, *args, **kwargs):
-        policy_pk = self.kwargs.get("pk")
+        network = self.kwargs.get("network")
 
-        if not policy_pk:
-            raise exceptions.ValidationError("NetworkPolicy ID is required.")
+        if not network:
+            raise exceptions.ValidationError("A network is required.")
 
         # Note, we can't use the serializer's is_valid method here because that'll raise a 400 exception
         # if the data is invalid (even if something exists). We need to catch that and raise a 409 instead.
@@ -132,14 +133,14 @@ class NetworkCommunityList(JSONContentTypeMixin, generics.ListCreateAPIView):
             raise exceptions.ValidationError("'name' is required.")
 
         try:
-            policy = NetworkPolicy.objects.get(pk=policy_pk)
-        except NetworkPolicy.DoesNotExist:  # pragma: no cover
-            raise exceptions.NotFound("NetworkPolicy not found.")
-        
+            network = Network.objects.get(network=network)
+        except Network.DoesNotExist:  # pragma: no cover
+            raise exceptions.NotFound("Network not found.")
+
         # We do not have to worry about case sensitivity here, as the LowerCaseManager for the model will handle that.
         try:
-            Community.objects.get(name=name, policy=policy)
-            raise ValidationError409(detail="Community with this name already exists.")
+            Community.objects.get(name=name, network=network)
+            raise ValidationError409(detail=f"Community with the name '{name}' already exists.")
         except Community.DoesNotExist:
             pass
 
@@ -147,12 +148,12 @@ class NetworkCommunityList(JSONContentTypeMixin, generics.ListCreateAPIView):
         serializer.is_valid(raise_exception=True)
         
         with transaction.atomic():
-            community = serializer.save(policy=policy)
+            community = serializer.save(network=network)
         headers = self.get_success_headers(serializer.data)
 
         # Dynamically generate the Location URL
         headers["Location"] = request.build_absolute_uri(
-            reverse(URL.NetworkPolicy.COMMUNITY_DETAIL, kwargs={"pk": policy.id, "cpk": community.id})
+            reverse(URL.NetworkPolicy.COMMUNITY_DETAIL, kwargs={"network": str(network.network), "cpk": community.id})
         )
         return response.Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)        
 
@@ -164,8 +165,8 @@ class NetworkCommunityDetail(JSONContentTypeMixin, generics.RetrieveUpdateDestro
     permission_classes = (IsGrantedNetGroupRegexPermission,)
 
     def get_queryset(self):
-        policy_pk = self.kwargs.get("pk")
-        return Community.objects.filter(policy__pk=policy_pk).order_by("id")
+        network = self.kwargs.get("network")
+        return Community.objects.filter(network__network=network).order_by("id")
 
     def get_object(self):
         queryset = self.get_queryset()
@@ -176,23 +177,23 @@ class NetworkCommunityDetail(JSONContentTypeMixin, generics.RetrieveUpdateDestro
 
 class HostInCommunityMixin(JSONContentTypeMixin):
     def get_policy_and_community(self):
-        policy_pk = self.kwargs.get("pk")  # type: ignore
+        network= self.kwargs.get("network")  # type: ignore
         cpk = self.kwargs.get("cpk")  # type: ignore
 
         try:
-            policy = NetworkPolicy.objects.get(pk=policy_pk)
-        except NetworkPolicy.DoesNotExist:
-            raise exceptions.NotFound("NetworkPolicy not found.")
+            network = Network.objects.get(network=network)
+        except Network.DoesNotExist:
+            raise exceptions.NotFound("Network not found.")
 
         try:
             community = Community.objects.get(pk=cpk)
         except Community.DoesNotExist:
             raise exceptions.NotFound("Community not found.")
 
-        if community.policy != policy:
-            raise exceptions.NotFound("Community does not belong to the requested policy.")
+        if community.network != network:
+            raise exceptions.NotFound("Community does not belong to the requested network.")
 
-        return policy, community
+        return network, community
 
 
 # List all hosts in a specific community, or add a host to a community

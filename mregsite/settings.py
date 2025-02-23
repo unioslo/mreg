@@ -45,6 +45,14 @@ LOG_FILE_NAME = os.path.join(
     BASE_DIR, os.environ.get("MREG_LOG_FILE_NAME", "logs/app.log")
 )
 
+MREG_PROTECTED_POLICY_ATTRIBUTES = [ "isolated" ]
+MREG_CREATING_COMMUNITY_REQUIRES_POLICY_WITH_ATTRIBUTES = [] # [ "isolated" ]
+
+MREG_MAX_COMMUNITES_PER_NETWORK = 20
+
+MREG_MAP_GLOBAL_COMMUNITY_NAMES = True
+MREG_GLOBAL_COMMUNITY_PREFIX = "community"
+
 # If the log directory doesn't exist, create it.
 log_dir = os.path.dirname(LOG_FILE_NAME)
 if not os.path.exists(log_dir): # pragma: no cover

@@ -428,7 +428,7 @@ class CommunityFilterSet(filters.FilterSet):
         model = Community
         fields = {
             "id": INT_OPERATORS,
-            "policy": INT_OPERATORS,
+            "network": INT_OPERATORS,
             "name": STRING_OPERATORS,
             "description": STRING_OPERATORS,
             **CREATED_UPDATED,

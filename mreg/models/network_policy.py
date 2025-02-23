@@ -1,9 +1,13 @@
 from django.db import models
+from django.conf import settings
 from mreg.models.base import BaseModel
 from mreg.fields import LowerCaseCharField
 from mreg.managers import LowerCaseManager
+from mreg.models.network import Network
 
 from rest_framework import exceptions
+
+PROTECTED_ATTRIBUTES = getattr(settings, 'MREG_PROTECTED_POLICY_ATTRIBUTES', [])
 
 class NetworkPolicyAttribute(BaseModel):
     """
@@ -12,21 +16,19 @@ class NetworkPolicyAttribute(BaseModel):
 
     objects = LowerCaseManager()
 
-    PROTECTED_ATTRIBUTES = {"isolated"}
-
     name = LowerCaseCharField(max_length=100, unique=True)
     description = models.TextField(blank=True, help_text="Description of the attribute.")
 
     def save(self, *args, **kwargs):
         if self.pk:
             original = NetworkPolicyAttribute.objects.filter(pk=self.pk).first()
-            if original and original.name in self.PROTECTED_ATTRIBUTES and self.name != original.name:
+            if original and original.name in PROTECTED_ATTRIBUTES and self.name != original.name:
                 raise exceptions.PermissionDenied(detail=f"Cannot rename protected attribute '{original.name}'.")
 
         super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
-        if self.name in self.PROTECTED_ATTRIBUTES:
+        if self.name in PROTECTED_ATTRIBUTES:
             raise exceptions.PermissionDenied(detail=f"Cannot delete the attribute '{self.name}', it is protected.")
         super().delete(*args, **kwargs)
 
@@ -84,16 +86,45 @@ class Community(BaseModel):
 
     name = LowerCaseCharField(max_length=100, help_text="Policy-unique name of the community.")
     description = models.CharField(blank=True, max_length=250, help_text="Description of the community.")
-    policy = models.ForeignKey(
-        NetworkPolicy,
+    network = models.ForeignKey(
+        Network,
         on_delete=models.CASCADE,
         related_name="communities",
-        help_text="The network policy this community is associated with.",
+        help_text="The network this community is associated with.",
     )
+
+    def clean(self):
+        super().clean()
+        required_attributes = getattr(
+            settings, "MREG_CREATING_COMMUNITY_REQUIRES_POLICY_WITH_ATTRIBUTES", []
+        )
+        if required_attributes:
+            # Ensure the network has an associated policy.
+            if not self.network.policy:
+                raise exceptions.ValidationError(
+                    f"Network does not have a policy. The policy must have the following attributes: {required_attributes}"
+                )
+            # Get current attributes from the network's policy.
+            current_attributes = set(
+                self.network.policy.attributes.filter(
+                    name__in=required_attributes
+                ).values_list("name", flat=True)
+            )
+            # Determine which required attributes are missing.
+            missing_attributes = [attr for attr in required_attributes if attr not in current_attributes]
+            if missing_attributes:
+                raise exceptions.ValidationError(
+                    f"Network policy '{self.network.policy.name}' is missing the following required attributes: {missing_attributes}"
+                )
+
+    def save(self, *args, **kwargs):
+        # Run full_clean() to ensure clean() is invoked even when using objects.create()
+        self.full_clean()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name
     
     class Meta:
         ordering = ("name",)
-        unique_together = ("name", "policy")
+        unique_together = ("name", "network")

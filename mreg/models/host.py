@@ -45,8 +45,8 @@ class Host(ForwardZoneMember):
         for ipaddress in self.ipaddresses.all(): # type: ignore
             from mreg.models.network import Network
             try:
-                network = Network.objects.get(network__net_contains=ipaddress.ipaddress)
-                if community.policy.networks.filter(network=network).exists(): # type: ignore
+                net = Network.objects.get(network__net_contains=ipaddress.ipaddress)
+                if community.network == net:
                     self.network_community = community
                     self.save()
                     return True

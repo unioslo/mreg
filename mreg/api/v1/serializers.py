@@ -35,12 +35,14 @@ class CommunitySerializer(serializers.ModelSerializer):
     hosts = serializers.SerializerMethodField("get_hosts", read_only=True)
 
     def get_hosts(self, obj):
-        return [host.name for host in obj.hosts.all()]
+        if isinstance(obj, Community):
+            return [host.name for host in obj.hosts.all()]
+        return []
     
     class Meta:
         model = Community
-        fields = ['id', 'name', 'description', 'policy', 'hosts', 'created_at', 'updated_at']
-        read_only_fields = ['policy'] # The policy comes from the URL, so it should not be settable.
+        fields = ['id', 'name', 'description', 'network', 'hosts', 'created_at', 'updated_at']
+        read_only_fields = ['network'] 
 
 
 class ForwardZoneMixin(ValidationMixin):
@@ -541,10 +543,10 @@ class NetworkPolicySerializer(serializers.ModelSerializer):
         value = value.lower()
         if self.instance:
             if NetworkPolicy.objects.exclude(id=self.instance.id).filter(name=value).exists():
-                raise serializers.ValidationError("NetworkPolicy with this name already exists.")
+                raise serializers.ValidationError(f"NetworkPolicy with the name '{value}' already exists.")
         else:
             if NetworkPolicy.objects.filter(name=value).exists():
-                raise serializers.ValidationError("NetworkPolicy with this name already exists.")
+                raise serializers.ValidationError(f"NetworkPolicy with the name '{value}' already exists.")
         return value
 
     def validate_attributes(self, value):
@@ -616,6 +618,7 @@ class NetworkSerializer(ValidationMixin, serializers.ModelSerializer):
     
     # Expand the entire policy object
     policy = NetworkPolicySerializer(read_only=True)
+    communities = CommunitySerializer(many=True, read_only=True)
 
     class Meta:
         model = Network

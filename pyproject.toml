@@ -45,7 +45,7 @@ ci = [
 ]
 
 [tool.ruff]
-line-length = 119
+line-length = 140
 exclude = ["mreg/migrations/", "hostpolicy/migrations/", ".tox"]
 
 [tool.ruff.lint]

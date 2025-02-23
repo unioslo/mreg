@@ -443,6 +443,7 @@ class HostList(HostPermissionsListCreateAPIView):
                     if community:
                         if not host.set_community(community):
                             content = {"ERROR": "Unable to assign community to host"}
+                            transaction.set_rollback(True)
                             return Response(content, status=status.HTTP_406_NOT_ACCEPTABLE)
 
                     location = request.path + host.name
@@ -550,10 +551,10 @@ class IpaddressDetail(HostPermissionsUpdateDestroy, MregRetrieveUpdateDestroyAPI
                     {"ERROR": "No network found for the new IP address, cannot update due to community membership"},
                     status=status.HTTP_404_NOT_FOUND,
                 )
-
-            if not community.policy.networks.filter(network=network).exists():
+            
+            if not community.network == network:
                 return Response(
-                    {"ERROR": "Network does not belong to community policy"},
+                    {"ERROR": "Cannot switch network membership for due to community membership."},
                     status=status.HTTP_409_CONFLICT,
                 )
 
