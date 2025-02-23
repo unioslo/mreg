@@ -5,6 +5,7 @@ from mreg.fields import LowerCaseCharField, LowerCaseDNSNameField
 from mreg.managers import LowerCaseManager
 from mreg.models.base import BaseModel, ForwardZoneMember
 from mreg.validators import validate_BACnetID, validate_mac_address, validate_ttl
+from mreg.models.network_policy import Community
 
 
 class Host(ForwardZoneMember):
@@ -12,6 +13,15 @@ class Host(ForwardZoneMember):
     contact = models.EmailField(blank=True)
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
     comment = models.TextField(blank=True)
+
+    network_community = models.ForeignKey(
+        Community,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='hosts',
+        help_text="Network community this host belongs to."
+    )
 
     objects = LowerCaseManager()
 
@@ -21,6 +31,29 @@ class Host(ForwardZoneMember):
     def __str__(self):
         return str(self.name)
 
+    def community(self):
+        return self.network_community
+    
+    def set_community(self, community: Community) -> bool:
+        """Set the community for this host.
+        
+        :param community: The community to set.
+        :return: True if the community was set, False otherwise
+        """
+        # We need to check that the community is applicable to the same
+        # network as one of the IP addresses of the host.
+        for ipaddress in self.ipaddresses.all(): # type: ignore
+            from mreg.models.network import Network
+            try:
+                net = Network.objects.get(network__net_contains=ipaddress.ipaddress)
+                if community.network == net:
+                    self.network_community = community
+                    self.save()
+                    return True
+            except Network.DoesNotExist:
+                return False
+            
+        return False
 
 class Ipaddress(BaseModel):
     host = models.ForeignKey(
