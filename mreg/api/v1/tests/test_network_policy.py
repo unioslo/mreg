@@ -333,7 +333,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         res = self.assert_post_and_400(f"/networks/{net.network}/communities/",
                                        data={"name": "community", "description": "community desc"})
 
-        self.assertEqual(res.json()[0], "Network does not have a policy. The policy must have the following attributes: ['isolated']")
+        self.assertEqual(res.json()['error'], "Network does not have a policy. The policy must have the following attributes: ['isolated']")
 
         net.policy = np # type: ignore
         net.save()
@@ -341,7 +341,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         res = self.assert_post_and_400(f"/networks/{net.network}/communities/",
                                        data={"name": "community", "description": "community desc"})
 
-        self.assertEqual(res.json()[0], "Network policy 'empty_policy' is missing the following required attributes: ['isolated']")
+        self.assertEqual(res.json()['error'], "Network policy 'empty_policy' is missing the following required attributes: ['isolated']")
 
         np.attributes.set([self._get_protected_attribute("isolated")])
         np.save()
@@ -492,3 +492,38 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         self.assert_patch_and_409(f"/api/v1/ipaddresses/{ip.pk}", data=data)
 
         new_network.delete()
+
+    @override_settings(MREG_MAP_GLOBAL_COMMUNITY_NAMES=True)
+    @override_settings(MREG_GLOBAL_COMMUNITY_PREFIX="community")
+    def test_community_mapping_enabled(self):
+        """Test that the community mapping works."""
+        _, community, network, _, _ = self.create_policy_setup()
+
+        res = self.assert_get(f"/networks/{network.network}/communities/{community.pk}")
+        self.assertEqual(res.json()['global_name'], "community1")
+
+        community_other = self._create_community("community2", "community desc", network)
+        res = self.assert_get(f"/networks/{network.network}/communities/{community_other.pk}")
+        self.assertEqual(res.json()['global_name'], "community2")
+
+        res = self.assert_get(f"/networks/{network.network}/communities/{community.pk}")
+        self.assertEqual(res.json()['global_name'], "community1")
+
+
+        community_other.delete()
+
+    @override_settings(MREG_MAP_GLOBAL_COMMUNITY_NAMES=False)
+    def test_community_mapping_disabled(self):
+        """Test that the community mapping field is None when disabled."""
+        _, community, network, _, _ = self.create_policy_setup()
+
+        res = self.assert_get(f"/networks/{network.network}/communities/{community.pk}")
+        self.assertEqual(res.json()['global_name'], None)
+
+    @override_settings(MREG_MAX_COMMUNITES_PER_NETWORK=1)
+    def test_max_communities_per_network(self):
+        """Test that we can only have a certain number of communities per network."""
+        _, _, network, _, _ = self.create_policy_setup()
+
+        res = self.assert_post_and_400(f"/networks/{network.network}/communities/", data={"name": "c2", "description": "c2desc"})
+        self.assertEqual(res.json()['error'], f"Network '{network.network}' already has the maximum allowed communities (1).")

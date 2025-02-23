@@ -3,6 +3,7 @@ import ipaddress
 from django.contrib.auth.models import Group
 from django.utils import timezone
 from django.db import transaction
+from django.conf import settings
 
 from rest_framework import serializers
 
@@ -32,16 +33,43 @@ class ValidationMixin:
 class CommunitySerializer(serializers.ModelSerializer):
 
     # Members are all the hosts that have this community assigned.
-    hosts = serializers.SerializerMethodField("get_hosts", read_only=True)
+    hosts = serializers.SerializerMethodField(read_only=True)
+    global_name = serializers.SerializerMethodField(read_only=True)
 
     def get_hosts(self, obj):
         if isinstance(obj, Community):
             return [host.name for host in obj.hosts.all()]
         return []
-    
+
+    def get_global_name(self, obj):
+        # Only map if the setting is enabled.
+        if not getattr(settings, "MREG_MAP_GLOBAL_COMMUNITY_NAMES", False):
+            return None
+
+        prefix = getattr(settings, "MREG_GLOBAL_COMMUNITY_PREFIX", "community")
+        
+        # Retrieve all communities for the network in a stable order (using pk).
+        communities = obj.network.communities.order_by("pk")
+        communities_list = list(communities)
+
+        try:
+            index = communities_list.index(obj) + 1
+        except ValueError:
+            index = None
+
+        if index is None:
+            raise ValueError({"error": f"Community {obj} not found in network {obj.network}"})
+
+        max_comm = getattr(settings, "MREG_MAX_COMMUNITES_PER_NETWORK", None)
+        if max_comm and index > max_comm:
+            raise ValueError({"error": f"Community index {index} exceeds maximum {max_comm}"})
+
+        return f"{prefix}{index}"
+
+
     class Meta:
         model = Community
-        fields = ['id', 'name', 'description', 'network', 'hosts', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'description', 'network', 'hosts', 'global_name', 'created_at', 'updated_at']
         read_only_fields = ['network'] 
 
 

@@ -102,7 +102,10 @@ class Community(BaseModel):
             # Ensure the network has an associated policy.
             if not self.network.policy:
                 raise exceptions.ValidationError(
-                    f"Network does not have a policy. The policy must have the following attributes: {required_attributes}"
+                    {
+                        "error":
+                        f"Network does not have a policy. The policy must have the following attributes: {required_attributes}" 
+                    }
                 )
             # Get current attributes from the network's policy.
             current_attributes = set(
@@ -114,8 +117,24 @@ class Community(BaseModel):
             missing_attributes = [attr for attr in required_attributes if attr not in current_attributes]
             if missing_attributes:
                 raise exceptions.ValidationError(
-                    f"Network policy '{self.network.policy.name}' is missing the following required attributes: {missing_attributes}"
+                    {
+                        "error":
+                         f"Network policy '{self.network.policy.name}' is missing the following required attributes: {missing_attributes}"
+                     }
                 )
+
+        # Enforce maximum communities per network.
+        max_communities = getattr(settings, "MREG_MAX_COMMUNITES_PER_NETWORK", None)
+        if max_communities is not None:
+            qs = Community.objects.filter(network=self.network)
+            # Exclude self when updating an existing record.
+            if self.pk:
+                qs = qs.exclude(pk=self.pk)
+            if qs.count() >= max_communities:
+                raise exceptions.ValidationError(
+                    {"error": f"Network '{self.network}' already has the maximum allowed communities ({max_communities})." }
+                )
+
 
     def save(self, *args, **kwargs):
         # Run full_clean() to ensure clean() is invoked even when using objects.create()
