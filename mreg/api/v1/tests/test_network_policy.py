@@ -64,7 +64,8 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
     def test_isolated_attribute_protected_exists(self):
         """Test that the isolated attribute is protected and exists."""
         self.assertIsNotNone(self._get_protected_attribute_isolated())
-    
+
+    @override_settings(MREG_CREATING_COMMUNITY_REQUIRES_POLICY_WITH_ATTRIBUTES=["isolated"])
     def test_create_attribute_protected_409(self):
         """Test creating a protected network policy attribute."""
         data = {"name": "isolated", "description": "attribute desc"}
