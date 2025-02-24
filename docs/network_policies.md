@@ -38,19 +38,20 @@ This document describes the **Network Policies API**, which manages **Network Po
 
 ### Network Policy
 
-A **Network Policy** is a named entity grouping a set of attributes (via **Policy Attributes**) and referencing any number of **Communities**. Policies are used to configure or categorize network-related aspects of your infrastructure.
+A **Network Policy** is a named entity grouping a set of attributes (via **Policy Attributes**). Policy attributes typically say something about the network, such as whether it is isolated, public, employs DHCP or SLAAC, etc.
 
 - **Name**: Human-readable case insensitive identifier of the policy.
+- **Description**: A brief description of the policy.
 - **Attributes**: A list of attributes that apply to this policy (see below).
 
 ### Policy Attributes
 
-A **Policy Attribute** is a simple boolean flag or marker. Policy Attributes do *not* by themselves define system behavior. Instead, each attribute is a type of marker that can be set for a given policy.
+A **Policy Attribute** is a simple boolean flag or marker. Policy Attributes do *not* by themselves define system behavior. Instead, each attribute is a type of marker that can be set for a given policy. These attributes contain no semantic meaning to the system, but are used by other tools to define the behavior of a network policy.
 
 - **Name**: Human-readable case insensitive identifier of the attribute.
 - **Description**: A brief description of the attribute.
 
-Note: The attribute 'isolated' is a special attribute that is used to mark a network as isolated, this attribute is hardcoded and cannot be deleted, updated or created (but you may still change its description).
+Note: In `settings.py` the administrators may set `MREG_PROTECTED_POLICY_ATTRIBUTES` set to a list of dictionaries (with `name` and optionally `description` as their fields) to be guaranteed to exist on server startup and protected from deletion. This is useful for attributes that are the site requires to exist at all times.
 
 **Important**:  
 
@@ -59,11 +60,13 @@ Note: The attribute 'isolated' is a special attribute that is used to mark a net
 
 ### Community
 
-A **Community** is a named (case insensitive) collection of **Hosts** within a **single** Network Policy. Each community belongs to exactly one policy, enabling further subdivision of hosts adhering to that policy. Communities allow you to group hosts based on function, location, access, or other logical groupings.
+A **Community** is a named (case insensitive) collection of **Hosts** within a **single** Network. Each community belongs to exactly one network, enabling further subdivision of hosts within that network. This is typically used for client isolation / segmentation. Communities allow you to group hosts based on function, location, access, or other logical groupings.
 
 ### Host Membership
 
-**Hosts** in this system can belong to **one** Community at a time under the associated Network Policy. Adding a host to a community typically requires that the host’s IP addresses match networks using that same policy.
+**Hosts** in this system can belong to **one** Community at a time under the associated Network. Adding a host to a community requires that at least one of the host’s IP addresses match the network.
+
+Note: Administrators may set `MREG_CREATING_COMMUNITY_REQUIRES_POLICY_WITH_ATTRIBUTES` which will require that a network must have a policy with all the attributes in the list to be able to create a community. `MREG_MAX_COMMUNITES_PER_NETWORK` can be set to limit the number of communities per network. Setting this to 0 will allow an unlimited number of communities.
 
 ---
 
@@ -136,6 +139,8 @@ A **Community** is a named (case insensitive) collection of **Hosts** within a *
 
 - Response: 201 Created
 
+Note: All names are case-insensitive and will be converted to lowercase internally.
+
 #### Retrieve / Update / Delete
 
 **`GET /api/v1/networkpolicyattributes/<pk>/`**
@@ -150,11 +155,11 @@ A **Community** is a named (case insensitive) collection of **Hosts** within a *
 
 #### List / Create
 
-**`GET /api/v1/networkpolicies/<pk>/communities/`**
-**`POST /api/v1/networkpolicies/<pk>/communities/`**
+**`GET /api/v1/networks/<network>/communities/`**
+**`POST /api/v1/networks/<network>/communities/`**
 
-- **List (GET):** Retrieve all communities associated with a specific policy.
-- **Create (POST):** Create a new community under a specific policy.
+- **List (GET):** Retrieve all communities associated with a specific network.
+- **Create (POST):** Create a new community under a specific network.
 
 **Example (POST Request):**
 
@@ -167,16 +172,17 @@ A **Community** is a named (case insensitive) collection of **Hosts** within a *
 
 - Response: 201 Created
 
+Note: All community names are case-insensitive and will be converted to lowercase internally.
+
 #### Retrieve / Update / Delete
 
-**`GET /api/v1/networkpolicies/<pk>/communities/<cpk>`**
-**`PATCH /api/v1/networkpolicies/<pk>/communities/<cpk>`**
-**`DELETE /api/v1/networkpolicies/<pk>/communities/<cpk>`**
+**`GET /api/v1/networks/<network>/communities/<cpk>`**
+**`PATCH /api/v1/networks/<network>/communities/<cpk>`**
+**`DELETE /api/v1/networks/<network>/communities/<cpk>`**
 
 - **GET:** Get details for a specific community.
 - **PATCH:** Update the name/description of a community.
-- **DELETE:** Remove the community from the policy.
-
+- **DELETE:** Remove the community from the network.
 
 **Example (GET Response):**
 
@@ -185,7 +191,6 @@ A **Community** is a named (case insensitive) collection of **Hosts** within a *
    "id":1,
    "name":"test_community",
    "description":"community desc",
-   "policy":1,
    "hosts":[
       "hostwithcommunity.example.com"
    ],
@@ -198,8 +203,8 @@ A **Community** is a named (case insensitive) collection of **Hosts** within a *
 
 #### List / Add Host to a Community
 
-**`GET /api/v1/networkpolicies/<pk>/communities/<cpk>/hosts/`**
-**`POST /api/v1/networkpolicies/<pk>/communities/<cpk>/hosts/`**
+**`GET /api/v1/networks/<network>/communities/<cpk>/hosts/`**
+**`POST /api/v1/networks/<network>/communities/<cpk>/hosts/`**
 
 - **GET:** Lists all hosts assigned to this community.
 - **POST:** Associates an existing host with this community if it meets the network criteria.
@@ -212,22 +217,21 @@ A **Community** is a named (case insensitive) collection of **Hosts** within a *
 }
 ```
 
-The host’s IP address(es) must match a network that is configured with the same policy. Otherwise, the request will fail with a 400 Bad reqeust error.
+Note: At least one of the host’s IP address(es) must belong to the network, otherwise the request will fail with a 400 Bad reqeust error.
 
 #### Retrieve / Remove Host from a Community
 
-**`GET /api/v1/networkpolicies/<pk>/communities/<cpk>/hosts/<hostpk>`**
-**`DELETE /api/v1/networkpolicies/<pk>/communities/<cpk>/hosts/<hostpk>`**
-
+**`GET /api/v1/networks/<network>/communities/<cpk>/hosts/<hostpk>`**
+**`DELETE /api/v1/networks/<network>/communities/<cpk>/hosts/<hostpk>`**
 
 - **GET:** Retrieves details of a specific host in this community.
 - **DELETE:** Removes that host from the community. The host’s network_community is set to null.
 
 ## Usage Examples
 
-1. Creating a Network Policy Attribute
+Creating a Network Policy Attribute
 
-**POST /api/v1/networkpolicyattributes/**
+**`POST /api/v1/networkpolicyattributes/`**
 
 ```json
 {
@@ -236,9 +240,12 @@ The host’s IP address(es) must match a network that is configured with the sam
 }
 ```
 
-2. Creating a Network Policy
+Note: All names are case-insensitive and will be converted to lowercase internally.
 
-**POST /api/v1/networkpolicies/**
+Creating a Network Policy
+
+**`POST /api/v1/networkpolicies/`**
+
 ```json
 {
   "name": "SecurePolicy",
@@ -248,9 +255,9 @@ The host’s IP address(es) must match a network that is configured with the sam
 }
 ```
 
-3. Creating a Community under a Policy
+Creating a Community under a Network
 
-**POST /api/v1/networkpolicies/1/communities/**
+**`POST /api/v1/networks/1/communities/`**
 
 ```json
 {
@@ -259,9 +266,9 @@ The host’s IP address(es) must match a network that is configured with the sam
 }
 ```
 
-4. Adding a Host to a Community
+1. Adding a Host to a Community
 
-**POST /api/v1/networkpolicies/1/communities/2/hosts/**
+**`POST /api/v1/networks/1/communities/2/hosts/`**
 
 ```json
 {
@@ -283,7 +290,7 @@ Response: 201 Created (on success), or 409 Conflict (if the host’s IP doesn’
 
 Fetching a network will now include the policy object in full, as such:
 
-**GET /api/v1/networks/10.0.0.0/24**
+**`GET /api/v1/networks/10.0.0.0/24`**
 
 ```json
 {
@@ -297,32 +304,32 @@ Fetching a network will now include the policy object in full, as such:
       "attributes":[
          
       ],
-      "communities":[
-         {
-            "id":1,
-            "name":"test_community",
-            "description":"community desc",
-            "policy":1,
-            "hosts":[
-               "hostwithcommunity.example.com"
-            ],
-            "created_at":"2025-01-24T12:24:35.676621+01:00",
-            "updated_at":"2025-01-24T12:24:35.676630+01:00"
-         }
-      ],
       "created_at":"2025-01-24T12:24:35.664231+01:00",
       "updated_at":"2025-01-24T12:24:35.664241+01:00"
-   },
-   "created_at":"2025-01-24T12:24:35.683213+01:00",
-   "updated_at":"2025-01-24T12:24:35.683219+01:00",
-   "network":"10.0.0.0/24",
-   "description":"test_network",
-   "vlan":"None",
-   "dns_delegated":false,
-   "category":"",
-   "location":"",
-   "frozen":false,
-   "reserved":3
+    },
+    "communities":[
+        {
+          "id":1,
+          "name":"test_community",
+          "description":"community desc",
+          "policy":1,
+          "hosts":[
+              "hostwithcommunity.example.com"
+          ],
+          "created_at":"2025-01-24T12:24:35.676621+01:00",
+          "updated_at":"2025-01-24T12:24:35.676630+01:00"
+        }
+    ],
+    "created_at":"2025-01-24T12:24:35.683213+01:00",
+    "updated_at":"2025-01-24T12:24:35.683219+01:00",
+    "network":"10.0.0.0/24",
+    "description":"test_network",
+    "vlan":"None",
+    "dns_delegated":false,
+    "category":"",
+    "location":"",
+    "frozen":false,
+    "reserved":3
 }
 ```
 
@@ -332,6 +339,6 @@ The Network Policies API enables administrators to:
 
 - Define Global Attributes (e.g., “isolated”, “public”, “private”, "dhcp", "dhcpv6", etc).
 - Create Policies referencing those attributes and associating them with boolean values.
-- Subdivide a network with a policy into Communities, grouping hosts for more granular network management.
-- Assign Hosts to Communities under the correct policy, provided their IP addresses match the appropriate networks.
-
+- Assign policies to networks.
+- Subdivide a network into Communities, grouping hosts for more granular network management.
+- Assign Hosts to Communities under the correct network, provided their IP addresses match the appropriate networks.
