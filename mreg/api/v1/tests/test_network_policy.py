@@ -529,3 +529,11 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
 
         res = self.assert_post_and_400(f"/networks/{network.network}/communities/", data={"name": "c2", "description": "c2desc"})
         self.assertEqual(res.json()['error'], f"Network '{network.network}' already has the maximum allowed communities (1).")
+
+    @override_settings(MREG_MAX_COMMUNITES_PER_NETWORK=1)
+    def test_max_communities_per_network_allows_patch(self):
+        """Test that even when we have a full number of communities per network, we can still patch."""
+        _, community, network, _, _ = self.create_policy_setup()
+
+        res = self.assert_patch_and_200(f"/networks/{network.network}/communities/{community.pk}", data={"description": "new desc"})
+        self.assertEqual(res.json()['description'], "new desc")
