@@ -533,7 +533,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
 
         community_other = self._create_community("community2", "community desc", network)
         res = self.assert_get(f"/networks/{network.network}/communities/{community_other.pk}")
-        self.assertEqual(res.json()['global_name'], "community2")
+        self.assertEqual(res.json()['global_name'], "community02")
 
         res = self.assert_get(f"/networks/{network.network}/communities/{community.pk}")
         self.assertEqual(res.json()['global_name'], "community01")
