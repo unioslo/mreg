@@ -1,7 +1,8 @@
 from unittest_parametrize import ParametrizedTestCase, param, parametrize
 from django.db import transaction
 from django.test import override_settings
-from django.conf import settings
+
+from mreg.utils import is_protected_policy_attribute
 
 from mreg.models.network_policy import NetworkPolicy, NetworkPolicyAttribute, NetworkPolicyAttributeValue, Community
 from mreg.models.host import Host, Ipaddress
@@ -32,14 +33,14 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
     def _create_attributes(self, names: list[str]):
         for name in names:
             # Skip protected attributes, they are already created
-            if name in settings.MREG_PROTECTED_POLICY_ATTRIBUTES:
+            if is_protected_policy_attribute(name):
                 continue
             self.assert_post_and_201(ATTRIBUTE_ENDPOINT, data={"name": name, "description": f"{name} desc"})
 
     def _delete_attributes(self, names: list[str]):
         for name in names:
             # Skip protected attributes, they cannot be deleted
-            if name in settings.MREG_PROTECTED_POLICY_ATTRIBUTES:
+            if is_protected_policy_attribute(name):
                 continue
             NetworkPolicyAttribute.objects.get(name=name).delete()
 

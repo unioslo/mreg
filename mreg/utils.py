@@ -4,6 +4,19 @@ import time
 
 import idna
 
+from django.conf import settings
+
+def get_protected_policy_attribute_names() -> set:
+    """
+    Returns a set of protected policy attribute names.
+    """
+    return {attr["name"] for attr in getattr(settings, "MREG_PROTECTED_POLICY_ATTRIBUTES", [])}
+
+def is_protected_policy_attribute(name: str) -> bool:
+    """
+    Returns True if the given name is in the list of protected attributes.
+    """
+    return name in get_protected_policy_attribute_names()
 
 def clear_none(value):
     """

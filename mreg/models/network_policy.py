@@ -7,7 +7,7 @@ from mreg.models.network import Network
 
 from rest_framework import exceptions
 
-PROTECTED_ATTRIBUTES = getattr(settings, 'MREG_PROTECTED_POLICY_ATTRIBUTES', [])
+from mreg.utils import is_protected_policy_attribute
 
 class NetworkPolicyAttribute(BaseModel):
     """
@@ -22,13 +22,13 @@ class NetworkPolicyAttribute(BaseModel):
     def save(self, *args, **kwargs):
         if self.pk:
             original = NetworkPolicyAttribute.objects.filter(pk=self.pk).first()
-            if original and original.name in PROTECTED_ATTRIBUTES and self.name != original.name:
+            if original and is_protected_policy_attribute(original.name) and self.name != original.name:
                 raise exceptions.PermissionDenied(detail=f"Cannot rename protected attribute '{original.name}'.")
 
         super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
-        if self.name in PROTECTED_ATTRIBUTES:
+        if is_protected_policy_attribute(self.name):
             raise exceptions.PermissionDenied(detail=f"Cannot delete the attribute '{self.name}', it is protected.")
         super().delete(*args, **kwargs)
 

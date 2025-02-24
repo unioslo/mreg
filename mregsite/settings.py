@@ -45,7 +45,11 @@ LOG_FILE_NAME = os.path.join(
     BASE_DIR, os.environ.get("MREG_LOG_FILE_NAME", "logs/app.log")
 )
 
-MREG_PROTECTED_POLICY_ATTRIBUTES = [ "isolated" ]
+
+MREG_PROTECTED_POLICY_ATTRIBUTES = [
+    {"name": "isolated", "description": "The network uses client isolation."},
+]
+
 MREG_CREATING_COMMUNITY_REQUIRES_POLICY_WITH_ATTRIBUTES = [] # [ "isolated" ]
 
 MREG_MAX_COMMUNITES_PER_NETWORK = 20
