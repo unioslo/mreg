@@ -37,9 +37,7 @@ class CommunitySerializer(serializers.ModelSerializer):
     global_name = serializers.SerializerMethodField(read_only=True)
 
     def get_hosts(self, obj):
-        if isinstance(obj, Community):
-            return [host.name for host in obj.hosts.all()]
-        return []
+        return [host.name for host in obj.hosts.all()]
 
     def get_global_name(self, obj):
         # Only map if the setting is enabled.
@@ -61,11 +59,13 @@ class CommunitySerializer(serializers.ModelSerializer):
             raise ValueError({"error": f"Community {obj} not found in network {obj.network}"})
 
         max_comm = getattr(settings, "MREG_MAX_COMMUNITES_PER_NETWORK", None)
-        if max_comm and index > max_comm:
-            raise ValueError({"error": f"Community index {index} exceeds maximum {max_comm}"})
-
-        return f"{prefix}{index}"
-
+        if max_comm is not None:
+            pad_width = len(str(max_comm))
+            if index > max_comm:
+                raise ValueError({"error": f"Community index {index} exceeds maximum {max_comm}"})
+            return f"{prefix}{index:0{pad_width}d}"
+        else:
+            return f"{prefix}{index:02d}"
 
     class Meta:
         model = Community

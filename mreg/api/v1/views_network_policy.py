@@ -123,7 +123,7 @@ class NetworkCommunityList(JSONContentTypeMixin, generics.ListCreateAPIView):
     def create(self, request, *args, **kwargs):
         network = self.kwargs.get("network")
 
-        if not network:
+        if not network: # pragma: no cover (we are using this as part of the URL)
             raise exceptions.ValidationError("A network is required.")
 
         # Note, we can't use the serializer's is_valid method here because that'll raise a 400 exception

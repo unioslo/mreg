@@ -21,7 +21,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
     def _create_network_policy(self, name: str, attributes: list[tuple[str, bool]]) -> NetworkPolicy:
         with transaction.atomic():
             np = NetworkPolicy.objects.create(name=name)
-            for attribute in attributes:
+            for attribute in attributes: # pragma: no cover
                 NetworkPolicyAttributeValue.objects.create(
                     policy=np, attribute=NetworkPolicyAttribute.objects.get(name=attribute[0]), value=attribute[1]
                 )
@@ -47,20 +47,11 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
     def _create_community(self, name: str, description: str, network: Network) -> Community:
         return Community.objects.create(name=name, description=description, network=network)
 
-    def _delete_community(self, name: str):
-        Community.objects.get(name=name).delete()
-
     def _get_protected_attribute_isolated(self) -> NetworkPolicyAttribute:
         return NetworkPolicyAttribute.objects.get(name="isolated")
     
     def _get_protected_attribute(self, name: str) -> NetworkPolicyAttribute:
         return NetworkPolicyAttribute.objects.get(name=name)
-
-    def _try_get_protected_attribute(self, name: str) -> NetworkPolicyAttribute | None:
-        try:
-            return self._get_protected_attribute(name)
-        except NetworkPolicyAttribute.DoesNotExist:
-            return None
 
     def test_isolated_attribute_protected_exists(self):
         """Test that the isolated attribute is protected and exists."""
@@ -111,6 +102,11 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         self.assert_post_and_409(ATTRIBUTE_ENDPOINT, data=data)
 
         self._delete_attributes(["attribute"])
+
+    def test_create_attribute_no_name_400(self):
+        """Test creating a network policy attribute without a name."""
+        data = {"description": "attribute desc"}
+        self.assert_post_and_400(ATTRIBUTE_ENDPOINT, data=data)
 
     def test_get_attribute(self):
         """Test getting a network policy attribute."""
@@ -197,6 +193,11 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         self._delete_network_policy(name)
         self._delete_attributes(attribute_names)
 
+    def test_create_policy_no_name_400(self):
+        """Test creating a network policy without a name."""
+        data = {"attributes": []}
+        self.assert_post_and_400(POLICY_ENDPOINT, data=data)
+
     def test_delete_np(self):
         """Test deleting a network policy."""
         name = "policy_to_delete"
@@ -256,6 +257,14 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
 
         network.delete()
         self.assertFalse(Community.objects.filter(pk=community_id).exists())  # Cascade delete
+
+    def create_community_no_name_400(self):
+        """Test creating a community without a name."""
+        network = Network.objects.create(network="10.0.0.0/24", description="test_network")
+        data = {
+            "description": "community desc",
+        }
+        self.assert_post_and_400(f"/networks/{network.network}/communities/", data=data)
 
     def test_create_community_name_already_exists_in_same_network_409(self):
         """Test creating a community with the same name in different networks works."""
@@ -325,6 +334,23 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
             "network_community": community.pk,
         }
         self.assert_post_and_406("/api/v1/hosts/", data=data)
+
+    def test_get_host_in_community_with_nonexistant_network_404(self):
+        """Test getting a host in a community with a nonexistant network."""
+        self.assert_get_and_404("/networks/192.168.0.0/24/communities/1/hosts/1")
+
+    def test_get_host_in_community_with_nonexistant_community_404(self):
+        """Test getting a host in a community with a nonexistant community."""
+        network = Network.objects.create(network="10.0.0.0/24", description="test_network")
+        self.assert_get_and_404(f"/networks/{network.network}/communities/999999/hosts/1")
+        network.delete()
+
+    def test_get_host_in_community_with_community_not_in_network(self):
+        """Test getting a host in a community with a wrong network for community."""
+        _, community, network, host, _ = self.create_policy_setup()
+        wrong_network = Network.objects.create(network="192.168.0.0/24", description="test_network")
+        self.assert_get_and_404(f"/networks/{wrong_network.network}/communities/{community.pk}/hosts/{host.pk}")
+        wrong_network.delete()
 
     @override_settings(MREG_CREATING_COMMUNITY_REQUIRES_POLICY_WITH_ATTRIBUTES=["isolated"])
     def test_create_community_network_missing_policy_attribute(self):
@@ -497,19 +523,20 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
 
     @override_settings(MREG_MAP_GLOBAL_COMMUNITY_NAMES=True)
     @override_settings(MREG_GLOBAL_COMMUNITY_PREFIX="community")
+    @override_settings(MREG_MAX_COMMUNITES_PER_NETWORK=20) # Also implies one zero-padded index
     def test_community_mapping_enabled(self):
         """Test that the community mapping works."""
         _, community, network, _, _ = self.create_policy_setup()
 
         res = self.assert_get(f"/networks/{network.network}/communities/{community.pk}")
-        self.assertEqual(res.json()['global_name'], "community1")
+        self.assertEqual(res.json()['global_name'], "community01")
 
         community_other = self._create_community("community2", "community desc", network)
         res = self.assert_get(f"/networks/{network.network}/communities/{community_other.pk}")
         self.assertEqual(res.json()['global_name'], "community2")
 
         res = self.assert_get(f"/networks/{network.network}/communities/{community.pk}")
-        self.assertEqual(res.json()['global_name'], "community1")
+        self.assertEqual(res.json()['global_name'], "community01")
 
 
         community_other.delete()
