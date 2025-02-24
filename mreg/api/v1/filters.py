@@ -149,6 +149,9 @@ class HistoryFilterSet(filters.FilterSet):
 
 
 class HostFilterSet(filters.FilterSet):
+    zone = filters.NumberFilter(field_name="zone_id")
+    zone__name = filters.CharFilter(field_name="zone_id__name")
+
     class Meta:
         model = Host
         fields = {
@@ -188,6 +191,11 @@ class HostFilterSet(filters.FilterSet):
             "srvs__weight": INT_OPERATORS,
             "srvs__port": INT_OPERATORS,
             "srvs__ttl": INT_OPERATORS,
+            # These are relationships to Zone, which for some reason are named zone_id in the host _model_,
+            # even though the field in the ForwardZone model is named zone and the field returned to the
+            # user is called zone... 
+            "zone_id": INT_OPERATORS,
+            "zone_id__name": STRING_OPERATORS,
             **CREATED_UPDATED,
         }
 

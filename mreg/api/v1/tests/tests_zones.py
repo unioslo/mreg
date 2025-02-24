@@ -233,6 +233,10 @@ class ReverseZonesTestCase(MregAPITestCase):
         """"Deleting a non-existing entry should return 404"""
         self.assert_delete_and_404(self.basepath + '1.11.in-addr.arpa')
 
+    def test_zone_by_host_200_ok_but_empty(self):
+        res = self.assert_get(f'/hosts/?zone={self.zone_one.pk}')
+        self.assertEqual(res.json()['count'], 0)
+
 
 class ZonesForwardDelegationTestCase(MregAPITestCase):
     """ This class defines test testsuite for api/zones/forward/<name>/delegations/
