@@ -66,17 +66,16 @@ class MregAppConfig(AppConfig):
             protected_attrs = getattr(settings, 'MREG_PROTECTED_POLICY_ATTRIBUTES', [])
 
             for attr in protected_attrs:
-                if isinstance(attr, dict):
-                    name = attr.get("name")
-                    description = attr.get("description", "Automatically created protected attribute.")
-                else:
-                    name = attr
-                    description = "Automatically created protected attribute."
-                
+                name = attr.get("name")
+                description = attr.get("description", "Automatically created protected attribute.")
+
                 if name:
                     NetworkPolicyAttribute.objects.get_or_create(
                         name=name,
                         defaults={'description': description}
                     )
 
+        # Expose the receiver for testing
+        self.create_protected_attributes = create_protected_attributes
+        # Connect the receiver to the post_migrate signal.
         post_migrate.connect(create_protected_attributes, sender=self)
