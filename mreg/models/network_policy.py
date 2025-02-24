@@ -53,6 +53,32 @@ class NetworkPolicy(BaseModel):
         help_text="Attributes associated with this policy.",
     )
 
+    def can_be_used_with_communities_or_raise(self):
+        """Determine if this policy can be used with communities.
+        
+        In settings.py, we may have MREG_CREATING_COMMUNITY_REQUIRES_POLICY_WITH_ATTRIBUTES set, and if we do not have
+        all of those attributes in this policy, then we cannot use it with communities.
+
+        :return: Nothing if the policy can be used with communities, otherwise we raise an exception.
+        :raises: rest_framework.exceptions.ValidationError if the policy cannot be used with communities.
+        """
+        required_attributes = getattr(
+            settings, "MREG_CREATING_COMMUNITY_REQUIRES_POLICY_WITH_ATTRIBUTES", []
+        )
+        if required_attributes:
+            current_attributes = set(
+                self.attributes.filter(name__in=required_attributes).values_list("name", flat=True)
+            )
+            missing_attributes = [attr for attr in required_attributes if attr not in current_attributes]
+            if missing_attributes:
+                raise exceptions.ValidationError(
+                    {
+                        "error":
+                        f"Network policy '{self.name}' is missing the following required attributes: {missing_attributes}"
+                    }
+                )
+
+
     def __str__(self):
         return self.name
 
@@ -99,28 +125,14 @@ class Community(BaseModel):
             settings, "MREG_CREATING_COMMUNITY_REQUIRES_POLICY_WITH_ATTRIBUTES", []
         )
         if required_attributes:
-            # Ensure the network has an associated policy.
-            if not self.network.policy:
+            if self.network.policy:
+                self.network.policy.can_be_used_with_communities_or_raise()
+            else:
                 raise exceptions.ValidationError(
                     {
                         "error":
                         f"Network does not have a policy. The policy must have the following attributes: {required_attributes}" 
                     }
-                )
-            # Get current attributes from the network's policy.
-            current_attributes = set(
-                self.network.policy.attributes.filter(
-                    name__in=required_attributes
-                ).values_list("name", flat=True)
-            )
-            # Determine which required attributes are missing.
-            missing_attributes = [attr for attr in required_attributes if attr not in current_attributes]
-            if missing_attributes:
-                raise exceptions.ValidationError(
-                    {
-                        "error":
-                         f"Network policy '{self.network.policy.name}' is missing the following required attributes: {missing_attributes}"
-                     }
                 )
 
         # Enforce maximum communities per network.

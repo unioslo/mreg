@@ -4,6 +4,7 @@ from collections import Counter, defaultdict
 
 from django.db import transaction
 from django.db.models import Prefetch
+from django.conf import settings
 from django.shortcuts import get_object_or_404
 
 from django_filters import rest_framework as rest_filters
@@ -18,7 +19,7 @@ from mreg.models.base import NameServer, History
 from mreg.models.host import Host, Ipaddress, PtrOverride
 from mreg.models.network import Network, NetGroupRegexPermission
 from mreg.models.resource_records import Cname, Loc, Naptr, Srv, Sshfp, Txt, Hinfo, Mx
-from mreg.models.network_policy import Community
+from mreg.models.network_policy import Community, NetworkPolicy
 from mreg.types import IPAllocationMethod
 
 from mreg.api.permissions import (
@@ -837,13 +838,22 @@ class NetworkDetail(MregRetrieveUpdateDestroyAPIView):
             if error:
                 return error
             
-        policy = network.policy
-        if policy and "policy" in request.data:
-            if policy.communites.count() > 0:
-                return Response(
-                    {"ERROR": "Can not change policy, network policy has communities"},
-                    status=status.HTTP_409_CONFLICT,
-                )
+        if "policy" in request.data:
+            policy_id = request.data.pop("policy")
+            if policy_id is None:
+                network.policy = None
+            else:
+                try:
+                    policy = NetworkPolicy.objects.get(id=policy_id)
+                except NetworkPolicy.DoesNotExist:
+                    return Response(
+                        {"ERROR": "No such policy"},
+                        status=status.HTTP_404_NOT_FOUND,
+                    )
+                policy.can_be_used_with_communities_or_raise()
+                network.policy = policy
+                
+            network.save()
 
         return super().patch(request, *args, **kwargs)
 

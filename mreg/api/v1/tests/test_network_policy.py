@@ -225,6 +225,42 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         self.assert_post_and_409(POLICY_ENDPOINT, data=data)
         self._delete_network_policy(name)
 
+    def test_assign_policy_to_network(self):
+        """Test assigning a policy to a network."""
+        np = self._create_network_policy("test_policy", [])
+        network = Network.objects.create(network="10.0.0.0/24", description="test_network")
+        self.assert_patch_and_204(f"/networks/{network.network}", data={"policy": np.pk})
+        network = Network.objects.get(pk=network.pk)        
+        self.assertEqual(network.policy, np)
+    
+    def test_delete_policy_from_network(self):
+        """Test deleting a policy from a network."""
+        np = self._create_network_policy("test_policy", [])
+        network = Network.objects.create(network="10.0.0.0/24", description="test_network", policy=np)
+        self.assert_patch_and_204(f"/networks/{network.network}", data={"policy": None})
+        network = Network.objects.get(pk=network.pk)
+        self.assertIsNone(network.policy)
+
+    @override_settings(MREG_CREATING_COMMUNITY_REQUIRES_POLICY_WITH_ATTRIBUTES=["isolated"])
+    def test_assign_policy_to_network_missing_attributes_400(self):
+        """Test assigning a policy to a network with missing attributes."""
+        np = self._create_network_policy("test_policy", [])
+        network = Network.objects.create(network="10.0.0.0/24", description="test_network")
+        self.assert_patch_and_400(f"/networks/{network.network}", data={"policy": np.pk})
+        network.delete()
+
+    @override_settings(MREG_CREATING_COMMUNITY_REQUIRES_POLICY_WITH_ATTRIBUTES=["isolated"])
+    def test_patch_network_with_policy_missing_attributes_400(self):
+        """Test updating a network with a policy with missing attributes."""
+        np = self._create_network_policy("test_policy", [("isolated", True)])
+        network = Network.objects.create(network="10.0.0.0/24", description="test_network")
+        network.policy = np # type: ignore
+        network.save()
+        np_missing_attribute = self._create_network_policy("test_policy_missing_attribute", [])
+        self.assert_patch_and_400(f"/networks/{network.network}", data={"policy": np_missing_attribute.pk})
+        network.delete()
+        np_missing_attribute.delete()
+
     def test_create_community_ok(self):
         """Test creating a community."""
         network = Network.objects.create(network="10.0.0.0/24", description="test_network")
@@ -347,7 +383,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
 
     def test_get_host_in_community_with_community_not_in_network(self):
         """Test getting a host in a community with a wrong network for community."""
-        _, community, network, host, _ = self.create_policy_setup()
+        _, community, _, host, _ = self.create_policy_setup()
         wrong_network = Network.objects.create(network="192.168.0.0/24", description="test_network")
         self.assert_get_and_404(f"/networks/{wrong_network.network}/communities/{community.pk}/hosts/{host.pk}")
         wrong_network.delete()
