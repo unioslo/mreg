@@ -138,11 +138,8 @@ class NetworkCommunityList(JSONContentTypeMixin, generics.ListCreateAPIView):
             raise exceptions.NotFound("Network not found.")
 
         # We do not have to worry about case sensitivity here, as the LowerCaseManager for the model will handle that.
-        try:
-            Community.objects.get(name=name, network=network)
+        if Community.objects.filter(name=name, network=network).exists():
             raise ValidationError409(detail=f"Community with the name '{name}' already exists.")
-        except Community.DoesNotExist:
-            pass
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)

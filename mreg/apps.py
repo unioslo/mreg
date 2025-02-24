@@ -8,7 +8,7 @@ class MregAppConfig(AppConfig):
 
     def ready(self):
         import mreg.signals # noqa
-        from .models.network_policy import NetworkPolicyAttribute
+        from mreg.models.network_policy import NetworkPolicyAttribute
 
         def create_protected_attributes(sender, **kwargs):
             protected_attrs = getattr(settings, 'MREG_PROTECTED_POLICY_ATTRIBUTES', [])

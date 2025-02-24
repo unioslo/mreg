@@ -40,10 +40,11 @@ class Host(ForwardZoneMember):
         :param community: The community to set.
         :return: True if the community was set, False otherwise
         """
+        from mreg.models.network import Network
+        
         # We need to check that the community is applicable to the same
         # network as one of the IP addresses of the host.
         for ipaddress in self.ipaddresses.all(): # type: ignore
-            from mreg.models.network import Network
             try:
                 net = Network.objects.get(network__net_contains=ipaddress.ipaddress)
                 if community.network == net:
