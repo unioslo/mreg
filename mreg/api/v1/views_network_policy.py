@@ -27,7 +27,7 @@ from mreg.api.v1.endpoints import URL
 
 
 class NetworkPolicyList(JSONContentTypeMixin, generics.ListCreateAPIView):
-    queryset = NetworkPolicy.objects.all()
+    queryset = NetworkPolicy.objects.all().order_by("id")
     serializer_class = NetworkPolicySerializer
     permission_classes = (IsGrantedNetGroupRegexPermission,)
     ordering_fields = ("id",)
@@ -60,7 +60,7 @@ class NetworkPolicyList(JSONContentTypeMixin, generics.ListCreateAPIView):
 
 
 class NetworkPolicyDetail(JSONContentTypeMixin, generics.RetrieveUpdateDestroyAPIView):
-    queryset = NetworkPolicy.objects.all()
+    queryset = NetworkPolicy.objects.all().order_by("id")
     serializer_class = NetworkPolicySerializer
     permission_classes = (IsGrantedNetGroupRegexPermission,)
 
@@ -74,7 +74,7 @@ class NetworkPolicyDetail(JSONContentTypeMixin, generics.RetrieveUpdateDestroyAP
 
 
 class NetworkPolicyAttributeList(JSONContentTypeMixin, generics.ListCreateAPIView):
-    queryset = NetworkPolicyAttribute.objects.all()
+    queryset = NetworkPolicyAttribute.objects.all().order_by("id")
     serializer_class = NetworkPolicyAttributeSerializer
     permission_classes = (IsSuperOrNetworkAdminMember,)
     filterset_class = NetworkPolicyAttributeFilterSet
@@ -106,7 +106,7 @@ class NetworkPolicyAttributeList(JSONContentTypeMixin, generics.ListCreateAPIVie
         return response.Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
 class NetworkPolicyAttributeDetail(JSONContentTypeMixin, generics.RetrieveUpdateDestroyAPIView):
-    queryset = NetworkPolicyAttribute.objects.all()
+    queryset = NetworkPolicyAttribute.objects.all().order_by("id")
     serializer_class = NetworkPolicyAttributeSerializer
     permission_classes = (IsSuperOrNetworkAdminMember,)
 

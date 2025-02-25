@@ -300,8 +300,6 @@ class NetGroupRegexPermissionFilterSet(filters.FilterSet):
 
 class NetworkFilterSet(filters.FilterSet):
     network = CIDRFieldFilter(field_name="network")
-    policy__name = filters.CharFilter(field_name="policy__name")
-    policy__description = filters.CharFilter(field_name="policy__description")
 
     class Meta:
         model = Network
@@ -315,6 +313,8 @@ class NetworkFilterSet(filters.FilterSet):
             "frozen": EXACT_OPERATORS,
             "reserved": INT_OPERATORS,
             "policy": INT_OPERATORS,
+            "policy__name": STRING_OPERATORS,
+            "policy__description": STRING_OPERATORS,
             **CREATED_UPDATED,
         }
 
