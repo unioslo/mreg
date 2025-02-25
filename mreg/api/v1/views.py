@@ -442,7 +442,7 @@ class HostList(HostPermissionsListCreateAPIView):
                     self.perform_create(ipserializer)
 
                     if community:
-                        if not host.set_community(community):
+                        if not host.add_community(community):
                             content = {"ERROR": "Unable to assign community to host"}
                             transaction.set_rollback(True)
                             return Response(content, status=status.HTTP_406_NOT_ACCEPTABLE)
@@ -541,9 +541,9 @@ class IpaddressDetail(HostPermissionsUpdateDestroy, MregRetrieveUpdateDestroyAPI
 
         ipaddress = self.get_object()
         host = ipaddress.host
-        community = host.network_community
+        communities = host.communities.all()
 
-        if community and "ipaddress" in request.data:
+        if communities and "ipaddress" in request.data:
             new_ip = request.data["ipaddress"]
             try:
                 network = Network.objects.get(network__net_contains=new_ip)
@@ -553,7 +553,13 @@ class IpaddressDetail(HostPermissionsUpdateDestroy, MregRetrieveUpdateDestroyAPI
                     status=status.HTTP_404_NOT_FOUND,
                 )
             
-            if not community.network == network:
+            network_match = False
+            for community in communities:
+                if community.network == network:
+                    network_match = True
+                    break
+
+            if not network_match:
                 return Response(
                     {"ERROR": "Cannot switch network membership for due to community membership."},
                     status=status.HTTP_409_CONFLICT,

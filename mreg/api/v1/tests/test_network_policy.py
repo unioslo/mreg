@@ -514,7 +514,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
     def test_get_individual_host_from_community_ok(self):
         """Test getting a host from a community."""
         _, community, network, host, _ = self.create_policy_setup()
-        host.set_community(community)
+        host.add_community(community)
 
         ret = self.assert_get(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}/hosts/{host.pk}")
         self.assertEqual(ret.json()["name"], "hostwithcommunity.example.com")
@@ -533,10 +533,51 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
 
         self.assert_post_and_400(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}/hosts/", data=data)
 
+    def test_add_host_to_community_while_already_in_community_in_same_network(self):
+        """Test that adding a host to a community when it is already in a community in the same network removes it from the old community."""
+        _, community, network, host, _ = self.create_policy_setup()
+        community_other = self._create_community("community_other", "community desc", network)
+        host.add_community(community_other)
+
+        data = {"id": host.pk}
+
+        self.assert_post_and_201(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}/hosts/", data=data)
+
+        ret = self.assert_get(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}/hosts/")
+        self.assertEqual(len(ret.json()["results"]), 1)
+        self.assertEqual(ret.json()["results"][0]["name"], "hostwithcommunity.example.com")
+
+        ret = self.assert_get(f"{NETWORK_ENDPOINT}{network.network}/communities/{community_other.pk}/hosts/")
+        self.assertEqual(len(ret.json()["results"]), 0)
+
+        community_other.delete()
+
+    def test_add_host_with_multiple_ips_on_multiple_networks_to_communities(self):
+        """Test adding a host with multiple IPs on multiple networks to communities."""
+        _, community1, network1, host, _ = self.create_policy_setup()
+        network2 = Network.objects.create(network="192.168.0.0/24", description="test_network2")
+        community2 = self._create_community("community_other", "community desc", network2)
+        ip = Ipaddress.objects.create(host=host, ipaddress="192.168.0.1")
+
+        data = {"id": host.pk}
+
+        self.assert_post_and_201(f"{NETWORK_ENDPOINT}{network1.network}/communities/{community1.pk}/hosts/", data=data)
+        self.assert_post_and_201(f"{NETWORK_ENDPOINT}{network2.network}/communities/{community2.pk}/hosts/", data=data)
+
+        host = Host.objects.get(pk=host.pk)
+        self.assertEqual(host.communities.count(), 2)
+        self.assertIn(community1, host.communities.all())
+        self.assertIn(community2, host.communities.all())
+
+        network2.delete()
+        community2.delete()
+        ip.delete()
+        host.delete()
+    
     def test_delete_host_from_community_ok(self):
         """Test deleting a host from a community."""
         _, community, network, host, _ = self.create_policy_setup()
-        host.set_community(community)
+        host.add_community(community)
 
         self.assert_delete_and_204(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}/hosts/{host.pk}")
 
@@ -550,7 +591,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
 
         # Add to a different community, just to make sure
         community_other = self._create_community("community_other", "community desc", network)
-        host.set_community(community_other)
+        host.add_community(community_other)
 
         self.assert_delete_and_404(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}/hosts/{host.pk}")
 
@@ -559,7 +600,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
     def test_change_ip_of_host_to_outside_of_community_gives_409(self):
         """Test changing the IP of a host to an IP outside the community."""
         _, community, _, host, ip = self.create_policy_setup()
-        host.set_community(community)
+        host.add_community(community)
 
         data = {"ipaddress": "10.0.1.0"}
 

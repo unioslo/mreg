@@ -64,7 +64,7 @@ A **Community** is a named (case insensitive) collection of **Hosts** within a *
 
 ### Host Membership
 
-**Hosts** in this system can belong to **one** Community at a time under the associated Network. Adding a host to a community requires that at least one of the host’s IP addresses match the network.
+**Hosts** in this system can belong to one Community per network it belongs to. Adding a host to a community requires that at least one of the host’s IP addresses match the network.
 
 Note: Administrators may set `MREG_CREATING_COMMUNITY_REQUIRES_POLICY_WITH_ATTRIBUTES` which will require that a network must have a policy with all the attributes in the list to be able to create a community. `MREG_MAX_COMMUNITES_PER_NETWORK` can be set to limit the number of communities per network. Setting this to 0 will allow an unlimited number of communities.
 
@@ -225,7 +225,7 @@ Note: At least one of the host’s IP address(es) must belong to the network, ot
 **`DELETE /api/v1/networks/<network>/communities/<cpk>/hosts/<hostpk>`**
 
 - **GET:** Retrieves details of a specific host in this community.
-- **DELETE:** Removes that host from the community. The host’s network_community is set to null.
+- **DELETE:** Removes that host from the community.
 
 ## Usage Examples
 

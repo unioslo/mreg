@@ -1,5 +1,5 @@
 from django.contrib.auth.models import Group
-from django.db import models
+from django.db import models, transaction
 
 from mreg.fields import LowerCaseCharField, LowerCaseDNSNameField
 from mreg.managers import LowerCaseManager
@@ -14,13 +14,11 @@ class Host(ForwardZoneMember):
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
     comment = models.TextField(blank=True)
 
-    network_community = models.ForeignKey(
+    communities = models.ManyToManyField(
         Community,
-        null=True,
         blank=True,
-        on_delete=models.SET_NULL,
         related_name='hosts',
-        help_text="Network community this host belongs to."
+        help_text="Network communities this host belongs to."
     )
 
     objects = LowerCaseManager()
@@ -31,14 +29,11 @@ class Host(ForwardZoneMember):
     def __str__(self):
         return str(self.name)
 
-    def community(self):
-        return self.network_community
-    
-    def set_community(self, community: Community) -> bool:
-        """Set the community for this host.
+    def add_community(self, community: Community) -> bool:
+        """Add the community to this host.
         
-        :param community: The community to set.
-        :return: True if the community was set, False otherwise
+        :param community: The community to add.
+        :return: True if the community was add, False otherwise
         """
         from mreg.models.network import Network
         
@@ -47,13 +42,33 @@ class Host(ForwardZoneMember):
         for ipaddress in self.ipaddresses.all(): # type: ignore
             try:
                 net = Network.objects.get(network__net_contains=ipaddress.ipaddress)
+
                 if community.network == net:
-                    self.network_community = community
-                    self.save()
+                    with transaction.atomic():
+                        # If we are already in a community for this network, remove it
+                        for old_community in self.communities.all():
+                            if old_community.network == net:
+                                self.communities.remove(old_community)
+                                break
+
+                        self.communities.add(community)
+                        self.save()
                     return True
             except Network.DoesNotExist:
                 return False
             
+        return False
+
+    def remove_community(self, community: Community) -> bool:
+        """Remove the community for this host.
+        
+        :param community: The community to unset.
+        :return: True if the community was unset, False otherwise
+        """
+        if community in self.communities.all():
+            self.communities.remove(community)
+            self.save()
+            return True
         return False
 
 class Ipaddress(BaseModel):

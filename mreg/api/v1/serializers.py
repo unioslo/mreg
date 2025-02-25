@@ -245,7 +245,8 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
     loc = LocSerializer(read_only=True)
     bacnetid = BACnetID_ID_Serializer(read_only=True)
 
-    network_community = CommunitySerializer(
+    communities = CommunitySerializer(
+        many=True,
         required=False,
         allow_null=True,
         help_text="Community to which the host belongs."
@@ -271,7 +272,7 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
     
     def create(self, validated_data):
         ipaddr = validated_data.pop('ipaddress', None)
-        community = validated_data.pop('network_community', None)
+        community = validated_data.pop('communities', None)
         
         with transaction.atomic():
             host = Host.objects.create(**validated_data)
@@ -291,11 +292,14 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
     
     def update(self, instance, validated_data):
         ipaddr = validated_data.pop('ipaddress', None)
-        community = validated_data.pop('network_community', None)
+        community = validated_data.pop('communities', None)
         
         with transaction.atomic():
             # Update host fields
             for attr, value in validated_data.items():
+                # Communities are handled separately, below
+                if attr == 'communities': 
+                    continue
                 setattr(instance, attr, value)
             instance.save()
             
@@ -315,34 +319,39 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
                 if community:
                     self._assign_community(instance, community)
                 else:
-                    instance.network_community = None
-                    instance.save()
+                    self._unassign_community(instance, community)
         
         return instance
     
-    def _assign_community(self, host, community):
+    def _assign_community(self, host: Host, community: Community) -> None:
         """
         Assigns the community to the host after validating network compatibility.
         """
-        policy = community.policy
+        policy = community.policy # type: ignore (reverse relation)
         if not policy:
-            raise serializers.ValidationError({"network_community": "Community must be associated with a NetworkPolicy."})
+            raise serializers.ValidationError({"error": "Community must be associated with a NetworkPolicy."})
         
         # Check if any of the host's IPs are within the networks
         compatible = False
-        for ip in host.ipaddresses.all():
+        for ip in host.ipaddresses.all(): # type: ignore (reverse relation)
             if Network.objects.filter(network__net_contains=ip.ipaddress, policy=policy).exists():
                 compatible = True
                 break
         
         if not compatible:
             raise serializers.ValidationError({
-                "network_community": "Host's IP addresses do not match the community's network policy."
+                "error": "Host's IP addresses do not match the community's network policy."
             })
         
-        # Assign community
-        host.network_community = community
+        host.add_community(community)
         host.save()    
+
+    def _unassign_community(self, host: Host, community: Community) -> None:
+        """
+        Unassigns the community from the host.
+        """
+        host.remove_community(community)
+        host.save()
 
 
 class HostNameSerializer(ValidationMixin, serializers.ModelSerializer):

@@ -199,10 +199,9 @@ class NetworkCommunityHostList(HostInCommunityMixin, generics.ListCreateAPIView)
     permission_classes = (IsGrantedNetGroupRegexPermission, IsSuperOrNetworkAdminMember)
 
     def get_queryset(self):
-        # Retrieve community via helper. The policy is not used directly here.
         _, community = self.get_policy_and_community()
         return HostFilterSet(
-            data=self.request.GET, queryset=Host.objects.filter(network_community=community).order_by("id")
+            data=self.request.GET, queryset=Host.objects.filter(communities__in=[community]).order_by("id")
         ).qs
 
     def create(self, request, *args, **kwargs):
@@ -214,7 +213,7 @@ class NetworkCommunityHostList(HostInCommunityMixin, generics.ListCreateAPIView)
 
         # Attempt to set the community (this method will validate if the host has an IP in a network
         # that is associated with the policy in which this community is defined).
-        if not host.set_community(community):
+        if not host.add_community(community):
             # If set_community returns False, then either the host has no IP address that matches
             # any network in the community's policy, or there was another problem.
             raise exceptions.ValidationError("Host cannot be associated with the specified community (IP mismatch?)")
@@ -230,7 +229,7 @@ class NetworkCommunityHostDetail(HostInCommunityMixin, generics.RetrieveDestroyA
     def get_queryset(self):
         _, community = self.get_policy_and_community()
         return HostFilterSet(
-            data=self.request.GET, queryset=Host.objects.filter(network_community=community).order_by("id")
+            data=self.request.GET, queryset=Host.objects.filter(communities__in=[community]).order_by("id")
         ).qs
 
     def get_object(self):
@@ -241,6 +240,7 @@ class NetworkCommunityHostDetail(HostInCommunityMixin, generics.RetrieveDestroyA
 
     def delete(self, request, *args, **kwargs):
         host = self.get_object()
-        host.network_community = None
+        _, community = self.get_policy_and_community()
+        host.remove_community(community)
         host.save()
         return response.Response(status=status.HTTP_204_NO_CONTENT)
