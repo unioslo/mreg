@@ -311,7 +311,7 @@ Fetching a network will now include the policy object in full, as such:
         {
           "id":1,
           "name":"test_community",
-          "global_name": "community01", // Only set if MREG_MAP_GLOBAL_COMMUNITY_NAMES is True 
+          "global_name":"community01", // Only set if MREG_MAP_GLOBAL_COMMUNITY_NAMES is True 
           "description":"community desc", 
           "policy":1,
           "hosts":[
