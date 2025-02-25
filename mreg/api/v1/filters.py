@@ -431,6 +431,9 @@ class NetworkPolicyFilterSet(filters.FilterSet):
             "id": INT_OPERATORS,
             "name": STRING_OPERATORS,
             "description": STRING_OPERATORS,
+            "attributes": INT_OPERATORS,
+            "attributes__name": STRING_OPERATORS,
+            "attributes__description": STRING_OPERATORS,
             **CREATED_UPDATED,
         }
 
