@@ -193,6 +193,19 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         self._delete_network_policy(name)
         self._delete_attributes(attribute_names)
 
+    def test_set_description_on_network_policy(self):
+        """Test setting a description on a network policy."""
+        name = "policy_with_description"
+        data = {"name": name, "attributes": []}
+        res = self.assert_post_and_201(POLICY_ENDPOINT, data=data)
+        id = res.json()["id"]
+
+        data = {"description": "policy description"}
+        res = self.assert_patch_and_200(f"{POLICY_ENDPOINT}{id}", data=data)
+        self.assertEqual(res.json()["description"], "policy description")
+
+        self._delete_network_policy(name)
+
     def test_create_policy_no_name_400(self):
         """Test creating a network policy without a name."""
         data = {"attributes": []}

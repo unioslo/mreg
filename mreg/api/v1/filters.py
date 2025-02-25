@@ -300,6 +300,8 @@ class NetGroupRegexPermissionFilterSet(filters.FilterSet):
 
 class NetworkFilterSet(filters.FilterSet):
     network = CIDRFieldFilter(field_name="network")
+    policy__name = filters.CharFilter(field_name="policy__name")
+    policy__description = filters.CharFilter(field_name="policy__description")
 
     class Meta:
         model = Network

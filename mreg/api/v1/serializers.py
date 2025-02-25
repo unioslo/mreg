@@ -565,7 +565,7 @@ class NetworkPolicySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = NetworkPolicy
-        fields = ['id', 'name', 'attributes', 'communities', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'description', 'attributes', 'communities', 'created_at', 'updated_at']
 
     def validate_name(self, value):
         value = value.lower()
