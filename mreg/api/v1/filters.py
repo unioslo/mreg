@@ -312,6 +312,7 @@ class NetworkFilterSet(filters.FilterSet):
             "location": STRING_OPERATORS,
             "frozen": EXACT_OPERATORS,
             "reserved": INT_OPERATORS,
+            "policy": INT_OPERATORS,
             **CREATED_UPDATED,
         }
 
