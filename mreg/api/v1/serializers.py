@@ -37,7 +37,7 @@ class CommunitySerializer(serializers.ModelSerializer):
     global_name = serializers.SerializerMethodField(read_only=True)
 
     def get_hosts(self, obj):
-        return [host.name for host in obj.hosts.all()]
+        return list(obj.hosts.values_list("name", flat=True))
 
     def get_global_name(self, obj):
         # Only map if the setting is enabled.
