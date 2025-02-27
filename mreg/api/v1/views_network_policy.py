@@ -208,15 +208,11 @@ class NetworkCommunityHostList(HostInCommunityMixin, generics.ListCreateAPIView)
         _, community = self.get_policy_and_community()
         host_id = request.data.get("id")
 
+        ipaddress = request.data.get("ipaddress")
+
         # Ensure host exists. If not, an appropriate 404 is raised.
         host = generics.get_object_or_404(Host, pk=host_id)
-
-        # Attempt to set the community (this method will validate if the host has an IP in a network
-        # that is associated with the policy in which this community is defined).
-        if not host.add_community(community):
-            # If set_community returns False, then either the host has no IP address that matches
-            # any network in the community's policy, or there was another problem.
-            raise exceptions.ValidationError("Host cannot be associated with the specified community (IP mismatch?)")
+        host.add_to_community(community, ipaddress)
 
         return response.Response(HostSerializer(host).data, status=status.HTTP_201_CREATED)
 
@@ -241,6 +237,6 @@ class NetworkCommunityHostDetail(HostInCommunityMixin, generics.RetrieveDestroyA
     def delete(self, request, *args, **kwargs):
         host = self.get_object()
         _, community = self.get_policy_and_community()
-        host.remove_community(community)
+        host.remove_from_community(community)
         host.save()
         return response.Response(status=status.HTTP_204_NO_CONTENT)

@@ -60,11 +60,11 @@ Note: In `settings.py` the administrators may set `MREG_PROTECTED_POLICY_ATTRIBU
 
 ### Community
 
-A **Community** is a named (case insensitive) collection of **Hosts** within a **single** Network. Each community belongs to exactly one network, enabling further subdivision of hosts within that network. This is typically used for client isolation / segmentation. Communities allow you to group hosts based on function, location, access, or other logical groupings.
+A **Community** is a named (case insensitive) collection of **Hosts** (technically, IPs belonging to a host) within a **single** Network. Each community belongs to exactly one network, enabling further subdivision of hosts within that network. This is typically used for client isolation / segmentation. Communities allow you to group hosts based on function, location, access, or other logical groupings.
 
 ### Host Membership
 
-**Hosts** in this system can belong to one Community per network it belongs to. Adding a host to a community requires that at least one of the host’s IP addresses match the network.
+**Hosts** in this system can belong to one Community per IP it has. Adding a host to a community requires that at least one of the host’s IP addresses match the network. When adding a host, one can either specify the IP address to associate, or the system will automatically associate the host’s IP address that matches the network. If the host has multiple IPs on the network of the community, a 406 Not Acceptable error will be returned.
 
 Note: Administrators may set `MREG_CREATING_COMMUNITY_REQUIRES_POLICY_WITH_ATTRIBUTES` which will require that a network must have a policy with all the attributes in the list to be able to create a community. `MREG_MAX_COMMUNITES_PER_NETWORK` can be set to limit the number of communities per network. Setting this to 0 will allow an unlimited number of communities.
 
@@ -99,7 +99,7 @@ Note: Administrators may set `MREG_CREATING_COMMUNITY_REQUIRES_POLICY_WITH_ATTRI
   "name": "SecurePolicy", // This will be turned into "securepolicy" internally
   "attributes": [
     {
-      "attribute": 1,   // ID of an existing NetworkPolicyAttribute
+      "name": "foo",   // Name of an existing NetworkPolicyAttribute
       "value": true
     }
   ]
@@ -211,13 +211,22 @@ Note: All community names are case-insensitive and will be converted to lowercas
 
 **Example (POST Request):**
 
+If there is only one IP address on the host that matches the network of the community (which is the network in the URL), you can use the following format:
+
 ```json
 {
   "id": 5  // ID of the existing Host
 }
 ```
 
-Note: At least one of the host’s IP address(es) must belong to the network, otherwise the request will fail with a 400 Bad reqeust error.
+If you wish to specify the IP address to associate, either to be explicit or because the host has multiple IPs on the same network, you can use the following format:
+
+```json
+{
+  "id": 5,
+  "ipaddress": "10.0.0.42"
+}
+```
 
 #### Retrieve / Remove Host from a Community
 
@@ -342,4 +351,4 @@ The Network Policies API enables administrators to:
 - Create Policies referencing those attributes and associating them with boolean values.
 - Assign policies to networks.
 - Subdivide a network into Communities, grouping hosts for more granular network management.
-- Assign Hosts to Communities under the correct network, provided their IP addresses match the appropriate networks.
+- Assign Hosts to Communities under the correct network, provided the host has an IP addresses for the network.

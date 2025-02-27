@@ -4,7 +4,6 @@ from collections import Counter, defaultdict
 
 from django.db import transaction
 from django.db.models import Prefetch
-from django.conf import settings
 from django.shortcuts import get_object_or_404
 
 from django_filters import rest_framework as rest_filters
@@ -442,10 +441,7 @@ class HostList(HostPermissionsListCreateAPIView):
                     self.perform_create(ipserializer)
 
                     if community:
-                        if not host.add_community(community):
-                            content = {"ERROR": "Unable to assign community to host"}
-                            transaction.set_rollback(True)
-                            return Response(content, status=status.HTTP_406_NOT_ACCEPTABLE)
+                        host.add_to_community(community)
 
                     location = request.path + host.name
                     return Response(

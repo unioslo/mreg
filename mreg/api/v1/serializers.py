@@ -11,7 +11,7 @@ from mreg.models.base import NameServer, Label, History
 from mreg.models.zone import ForwardZone, ReverseZone, ForwardZoneDelegation, ReverseZoneDelegation
 from mreg.models.host import Host, HostGroup, BACnetID, Ipaddress, PtrOverride
 from mreg.models.resource_records import Cname, Loc, Naptr, Srv, Sshfp, Txt, Hinfo, Mx
-from mreg.models.network_policy import NetworkPolicy, NetworkPolicyAttribute, NetworkPolicyAttributeValue, Community
+from mreg.models.network_policy import NetworkPolicy, NetworkPolicyAttribute, NetworkPolicyAttributeValue, Community, HostCommunityMapping
 
 from mreg.models.network import Network, NetGroupRegexPermission, NetworkExcludedRange
 
@@ -231,6 +231,14 @@ class BACnetID_ID_Serializer(serializers.ModelSerializer):
         model = BACnetID
         fields = ('id',)
 
+class HostCommunityMappingSerializer(serializers.ModelSerializer):
+    community = CommunitySerializer(read_only=True)
+    ipaddress = serializers.PrimaryKeyRelatedField(read_only=True)
+    
+    class Meta:
+        model = HostCommunityMapping
+        fields = ('ipaddress', 'community')
+
 
 class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
     """
@@ -245,12 +253,19 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
     loc = LocSerializer(read_only=True)
     bacnetid = BACnetID_ID_Serializer(read_only=True)
 
-    communities = CommunitySerializer(
-        many=True,
-        required=False,
-        allow_null=True,
-        help_text="Community to which the host belongs."
+#    communities = CommunitySerializer(
+#        many=True,
+#        required=False,
+#        allow_null=True,
+#        help_text="Communities to which the host belongs."
+#    )
+
+    # New read-only field that includes the IP mapping information.
+    communities = HostCommunityMappingSerializer(
+        many=True, read_only=True, source="hostcommunitymapping_set",
+        allow_null=True, help_text="Communities to which the host belongs, with IP mapping."
     )
+
 
     class Meta:
         model = Host
@@ -343,16 +358,15 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
                 "error": "Host's IP addresses do not match the community's network policy."
             })
         
-        host.add_community(community)
+        host.add_to_community(community)
         host.save()    
 
     def _unassign_community(self, host: Host, community: Community) -> None:
         """
         Unassigns the community from the host.
         """
-        host.remove_community(community)
+        host.remove_from_community(community)
         host.save()
-
 
 class HostNameSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
@@ -660,3 +674,4 @@ class NetworkSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
         model = Network
         fields = '__all__'
+

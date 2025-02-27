@@ -159,3 +159,16 @@ class Community(BaseModel):
     class Meta:
         ordering = ("name",)
         unique_together = ("name", "network")
+
+class HostCommunityMapping(BaseModel):
+    host = models.ForeignKey('Host', on_delete=models.CASCADE)
+    ipaddress = models.ForeignKey('Ipaddress', on_delete=models.CASCADE)
+    community = models.ForeignKey(Community, on_delete=models.CASCADE)
+
+    class Meta:
+        unique_together = ("host", "ipaddress", "community")
+        db_table = "host_community_mapping"
+
+    def __str__(self):
+        return f"{self.host} - {self.ipaddress} -> {self.community}"
+
