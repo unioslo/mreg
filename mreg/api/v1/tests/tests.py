@@ -7,7 +7,7 @@ from unittest import skip
 import unittest.mock as mock
 import ldap
 from unittest_parametrize import ParametrizedTestCase, param, parametrize
-
+from typing import cast
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -16,6 +16,7 @@ from django_auth_ldap.backend import LDAPBackend
 
 from rest_framework.test import APIClient, APITestCase
 
+from mreg.models.auth import User, MregAdminGroup
 from mreg.models.base import ExpiringToken
 from mreg.models.network import Network, NetGroupRegexPermission
 from mreg.models.host import Host, Ipaddress, PtrOverride
@@ -56,6 +57,68 @@ class MregAPITestCase(APITestCase):
         self.set_client_format(ClientTestFormat.MULTIPART)
 
     @contextmanager
+    def temporary_client(self, **kwargs):
+        """
+        Temporarily switch the client to a different configuration.
+        :param kwargs: Arguments to configure the temporary client.
+        :yields: None, while the client is temporarily switched.
+        Example:
+        with self.temporary_client(superuser=True):
+            self.assert_get('/hosts/')  
+        """
+        original_client = self.client
+        try:
+            self.client = self.get_token_client(**kwargs)
+            yield
+        finally:
+            self.client = original_client
+
+    @contextmanager
+    def temporary_client_as_superuser(self):
+        """
+        Temporarily switch the client to a superuser configuration.
+        :yields: None, while the client is temporarily switched.
+        """
+        if self.user.is_mreg_superuser:
+            yield
+        else:
+            with self.temporary_client(superuser=True):
+                yield
+
+    @contextmanager
+    def temporary_client_as_policy_admin(self):
+        """
+        Temporarily switch the client to a policy admin configuration.
+        :yields: None, while the client is temporarily switched.
+        """
+        if self.user.is_mreg_hostpolicy_admin:
+            yield
+        else:
+            with self.temporary_client(superuser=False, policyadmin=True):
+                yield
+
+    @contextmanager
+    def temporary_client_as_network_admin(self):
+        """
+        Temporarily switch the client to a network admin configuration.
+        :yields: None, while the client is temporarily switched.
+        """
+        if self.user.is_mreg_network_admin:
+            yield
+        else:
+            with self.temporary_client(superuser=False, networkadmin=True):
+                yield
+
+    @contextmanager
+    def temporary_client_as_normal_user(self):
+        """
+        Temporarily switch the client to a normal user configuration.
+        :yields: None, while the client is temporarily switched.
+        """
+        with self.temporary_client(superuser=False, policyadmin=False, adminuser=False):
+            yield
+
+    @contextmanager
     def client_format(self, format: ClientTestFormat):
         """Context manager for setting the client format."""
         original_format = self.format
@@ -75,22 +138,30 @@ class MregAPITestCase(APITestCase):
         with self.client_format(ClientTestFormat.MULTIPART):
             yield
 
-    def get_token_client(self, username=None, superuser=True, adminuser=False):
+    def get_token_client(self, username=None, superuser=True, adminuser=False, policyadmin=False, networkadmin=False):
         if username is None:
             if superuser:
                 username = 'superuser'
             elif adminuser:
                 username = 'adminuser'
+            elif policyadmin:
+                username = 'policyadmin'
+            elif networkadmin:
+                username = 'networkadmin'
             else:
                 username = 'nobody'
-        self.user = get_user_model().objects.create_user(username=username,
-                                                         password="test")
+        self.user = cast(User, get_user_model().objects.create_user(username=username,
+                                                         password="test"))
         self.user.groups.clear()
-        token, created = ExpiringToken.objects.get_or_create(user=self.user)
+        token, _ = ExpiringToken.objects.get_or_create(user=self.user)
         if superuser:
-            self.add_user_to_groups('SUPERUSER_GROUP')
+            self.add_user_to_groups(MregAdminGroup.SUPERUSER.value)
         if adminuser:
-            self.add_user_to_groups('ADMINUSER_GROUP')
+            self.add_user_to_groups(MregAdminGroup.ADMINUSER.value)
+        if policyadmin:
+            self.add_user_to_groups(MregAdminGroup.HOSTPOLICY_ADMIN.value)
+        if networkadmin:
+            self.add_user_to_groups(MregAdminGroup.NETWORK_ADMIN.value)
         client = APIClient()
         client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
         return client
@@ -102,7 +173,7 @@ class MregAPITestCase(APITestCase):
         if not isinstance(groups, (list, tuple)):
             groups = (groups, )
         for groupname in groups:
-            group, created = Group.objects.get_or_create(name=groupname)
+            group, _ = Group.objects.get_or_create(name=groupname)
             group.user_set.add(self.user)
 
     @staticmethod

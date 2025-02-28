@@ -29,7 +29,7 @@ from mreg.api.v1.endpoints import URL
 class NetworkPolicyList(JSONContentTypeMixin, generics.ListCreateAPIView):
     queryset = NetworkPolicy.objects.all().order_by("id")
     serializer_class = NetworkPolicySerializer
-    permission_classes = (IsGrantedNetGroupRegexPermission,)
+    permission_classes = (IsSuperOrNetworkAdminMember,)
     ordering_fields = ("id",)
     filterset_class = NetworkPolicyFilterSet
 
@@ -62,7 +62,7 @@ class NetworkPolicyList(JSONContentTypeMixin, generics.ListCreateAPIView):
 class NetworkPolicyDetail(JSONContentTypeMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = NetworkPolicy.objects.all().order_by("id")
     serializer_class = NetworkPolicySerializer
-    permission_classes = (IsGrantedNetGroupRegexPermission,)
+    permission_classes = (IsSuperOrNetworkAdminMember,)
 
     def perform_update(self, serializer):
         with transaction.atomic():
@@ -113,7 +113,7 @@ class NetworkPolicyAttributeDetail(JSONContentTypeMixin, generics.RetrieveUpdate
 
 class NetworkCommunityList(JSONContentTypeMixin, generics.ListCreateAPIView):
     serializer_class = CommunitySerializer
-    permission_classes = (IsSuperOrNetworkAdminMember,)
+    permission_classes = (IsGrantedNetGroupRegexPermission | IsSuperOrNetworkAdminMember,)
     filterset_class = CommunityFilterSet
 
     def get_queryset(self):
@@ -159,7 +159,7 @@ class NetworkCommunityList(JSONContentTypeMixin, generics.ListCreateAPIView):
 # Retrieve, update, or delete a specific Community under a specific Network
 class NetworkCommunityDetail(JSONContentTypeMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = CommunitySerializer
-    permission_classes = (IsGrantedNetGroupRegexPermission,)
+    permission_classes = (IsGrantedNetGroupRegexPermission | IsSuperOrNetworkAdminMember,)
 
     def get_queryset(self):
         network = self.kwargs.get("network")
@@ -196,7 +196,7 @@ class HostInCommunityMixin(JSONContentTypeMixin):
 # List all hosts in a specific community, or add a host to a community
 class NetworkCommunityHostList(HostInCommunityMixin, generics.ListCreateAPIView):
     serializer_class = HostSerializer
-    permission_classes = (IsGrantedNetGroupRegexPermission, IsSuperOrNetworkAdminMember)
+    permission_classes = (IsGrantedNetGroupRegexPermission | IsSuperOrNetworkAdminMember,)
 
     def get_queryset(self):
         _, community = self.get_policy_and_community()
@@ -220,7 +220,7 @@ class NetworkCommunityHostList(HostInCommunityMixin, generics.ListCreateAPIView)
 # Retrieve or delete a specific host in a specific community
 class NetworkCommunityHostDetail(HostInCommunityMixin, generics.RetrieveDestroyAPIView):
     serializer_class = HostSerializer
-    permission_classes = (IsGrantedNetGroupRegexPermission, IsSuperOrNetworkAdminMember)
+    permission_classes = (IsGrantedNetGroupRegexPermission | IsSuperOrNetworkAdminMember,)
 
     def get_queryset(self):
         _, community = self.get_policy_and_community()

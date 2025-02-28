@@ -3,12 +3,13 @@ import urllib.parse
 from unittest_parametrize import ParametrizedTestCase, param, parametrize
 from django.db import transaction
 from django.test import override_settings
+from django.contrib.auth.models import Group
 
 from mreg.utils import is_protected_policy_attribute
 
 from mreg.models.network_policy import NetworkPolicy, NetworkPolicyAttribute, NetworkPolicyAttributeValue, Community
 from mreg.models.host import Host, Ipaddress
-from mreg.models.network import Network
+from mreg.models.network import Network, NetGroupRegexPermission
 
 from .tests import MregAPITestCase
 
@@ -883,3 +884,87 @@ class NetworkPolicyFilterTestCase(ParametrizedTestCase, MregAPITestCase):
             network.delete()
         for policy in self.policies:
             policy.delete()
+
+class NetworkPolicyPermissionsTestCase(ParametrizedTestCase, MregAPITestCase):
+    def setUp(self):
+        super().setUp()
+        self.set_client_format_json()
+
+    def grant_user_access_to_network(self, network: Network):
+        group, _ = Group.objects.get_or_create(name='testgroup')
+        group.user_set.add(self.user)
+        NetGroupRegexPermission.objects.create(group='testgroup',
+                                               range=network.network,
+                                               regex=r'^irrelevant$')
+        self.addCleanup(group.delete)
+
+    def test_permissions_create_network_policy(self):
+        """Test creating a network policy as different users."""
+        with self.temporary_client_as_normal_user():
+            self.assert_post_and_403(POLICY_ENDPOINT, data={"name": "policy"})
+        
+        with self.temporary_client_as_network_admin():
+            self.assert_post_and_201(POLICY_ENDPOINT, data={"name": "policy"})
+        
+        NetworkPolicy.objects.get(name="policy").delete()
+
+    def test_permissions_update_network_policy(self):
+        """Test updating a network policy as different users."""
+        policy = NetworkPolicy.objects.create(name="policy")
+        self.addCleanup(policy.delete)
+        with self.temporary_client_as_normal_user():
+            self.assert_patch_and_403(f"{POLICY_ENDPOINT}{policy.pk}", data={"name": "new_name"})
+        
+        with self.temporary_client_as_network_admin():
+            self.assert_patch_and_200(f"{POLICY_ENDPOINT}{policy.pk}", data={"name": "new_name"})
+        
+    def test_permissions_delete_network_policy(self):
+        """Test deleting a network policy as different users."""
+        policy = NetworkPolicy.objects.create(name="policy")
+        self.addCleanup(policy.delete)
+        with self.temporary_client_as_normal_user():
+            self.assert_delete_and_403(f"{POLICY_ENDPOINT}{policy.pk}")
+        
+        with self.temporary_client_as_network_admin():
+            self.assert_delete_and_204(f"{POLICY_ENDPOINT}{policy.pk}")
+
+    def test_permissions_create_community(self):
+        """Test creating a community as different users.
+        
+        Note that users with network permissions should be able to create communities within the network."""
+        network = Network.objects.create(network="10.0.0.0/24", description="test_network")
+        network_other = Network.objects.create(network="10.0.1.0/24", description="test_network_other")
+        self.addCleanup(network.delete)
+        self.addCleanup(network_other.delete)
+
+        with self.temporary_client_as_network_admin():
+            self.assert_post_and_201(f"{NETWORK_ENDPOINT}{network.network}/communities/", data={"name": "community"})
+            Community.objects.get(name="community").delete()
+
+        with self.temporary_client_as_normal_user():
+            self.assert_post_and_403(f"{NETWORK_ENDPOINT}{network.network}/communities/", data={"name": "community"})
+            self.grant_user_access_to_network(network_other)
+            self.assert_post_and_403(f"{NETWORK_ENDPOINT}{network.network}/communities/", data={"name": "community"})
+            self.grant_user_access_to_network(network)            
+            self.assert_post_and_201(f"{NETWORK_ENDPOINT}{network.network}/communities/", data={"name": "community"})
+            Community.objects.get(name="community").delete()
+
+    def test_permissions_update_community(self):
+        """Test updating a community as different users."""
+
+        network = Network.objects.create(network="10.0.0.0/24", description="test_network")
+        community = Community.objects.create(name="community", network=network)
+
+        with self.temporary_client_as_network_admin():
+            res = self.assert_patch_and_200(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}", data={"name": "new_name"})
+            self.assertEqual(res.json()['name'], "new_name")
+        
+        with self.temporary_client_as_normal_user():
+            self.assert_patch_and_403(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}", data={"name": "not_new_name"})
+            self.assertEqual(Community.objects.get(pk=community.pk).name, "new_name")
+
+            self.grant_user_access_to_network(network)
+            res = self.assert_patch_and_200(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}",
+                                            data={"name": "new_name_by_user"})
+            self.assertEqual(res.json()['name'], "new_name_by_user")
+
