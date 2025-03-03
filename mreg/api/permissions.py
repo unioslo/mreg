@@ -130,6 +130,10 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
     """
     Permit user if the user has been granted access through a
     NetGroupRegexPermission.
+
+    Note that if there is a network element in the URL, this class checks for access to the
+    network element itself and then short-circuits. This is URL only, so the user cannot manipulate
+    this input in the request body.
     """
 
     def has_permission(self, request, view):

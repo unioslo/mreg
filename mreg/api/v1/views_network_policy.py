@@ -4,7 +4,7 @@ from django.urls import reverse
 from rest_framework import generics, exceptions, status, response
 from mreg.models.network_policy import NetworkPolicy, NetworkPolicyAttribute, Community
 from mreg.models.network import Network
-from mreg.models.host import Host
+from mreg.models.host import Host, Ipaddress
 from mreg.api.v1.serializers import (
     NetworkPolicySerializer,
     NetworkPolicyAttributeSerializer,
@@ -207,11 +207,28 @@ class NetworkCommunityHostList(HostInCommunityMixin, generics.ListCreateAPIView)
     def create(self, request, *args, **kwargs):
         _, community = self.get_policy_and_community()
         host_id = request.data.get("id")
-
         ipaddress = request.data.get("ipaddress")
+        host = None
 
-        # Ensure host exists. If not, an appropriate 404 is raised.
-        host = generics.get_object_or_404(Host, pk=host_id)
+        if not host_id and not ipaddress:
+            raise exceptions.ValidationError("Either 'id' or 'ipaddress' is required")
+
+        if not host_id:
+            # Get host from IP address
+            ip_hits = Ipaddress.objects.filter(ipaddress=ipaddress)
+            ip = ip_hits.first()
+            if ip is None:
+                raise exceptions.NotFound(f"Host not found based on ip '{ipaddress}'.")
+            
+            if ip_hits.count() > 1:
+                raise exceptions.NotAcceptable(f"Multiple hosts found for ip '{ipaddress}', must provide host ID as well.")
+            
+            host = ip.host
+
+        if not host:
+            # Ensure host exists. If not, an appropriate 404 is raised.
+            host = generics.get_object_or_404(Host, pk=host_id)
+            
         host.add_to_community(community, ipaddress)
 
         return response.Response(HostSerializer(host).data, status=status.HTTP_201_CREATED)

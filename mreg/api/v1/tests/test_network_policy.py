@@ -528,9 +528,15 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         data = {"id": host.pk}
         self.assert_post_and_406(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}/hosts/", data=data)
 
+    def test_add_host_to_community_with_nonexistent_network(self):
+        """Test adding a host to a community with a nonexistant network."""
+        _, community, _, host, _ = self.create_policy_setup()
+
+        data = {"id": host.pk}
+        self.assert_post_and_404(f"{NETWORK_ENDPOINT}/10.99.99.00/24/communities/{community.pk}/hosts/", data=data)
 
     @override_settings(MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY=False)
-    def test_add_to_community_ok_with_ip(self):
+    def test_add_host_to_community_ok_with_ip(self):
         """Test adding a host to a community with an IP."""
         _, community, network, host, _ = self.create_policy_setup()
         ip = host.ipaddresses.first() # type: ignore
@@ -539,6 +545,41 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         ret = self.assert_post_and_201(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}/hosts/", data=data)
         self.assertEqual(ret.json()["name"], "hostwithcommunity.example.com")
         self.assertEqual(ret.json()["communities"][0]['ipaddress'], ip.pk)    
+
+    @override_settings(MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY=False)
+    def test_add_host_to_community_ok_with_ip_only(self):
+        """Test adding a host to a community with an IP only."""
+        _, community, network, host, _ = self.create_policy_setup()
+        ip = host.ipaddresses.first() # type: ignore
+
+        data = {"ipaddress": ip.ipaddress }
+        ret = self.assert_post_and_201(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}/hosts/", data=data)
+        self.assertEqual(ret.json()["name"], "hostwithcommunity.example.com")
+        self.assertEqual(ret.json()["communities"][0]['ipaddress'], ip.pk)    
+
+    @override_settings(MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY=True)
+    def test_add_host_to_community_ip_has_mac(self):
+        """Test adding a host to a community with an IP that has a MAC."""
+        _, community, network, host, ip = self.create_policy_setup()
+        ip.macaddress = "00:00:00:00:00:00"
+        ip.save()
+
+        data = {"id": host.pk, "ipaddress": ip.ipaddress}
+        ret = self.assert_post_and_201(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}/hosts/", data=data)
+        self.assertEqual(ret.json()["name"], "hostwithcommunity.example.com")
+        self.assertEqual(ret.json()["communities"][0]['ipaddress'], ip.pk)
+
+    @override_settings(MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY=False)
+    def test_add_host_to_community_with_ip_only_multiple_uses_of_ip_406(self):
+        """Test adding a host to a community with an IP that is used by multiple hosts."""
+        _, community, network, host, _ = self.create_policy_setup()
+        host2 = Host.objects.create(name="hostwithcommunity2.example.com")
+        ip = Ipaddress.objects.create(host=host2, ipaddress=host.ipaddresses.first().ipaddress) # type: ignore
+
+        data = {"ipaddress": ip.ipaddress}
+        self.assert_post_and_406(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}/hosts/", data=data)
+
+        host2.delete()
 
     def test_add_host_to_community_ip_does_not_exist(self):
         """Test adding a host to a community with an IP that does not exist."""
