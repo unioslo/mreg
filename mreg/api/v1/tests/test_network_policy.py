@@ -259,22 +259,22 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         self.assertIsNone(network.policy)
 
     @override_settings(MREG_CREATING_COMMUNITY_REQUIRES_POLICY_WITH_ATTRIBUTES=["isolated"])
-    def test_assign_policy_to_network_missing_attributes_400(self):
+    def test_assign_policy_to_network_missing_attributes(self):
         """Test assigning a policy to a network with missing attributes."""
         np = self._create_network_policy("test_policy", [])
         network = Network.objects.create(network="10.0.0.0/24", description="test_network")
-        self.assert_patch_and_400(f"{NETWORK_ENDPOINT}{network.network}", data={"policy": np.pk})
+        self.assert_patch_and_406(f"{NETWORK_ENDPOINT}{network.network}", data={"policy": np.pk})
         network.delete()
 
     @override_settings(MREG_CREATING_COMMUNITY_REQUIRES_POLICY_WITH_ATTRIBUTES=["isolated"])
-    def test_patch_network_with_policy_missing_attributes_400(self):
+    def test_patch_network_with_policy_missing_attributes(self):
         """Test updating a network with a policy with missing attributes."""
         np = self._create_network_policy("test_policy", [("isolated", True)])
         network = Network.objects.create(network="10.0.0.0/24", description="test_network")
         network.policy = np # type: ignore
         network.save()
         np_missing_attribute = self._create_network_policy("test_policy_missing_attribute", [])
-        self.assert_patch_and_400(f"{NETWORK_ENDPOINT}{network.network}", data={"policy": np_missing_attribute.pk})
+        self.assert_patch_and_406(f"{NETWORK_ENDPOINT}{network.network}", data={"policy": np_missing_attribute.pk})
         network.delete()
         np_missing_attribute.delete()
 
@@ -318,6 +318,23 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
             "description": "community desc",
         }
         self.assert_post_and_400(f"{NETWORK_ENDPOINT}{network.network}/communities/", data=data)
+
+    @override_settings(MREG_REQUIRE_VLAN_FOR_NETWORK_TO_HAVE_COMMUNITY=True)
+    def test_create_community_requires_vlan(self):
+        """Test creating a community without a VLAN."""
+        network = Network.objects.create(network="10.0.0.0/24", description="test_network")
+        data = {
+            "name": "community",
+            "description": "community desc",
+        }
+        self.assert_post_and_406(f"{NETWORK_ENDPOINT}{network.network}/communities/", data=data)
+
+        network.vlan = 42
+        network.save()
+
+        self.assert_post_and_201(f"{NETWORK_ENDPOINT}{network.network}/communities/", data=data)
+
+        network.delete()
 
     def test_create_community_name_already_exists_in_same_network_409(self):
         """Test creating a community with the same name in different networks works."""
@@ -411,7 +428,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         np = self._create_network_policy("empty_policy", [])
         net = Network.objects.create(network="10.0.0.0/24", description="test_network")
 
-        res = self.assert_post_and_400(f"{NETWORK_ENDPOINT}{net.network}/communities/",
+        res = self.assert_post_and_406(f"{NETWORK_ENDPOINT}{net.network}/communities/",
                                        data={"name": "community", "description": "community desc"})
 
         self.assertEqual(res.json()['error'], "Network does not have a policy. The policy must have the following attributes: ['isolated']")
@@ -419,7 +436,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         net.policy = np # type: ignore
         net.save()
 
-        res = self.assert_post_and_400(f"{NETWORK_ENDPOINT}{net.network}/communities/",
+        res = self.assert_post_and_406(f"{NETWORK_ENDPOINT}{net.network}/communities/",
                                        data={"name": "community", "description": "community desc"})
 
         self.assertEqual(res.json()['error'], "Network policy 'empty_policy' is missing the following required attributes: ['isolated']")
@@ -784,7 +801,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         """Test that we can only have a certain number of communities per network."""
         _, _, network, _, _ = self.create_policy_setup()
 
-        res = self.assert_post_and_400(f"{NETWORK_ENDPOINT}{network.network}/communities/", data={"name": "c2", "description": "c2desc"})
+        res = self.assert_post_and_406(f"{NETWORK_ENDPOINT}{network.network}/communities/", data={"name": "c2", "description": "c2desc"})
         self.assertEqual(res.json()['error'], f"Network '{network.network}' already has the maximum allowed communities (1).")
 
     @override_settings(MREG_MAX_COMMUNITES_PER_NETWORK=1)

@@ -273,6 +273,9 @@ class MregAPITestCase(APITestCase):
     def assert_patch_and_405(self, path, *args, **kwargs):
         return self._assert_patch_and_status(path, 405, *args, **kwargs)
 
+    def assert_patch_and_406(self, path, *args, **kwargs):
+        return self._assert_patch_and_status(path, 406, *args, **kwargs)
+    
     def assert_patch_and_409(self, path, *args, **kwargs):
         return self._assert_patch_and_status(path, 409, *args, **kwargs)
 

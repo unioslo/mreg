@@ -71,7 +71,7 @@ class NetworkPolicy(BaseModel):
             )
             missing_attributes = [attr for attr in required_attributes if attr not in current_attributes]
             if missing_attributes:
-                raise exceptions.ValidationError(
+                raise exceptions.NotAcceptable(
                     {
                         "error":
                         f"Network policy '{self.name}' is missing the following required attributes: {missing_attributes}"
@@ -128,7 +128,7 @@ class Community(BaseModel):
             if self.network.policy:
                 self.network.policy.can_be_used_with_communities_or_raise()
             else:
-                raise exceptions.ValidationError(
+                raise exceptions.NotAcceptable(
                     {
                         "error":
                         f"Network does not have a policy. The policy must have the following attributes: {required_attributes}" 
@@ -143,10 +143,15 @@ class Community(BaseModel):
             if self.pk:
                 qs = qs.exclude(pk=self.pk)
             if qs.count() >= max_communities:
-                raise exceptions.ValidationError(
+                raise exceptions.NotAcceptable(
                     {"error": f"Network '{self.network}' already has the maximum allowed communities ({max_communities})." }
                 )
 
+        vlan_required_for_network = getattr(settings, "MREG_REQUIRE_VLAN_FOR_NETWORK_TO_HAVE_COMMUNITY", False)
+        if vlan_required_for_network and not self.network.vlan:
+            raise exceptions.NotAcceptable(
+                {"error": f"Network '{self.network}' does not have a VLAN assigned, which is required to create a community."}
+            )
 
     def save(self, *args, **kwargs):
         # Run full_clean() to ensure clean() is invoked even when using objects.create()
