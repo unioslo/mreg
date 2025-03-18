@@ -239,6 +239,16 @@ class HostCommunityMappingSerializer(serializers.ModelSerializer):
         model = HostCommunityMapping
         fields = ('ipaddress', 'community')
 
+class SrvSerializer(ForwardZoneMixin, serializers.ModelSerializer):
+    class Meta:
+        model = Srv
+        fields = '__all__'
+
+
+class NaptrSerializer(ValidationMixin, serializers.ModelSerializer):
+    class Meta:
+        model = Naptr
+        fields = '__all__'
 
 class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
     """
@@ -249,6 +259,23 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
     mxs = MxSerializer(many=True, read_only=True)
     txts = TxtSerializer(many=True, read_only=True)
     ptr_overrides = PtrOverrideSerializer(many=True, read_only=True)
+    srvs = SrvSerializer(many=True, read_only=True)
+    naptrs = NaptrSerializer(many=True, read_only=True)
+    sshfps = SshfpSerializer(many=True, read_only=True)
+
+    groups = serializers.SlugRelatedField(
+        many=True,
+        read_only=True,
+        slug_field='name',
+        source='hostgroups'
+    )
+
+    roles = serializers.SlugRelatedField(
+        many=True,
+        read_only=True,
+        slug_field='name',
+        source='hostpolicyroles'
+    )
     hinfo = HinfoSerializer(read_only=True)
     loc = LocSerializer(read_only=True)
     bacnetid = BACnetID_ID_Serializer(read_only=True)
@@ -374,10 +401,6 @@ class HostNameSerializer(ValidationMixin, serializers.ModelSerializer):
         fields = ('name',)
 
 
-class NaptrSerializer(ValidationMixin, serializers.ModelSerializer):
-    class Meta:
-        model = Naptr
-        fields = '__all__'
 
 
 class NameServerSerializer(ValidationMixin, serializers.ModelSerializer):
@@ -385,11 +408,6 @@ class NameServerSerializer(ValidationMixin, serializers.ModelSerializer):
         model = NameServer
         fields = '__all__'
 
-
-class SrvSerializer(ForwardZoneMixin, serializers.ModelSerializer):
-    class Meta:
-        model = Srv
-        fields = '__all__'
 
 
 class NetworkExcludedRangeSerializer(ValidationMixin, serializers.ModelSerializer):
