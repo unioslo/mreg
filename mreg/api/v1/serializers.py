@@ -261,7 +261,7 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
     ptr_overrides = PtrOverrideSerializer(many=True, read_only=True)
     srvs = SrvSerializer(many=True, read_only=True)
     naptrs = NaptrSerializer(many=True, read_only=True)
-    sshfps = SshfpSerializer(many=True, read_only=True)
+    sshfps = SshfpSerializer(many=True, read_only=True, source="sshfp_set")
 
     groups = serializers.SlugRelatedField(
         many=True,
