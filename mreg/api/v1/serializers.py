@@ -263,11 +263,10 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
     naptrs = NaptrSerializer(many=True, read_only=True)
     sshfps = SshfpSerializer(many=True, read_only=True, source="sshfp_set")
 
-    groups = serializers.SlugRelatedField(
+    hostgroups = serializers.SlugRelatedField(
         many=True,
         read_only=True,
         slug_field='name',
-        source='hostgroups'
     )
 
     roles = serializers.SlugRelatedField(
