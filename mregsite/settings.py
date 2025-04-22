@@ -106,6 +106,7 @@ INSTALLED_APPS = [
     'netfields',
     'mreg',
     'hostpolicy',
+    'drf_standardized_errors',
 ]
 
 MIDDLEWARE = [
@@ -197,6 +198,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
 
 
 REST_FRAMEWORK = {
+    # Defaults
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "mreg.authentication.ExpiringTokenAuthentication",
     ),
@@ -209,6 +211,9 @@ REST_FRAMEWORK = {
         'mreg.api.permissions.IsAuthenticatedAndReadOnly',
     ),
     'DEFAULT_SCHEMA_CLASS': 'rest_framework.schemas.openapi.AutoSchema',
+    
+    # Other settings
+    "EXCEPTION_HANDLER": "drf_standardized_errors.handler.exception_handler"
 }
 
 REST_FRAMEWORK_EXTENSIONS = {
