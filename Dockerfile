@@ -13,7 +13,7 @@ RUN apk add --virtual build-deps gcc python3-dev openldap-dev musl-dev git
 # and we need to keep the .git directory intact.
 # The workaround is to copy everything, but limit it with .dockerignore.
 COPY . .
-COPY --from=ghcr.io/astral-sh/uv:0.4.30 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.6.16 /uv /uvx /bin/
 RUN  uv venv \
     && uv sync --frozen --no-dev  \
     && uv export --no-hashes -o requirements.txt \
@@ -33,7 +33,7 @@ COPY mregsite /app/mregsite/
 RUN  mkdir /app/logs
 COPY hostpolicy /app/hostpolicy/
 COPY --from=builder /usr/src/mreg/wheels /wheels
-COPY --from=ghcr.io/astral-sh/uv:0.4.30 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.6.16 /uv /uvx /bin/
 RUN apk update && apk upgrade \
     && apk add python3 libldap vim findutils \
     && uv venv \
