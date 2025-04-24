@@ -1,8 +1,9 @@
 # build stage
 FROM python:3.11-alpine AS builder
 WORKDIR /usr/src/mreg
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV UV_FROZEN=1
 
 RUN apk update
 RUN apk add --virtual build-deps gcc python3-dev openldap-dev musl-dev git
