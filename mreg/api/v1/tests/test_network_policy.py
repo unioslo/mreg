@@ -773,7 +773,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
     @override_settings(MREG_MAX_COMMUNITES_PER_NETWORK=20) # Also implies one zero-padded index
     def test_community_mapping_enabled(self):
         """Test that the community mapping works."""
-        _, community, network, _, _ = self.create_policy_setup()
+        policy, community, network, _, _ = self.create_policy_setup()
 
         res = self.assert_get(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}")
         self.assertEqual(res.json()['global_name'], "community01")
@@ -785,8 +785,46 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         res = self.assert_get(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}")
         self.assertEqual(res.json()['global_name'], "community01")
 
+        policy.community_mapping_prefix = "test"
+        policy.save()
+
+        res = self.assert_get(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}")
+        self.assertEqual(res.json()['global_name'], "test01")
+        res = self.assert_get(f"{NETWORK_ENDPOINT}{network.network}/communities/{community_other.pk}")
+        self.assertEqual(res.json()['global_name'], "test02")                
 
         community_other.delete()
+
+
+    @parametrize(
+        ("community_mapping_prefix", "return_value"),
+        [
+            param("community", 201, id="community"),
+            param("has_underscore", 201, id="has_underscore"),
+            param("has89", 201, id="has_number"),
+            param("has-dash", 400, id="has_dash"),
+            param("is_longer_than_100_chars_" + "a" * 100, 400, id="too_long"),
+            param("has space", 400, id="has_space"),
+            param("has@special", 400, id="has_special"),
+            param("has#special", 400, id="has_special_2"),
+        ]
+    )
+    def test_community_mapping_prefix_validation(self, community_mapping_prefix: str, return_value: int):
+        """Test that the community mapping prefix is validated."""
+        data = {
+            "name": "test",
+            "description": "test",
+            "community_mapping_prefix": community_mapping_prefix,
+        }
+
+        if return_value == 201:
+            res = self.assert_post_and_201(f"{POLICY_ENDPOINT}", data=data)
+            id = res.json()['id']
+            self.assert_delete_and_204(f"{POLICY_ENDPOINT}{id}")
+        else:
+            self.assert_post_and_400(f"{POLICY_ENDPOINT}", data=data)
+
+
 
     @override_settings(MREG_MAP_GLOBAL_COMMUNITY_NAMES=False)
     def test_community_mapping_disabled(self):

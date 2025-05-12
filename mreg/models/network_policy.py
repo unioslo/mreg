@@ -8,6 +8,7 @@ from mreg.models.network import Network
 from rest_framework import exceptions
 
 from mreg.utils import is_protected_policy_attribute
+from mreg.validators import validate_community_prefix_mapping_name
 
 class NetworkPolicyAttribute(BaseModel):
     """
@@ -51,6 +52,12 @@ class NetworkPolicy(BaseModel):
         through="NetworkPolicyAttributeValue",
         related_name="policies",
         help_text="Attributes associated with this policy.",
+    )
+    community_mapping_prefix = models.CharField(
+        blank=True,
+        null=True,
+        validators=[validate_community_prefix_mapping_name],
+        help_text="Prefix for mapped community names. If not set, the default will be used. This only applies if communities are mapped.",
     )
 
     def can_be_used_with_communities_or_raise(self):

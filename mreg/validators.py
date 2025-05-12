@@ -4,6 +4,7 @@ import string
 import idna
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
+from django.conf import settings
 from rest_framework import serializers
 
 from .utils import get_network_from_zonename
@@ -151,6 +152,16 @@ def validate_regex(regex):
         re.compile(regex)
     except re.error as e:
         raise ValidationError(str(e))
+
+
+def validate_community_prefix_mapping_name(name):
+    """Validates that the policy name is valid."""
+    if len(name) > getattr(settings, "MREG_COMMUNITY_PREFIX_MAX_LENGTH", 100):
+        raise ValidationError("Policy name is too long")
+
+    name_regex = getattr(settings, "MREG_COMMUNITY_PREFIX_ALLOWED_REGEX", "^[a-zA-Z0-9_]+$")
+    validator = RegexValidator(name_regex, message="Must match: " + name_regex)
+    validator(name)
 
 
 def validate_srv_service_text(servicetext):

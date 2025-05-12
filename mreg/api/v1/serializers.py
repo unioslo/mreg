@@ -45,6 +45,17 @@ class CommunitySerializer(serializers.ModelSerializer):
             return None
 
         prefix = getattr(settings, "MREG_GLOBAL_COMMUNITY_PREFIX", "community")
+
+        network = obj.network
+        if network is None:
+            raise ValueError({"error": f"Community {obj} has no network."})
+        
+        policy = network.policy
+        if policy is None:
+            raise ValueError({"error": f"Community {obj} has no network policy."})
+        
+        if policy.community_mapping_prefix:
+            prefix = policy.community_mapping_prefix
         
         # Retrieve all communities for the network in a stable order (using pk).
         communities = obj.network.communities.order_by("pk")
@@ -82,7 +93,7 @@ class ForwardZoneMixin(ValidationMixin):
             hostname = data['name']
             zone = ForwardZone.get_zone_by_hostname(hostname)
             if zone is not None and zone.name != hostname:
-                for delegation in zone.delegations.all():
+                for delegation in zone.delegations.all(): # type: ignore (reverse relation)
                     if hostname == delegation.name or hostname.endswith(f".{delegation.name}"):
                         # this host is in a delegation
                         zone = None
@@ -605,7 +616,7 @@ class NetworkPolicySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = NetworkPolicy
-        fields = ['id', 'name', 'description', 'attributes', 'communities', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'description', 'attributes', 'communities', 'community_mapping_prefix', 'created_at', 'updated_at']
 
     def validate_name(self, value):
         value = value.lower()
