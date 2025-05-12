@@ -2,7 +2,7 @@ from django.db import transaction
 from django.urls import reverse
 
 from rest_framework import generics, exceptions, status, response
-from mreg.models.network_policy import NetworkPolicy, NetworkPolicyAttribute, Community
+from mreg.models.network_policy import NetworkPolicy, NetworkPolicyAttribute, Community, HostCommunityMapping
 from mreg.models.network import Network
 from mreg.models.host import Host, Ipaddress
 from mreg.api.v1.serializers import (
@@ -21,9 +21,29 @@ from mreg.api.v1.filters import (
 
 from mreg.api.errors import ValidationError409
 
-from mreg.api.v1.views import JSONContentTypeMixin
+from mreg.api.v1.views import JSONContentTypeMixin, HistoryLog
 from mreg.api.permissions import IsGrantedNetGroupRegexPermission, IsSuperOrNetworkAdminMember
 from mreg.api.v1.endpoints import URL
+
+class CommunityLogMixin(HistoryLog):
+    log_resource = "community"
+    model = Community
+    foreign_key_name = "community"
+
+    @staticmethod
+    def manipulate_data(action, serializer, data, orig_data):
+        """Manipulate the data for the history log."""
+        pass
+
+class HostCommunityMappingLogMixin(HistoryLog):
+    log_resource = "community"
+    model = HostCommunityMapping
+    foreign_key_name = "host"
+
+    @staticmethod
+    def manipulate_data(action, serializer, data, orig_data):
+        """Manipulate the data for the history log."""
+        pass
 
 
 class NetworkPolicyList(JSONContentTypeMixin, generics.ListCreateAPIView):
@@ -111,7 +131,7 @@ class NetworkPolicyAttributeDetail(JSONContentTypeMixin, generics.RetrieveUpdate
     permission_classes = (IsSuperOrNetworkAdminMember,)
 
 
-class NetworkCommunityList(JSONContentTypeMixin, generics.ListCreateAPIView):
+class NetworkCommunityList(JSONContentTypeMixin, CommunityLogMixin, generics.ListCreateAPIView):
     serializer_class = CommunitySerializer
     permission_classes = (IsGrantedNetGroupRegexPermission | IsSuperOrNetworkAdminMember,)
     filterset_class = CommunityFilterSet
@@ -146,6 +166,7 @@ class NetworkCommunityList(JSONContentTypeMixin, generics.ListCreateAPIView):
         
         with transaction.atomic():
             community = serializer.save(network=network)
+            self.save_log_create(serializer)
         headers = self.get_success_headers(serializer.data)
 
         # Dynamically generate the Location URL
@@ -157,7 +178,7 @@ class NetworkCommunityList(JSONContentTypeMixin, generics.ListCreateAPIView):
 
 
 # Retrieve, update, or delete a specific Community under a specific Network
-class NetworkCommunityDetail(JSONContentTypeMixin, generics.RetrieveUpdateDestroyAPIView):
+class NetworkCommunityDetail(JSONContentTypeMixin, CommunityLogMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = CommunitySerializer
     permission_classes = (IsGrantedNetGroupRegexPermission | IsSuperOrNetworkAdminMember,)
 
@@ -172,7 +193,7 @@ class NetworkCommunityDetail(JSONContentTypeMixin, generics.RetrieveUpdateDestro
         return obj
 
 
-class HostInCommunityMixin(JSONContentTypeMixin):
+class HostInCommunityMixin(JSONContentTypeMixin, HostCommunityMappingLogMixin):
     def get_policy_and_community(self):
         network= self.kwargs.get("network")  # type: ignore
         cpk = self.kwargs.get("cpk")  # type: ignore
