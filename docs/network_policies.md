@@ -43,6 +43,7 @@ A **Network Policy** is a named entity grouping a set of attributes (via **Polic
 - **Name**: Human-readable case insensitive identifier of the policy.
 - **Description**: A brief description of the policy.
 - **Attributes**: A list of attributes that apply to this policy (see below).
+- **Community_mapping_prefix**: A prefix used to map community names to a global name. If `MREG_MAP_GLOBAL_COMMUNITY_NAMES` is set to `True`, this prefix will be used to create a global name for the community. If not set, the global name adhere to the default from the setting `MREG_GLOBAL_COMMUNITY_PREFIX`.
 
 ### Policy Attributes
 
