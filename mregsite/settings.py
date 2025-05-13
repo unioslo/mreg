@@ -13,10 +13,19 @@ https://docs.djangoproject.com/en/2.0/ref/settings/
 import logging.config
 import os
 import sys
+from typing import Literal
 
 import structlog
 
 import mreg.log_processors
+
+
+def envvar_bool(var: str, default: Literal["true", "false"] = "false"):
+    """Return the value of an environment variable as a boolean."""
+    value = os.environ.get(var, default).lower()
+    if value in ["true", "1", "yes", "y"]:
+        return True
+    return False
 
 TESTING = len(sys.argv) > 1 and sys.argv[1] == "test"
 
@@ -54,7 +63,7 @@ MREG_CREATING_COMMUNITY_REQUIRES_POLICY_WITH_ATTRIBUTES = [] # [ "isolated" ]
 
 MREG_MAX_COMMUNITES_PER_NETWORK = 20
 
-MREG_MAP_GLOBAL_COMMUNITY_NAMES = False
+MREG_MAP_GLOBAL_COMMUNITY_NAMES = envvar_bool("MREG_MAP_GLOBAL_COMMUNITY_NAMES")
 MREG_GLOBAL_COMMUNITY_PREFIX = "community"
 MREG_COMMUNITY_PREFIX_ALLOWED_REGEX = r"^[a-zA-Z0-9_]+$"
 MREG_COMMUNITY_PREFIX_MAX_LENGTH = 100
