@@ -152,7 +152,25 @@ class ForwardZoneMember(BaseModel):
 class ExpiringToken(Token):
     last_used = models.DateTimeField(auto_now=True)
 
+    @classmethod
+    def expire_time_in_hours(cls) -> int:
+        """
+        Return the expiration time for the token.
+        """
+        return getattr(settings, "REST_FRAMEWORK_TOKEN_EXPIRE_HOURS", 8)
+
     @property
     def is_expired(self):
-        EXPIRE_HOURS = getattr(settings, "REST_FRAMEWORK_TOKEN_EXPIRE_HOURS", 8)
-        return self.last_used < timezone.now() - timedelta(hours=EXPIRE_HOURS)
+        return self.last_used < timezone.now() - timedelta(hours=self.expire_time_in_hours())
+
+    @property
+    def created_at(self):
+        return self.created
+
+    @property
+    def expire_at(self):
+        return self.created + timedelta(hours=self.expire_time_in_hours())
+    
+    @property
+    def lifespan_left(self):
+        return self.expire_at - timezone.now()
