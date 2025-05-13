@@ -140,7 +140,7 @@ class UserInfo(APIView):
                 "created": token.created_at.astimezone(),
                 "expire": token.expire_at.astimezone(),
                 "last_used": token.last_used.astimezone() if token.last_used else None,
-                "lifespan_left": str(token.lifespan_left)
+                "lifespan": str(token.lifespan_left)
             }
             
         data = {
