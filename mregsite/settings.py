@@ -28,10 +28,9 @@ def envvar(var: str, default: DefaultT) -> DefaultT:
     
     The type of the default value specifies the return type.
     """
-    val = os.environ.get(var, None)
-    v = val if val is not None else default
+    val = os.environ.get(var, default)
     try:
-        return type(default)(v)
+        return type(default)(val)
     except ValueError:
         return default
 
