@@ -20,7 +20,7 @@ import structlog
 import mreg.log_processors
 
 
-DefaultT = TypeVar("DefaultT", str, int, float, bool, None)
+DefaultT = TypeVar("DefaultT", str, int, float, bool)
 
 
 def envvar(var: str, default: DefaultT) -> DefaultT:
@@ -29,7 +29,7 @@ def envvar(var: str, default: DefaultT) -> DefaultT:
     The type of the default value specifies the return type.
     """
     val = os.environ.get(var, None)
-    if val is None or default is None:
+    if val is None:
         return default
     
     if isinstance(default, str):
