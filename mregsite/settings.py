@@ -13,19 +13,40 @@ https://docs.djangoproject.com/en/2.0/ref/settings/
 import logging.config
 import os
 import sys
+from typing import TypeVar
 
 import structlog
 
 import mreg.log_processors
 
 
-def envvar_bool(var: str, default: bool) -> bool:
-    """Return the value of an environment variable as a boolean."""
-    d = str(default).lower()
-    value = os.environ.get(var, d).lower()
-    if value in ["true", "1", "yes", "y"]:
-        return True
-    return False
+DefaultT = TypeVar("DefaultT", str, int, float, bool, None)
+
+
+def envvar(var: str, default: DefaultT) -> DefaultT:
+    """Get the value of an environment variable as a specific type.
+    
+    The type of the default value specifies the return type.
+    """
+    val = envvar(var, None)
+    if val is None or default is None:
+        return default
+    
+    if isinstance(default, str):
+        return val
+    elif isinstance(default, bool):
+        return str(val).lower() in ["true", "1", "yes", "y"]
+    elif isinstance(default, int):
+        try:
+            return int(val)
+        except ValueError:
+            return default
+    elif isinstance(default, float): # pyright: ignore[reportUnnecessaryIsInstance] # type is always float here, but we might want to expand this in the future?
+        try:
+            return float(val)
+        except ValueError:
+            return default
+
 
 TESTING = len(sys.argv) > 1 and sys.argv[1] == "test"
 
@@ -38,7 +59,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = ")e#67040xjxar=zl^y#@#b*zilv2dxtraj582$^(e6!wf++_n#"
 
-LOG_LEVEL = os.environ.get("MREG_LOG_LEVEL", "CRITICAL").upper()
+LOG_LEVEL = envvar("MREG_LOG_LEVEL", "CRITICAL").upper()
 
 REQUESTS_THRESHOLD_SLOW = 1000
 REQUESTS_LOG_LEVEL_SLOW = "WARNING"
@@ -48,10 +69,10 @@ REQUESTS_LOG_LEVEL_VERY_SLOW = "CRITICAL"
 
 LOGGING_MAX_BODY_LENGTH = 3000
 
-LOG_FILE_SIZE = os.environ.get("MREG_LOG_FILE_SIZE", 50 * 1024 * 1024)
-LOG_FILE_COUNT = os.environ.get("MREG_LOG_FILE_COUNT", 10)
+LOG_FILE_SIZE = envvar("MREG_LOG_FILE_SIZE", 50 * 1024 * 1024)
+LOG_FILE_COUNT = envvar("MREG_LOG_FILE_COUNT", 10)
 LOG_FILE_NAME = os.path.join(
-    BASE_DIR, os.environ.get("MREG_LOG_FILE_NAME", "logs/app.log")
+    BASE_DIR, envvar("MREG_LOG_FILE_NAME", "logs/app.log")
 )
 
 
@@ -63,7 +84,7 @@ MREG_CREATING_COMMUNITY_REQUIRES_POLICY_WITH_ATTRIBUTES = [] # [ "isolated" ]
 
 MREG_MAX_COMMUNITES_PER_NETWORK = 20
 
-MREG_MAP_GLOBAL_COMMUNITY_NAMES = envvar_bool("MREG_MAP_GLOBAL_COMMUNITY_NAMES", False)
+MREG_MAP_GLOBAL_COMMUNITY_NAMES = envvar("MREG_MAP_GLOBAL_COMMUNITY_NAMES", False)
 MREG_GLOBAL_COMMUNITY_PREFIX = "community"
 MREG_COMMUNITY_PREFIX_ALLOWED_REGEX = r"^[a-zA-Z0-9_]+$"
 MREG_COMMUNITY_PREFIX_MAX_LENGTH = 100
@@ -167,11 +188,11 @@ WSGI_APPLICATION = "mregsite.wsgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.environ.get("MREG_DB_NAME", "mreg"),
-        "USER": os.environ.get("MREG_DB_USER", "mreg"),
-        "PASSWORD": os.environ.get("MREG_DB_PASSWORD", ""),
-        "HOST": os.environ.get("MREG_DB_HOST", "localhost"),
-        "PORT": os.environ.get("MREG_DB_PORT", "5432"),
+        "NAME": envvar("MREG_DB_NAME", "mreg"),
+        "USER": envvar("MREG_DB_USER", "mreg"),
+        "PASSWORD": envvar("MREG_DB_PASSWORD", ""),
+        "HOST": envvar("MREG_DB_HOST", "localhost"),
+        "PORT": envvar("MREG_DB_PORT", "5432"),
     }
 }
 
