@@ -29,23 +29,11 @@ def envvar(var: str, default: DefaultT) -> DefaultT:
     The type of the default value specifies the return type.
     """
     val = os.environ.get(var, None)
-    if val is None:
+    v = val if val is not None else default
+    try:
+        return type(default)(v)
+    except ValueError:
         return default
-    
-    if isinstance(default, str):
-        return val
-    elif isinstance(default, bool):
-        return str(val).lower() in ["true", "1", "yes", "y"]
-    elif isinstance(default, int):
-        try:
-            return int(val)
-        except ValueError:
-            return default
-    elif isinstance(default, float): # pyright: ignore[reportUnnecessaryIsInstance] # type is always float here, but we might want to expand this in the future?
-        try:
-            return float(val)
-        except ValueError:
-            return default
 
 
 TESTING = len(sys.argv) > 1 and sys.argv[1] == "test"
