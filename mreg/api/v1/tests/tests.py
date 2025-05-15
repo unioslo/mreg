@@ -869,7 +869,19 @@ class HinfoTestCase(MregAPITestCase):
 
     def test_post_must_have_both_fields_400_bad_request(self):
         ret = self.assert_post_and_400('/hinfos/', {'host': self.host.id, 'cpu': 'cpuname'})
-        self.assertEqual(ret.json(), {'os': ['This field is required.']})
+        self.assertEqual(
+            ret.json(), 
+            {
+                'errors': [
+                    {
+                        'attr': 'os',
+                        'code': 'required',
+                        'detail': 'This field is required.'
+                    }
+                ],
+                'type': 'validation_error'
+            }
+        )
         self.assert_post_and_400('/hinfos/', {'host': self.host.id, 'os': 'superos'})
 
     def test_patch_204_ok(self):
