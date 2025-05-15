@@ -8,6 +8,7 @@ import ldap
 import structlog
 from django.conf import settings
 from django_auth_ldap.backend import LDAPBackend
+from django.contrib.auth.models import update_last_login
 from psycopg2 import __libpq_version__ as libpq_version
 from rest_framework import serializers, status
 from rest_framework.authtoken.views import ObtainAuthToken
@@ -75,6 +76,12 @@ class ObtainExpiringAuthToken(ObtainAuthToken):
             ExpiringToken.objects.filter(user=user).delete()
             token, _ = ExpiringToken.objects.get_or_create(user=user)
 
+        # django.contrib.auth.models.update_last_login expects to be a signal receiver.
+        # But, it does not use its first argument, so it is safe to pass it None even if
+        # the stubs complain.
+        userobject = User.objects.get(username=user)
+        update_last_login(None, userobject) # type: ignore[call-arg]
+
         return Response({"token": token.key})
 
 
@@ -125,8 +132,21 @@ class UserInfo(APIView):
             group__in=[group.name for group in target_groups]
         )
         
+        token = ExpiringToken.objects.filter(user=target_user).first()
+        token_data = None
+        if token:
+            token_data = {
+                "is_valid": not token.is_expired,
+                "created": token.created_at.astimezone(),
+                "expire": token.expire_at.astimezone(),
+                "last_used": token.last_used.astimezone() if token.last_used else None,
+                "lifespan": str(token.lifespan_left)
+            }
+            
         data = {
             "username": target_user.username,
+            "last_login": target_user.last_login.astimezone() if target_user.last_login else None,
+            "token": token_data if token else None,
             "django_status": {
                 "superuser": target_user.is_superuser,
                 "staff": target_user.is_staff,
