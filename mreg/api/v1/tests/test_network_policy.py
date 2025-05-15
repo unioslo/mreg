@@ -431,7 +431,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         res = self.assert_post_and_406(f"{NETWORK_ENDPOINT}{net.network}/communities/",
                                        data={"name": "community", "description": "community desc"})
 
-        self.assertEqual(res.json()['error'], "Network does not have a policy. The policy must have the following attributes: ['isolated']")
+        self.assertEqual(res.json()['errors'][0]['detail'], "Network does not have a policy. The policy must have the following attributes: ['isolated']")
 
         net.policy = np # type: ignore
         net.save()
@@ -439,7 +439,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         res = self.assert_post_and_406(f"{NETWORK_ENDPOINT}{net.network}/communities/",
                                        data={"name": "community", "description": "community desc"})
 
-        self.assertEqual(res.json()['error'], "Network policy 'empty_policy' is missing the following required attributes: ['isolated']")
+        self.assertEqual(res.json()['errors'][0]['detail'], "Network policy 'empty_policy' is missing the following required attributes: ['isolated']")
 
         np.attributes.set([self._get_protected_attribute("isolated")])
         np.save()
@@ -840,7 +840,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         _, _, network, _, _ = self.create_policy_setup()
 
         res = self.assert_post_and_406(f"{NETWORK_ENDPOINT}{network.network}/communities/", data={"name": "c2", "description": "c2desc"})
-        self.assertEqual(res.json()['error'], f"Network '{network.network}' already has the maximum allowed communities (1).")
+        self.assertEqual(res.json()['errors'][0]['detail'], f"Network '{network.network}' already has the maximum allowed communities (1).")
 
     @override_settings(MREG_MAX_COMMUNITES_PER_NETWORK=1)
     def test_max_communities_per_network_allows_patch(self):
