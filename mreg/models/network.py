@@ -20,6 +20,15 @@ class Network(BaseModel):
     frozen = models.BooleanField(default=False)
     reserved = models.PositiveIntegerField(default=3)
 
+    policy = models.ForeignKey(
+        "NetworkPolicy",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='networks',
+        help_text="Optional policy applied to the network."
+    )
+
     objects = NetManager()
 
     class Meta:

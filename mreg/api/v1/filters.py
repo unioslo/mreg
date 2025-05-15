@@ -16,6 +16,8 @@ from mreg.models.resource_records import (Cname, Hinfo, Loc, Mx, Naptr, Srv,
 from mreg.models.zone import (ForwardZone, ForwardZoneDelegation, NameServer,
                               ReverseZone, ReverseZoneDelegation)
 
+from mreg.models.network_policy import (NetworkPolicyAttribute, NetworkPolicy, Community)
+
 from netaddr import IPNetwork, AddrFormatError
 
 mreg_log = structlog.getLogger(__name__)
@@ -310,6 +312,9 @@ class NetworkFilterSet(filters.FilterSet):
             "location": STRING_OPERATORS,
             "frozen": EXACT_OPERATORS,
             "reserved": INT_OPERATORS,
+            "policy": INT_OPERATORS,
+            "policy__name": STRING_OPERATORS,
+            "policy__description": STRING_OPERATORS,
             **CREATED_UPDATED,
         }
 
@@ -406,5 +411,39 @@ class TxtFilterSet(filters.FilterSet):
             "id": INT_OPERATORS,
             "txt": STRING_OPERATORS,
             **HOST_FIELDS,
+            **CREATED_UPDATED,
+        }
+
+class NetworkPolicyAttributeFilterSet(filters.FilterSet):
+    class Meta:
+        model = NetworkPolicyAttribute
+        fields = {
+            "id": INT_OPERATORS,
+            "name": STRING_OPERATORS,
+            "description": STRING_OPERATORS,
+            **CREATED_UPDATED,
+        }
+
+class NetworkPolicyFilterSet(filters.FilterSet):
+    class Meta:
+        model = NetworkPolicy
+        fields = {
+            "id": INT_OPERATORS,
+            "name": STRING_OPERATORS,
+            "description": STRING_OPERATORS,
+            "attributes": INT_OPERATORS,
+            "attributes__name": STRING_OPERATORS,
+            "attributes__description": STRING_OPERATORS,
+            **CREATED_UPDATED,
+        }
+
+class CommunityFilterSet(filters.FilterSet):
+    class Meta:
+        model = Community
+        fields = {
+            "id": INT_OPERATORS,
+            "network": INT_OPERATORS,
+            "name": STRING_OPERATORS,
+            "description": STRING_OPERATORS,
             **CREATED_UPDATED,
         }

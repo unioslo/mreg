@@ -10,7 +10,7 @@ from django_filters import rest_framework as rest_filters
 
 from rest_framework import filters, generics, status
 from rest_framework.decorators import api_view
-from rest_framework.exceptions import MethodNotAllowed, ParseError
+from rest_framework.exceptions import MethodNotAllowed, ParseError, UnsupportedMediaType
 from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -18,6 +18,7 @@ from mreg.models.base import NameServer, History
 from mreg.models.host import Host, Ipaddress, PtrOverride
 from mreg.models.network import Network, NetGroupRegexPermission
 from mreg.models.resource_records import Cname, Loc, Naptr, Srv, Sshfp, Txt, Hinfo, Mx
+from mreg.models.network_policy import Community, NetworkPolicy
 from mreg.types import IPAllocationMethod
 
 from mreg.api.permissions import (
@@ -68,6 +69,59 @@ from .serializers import (
 
 from mreg.mixins import LowerCaseLookupMixin
 
+class JSONContentTypeMixin:
+    """A view mixin that requires POST, PUT, PATCH and DELETE operations to this view have a JSON content type.
+
+    - Checks that CONTENT_TYPE starts with application/json for POST, PUT, PATCH and DELETE requests.
+    - Checks that there was a body in the request.
+    - Throws rest_framework.exceptions.UnsupportedMediaType if the content type is not JSON and there was a body.
+    """
+
+    required_content_type = 'application/json'
+    methods_to_check = ['POST', 'PUT', 'PATCH', 'DELETE']
+
+    def dispatch(self, request, *args, **kwargs):
+        if request.method in self.methods_to_check:
+            has_body = self._has_request_body(request)
+            if has_body:
+                content_type = request.headers.get('Content-Type', '')
+                if not content_type.startswith(self.required_content_type):
+                    url = request.build_absolute_uri()
+                    detail_message = (
+                        f'Content-Type for {request.method} request to {url} '
+                        f'must be {self.required_content_type} (was {content_type})'
+                    )
+                    raise UnsupportedMediaType(detail_message)
+
+        return super().dispatch(request, *args, **kwargs) # type: ignore
+
+    def _has_request_body(self, request):
+        """
+        Determines if the request has a body.
+
+        Returns:
+            bool: True if the request has a body, False otherwise.
+        """
+        # Check Content-Length header
+        content_length = request.META.get('CONTENT_LENGTH')
+        if content_length:
+            try:
+                return int(content_length) > 0
+            except (ValueError, TypeError):
+                return False
+
+        # Check Transfer-Encoding header for chunked requests
+        transfer_encoding = request.META.get('HTTP_TRANSFER_ENCODING', '').lower()
+        if 'chunked' in transfer_encoding:
+            return True
+
+        # Fallback: attempt to read a small portion of the body
+        # Note: Accessing request.body will cache the body for later use
+        try:
+            return bool(request.body)
+        except Exception:
+            return False
+        
 class MregMixin:
     filter_backends = (
         filters.SearchFilter,
@@ -134,6 +188,10 @@ class MregRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class MregListCreateAPIView(MregMixin, generics.ListCreateAPIView):
+    # TODO: Redo this type of implementation.
+    # 1) We shouldn't use request.path but instead reverse on an api.vX.endpoint enum value
+    # 2) We should let each view set a POST location root, and then append the lookup_field
+    # This is the root cause of https://github.com/unioslo/mreg/issues/528
     def _get_location(self, request, serializer):
         return request.path + str(serializer.validated_data[self.lookup_field])
 
@@ -296,6 +354,14 @@ class HostList(HostPermissionsListCreateAPIView):
         return HostFilterSet(data=self.request.GET, queryset=qs).qs
 
     def post(self, request, *args, **kwargs):
+        community = None
+        if "network_community" in request.data:
+            community_id = request.data.pop("network_community")
+            community = Community.objects.filter(id=community_id).first()
+            if not community:
+                content = {"ERROR": f"Community '{community_id}' not found"}
+                return Response(content, status=status.HTTP_404_NOT_FOUND)
+
         if "name" in request.data:
             if self.queryset.filter(name=request.data["name"]).exists():
                 content = {"ERROR": "name already in use"}
@@ -373,12 +439,20 @@ class HostList(HostPermissionsListCreateAPIView):
                     ipserializer = IpaddressSerializer(ip, data=ipdata)
                     ipserializer.is_valid(raise_exception=True)
                     self.perform_create(ipserializer)
+
+                    if community:
+                        host.add_to_community(community)
+
                     location = request.path + host.name
                     return Response(
                         status=status.HTTP_201_CREATED,
                         headers={"Location": location},
                     )
         else:
+            if community:
+                content = {"ERROR": "Unable to assign community to host as it has no IP address"}
+                return Response(content, status=status.HTTP_406_NOT_ACCEPTABLE)
+
             host = Host()
             hostserializer = HostSerializer(host, data=hostdata)
             if hostserializer.is_valid(raise_exception=True):
@@ -456,6 +530,38 @@ class IpaddressDetail(HostPermissionsUpdateDestroy, MregRetrieveUpdateDestroyAPI
 
     queryset = Ipaddress.objects.all()
     serializer_class = IpaddressSerializer
+
+    def patch(self, request, *args, **kwargs):
+        # Here we must check if the host is a member of a network community, and if the new IP address
+        # is a member of the same network as the community. If not, we must return an error.
+
+        ipaddress = self.get_object()
+        host = ipaddress.host
+        communities = host.communities.all()
+
+        if communities and "ipaddress" in request.data:
+            new_ip = request.data["ipaddress"]
+            try:
+                network = Network.objects.get(network__net_contains=new_ip)
+            except Network.DoesNotExist:
+                return Response(
+                    {"ERROR": "No network found for the new IP address, cannot update due to community membership"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            
+            network_match = False
+            for community in communities:
+                if community.network == network:
+                    network_match = True
+                    break
+
+            if not network_match:
+                return Response(
+                    {"ERROR": "Cannot switch network membership for due to community membership."},
+                    status=status.HTTP_409_CONFLICT,
+                )
+
+        return super().patch(request, *args, **kwargs)
 
 
 class LocList(HostPermissionsListCreateAPIView):
@@ -733,6 +839,24 @@ class NetworkDetail(MregRetrieveUpdateDestroyAPIView):
             error = _overlap_check(request.data["network"], exclude=network)
             if error:
                 return error
+            
+        if "policy" in request.data:
+            policy_id = request.data.pop("policy")
+            if policy_id is None:
+                network.policy = None
+            else:
+                try:
+                    policy = NetworkPolicy.objects.get(id=policy_id)
+                except NetworkPolicy.DoesNotExist:
+                    return Response(
+                        {"ERROR": "No such policy"},
+                        status=status.HTTP_404_NOT_FOUND,
+                    )
+                policy.can_be_used_with_communities_or_raise()
+                network.policy = policy
+                
+            network.save()
+
         return super().patch(request, *args, **kwargs)
 
     def delete(self, request, *args, **kwargs):
