@@ -51,10 +51,7 @@ class CommunitySerializer(serializers.ModelSerializer):
             raise ValueError({"error": f"Community {obj} has no network."})
         
         policy = network.policy
-        if policy is None:
-            raise ValueError({"error": f"Community {obj} has no network policy."})
-        
-        if policy.community_mapping_prefix:
+        if policy and policy.community_mapping_prefix:
             prefix = policy.community_mapping_prefix
         
         # Retrieve all communities for the network in a stable order (using pk).
