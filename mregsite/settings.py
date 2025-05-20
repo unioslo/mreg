@@ -13,10 +13,27 @@ https://docs.djangoproject.com/en/2.0/ref/settings/
 import logging.config
 import os
 import sys
+from typing import TypeVar
 
 import structlog
 
 import mreg.log_processors
+
+
+DefaultT = TypeVar("DefaultT", str, int, float, bool)
+
+
+def envvar(var: str, default: DefaultT) -> DefaultT:
+    """Get the value of an environment variable as a specific type.
+    
+    The type of the default value specifies the return type.
+    """
+    val = os.environ.get(var, default)
+    try:
+        return type(default)(val)
+    except ValueError:
+        return default
+
 
 TESTING = len(sys.argv) > 1 and sys.argv[1] == "test"
 
@@ -29,7 +46,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = ")e#67040xjxar=zl^y#@#b*zilv2dxtraj582$^(e6!wf++_n#"
 
-LOG_LEVEL = os.environ.get("MREG_LOG_LEVEL", "CRITICAL").upper()
+LOG_LEVEL = envvar("MREG_LOG_LEVEL", "CRITICAL").upper()
 
 REQUESTS_THRESHOLD_SLOW = 1000
 REQUESTS_LOG_LEVEL_SLOW = "WARNING"
@@ -39,11 +56,27 @@ REQUESTS_LOG_LEVEL_VERY_SLOW = "CRITICAL"
 
 LOGGING_MAX_BODY_LENGTH = 3000
 
-LOG_FILE_SIZE = os.environ.get("MREG_LOG_FILE_SIZE", 50 * 1024 * 1024)
-LOG_FILE_COUNT = os.environ.get("MREG_LOG_FILE_COUNT", 10)
+LOG_FILE_SIZE = envvar("MREG_LOG_FILE_SIZE", 50 * 1024 * 1024)
+LOG_FILE_COUNT = envvar("MREG_LOG_FILE_COUNT", 10)
 LOG_FILE_NAME = os.path.join(
-    BASE_DIR, os.environ.get("MREG_LOG_FILE_NAME", "logs/app.log")
+    BASE_DIR, envvar("MREG_LOG_FILE_NAME", "logs/app.log")
 )
+
+
+MREG_PROTECTED_POLICY_ATTRIBUTES = [
+    {"name": "isolated", "description": "The network uses client isolation."},
+]
+
+MREG_CREATING_COMMUNITY_REQUIRES_POLICY_WITH_ATTRIBUTES = [] # [ "isolated" ]
+
+MREG_MAX_COMMUNITES_PER_NETWORK = 20
+
+MREG_MAP_GLOBAL_COMMUNITY_NAMES = envvar("MREG_MAP_GLOBAL_COMMUNITY_NAMES", False)
+MREG_GLOBAL_COMMUNITY_PREFIX = "community"
+MREG_COMMUNITY_PREFIX_ALLOWED_REGEX = r"^[a-zA-Z0-9_]+$"
+MREG_COMMUNITY_PREFIX_MAX_LENGTH = 100
+MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY = True
+MREG_REQUIRE_VLAN_FOR_NETWORK_TO_HAVE_COMMUNITY = False
 
 # If the log directory doesn't exist, create it.
 log_dir = os.path.dirname(LOG_FILE_NAME)
@@ -143,11 +176,11 @@ WSGI_APPLICATION = "mregsite.wsgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.environ.get("MREG_DB_NAME", "mreg"),
-        "USER": os.environ.get("MREG_DB_USER", "mreg"),
-        "PASSWORD": os.environ.get("MREG_DB_PASSWORD", ""),
-        "HOST": os.environ.get("MREG_DB_HOST", "localhost"),
-        "PORT": os.environ.get("MREG_DB_PORT", "5432"),
+        "NAME": envvar("MREG_DB_NAME", "mreg"),
+        "USER": envvar("MREG_DB_USER", "mreg"),
+        "PASSWORD": envvar("MREG_DB_PASSWORD", ""),
+        "HOST": envvar("MREG_DB_HOST", "localhost"),
+        "PORT": envvar("MREG_DB_PORT", "5432"),
     }
 }
 

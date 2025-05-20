@@ -51,7 +51,6 @@ class IsSuperOrNetworkAdminMember(IsAuthenticated):
             return False
 
         user = User.from_request(request)
-
         if user.is_mreg_superuser:
             return True
         if user.is_mreg_network_admin:
@@ -61,9 +60,10 @@ class IsSuperOrNetworkAdminMember(IsAuthenticated):
                     allowed_fields = {'frozen', 'reserved'}
                     if allowed_fields.issuperset(request.data):
                         return True
-            elif isinstance(view, (mreg.api.v1.views.NetworkExcludedRangeList,
-                                   mreg.api.v1.views.NetworkExcludedRangeDetail)):
-                return True
+                return False
+
+            return True
+
         return False
 
 
@@ -126,12 +126,14 @@ def _deny_reserved_ipaddress(ip, request):
             return False
         return True
     return False
-
-
 class IsGrantedNetGroupRegexPermission(IsAuthenticated):
     """
     Permit user if the user has been granted access through a
     NetGroupRegexPermission.
+
+    Note that if there is a network element in the URL, this class checks for access to the
+    network element itself and then short-circuits. This is URL only, so the user cannot manipulate
+    this input in the request body.
     """
 
     def has_permission(self, request, view):
@@ -146,7 +148,14 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
             return True
         # Will do do more object checks later, but initially refuse any
         # unwarranted requests.
-        if NetGroupRegexPermission.objects.filter(group__in=user.group_list).exists():
+        qs = NetGroupRegexPermission.objects.filter(group__in=user.group_list)
+        # If the view has a network in the URL, use the network itself as part
+        # of the permission check. This is URL only, so the user cannot manipulate
+        # this input in the request body.
+        network_in_url = view.kwargs.get('network')
+        if network_in_url:
+            qs = qs.filter(range=network_in_url)
+        if qs.exists():
             return True
         return False
 
@@ -161,7 +170,6 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
     def has_create_permission(self, request, view, validated_serializer):
         import mreg.api.v1.views
         user = User.from_request(request)
-
         if user.is_mreg_superuser:
             return True
 
