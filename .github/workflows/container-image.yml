@@ -173,8 +173,12 @@ jobs:
     - name: Push image
       run: |
         IMAGE_ID=ghcr.io/${{ github.repository_owner }}/mreg
+        SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+        echo "Publishing master image for commit: $SHORT_SHA"
 
-        # Always tag with master
+        # Always tag with `master` and `master-<SHA>`
+        docker tag mreg:latest $IMAGE_ID:master-$SHORT_SHA
+        docker push $IMAGE_ID:master-$SHORT_SHA
         docker tag mreg:latest $IMAGE_ID:master
         docker push $IMAGE_ID:master     
 
@@ -191,12 +195,5 @@ jobs:
           # Tag and push as latest
           docker tag mreg:latest $IMAGE_ID:latest
           docker push $IMAGE_ID:latest
-        else
-          # Master branch commit - use 'master' and short commit SHA
-          SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
-          echo "Publishing master image for commit: $SHORT_SHA"
 
-          # Tag and push with short SHA for reference
-          docker tag mreg:latest $IMAGE_ID:master-$SHORT_SHA
-          docker push $IMAGE_ID:master-$SHORT_SHA
         fi
