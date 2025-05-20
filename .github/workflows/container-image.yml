@@ -152,8 +152,8 @@ jobs:
 
   publish:
     name: Publish
-    # only publish the image if this event was triggered by a version tag
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Run for both version tags and commits to master branch
+    if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master'
     needs: [test, mreg-cli, test-with-curl]
     runs-on: ubuntu-latest
     permissions:
@@ -173,6 +173,30 @@ jobs:
     - name: Push image
       run: |
         IMAGE_ID=ghcr.io/${{ github.repository_owner }}/mreg
-        TAG_NAME=latest
-        docker tag mreg:latest $IMAGE_ID:$TAG_NAME
-        docker push $IMAGE_ID:$TAG_NAME
+        
+        # Set tag based on trigger type
+        if [[ ${{ github.ref }} == refs/tags/v* ]]; then
+          # Version tag - use both the version tag and 'latest'
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "Publishing version: $VERSION and latest"
+          
+          # Tag and push with version
+          docker tag mreg:latest $IMAGE_ID:$VERSION
+          docker push $IMAGE_ID:$VERSION
+          
+          # Tag and push as latest
+          docker tag mreg:latest $IMAGE_ID:latest
+          docker push $IMAGE_ID:latest
+        else
+          # Master branch commit - use 'staging' and short commit SHA
+          SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          echo "Publishing staging image for commit: $SHORT_SHA"
+          
+          # Tag and push with staging
+          docker tag mreg:latest $IMAGE_ID:staging
+          docker push $IMAGE_ID:staging
+          
+          # Tag and push with short SHA for reference
+          docker tag mreg:latest $IMAGE_ID:staging-$SHORT_SHA
+          docker push $IMAGE_ID:staging-$SHORT_SHA
+        fi
