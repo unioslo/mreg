@@ -173,7 +173,11 @@ jobs:
     - name: Push image
       run: |
         IMAGE_ID=ghcr.io/${{ github.repository_owner }}/mreg
-        
+
+        # Always tag with master
+        docker tag mreg:latest $IMAGE_ID:master
+        docker push $IMAGE_ID:master     
+
         # Set tag based on trigger type
         if [[ ${{ github.ref }} == refs/tags/v* ]]; then
           # Version tag - use both the version tag and 'latest'
@@ -191,11 +195,7 @@ jobs:
           # Master branch commit - use 'master' and short commit SHA
           SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
           echo "Publishing master image for commit: $SHORT_SHA"
-          
-          # Tag and push with master
-          docker tag mreg:latest $IMAGE_ID:master
-          docker push $IMAGE_ID:master
-          
+
           # Tag and push with short SHA for reference
           docker tag mreg:latest $IMAGE_ID:master-$SHORT_SHA
           docker push $IMAGE_ID:master-$SHORT_SHA
