@@ -10,10 +10,12 @@ from django_filters import rest_framework as rest_filters
 
 from rest_framework import filters, generics, status
 from rest_framework.decorators import api_view
-from rest_framework.exceptions import MethodNotAllowed, ParseError, UnsupportedMediaType
+from rest_framework.exceptions import MethodNotAllowed, ParseError, PermissionDenied, UnsupportedMediaType, ValidationError
 from rest_framework.renderers import JSONRenderer
+from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from mreg.models.auth import User
 from mreg.models.base import NameServer, History
 from mreg.models.host import Host, Ipaddress, PtrOverride
 from mreg.models.network import Network, NetGroupRegexPermission
@@ -353,6 +355,36 @@ class HostList(HostPermissionsListCreateAPIView):
         qs = _host_prefetcher(super().get_queryset())
         return HostFilterSet(data=self.request.GET, queryset=qs).qs
 
+
+    def _create_ip(self, request: Request, host: Host, ip: str) -> None:
+        # We need an IP Address object to compare against the
+        # network and broadcast addresses of its network. 
+        try:
+            ipaddr = ipaddress.ip_address(ip)
+        except ValueError:
+            raise ValidationError(
+                {"ipaddress": "Invalid IP address."},
+            )
+
+        
+        try:
+            network: Network = Network.objects.get(network__net_contains=ip)
+        except Network.DoesNotExist:
+            raise ValidationError(
+                {"ipaddress": "No network found for the IP address."}
+            )
+        
+        if ipaddr in (network.network.broadcast_address, network.network.network_address):
+            user = User.from_request(request)
+            if not (user.is_mreg_superuser_or_admin or user.is_mreg_network_admin):
+                raise PermissionDenied(
+                    {"ERROR": "Setting a network or broadcast address on a host requires network admin privileges."}
+                )
+        
+        ipserializer = IpaddressSerializer(Ipaddress(), data={"host": host.pk, "ipaddress": ip})
+        ipserializer.is_valid(raise_exception=True)
+        self.perform_create(ipserializer)
+
     def post(self, request, *args, **kwargs):
         community = None
         if "network_community" in request.data:
@@ -434,11 +466,7 @@ class HostList(HostPermissionsListCreateAPIView):
                     # self.perform_create(hostserializer)
                     hostserializer.save()
                     self.save_log_create(hostserializer)
-                    ipdata = {"host": host.pk, "ipaddress": ipkey}
-                    ip = Ipaddress()
-                    ipserializer = IpaddressSerializer(ip, data=ipdata)
-                    ipserializer.is_valid(raise_exception=True)
-                    self.perform_create(ipserializer)
+                    self._create_ip(request, host, ipkey)
 
                     if community:
                         host.add_to_community(community)
