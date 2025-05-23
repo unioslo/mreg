@@ -366,20 +366,17 @@ class HostList(HostPermissionsListCreateAPIView):
                 {"ipaddress": "Invalid IP address."},
             )
 
-        
         try:
             network: Network = Network.objects.get(network__net_contains=ip)
         except Network.DoesNotExist:
-            raise ValidationError(
-                {"ipaddress": "No network found for the IP address."}
-            )
-        
-        if ipaddr in (network.network.broadcast_address, network.network.network_address):
-            user = User.from_request(request)
-            if not (user.is_mreg_superuser_or_admin or user.is_mreg_network_admin):
-                raise PermissionDenied(
-                    {"ERROR": "Setting a network or broadcast address on a host requires network admin privileges."}
-                )
+            pass # network not in mreg
+        else:
+            if ipaddr in (network.network.broadcast_address, network.network.network_address):
+                user = User.from_request(request)
+                if not (user.is_mreg_superuser_or_admin or user.is_mreg_network_admin):
+                    raise PermissionDenied(
+                        {"ERROR": "Setting a network or broadcast address on a host requires network admin privileges."}
+                    )
         
         ipserializer = IpaddressSerializer(Ipaddress(), data={"host": host.pk, "ipaddress": ip})
         ipserializer.is_valid(raise_exception=True)
