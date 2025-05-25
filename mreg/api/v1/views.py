@@ -29,6 +29,7 @@ from mreg.api.permissions import (
     IsSuperGroupMember,
     IsSuperOrAdminOrReadOnly,
     IsSuperOrNetworkAdminMember,
+    IsGrantedReservedAddressPermission,
 )
 
 from .filters import (
@@ -250,12 +251,12 @@ class MregPermissionsListCreateAPIView(MregMixin, generics.ListCreateAPIView):
 
 class HostPermissionsUpdateDestroy(HostLogMixin, MregPermissionsUpdateDestroy):
     # permission_classes = settings.MREG_PERMISSION_CLASSES
-    permission_classes = (IsGrantedNetGroupRegexPermission,)
+    permission_classes = (IsGrantedNetGroupRegexPermission, IsGrantedReservedAddressPermission)
 
 
 class HostPermissionsListCreateAPIView(HostLogMixin, MregPermissionsListCreateAPIView):
     # permission_classes = settings.MREG_PERMISSION_CLASSES
-    permission_classes = (IsGrantedNetGroupRegexPermission,)
+    permission_classes = (IsGrantedNetGroupRegexPermission, IsGrantedReservedAddressPermission)
 
 
 class CnameList(HostPermissionsListCreateAPIView):
@@ -355,33 +356,6 @@ class HostList(HostPermissionsListCreateAPIView):
         qs = _host_prefetcher(super().get_queryset())
         return HostFilterSet(data=self.request.GET, queryset=qs).qs
 
-
-    def _create_ip(self, request: Request, host: Host, ip: str) -> None:
-        # We need an IP Address object to compare against the
-        # network and broadcast addresses of its network. 
-        try:
-            ipaddr = ipaddress.ip_address(ip)
-        except ValueError:
-            raise ValidationError(
-                {"ipaddress": "Invalid IP address."},
-            )
-
-        try:
-            network: Network = Network.objects.get(network__net_contains=ip)
-        except Network.DoesNotExist:
-            pass # network not in mreg
-        else:
-            if ipaddr in (network.network.broadcast_address, network.network.network_address):
-                user = User.from_request(request)
-                if not (user.is_mreg_superuser_or_admin or user.is_mreg_network_admin):
-                    raise PermissionDenied(
-                        {"ERROR": "Setting a network or broadcast address on a host requires network admin privileges."}
-                    )
-        
-        ipserializer = IpaddressSerializer(Ipaddress(), data={"host": host.pk, "ipaddress": ip})
-        ipserializer.is_valid(raise_exception=True)
-        self.perform_create(ipserializer)
-
     def post(self, request, *args, **kwargs):
         community = None
         if "network_community" in request.data:
@@ -463,7 +437,9 @@ class HostList(HostPermissionsListCreateAPIView):
                     # self.perform_create(hostserializer)
                     hostserializer.save()
                     self.save_log_create(hostserializer)
-                    self._create_ip(request, host, ipkey)
+                    ipserializer = IpaddressSerializer(Ipaddress(), data={"host": host.pk, "ipaddress": ipkey})
+                    ipserializer.is_valid(raise_exception=True)
+                    self.perform_create(ipserializer)
 
                     if community:
                         host.add_to_community(community)
