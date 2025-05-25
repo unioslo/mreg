@@ -341,11 +341,17 @@ class IsGrantedReservedAddressPermission(IsAuthenticated):
         if (user.is_mreg_superuser_or_admin or user.is_mreg_network_admin):
             return True
 
-        if isinstance(view, (
-                        mreg.api.v1.views.HostList,
-                        mreg.api.v1.views.HostDetail,
-                        mreg.api.v1.views.IpaddressList,
-                        mreg.api.v1.views.PtrOverrideList)):
+        if not isinstance(
+            view, 
+            (
+                mreg.api.v1.views.HostList,
+                mreg.api.v1.views.HostDetail,
+                mreg.api.v1.views.IpaddressDetail,
+                mreg.api.v1.views.IpaddressList,
+                mreg.api.v1.views.PtrOverrideDetail,
+                mreg.api.v1.views.PtrOverrideList
+            )
+        ):
             return True
         
         if not hasattr(validated_serializer, "validated_data"):
