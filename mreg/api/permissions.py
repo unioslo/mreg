@@ -364,9 +364,8 @@ class IsGrantedReservedAddressPermission(IsAuthenticated):
         try:
             ipaddr = ipaddress.ip_address(ip)
         except ValueError:
-            raise exceptions.ValidationError(
-                {"ipaddress": "Invalid IP address."},
-            )
+            # invalid IP, let serializer handle it
+            return True 
 
         try:
             network: Network = Network.objects.get(network__net_contains=ip)
@@ -388,7 +387,7 @@ class IsGrantedReservedAddressPermission(IsAuthenticated):
     def has_destroy_permission(self, request: Request, view: ListCreateAPIView, validated_serializer: BaseModel):
         # Deleting will never assign IPs. 
         # Furthermore, the permissions check in `perform_destroy` passes 
-        # in an _instance_ instead of a serializer when checking destroy 
-        # permissions, thus we cannot access any sort of validated data.
+        # in a BaseModel _instance_ instead of a serializer when checking
+        # destroy permissions, so we cannot access any sort of validated data.
         return self.has_permission(request, view)
 
