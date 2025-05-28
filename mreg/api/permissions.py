@@ -17,7 +17,7 @@ from mreg.models.auth import User
 # the `DEFAULT_PERMISSION_CLASSES` we defined in `settings.py`, causing
 # an import cycle if we _actually_ import the generics module on runtime.
 if TYPE_CHECKING:
-    from rest_framework.generics import ListCreateAPIView
+    from rest_framework.generics import GenericAPIView
     from rest_framework.serializers import Serializer
     from mreg.models.base import BaseModel
 
@@ -334,7 +334,7 @@ class HostGroupPermission(IsAuthenticated):
 
 
 class IsGrantedReservedAddressPermission(IsAuthenticated):
-    def has_ipaddress_permission(self, request: Request, view: ListCreateAPIView, validated_serializer: Serializer):
+    def has_ipaddress_permission(self, request: Request, view: GenericAPIView, validated_serializer: Serializer):
         import mreg.api.v1.views
 
         user = User.from_request(request)
@@ -378,13 +378,13 @@ class IsGrantedReservedAddressPermission(IsAuthenticated):
                 )
         return True
 
-    def has_create_permission(self, request: Request, view: ListCreateAPIView, validated_serializer: Serializer):
+    def has_create_permission(self, request: Request, view: GenericAPIView, validated_serializer: Serializer):
         return self.has_ipaddress_permission(request, view, validated_serializer)
 
-    def has_update_permission(self, request: Request, view: ListCreateAPIView, validated_serializer: Serializer):
+    def has_update_permission(self, request: Request, view: GenericAPIView, validated_serializer: Serializer):
         return self.has_ipaddress_permission(request, view, validated_serializer)
 
-    def has_destroy_permission(self, request: Request, view: ListCreateAPIView, validated_serializer: BaseModel):
+    def has_destroy_permission(self, request: Request, view: GenericAPIView, validated_serializer: BaseModel):
         # Deleting will never assign IPs. 
         # Furthermore, the permissions check in `perform_destroy` passes 
         # in a BaseModel _instance_ instead of a serializer when checking
