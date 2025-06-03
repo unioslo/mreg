@@ -335,23 +335,8 @@ class HostGroupPermission(IsAuthenticated):
 
 class IsGrantedReservedAddressPermission(IsAuthenticated):
     def has_ipaddress_permission(self, request: Request, view: GenericAPIView, validated_serializer: Serializer):
-        import mreg.api.v1.views
-
         user = User.from_request(request)
         if (user.is_mreg_superuser_or_admin or user.is_mreg_network_admin):
-            return True
-
-        if not isinstance(
-            view, 
-            (
-                mreg.api.v1.views.HostList,
-                mreg.api.v1.views.HostDetail,
-                mreg.api.v1.views.IpaddressDetail,
-                mreg.api.v1.views.IpaddressList,
-                mreg.api.v1.views.PtrOverrideDetail,
-                mreg.api.v1.views.PtrOverrideList
-            )
-        ):
             return True
         
         if not hasattr(validated_serializer, "validated_data"):
