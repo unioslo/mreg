@@ -219,18 +219,20 @@ class ReservedAddressPermissionsTestCase(MregAPITestCase):
             ReservedAddress.IPV6_NETWORK,
         ]
 
-        # Give network admins permissions for the test networks
-        NetGroupRegexPermission.objects.create(
-            group=settings.NETWORK_ADMIN_GROUP,
-            range=self.network_ipv4.network,
-            regex=r'.*\.example\.org$'
-        )
-        # Give network admins permissions for the test networks
-        NetGroupRegexPermission.objects.create(
-            group=settings.NETWORK_ADMIN_GROUP,
-            range=self.network_ipv6.network,
-            regex=r'.*\.example\.org$'
-        )
+        self.regular_user_group = Group.objects.create(name='testgroup')
+
+        # Give network admins and regular users permissions for the test networks
+        for group in [settings.NETWORK_ADMIN_GROUP, self.regular_user_group.name]:
+            NetGroupRegexPermission.objects.create(
+                group=group,
+                range=self.network_ipv4.network,
+                regex=r'.*\.example\.org$'
+            )
+            NetGroupRegexPermission.objects.create(
+                group=group,
+                range=self.network_ipv6.network,
+                regex=r'.*\.example\.org$'
+            )
 
     @mock.patch('mreg.api.permissions.User.from_request')
     @mock.patch('mreg.api.permissions.IsGrantedNetGroupRegexPermission.has_obj_perm', return_value=False)
@@ -280,7 +282,8 @@ class ReservedAddressPermissionsTestCase(MregAPITestCase):
 
     def test_regular_user_cannot_use_reserved_addresses(self):
         """Regular users should not be able to use reserved addresses."""
-        with self.temporary_client_as_normal_user():       
+        with self.temporary_client_as_normal_user(): 
+            self.regular_user_group.user_set.add(self.user)      
             for addr in self.reserved_addresses:
                 data = {'name': addr.dns_name, 'ipaddress': addr.value}
                 self.assert_post_and_403('/hosts/', data)
@@ -289,18 +292,7 @@ class ReservedAddressPermissionsTestCase(MregAPITestCase):
         """Regular users should be able to use normal addresses."""
         with self.temporary_client_as_normal_user():
             # Grant network permissions for regular testing
-            group = Group.objects.create(name='testgroup')
-            group.user_set.add(self.user)
-            NetGroupRegexPermission.objects.create(
-                group='testgroup',
-                range='10.0.0.0/24',
-                regex=r'.*\.example\.org$'
-            )
-            NetGroupRegexPermission.objects.create(
-                group='testgroup',
-                range='2001:db8::/64',
-                regex=r'.*\.example\.org$'
-            )
+            self.regular_user_group.user_set.add(self.user)
             
             # Test with regular IPv4 address - should work
             data = {'name': 'test-regular.example.org', 'ipaddress': self.ipv4_regular_addr}
@@ -317,11 +309,11 @@ class ReservedAddressPermissionsTestCase(MregAPITestCase):
         ip = Ipaddress.objects.create(host=host, ipaddress=self.ipv4_regular_addr)
         
         for address in self.reserved_addresses:
-            data = {'host': host.id, 'ipaddress': address}
-            # Regular user cannot create reserved IP addresses
+            data = {'host': host.id, 'ipaddress': address.value}
+            # Regular user denied
             with self.temporary_client_as_normal_user():
                 self.assert_post_and_403('/ipaddresses/', data)
-            # Network admin can
+            # Network admin permitted
             with self.temporary_client_as_network_admin():
                 self.assert_post_and_201('/ipaddresses/', data)
 
@@ -331,7 +323,7 @@ class ReservedAddressPermissionsTestCase(MregAPITestCase):
         ip = Ipaddress.objects.create(host=host, ipaddress=self.ipv4_regular_addr)
         
         for address in self.reserved_addresses:
-            data = {'host': host.id, 'ipaddress': address}
+            data = {'host': host.id, 'ipaddress': address.value}
              # Regular user denied
             with self.temporary_client_as_normal_user():
                 self.assert_post_and_403('/ptroverrides/', data)
@@ -345,7 +337,7 @@ class ReservedAddressPermissionsTestCase(MregAPITestCase):
         ip = Ipaddress.objects.create(host=host, ipaddress=self.ipv4_regular_addr)
 
         for address in self.reserved_addresses:
-            data = {'ipaddresses': address}
+            data = {'ipaddresses': address.value}
             # Regular user denied
             with self.temporary_client_as_normal_user():
                 self.assert_patch_and_403(f'/hosts/{host.name}', data)
@@ -360,8 +352,7 @@ class ReservedAddressPermissionsTestCase(MregAPITestCase):
         Ipaddress.objects.create(host=host, ipaddress="192.168.1.123")
 
         with self.temporary_client_as_normal_user():
-            group = Group.objects.create(name='testgroup')
-            group.user_set.add(self.user)
+            self.regular_user_group.user_set.add(self.user)
 
             # Assign permissions for IPv4 and IPv6 networks outside MREG
             NetGroupRegexPermission.objects.create(
@@ -387,13 +378,7 @@ class ReservedAddressPermissionsTestCase(MregAPITestCase):
         ip = Ipaddress.objects.create(host=host, ipaddress=self.ipv4_network_addr)
         
         with self.temporary_client_as_normal_user():
-            group = Group.objects.create(name='testgroup')
-            group.user_set.add(self.user)
-            NetGroupRegexPermission.objects.create(
-                group='testgroup',
-                range=self.network_ipv4.network,
-                regex=r'.*\.example\.org$'
-            )
+            self.regular_user_group.user_set.add(self.user)
             
             # The delete should work (reserved address permission doesn't apply to deletes)
             self.assert_delete_and_204(f'/ipaddresses/{ip.id}')
@@ -405,12 +390,12 @@ class ReservedAddressPermissionsTestCase(MregAPITestCase):
             network='192.168.1.0/30',
             description='Small test network'
         )
-        group = Group.objects.create(name='testgroup')
+        group = Group.objects.create(name='small_network_group')
         NetGroupRegexPermission.objects.create(
-                group='testgroup',
+                group='small_network_group',
                 range="192.168.1.0/30",
                 regex=r'.*\.example\.org$'
-            )
+        )
         # Data for testing reserved addresses
         host_nwaddr = {'name': 'nwaddr.example.org', 'ipaddress': "192.168.1.0"}
         host_bcaddr = {'name': 'bcaddr.example.org', 'ipaddress': "192.168.1.3"}
