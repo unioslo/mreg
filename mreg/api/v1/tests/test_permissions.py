@@ -1,4 +1,4 @@
-from enum import StrEnum
+from enum import Enum
 from unittest import mock
 
 from django.conf import settings
@@ -203,7 +203,7 @@ class ReservedAddressPermissionsTestCase(MregAPITestCase):
         self.ipv6_network_addr = '2001:db8::'    # network address
         self.ipv6_regular_addr = '2001:db8::10'  # regular address
 
-        class ReservedAddress(StrEnum):
+        class ReservedAddress(str, Enum):
             IPV4_NETWORK = self.ipv4_network_addr
             IPV4_BROADCAST = self.ipv4_broadcast_addr
             IPV6_NETWORK = self.ipv6_network_addr
