@@ -150,8 +150,10 @@ class MregAPITestCase(APITestCase):
                 username = 'networkadmin'
             else:
                 username = 'nobody'
-        self.user = cast(User, get_user_model().objects.create_user(username=username,
-                                                         password="test"))
+        usermodel = get_user_model()
+        if not (user := usermodel.objects.filter(username=username).first()):
+            user = usermodel.objects.create_user(username=username, password="test")
+        self.user = cast(User, user)
         self.user.groups.clear()
         token, _ = ExpiringToken.objects.get_or_create(user=self.user)
         if superuser:
