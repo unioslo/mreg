@@ -1,15 +1,66 @@
+from enum import StrEnum
 from unittest import mock
 
 from django.conf import settings
 from django.contrib.auth.models import Group
 from django.test import RequestFactory
+from django.test.client import WSGIRequest
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.test import APIClient, force_authenticate
-from mreg.api.permissions import IsGrantedNetGroupRegexPermission
+from mreg.api.permissions import IsGrantedNetGroupRegexPermission, IsGrantedReservedAddressPermission
+from mreg.models.auth import User
 from mreg.models.host import Host, Ipaddress
 from mreg.models.network import Network, NetGroupRegexPermission
 
 from .tests import MregAPITestCase
+
+
+def get_mock_user(
+    superuser: bool = False,
+    admin: bool = False,
+    network_admin: bool = False,
+    hostgroup_admin: bool = False,
+    dns_wildcard_admin: bool = False,
+    underscore_admin: bool = False,
+    hostpolicy_admin: bool = False,
+) -> mock.Mock:
+    """Helper function to create a mock user with specific permissions."""
+    user = mock.Mock(spec=User)
+    
+    # Ensure all `is_mreg_*` attributes are set to False by default
+    group_attrs = {attr: False for attr in dir(User) if attr.startswith("is_mreg_")}
+
+    def set_attr(name: str):
+        group_attrs.update({attr: True for attr in dir(User) if name in attr})
+
+    if superuser:
+        set_attr("superuser")
+    if admin:
+        set_attr("admin")
+    if network_admin:
+        set_attr("network_admin")
+    if hostgroup_admin:
+        set_attr("hostgroup_admin")
+    if dns_wildcard_admin:
+        set_attr("dns_wildcard_admin")
+    if underscore_admin:
+        set_attr("underscore_admin")
+    if hostpolicy_admin:
+        set_attr("hostpolicy_admin")
+
+    user.configure_mock(**group_attrs)
+    user.group_list = []
+    return user
+
+
+def get_mock_request(user: mock.Mock, mock_user_from_request: mock.Mock, path: str = "/") -> WSGIRequest:
+    """Helper function to create a mock request with a given user."""
+    request = RequestFactory().post(path)
+    request.user = user
+    # Make it so every time we call User.from_request, it returns the mock user
+    mock_user_from_request.return_value = user
+    force_authenticate(request, user=user)
+    return request
 
 
 class TestIsGrantedNetGroupRegexPermission(MregAPITestCase):
@@ -24,16 +75,8 @@ class TestIsGrantedNetGroupRegexPermission(MregAPITestCase):
         mock_has_obj_perm,
         mock_user_from_request
     ):
-        request = RequestFactory().post('/')
-        user = mock.Mock()
-        user.group_list = []
-        user.is_mreg_superuser = False
-        user.is_mreg_admin = False
-        request.user = user
-        # Make it so every time we call User.from_request, it returns the same user object
-        # that we created above.
-        mock_user_from_request.return_value = user
-        force_authenticate(request, user=user)
+        user = get_mock_user()  # Regular user
+        request = get_mock_request(user, mock_user_from_request)
 
         # Mock view that is not an instance of any of the checked classes
         view = mock.Mock()
@@ -134,6 +177,8 @@ class NetGroupRegexPermissionTestCaseAsAdmin(NetGroupRegexPermissionTestCase):
         self.client = self.get_token_client(superuser=False, adminuser=True)
 
 
+
+
 class ReservedAddressPermissionsTestCase(MregAPITestCase):
     """Test IsGrantedReservedAddressPermission for network and broadcast addresses."""
 
@@ -158,51 +203,87 @@ class ReservedAddressPermissionsTestCase(MregAPITestCase):
         self.ipv6_network_addr = '2001:db8::'    # network address
         self.ipv6_regular_addr = '2001:db8::10'  # regular address
 
+        class ReservedAddress(StrEnum):
+            IPV4_NETWORK = self.ipv4_network_addr
+            IPV4_BROADCAST = self.ipv4_broadcast_addr
+            IPV6_NETWORK = self.ipv6_network_addr
+
+            @property
+            def dns_name(self):
+                """Return a DNS name for the reserved address."""
+                return f"{self.name.lower().replace('_', '')}.example.org"
+
+        self.reserved_addresses = [
+            ReservedAddress.IPV4_NETWORK, 
+            ReservedAddress.IPV4_BROADCAST, 
+            ReservedAddress.IPV6_NETWORK,
+        ]
+
+        # Give network admins permissions for the test networks
+        NetGroupRegexPermission.objects.create(
+            group=settings.NETWORK_ADMIN_GROUP,
+            range=self.network_ipv4.network,
+            regex=r'.*\.example\.org$'
+        )
+        # Give network admins permissions for the test networks
+        NetGroupRegexPermission.objects.create(
+            group=settings.NETWORK_ADMIN_GROUP,
+            range=self.network_ipv6.network,
+            regex=r'.*\.example\.org$'
+        )
+
+    @mock.patch('mreg.api.permissions.User.from_request')
+    @mock.patch('mreg.api.permissions.IsGrantedNetGroupRegexPermission.has_obj_perm', return_value=False)
+    @mock.patch('mreg.api.permissions.IsGrantedNetGroupRegexPermission._get_hostname_and_ips',
+                return_value=('hostname', ['ip']))
+    def test_view_with_ip_data(
+        self,
+        mock_get_hostname_and_ips,
+        mock_has_obj_perm,
+        mock_user_from_request
+    ):
+        """Test that IsGrantedReservedAddressPermission raises PermissionDenied for regular users when
+        trying to pass data containing a field named 'ipaddresses' using reserved addresses."""
+        user = get_mock_user()  # Regular user
+        request = get_mock_request(user, mock_user_from_request)
+
+        view = mock.Mock()
+        
+        serializer = mock.Mock()
+        serializer.validated_data = {"ipaddress": self.ipv4_network_addr}
+
+        permission = IsGrantedReservedAddressPermission()
+
+        with self.assertRaises(PermissionDenied):
+            permission.has_create_permission(request, view, serializer)
+
+        with self.assertRaises(PermissionDenied):
+            permission.has_update_permission(request, view, serializer)
+
+        # Destroy permissions are routed through `has_permission`, and should pass
+        assert permission.has_destroy_permission(request, view, serializer)
+
     def test_superuser_can_use_reserved_addresses(self):
         """Superusers should be able to use network and broadcast addresses."""
-        # Test with IPv4 network address
-        data = {'name': 'test-network.example.org', 'ipaddress': self.ipv4_network_addr}
-        self.assert_post_and_201('/hosts/', data)
-        
-        # Test with IPv4 broadcast address
-        data = {'name': 'test-broadcast.example.org', 'ipaddress': self.ipv4_broadcast_addr}
-        self.assert_post_and_201('/hosts/', data)
-        
-        # Test with IPv6 network address
-        data = {'name': 'test-ipv6-network.example.org', 'ipaddress': self.ipv6_network_addr}
-        self.assert_post_and_201('/hosts/', data)
+        for addr in self.reserved_addresses:
+            data = {'name': addr.dns_name, 'ipaddress': addr.value}
+            self.assert_post_and_201('/hosts/', data)
+
 
     def test_network_admin_can_use_reserved_addresses(self):
         """Network admins should be able to use reserved addresses."""
         with self.temporary_client_as_network_admin():
-            self.add_user_to_groups("NETWORK_ADMIN_GROUP")
-            NetGroupRegexPermission.objects.create(
-                group=settings.NETWORK_ADMIN_GROUP,
-                range=self.network_ipv4.network,
-                regex=r'.*\.example\.org$'
-            )
-            # Test with IPv4 network address
-            data = {'name': 'test-network.example.org', 'ipaddress': self.ipv4_network_addr}
-            self.assert_post_and_201('/hosts/', data)
-            
-            # Test with IPv4 broadcast address
-            data = {'name': 'test-broadcast.example.org', 'ipaddress': self.ipv4_broadcast_addr}
-            self.assert_post_and_201('/hosts/', data)
+            for addr in self.reserved_addresses:
+                data = {'name': addr.dns_name, 'ipaddress': addr.value}
+                self.assert_post_and_201('/hosts/', data)
+
 
     def test_regular_user_cannot_use_reserved_addresses(self):
-        """Regular users should not be able to use network and broadcast addresses."""
+        """Regular users should not be able to use reserved addresses."""
         with self.temporary_client_as_normal_user():       
-            # Test with IPv4 network address - should fail
-            data = {'name': 'test-network.example.org', 'ipaddress': self.ipv4_network_addr}
-            self.assert_post_and_403('/hosts/', data)
-            
-            # Test with IPv4 broadcast address - should fail
-            data = {'name': 'test-broadcast.example.org', 'ipaddress': self.ipv4_broadcast_addr}
-            self.assert_post_and_403('/hosts/', data)
-            
-            # Test with IPv6 network address - should fail
-            data = {'name': 'test-ipv6-network.example.org', 'ipaddress': self.ipv6_network_addr}
-            self.assert_post_and_403('/hosts/', data)
+            for addr in self.reserved_addresses:
+                data = {'name': addr.dns_name, 'ipaddress': addr.value}
+                self.assert_post_and_403('/hosts/', data)
 
     def test_regular_user_can_use_normal_addresses(self):
         """Regular users should be able to use normal addresses."""
@@ -233,44 +314,44 @@ class ReservedAddressPermissionsTestCase(MregAPITestCase):
         """Test reserved address restrictions on /ipaddresses/ endpoint."""
         # Create a host first
         host = Host.objects.create(name='test.example.org')
+        ip = Ipaddress.objects.create(host=host, ipaddress=self.ipv4_regular_addr)
         
-        # Superuser can create reserved IP addresses
-        data = {'host': host.id, 'ipaddress': self.ipv4_network_addr}
-        self.assert_post_and_201('/ipaddresses/', data)
-        
-        # Regular user cannot
-        with self.temporary_client_as_normal_user():
-            data = {'host': host.id, 'ipaddress': self.ipv4_broadcast_addr}
-            self.assert_post_and_403('/ipaddresses/', data)
+        for address in self.reserved_addresses:
+            data = {'host': host.id, 'ipaddress': address}
+            # Regular user cannot create reserved IP addresses
+            with self.temporary_client_as_normal_user():
+                self.assert_post_and_403('/ipaddresses/', data)
+            # Network admin can
+            with self.temporary_client_as_network_admin():
+                self.assert_post_and_201('/ipaddresses/', data)
 
-    def test_ptroverride_endpoint_reserved_addresses(self):
-        """Test reserved address restrictions on /ptroverrides/ endpoint."""
-        # Create a host first
+    def test_post_ptroverride_reserved_addresses(self):
+        """Test reserved address restrictions on POST /ptroverrides/ endpoint."""
         host = Host.objects.create(name='test.example.org')
+        ip = Ipaddress.objects.create(host=host, ipaddress=self.ipv4_regular_addr)
         
-        # Superuser can create reserved IP addresses
-        data = {'host': host.id, 'ipaddress': self.ipv4_network_addr}
-        self.assert_post_and_201('/ptroverrides/', data)
-        
-        # Regular user cannot
-        with self.temporary_client_as_normal_user():
-            data = {'host': host.id, 'ipaddress': self.ipv4_broadcast_addr}
-            self.assert_post_and_403('/ptroverrides/', data)
+        for address in self.reserved_addresses:
+            data = {'host': host.id, 'ipaddress': address}
+             # Regular user denied
+            with self.temporary_client_as_normal_user():
+                self.assert_post_and_403('/ptroverrides/', data)
+            # Network admin permitted
+            with self.temporary_client_as_network_admin():
+                self.assert_post_and_201('/ptroverrides/', data)
 
-    def test_update_to_reserved_address_restricted(self):
+    def test_patch_hosts_reserved_addresses(self):
         """Test that updating an IP to a reserved address is restricted."""
-        # Create host and IP as superuser
         host = Host.objects.create(name='test.example.org')
         ip = Ipaddress.objects.create(host=host, ipaddress=self.ipv4_regular_addr)
 
-        data = {'ipaddresses': self.ipv4_network_addr}
-
-        # Regular user cannot update to reserved address
-        with self.temporary_client_as_normal_user():
-            self.assert_patch_and_403(f'/hosts/{host.name}', data)
-            
-        # But superuser can
-        self.assert_patch_and_204(f"/hosts/{host.name}", data)
+        for address in self.reserved_addresses:
+            data = {'ipaddresses': address}
+            # Regular user denied
+            with self.temporary_client_as_normal_user():
+                self.assert_patch_and_403(f'/hosts/{host.name}', data)
+            # Network admin permitted
+            with self.temporary_client_as_network_admin():
+                self.assert_patch_and_204(f'/hosts/{host.name}', data)
 
     def test_network_outside_mreg_not_restricted(self):
         """Test that IPs in networks not managed by mreg are not restricted."""
@@ -281,63 +362,68 @@ class ReservedAddressPermissionsTestCase(MregAPITestCase):
         with self.temporary_client_as_normal_user():
             group = Group.objects.create(name='testgroup')
             group.user_set.add(self.user)
+
+            # Assign permissions for IPv4 and IPv6 networks outside MREG
             NetGroupRegexPermission.objects.create(
                 group='testgroup',
                 range='192.168.1.0/24',
                 regex=r'.*\.example\.org$'
             )
+            NetGroupRegexPermission.objects.create(
+                group='testgroup',
+                range='2002:db9::/64',
+                regex=r'.*\.example\.org$'
+            )
             
-            # Assign what would be a network address in the context of
-            # the given network
-            data = {'host': host.id, 'ipaddress': '192.168.1.0'}
-            self.assert_post_and_201("/ipaddresses/", data)
+            # Assign what would be reserved addresses in the context of the given networks
+            addresses = ["192.168.1.0", "192.168.1.255", "2002:db9::"]
+            for addr in addresses:
+                data = {'host': host.id, 'ipaddress': addr}
+                self.assert_post_and_201("/ipaddresses/", data)
 
     def test_delete_operations_not_restricted(self):
         """Test that delete operations are not restricted by this permission."""
-        # Create host with reserved address as superuser
         host = Host.objects.create(name='test.example.org')
         ip = Ipaddress.objects.create(host=host, ipaddress=self.ipv4_network_addr)
         
-        # Regular user should be able to delete (if they have other necessary permissions)
-        # Note: This test might fail due to other permission restrictions, but should not
-        # fail specifically due to the reserved address permission
         with self.temporary_client_as_normal_user():
-            # Grant the user permission to the host to test deletion specifically
             group = Group.objects.create(name='testgroup')
             group.user_set.add(self.user)
             NetGroupRegexPermission.objects.create(
                 group='testgroup',
-                range='10.0.0.0/24',
+                range=self.network_ipv4.network,
                 regex=r'.*\.example\.org$'
             )
             
             # The delete should work (reserved address permission doesn't apply to deletes)
             self.assert_delete_and_204(f'/ipaddresses/{ip.id}')
 
-
-class ReservedAddressPermissionsEdgeCasesTestCase(MregAPITestCase):
-    """Test edge cases for reserved address permissions."""
-    
-    def setUp(self):
-        super().setUp()
-        # Create a /30 network (very small network for edge case testing)
-        self.small_network = Network.objects.create(
+    def test_small_network_reserved_addresses(self):
+        """Test reserved addresses in very small networks."""
+        # In a /30: .0 = network, .1 = first host, .2 = second host, .3 = broadcast
+        Network.objects.create(
             network='192.168.1.0/30',
             description='Small test network'
         )
-        # In a /30: .0 = network, .1 = first host, .2 = second host, .3 = broadcast
+        NetGroupRegexPermission.objects.create(
+            group=settings.NETWORK_ADMIN_GROUP,
+            range='192.168.1.0/30',
+            regex=r'.*\.example\.org$'
+        )
         
-    def test_small_network_reserved_addresses(self):
-        """Test reserved addresses in very small networks."""
-        self.client = self.get_token_client(superuser=False)
-        
-        # Network address should be restricted
+        # Network address
         data = {'name': 'test1.example.org', 'ipaddress': '192.168.1.0'}
-        self.assert_post_and_403('/hosts/', data)
+        with self.temporary_client_as_normal_user():
+            self.assert_post_and_403('/hosts/', data)
+        with self.temporary_client_as_network_admin():
+            self.assert_post_and_201('/hosts/', data)
         
-        # Broadcast address should be restricted  
+        # Broadcast address
         data = {'name': 'test2.example.org', 'ipaddress': '192.168.1.3'}
-        self.assert_post_and_403('/hosts/', data)
+        with self.temporary_client_as_normal_user():
+            self.assert_post_and_403('/hosts/', data)
+        with self.temporary_client_as_network_admin():
+            self.assert_post_and_201('/hosts/', data)
 
     def test_single_host_network(self):
         """Test /32 networks (single host)."""
@@ -345,13 +431,14 @@ class ReservedAddressPermissionsEdgeCasesTestCase(MregAPITestCase):
             network='192.168.2.1/32',
             description='Single host network'
         )
-        
-        
+        NetGroupRegexPermission.objects.create(
+            group=settings.NETWORK_ADMIN_GROUP,
+            range='192.168.2.1/32',
+            regex=r'.*\.example\.org$'
+        )
         # In a /32, the network address and the host address are the same
-        # This should be restricted for regular users
+        data = {'name': 'test.example.org', 'ipaddress': '192.168.2.1'}
         with self.temporary_client_as_normal_user():
-            data = {'name': 'test.example.org', 'ipaddress': '192.168.2.1'}
             self.assert_post_and_403('/hosts/', data)
-        
-        # But should work for superusers
-        self.assert_post_and_201('/hosts/', data)
+        with self.temporary_client_as_network_admin():
+            self.assert_post_and_201('/hosts/', data)
