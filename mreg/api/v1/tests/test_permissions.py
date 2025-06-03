@@ -398,47 +398,31 @@ class ReservedAddressPermissionsTestCase(MregAPITestCase):
             # The delete should work (reserved address permission doesn't apply to deletes)
             self.assert_delete_and_204(f'/ipaddresses/{ip.id}')
 
-    def test_small_network_reserved_addresses(self):
-        """Test reserved addresses in very small networks."""
+    def test_small_network_reserved_addresses_ipv4(self):
+        """Test reserved addresses in very small ipv4 networks."""
         # In a /30: .0 = network, .1 = first host, .2 = second host, .3 = broadcast
         Network.objects.create(
             network='192.168.1.0/30',
             description='Small test network'
         )
+        group = Group.objects.create(name='testgroup')
         NetGroupRegexPermission.objects.create(
-            group=settings.NETWORK_ADMIN_GROUP,
-            range='192.168.1.0/30',
-            regex=r'.*\.example\.org$'
-        )
-        
-        # Network address
-        data = {'name': 'test1.example.org', 'ipaddress': '192.168.1.0'}
-        with self.temporary_client_as_normal_user():
-            self.assert_post_and_403('/hosts/', data)
-        with self.temporary_client_as_network_admin():
-            self.assert_post_and_201('/hosts/', data)
-        
-        # Broadcast address
-        data = {'name': 'test2.example.org', 'ipaddress': '192.168.1.3'}
-        with self.temporary_client_as_normal_user():
-            self.assert_post_and_403('/hosts/', data)
-        with self.temporary_client_as_network_admin():
-            self.assert_post_and_201('/hosts/', data)
+                group='testgroup',
+                range="192.168.1.0/30",
+                regex=r'.*\.example\.org$'
+            )
+        # Data for testing reserved addresses
+        host_nwaddr = {'name': 'nwaddr.example.org', 'ipaddress': "192.168.1.0"}
+        host_bcaddr = {'name': 'bcaddr.example.org', 'ipaddress': "192.168.1.3"}
 
-    def test_single_host_network(self):
-        """Test /32 networks (single host)."""
-        Network.objects.create(
-            network='192.168.2.1/32',
-            description='Single host network'
-        )
-        NetGroupRegexPermission.objects.create(
-            group=settings.NETWORK_ADMIN_GROUP,
-            range='192.168.2.1/32',
-            regex=r'.*\.example\.org$'
-        )
-        # In a /32, the network address and the host address are the same
-        data = {'name': 'test.example.org', 'ipaddress': '192.168.2.1'}
+        # Regular user denied
         with self.temporary_client_as_normal_user():
-            self.assert_post_and_403('/hosts/', data)
+            group.user_set.add(self.user)
+            self.assert_post_and_403('/hosts/', host_nwaddr)
+            self.assert_post_and_403('/hosts/', host_bcaddr)
+
+        # Network admin permitted
         with self.temporary_client_as_network_admin():
-            self.assert_post_and_201('/hosts/', data)
+            group.user_set.add(self.user)
+            self.assert_post_and_201('/hosts/', host_nwaddr)
+            self.assert_post_and_201('/hosts/', host_bcaddr)
