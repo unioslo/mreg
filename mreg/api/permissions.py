@@ -13,7 +13,7 @@ from mreg.models.network import NetGroupRegexPermission, Network
 from mreg.models.auth import User
 
 # NOTE: We _must_ import `rest_framework.generics` in an `if TYPE_CHECKING:`
-# block because DRF does some dyanmic import shenanigans on runtime using
+# block because DRF does some dynamic import shenanigans on runtime using
 # the `DEFAULT_PERMISSION_CLASSES` we defined in `settings.py`, causing
 # an import cycle if we _actually_ import the generics module on runtime.
 if TYPE_CHECKING:
@@ -372,7 +372,7 @@ class IsGrantedReservedAddressPermission(IsAuthenticated):
     def has_destroy_permission(self, request: Request, view: GenericAPIView, validated_serializer: BaseModel):
         # Deleting will never assign IPs. 
         # Furthermore, the permissions check in `perform_destroy` passes 
-        # in a BaseModel _instance_ instead of a serializer when checking
+        # in a `BaseModel` instance instead of a serializer when checking
         # destroy permissions, so we cannot access any sort of validated data.
         return self.has_permission(request, view)
 
