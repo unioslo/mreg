@@ -13,7 +13,7 @@ from rest_framework import exceptions
 from rest_framework.request import Request
 from rest_framework.response import Response
 
-from mreg.middleware.logging_http import get_request_user_agent, get_request_username
+from mreg.logs import get_request_method, get_request_user_agent, get_request_username
 
 mreg_logger = structlog.getLogger("mreg.http")
 
@@ -26,6 +26,8 @@ class MregExceptionHandler(ExceptionHandler):
 
     Furthermore, it redacts sensitive information from `PermissionDenied` exceptions
     to avoid leaking this information to users.
+
+    See: <https://drf-standardized-errors.readthedocs.io/en/latest/customization.html#handle-a-non-drf-exception>
     """
 
     def report_exception(self, exc: exceptions.APIException, response: Response) -> None:
@@ -40,7 +42,7 @@ class MregExceptionHandler(ExceptionHandler):
         # Extract useful request information
         request_username = get_request_username(request)
         request_user_agent = get_request_user_agent(request)
-        request_method = request.method if request and request.method else "UNKNOWN"
+        request_method = get_request_method(request)
         response_status = response.status_code
 
         # Get the stack trace from the original exception
