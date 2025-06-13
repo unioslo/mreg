@@ -21,6 +21,47 @@ LOGMAP = {
     "DEBUG": logging.DEBUG,
 }
 
+def get_request_header(
+    request: HttpRequest, header_key: str, meta_key: str
+) -> str:
+    """Get the value of a header from the request, either via headers or META."""
+    if hasattr(request, "headers"): # pragma: no cover
+        return request.headers.get(header_key)
+    return request.META.get(meta_key)
+
+
+def get_request_body(request: HttpRequest) -> str:
+    """Get the request body as a string, or '<Binary Data>' if it's binary.
+
+    We currently do not support multipart/form-data requests.
+    """
+    if request.POST:
+        return request.POST.dict()
+
+    try:
+        body = request.body.decode("utf-8")
+    except UnicodeDecodeError:
+        return "<Binary Data>"
+
+    # Try to remove the content-type line and leading line breaks
+    body = body.split("\n", 1)[-1]  # Removes the first line
+    body = body.lstrip()  # Removes leading line breaks
+
+    # Limit the size of the body logged
+    return body[: settings.LOGGING_MAX_BODY_LENGTH]
+
+
+def get_request_username(request: HttpRequest, default: str = "AnonymousUser") -> str:
+    """Get the username of the user making the request, or 'AnonymousUser'."""
+    return getattr(request.user, "username", default) if hasattr(request, 'user') else default
+
+
+def get_request_user_agent(request: HttpRequest, default: str = "Unknown") -> str:
+    try:
+        return get_request_header(request, "user-agent", "HTTP_USER_AGENT")
+    except Exception:
+        return default
+
 
 class LoggingMiddleware:
     """Middleware to log HTTP requests and responses.
@@ -56,41 +97,12 @@ class LoggingMiddleware:
         self.log_response(request, response, start_time)
         return response
 
-    def _get_body(self, request: HttpRequest) -> str:
-        """Get the request body as a string, or '<Binary Data>' if it's binary.
-
-        We currently do not support multipart/form-data requests.
-        """
-        if request.POST:
-            return request.POST.dict()
-
-        try:
-            body = request.body.decode("utf-8")
-        except UnicodeDecodeError:
-            return "<Binary Data>"
-
-        # Try to remove the content-type line and leading line breaks
-        body = body.split("\n", 1)[-1]  # Removes the first line
-        body = body.lstrip()  # Removes leading line breaks
-
-        # Limit the size of the body logged
-        return body[: settings.LOGGING_MAX_BODY_LENGTH]
-
-    def _get_request_header(
-        self, request: HttpRequest, header_key: str, meta_key: str
-    ) -> str:
-        """Get the value of a header from the request, either via headers or META."""
-        if hasattr(request, "headers"): # pragma: no cover
-            return request.headers.get(header_key)
-
-        return request.META.get(meta_key)
-
     def log_request(self, request: HttpRequest) -> None:
         """Log the request."""
-        request_id = self._get_request_header(
+        request_id = get_request_header(
             request, "x-request-id", "HTTP_X_REQUEST_ID"
         ) or str(uuid.uuid4())
-        correlation_id = self._get_request_header(
+        correlation_id = get_request_header(
             request, "x-correlation-id", "HTTP_X_CORRELATION_ID"
         )
         structlog.contextvars.bind_contextvars(request_id=request_id)
@@ -106,7 +118,7 @@ class LoggingMiddleware:
         else:
             proxy_ip = ""
 
-        user_agent = self._get_request_header(request, "user-agent", "HTTP_USER_AGENT")
+        user_agent = get_request_header(request, "user-agent", "HTTP_USER_AGENT")
 
         # Size of request
         request_size = len(request.body)
@@ -119,7 +131,7 @@ class LoggingMiddleware:
             path=request.path_info,
             query_string=request.META.get("QUERY_STRING"),
             request_size=request_size,
-            content=self._get_body(request),
+            content=get_request_body(request),
         ).info("request")
 
     def log_response(
@@ -154,9 +166,8 @@ class LoggingMiddleware:
         if "application/json" in response.headers.get("Content-Type", ""):
             content = response.content.decode("utf-8")
 
-        username = request.user.username
-
-        user_agent = self._get_request_header(request, "user-agent", "HTTP_USER_AGENT")
+        username = get_request_username(request)
+        user_agent = get_request_user_agent(request)
 
         mreg_logger.bind(
             user=username,
@@ -187,8 +198,8 @@ class LoggingMiddleware:
 
         stack_trace = traceback.format_exc()
 
-        username = getattr(request.user, 'username', 'AnonymousUser')
-        user_agent = self._get_request_header(request, "user-agent", "HTTP_USER_AGENT")
+        username = get_request_username(request)
+        user_agent = get_request_user_agent(request)
 
         # Log the exception with stack trace
         mreg_logger.bind(
@@ -216,7 +227,7 @@ class LoggingMiddleware:
             scope.set_extra("exception_string", str(exception))
             scope.set_extra("stack_trace", stack_trace)
 
-            scope.set_extra("request_body", self._get_body(request))
+            scope.set_extra("request_body", get_request_body(request))
 
             # Capture the exception
             sentry_sdk.capture_exception(exception)

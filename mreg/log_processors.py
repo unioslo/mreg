@@ -41,8 +41,8 @@ def filter_sensitive_data(_: Any, __: Any, event_dict: EventDict) -> EventDict:
     )
 
     if is_login_event:
-        content: str = event_dict["content"]
-        event: str = event_dict["event"]
+        content: str = event_dict.get("content", "")
+        event: str = event_dict.get("event", "")
 
         if event == "request" and "password" in content:
             if isinstance(event_dict["content"],dict):
