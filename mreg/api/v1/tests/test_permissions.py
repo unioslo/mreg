@@ -390,24 +390,24 @@ class ReservedAddressPermissionsTestCase(MregAPITestCase):
             network='192.168.1.0/30',
             description='Small test network'
         )
-        group = Group.objects.create(name='small_network_group')
-        NetGroupRegexPermission.objects.create(
-                group='small_network_group',
-                range="192.168.1.0/30",
-                regex=r'.*\.example\.org$'
-        )
-        # Data for testing reserved addresses
+
+        # Create permissions for the small network
+        for group in [settings.NETWORK_ADMIN_GROUP, self.regular_user_group.name]:
+            NetGroupRegexPermission.objects.create(
+                    group=group,
+                    range="192.168.1.0/30",
+                    regex=r'.*\.example\.org$'
+            )
+
         host_nwaddr = {'name': 'nwaddr.example.org', 'ipaddress': "192.168.1.0"}
         host_bcaddr = {'name': 'bcaddr.example.org', 'ipaddress': "192.168.1.3"}
-
+        
         # Regular user denied
         with self.temporary_client_as_normal_user():
-            group.user_set.add(self.user)
             self.assert_post_and_403('/hosts/', host_nwaddr)
             self.assert_post_and_403('/hosts/', host_bcaddr)
 
         # Network admin permitted
         with self.temporary_client_as_network_admin():
-            group.user_set.add(self.user)
             self.assert_post_and_201('/hosts/', host_nwaddr)
             self.assert_post_and_201('/hosts/', host_bcaddr)
