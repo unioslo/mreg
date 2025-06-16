@@ -3,7 +3,7 @@ from __future__ import annotations
 import ipaddress
 from typing import TYPE_CHECKING
 from rest_framework import exceptions
-from rest_framework.permissions import IsAuthenticated, SAFE_METHODS
+from rest_framework.permissions import IsAuthenticated as DRFIsAuthenticated, SAFE_METHODS
 from rest_framework.request import Request
 
 from mreg.api.v1.serializers import HostSerializer
@@ -20,6 +20,33 @@ if TYPE_CHECKING:
     from rest_framework.generics import GenericAPIView
     from rest_framework.serializers import Serializer
     from mreg.models.base import BaseModel
+
+
+
+class CRUDPermissionsMixin:
+    """
+    Mixin to provide `has_{create, update, destroy}_permission` methods
+    for all permission classes. By default, these methods return `False`,
+    and should be overridden in subclasses to provide this functionality (if used).
+    """
+
+    # Can be overridden in subclasses to provide custom permission logic
+    # for different operations.
+    def has_create_permission(self, request: Request, view: GenericAPIView, validated_serializer: Serializer) -> bool:
+        return False
+
+    def has_update_permission(self, request: Request, view: GenericAPIView, validated_serializer: Serializer) -> bool:
+        return False
+
+    def has_destroy_permission(self, request: Request, view: GenericAPIView, validated_serializer: BaseModel) -> bool:
+        return False
+
+
+class IsAuthenticated(DRFIsAuthenticated, CRUDPermissionsMixin):
+    """
+    Allows access only to authenticated users.
+    """
+    pass
 
 
 class IsAuthenticatedAndReadOnly(IsAuthenticated):
@@ -363,13 +390,13 @@ class IsGrantedReservedAddressPermission(IsAuthenticated):
                 )
         return True
 
-    def has_create_permission(self, request: Request, view: GenericAPIView, validated_serializer: Serializer):
+    def has_create_permission(self, request: Request, view: GenericAPIView, validated_serializer: Serializer) -> bool:
         return self.has_ipaddress_permission(request, view, validated_serializer)
 
-    def has_update_permission(self, request: Request, view: GenericAPIView, validated_serializer: Serializer):
+    def has_update_permission(self, request: Request, view: GenericAPIView, validated_serializer: Serializer) -> bool:
         return self.has_ipaddress_permission(request, view, validated_serializer)
 
-    def has_destroy_permission(self, request: Request, view: GenericAPIView, validated_serializer: BaseModel):
+    def has_destroy_permission(self, request: Request, view: GenericAPIView, validated_serializer: BaseModel) -> bool:
         # Deleting will never assign IPs. 
         # Furthermore, the permissions check in `perform_destroy` passes 
         # in a `BaseModel` instance instead of a serializer when checking
