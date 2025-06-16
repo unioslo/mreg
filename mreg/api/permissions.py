@@ -365,9 +365,6 @@ class IsGrantedReservedAddressPermission(IsAuthenticated):
         user = User.from_request(request)
         if (user.is_mreg_superuser_or_admin or user.is_mreg_network_admin):
             return True
-        
-        if not hasattr(validated_serializer, "validated_data"):
-            return True
 
         data = validated_serializer.validated_data   
         if not data or not (ip := data.get("ipaddress")):
