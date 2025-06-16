@@ -177,8 +177,6 @@ class NetGroupRegexPermissionTestCaseAsAdmin(NetGroupRegexPermissionTestCase):
         self.client = self.get_token_client(superuser=False, adminuser=True)
 
 
-
-
 class ReservedAddressPermissionsTestCase(MregAPITestCase):
     """Test IsGrantedReservedAddressPermission for network and broadcast addresses."""
 
@@ -256,6 +254,8 @@ class ReservedAddressPermissionsTestCase(MregAPITestCase):
 
         permission = IsGrantedReservedAddressPermission()
 
+        # We are passing in a reserved IP address, so the permission class should
+        # deny the request for a normal user
         with self.assertRaises(PermissionDenied):
             permission.has_create_permission(request, view, serializer)
 
