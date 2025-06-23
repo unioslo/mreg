@@ -1,5 +1,6 @@
 import operator
 from functools import reduce
+import re
 from typing import List
 
 import structlog
@@ -60,6 +61,17 @@ class CIDRFieldFilter(filters.CharFilter):
             return qs.filter(**{f"{self.field_name}__net_contains_or_equals": str(cidr)})
         except AddrFormatError:
             raise exceptions.ValidationError(f"Invalid CIDR: {value}")
+
+class CIDRFieldRegexFilter(filters.CharFilter):
+    def filter(self, qs, value):
+        if not value:
+            return qs
+
+        try:
+            re.compile(value) # throws exception if invalid
+            return qs.filter(**{f"{self.field_name}__regex": str(value)})
+        except re.error:
+            raise exceptions.ValidationError(f"Invalid regex pattern: {value}")
 
 class BACnetIDFilterSet(filters.FilterSet):
     class Meta:
@@ -300,6 +312,7 @@ class NetGroupRegexPermissionFilterSet(filters.FilterSet):
 
 class NetworkFilterSet(filters.FilterSet):
     network = CIDRFieldFilter(field_name="network")
+    network__regex = CIDRFieldRegexFilter(field_name="network")
 
     class Meta:
         model = Network
