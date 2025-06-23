@@ -1,11 +1,52 @@
+from __future__ import annotations
+
+import ipaddress
+from typing import TYPE_CHECKING
 from rest_framework import exceptions
-from rest_framework.permissions import IsAuthenticated, SAFE_METHODS
+from rest_framework.permissions import IsAuthenticated as DRFIsAuthenticated, SAFE_METHODS
+from rest_framework.request import Request
 
 from mreg.api.v1.serializers import HostSerializer
 from mreg.models.host import HostGroup
 from mreg.models.network import NetGroupRegexPermission, Network
 
 from mreg.models.auth import User
+
+# NOTE: We _must_ import `rest_framework.generics` in an `if TYPE_CHECKING:`
+# block because DRF does some dynamic import shenanigans on runtime using
+# the `DEFAULT_PERMISSION_CLASSES` we defined in `settings.py`, causing
+# an import cycle if we _actually_ import the generics module on runtime.
+if TYPE_CHECKING:
+    from rest_framework.generics import GenericAPIView
+    from rest_framework.serializers import Serializer
+    from mreg.models.base import BaseModel
+
+
+
+class CRUDPermissionsMixin:
+    """
+    Mixin to provide `has_{create, update, destroy}_permission` methods
+    for all permission classes. By default, these methods return `False`,
+    and should be overridden in subclasses to provide this functionality (if used).
+    """
+
+    # Can be overridden in subclasses to provide custom permission logic
+    # for different operations.
+    def has_create_permission(self, request: Request, view: GenericAPIView, validated_serializer: Serializer) -> bool:
+        return False
+
+    def has_update_permission(self, request: Request, view: GenericAPIView, validated_serializer: Serializer) -> bool:
+        return False
+
+    def has_destroy_permission(self, request: Request, view: GenericAPIView, validated_serializer: BaseModel) -> bool:
+        return False
+
+
+class IsAuthenticated(DRFIsAuthenticated, CRUDPermissionsMixin):
+    """
+    Allows access only to authenticated users.
+    """
+    pass
 
 
 class IsAuthenticatedAndReadOnly(IsAuthenticated):
@@ -317,3 +358,45 @@ class HostGroupPermission(IsAuthenticated):
         if user.is_mreg_superuser or user.is_mreg_hostgroup_admin:
             return True
         return False
+
+
+class IsGrantedReservedAddressPermission(IsAuthenticated):
+    def has_ipaddress_permission(self, request: Request, view: GenericAPIView, validated_serializer: Serializer):
+        user = User.from_request(request)
+        if (user.is_mreg_superuser_or_admin or user.is_mreg_network_admin):
+            return True
+
+        data = validated_serializer.validated_data   
+        if not data or not (ip := data.get("ipaddress")):
+            return True
+        
+        try:
+            ipaddr = ipaddress.ip_address(ip)
+        except ValueError:
+            # invalid IP, let serializer handle it
+            return True 
+
+        try:
+            network: Network = Network.objects.get(network__net_contains=ip)
+        except Network.DoesNotExist:
+            pass # network not in mreg
+        else:
+            if ipaddr in (network.network.broadcast_address, network.network.network_address):
+                raise exceptions.PermissionDenied(
+                    {"ERROR": "Setting a network or broadcast address on a host requires network admin privileges."}
+                )
+        return True
+
+    def has_create_permission(self, request: Request, view: GenericAPIView, validated_serializer: Serializer) -> bool:
+        return self.has_ipaddress_permission(request, view, validated_serializer)
+
+    def has_update_permission(self, request: Request, view: GenericAPIView, validated_serializer: Serializer) -> bool:
+        return self.has_ipaddress_permission(request, view, validated_serializer)
+
+    def has_destroy_permission(self, request: Request, view: GenericAPIView, validated_serializer: BaseModel) -> bool:
+        # Deleting will never assign IPs. 
+        # Furthermore, the permissions check in `perform_destroy` passes 
+        # in a `BaseModel` instance instead of a serializer when checking
+        # destroy permissions, so we cannot access any sort of validated data.
+        return self.has_permission(request, view)
+
