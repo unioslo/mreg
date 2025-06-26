@@ -46,7 +46,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = ")e#67040xjxar=zl^y#@#b*zilv2dxtraj582$^(e6!wf++_n#"
 
-LOG_LEVEL = envvar("MREG_LOG_LEVEL", "CRITICAL").upper()
+LOG_LEVEL = envvar("MREG_LOG_LEVEL", "CRITICAL" if TESTING else "ERROR").upper()
 
 REQUESTS_THRESHOLD_SLOW = 1000
 REQUESTS_LOG_LEVEL_SLOW = "WARNING"
@@ -252,6 +252,10 @@ REST_FRAMEWORK = {
 REST_FRAMEWORK_EXTENSIONS = {
     "DEFAULT_OBJECT_ETAG_FUNC": "rest_framework_extensions.utils.default_object_etag_func",
     "DEFAULT_LIST_ETAG_FUNC": "rest_framework_extensions.utils.default_list_etag_func",
+}
+
+DRF_STANDARDIZED_ERRORS = {
+    "EXCEPTION_HANDLER_CLASS": "mreg.exceptions.MregExceptionHandler",
 }
 
 # TXT record(s) automatically added to a host when added to a ForwardZone.
