@@ -158,6 +158,73 @@ class NetworksTestCase(MregAPITestCase):
     def test_ipv6_networks_get_200_ok(self):
         """GET on an existing ipv6-network should return 200 OK."""
         self.assert_get('/networks/%s' % self.network_ipv6_sample.network)
+    
+    def test_networks_get_regex_200_ok_ipv4(self):
+        """GET on an existing ip-network with regex should return 200 OK."""
+        net1 = Network(
+            network='10.0.2.0/24', # 10.0.1.0/28 already exists. See `setUp()`
+            description='New network 1',
+            vlan=123,
+            dns_delegated=False,
+            category='so',
+            location='Location 1',
+            frozen=False
+        )
+        net2 = Network(
+            network='10.0.3.0/24',
+            description='New network 2',
+            vlan=123,
+            dns_delegated=False,
+            category='so',
+            location='Location 1',
+            frozen=False
+        )
+        clean_and_save(net1)
+        clean_and_save(net2)
+
+        # Get with regex for one network
+        resp = self.assert_get_and_200('/networks/?network__regex=^10.0.2.*$')
+        self.assertEqual(resp.data['count'], 1)
+        self.assertEqual(resp.data['results'][0]['network'], str(net1.network))
+        # Get with regex for both networks
+        resp = self.assert_get_and_200('/networks/?network__regex=^10.0.(2|3).*$')
+        self.assertEqual(resp.data['count'], 2)
+        self.assertEqual(resp.data['results'][0]['network'], str(net1.network))
+        self.assertEqual(resp.data['results'][1]['network'], str(net2.network))
+        
+
+    def test_networks_get_regex_200_ok_ipv6(self):
+        """GET on an existing ip-network with regex should return 200 OK."""
+        net1 = Network(
+            network="2001:db8:0:2::/64", # 2001:db8:0:1::/64 already exists. See `setUp()`
+            description='New ipv6 network 1',
+            vlan=123,
+            dns_delegated=False,
+            category='so',
+            location='Location 1',
+            frozen=False
+        )
+        net2 = Network(
+            network="2001:db8:0:3::/64",
+            description="New ipv6 network 2",
+            vlan=123,
+            dns_delegated=False,
+            category="so",
+            location="Location 1",
+            frozen=False
+        )
+        clean_and_save(net1)
+        clean_and_save(net2)
+        
+        # Get with regex for one network
+        resp = self.assert_get_and_200('/networks/?network__regex=^2001:db8:0:2::.*$')
+        self.assertEqual(resp.data['count'], 1)
+        self.assertEqual(resp.data['results'][0]['network'], str(net1.network))
+        # Get with regex for both networks
+        resp = self.assert_get_and_200('/networks/?network__regex=^2001:db8:0:(2|3)::.*$')
+        self.assertEqual(resp.data['count'], 2)
+        self.assertEqual(resp.data['results'][0]['network'], str(net1.network))
+        self.assertEqual(resp.data['results'][1]['network'], str(net2.network))
 
     def test_networks_list_200_ok(self):
         """GET without name should return a list and 200 OK."""
