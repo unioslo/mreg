@@ -418,7 +418,7 @@ class HostList(HostPermissionsListCreateAPIView):
 
             if not ip:
                 content = {"ERROR": "no available IP in network"}
-                return Response(content, status=status.HTTP_404_NOT_FOUND)
+                return Response(content, status=status.HTTP_409_CONFLICT)
 
             hostdata["ipaddress"] = ip
 
