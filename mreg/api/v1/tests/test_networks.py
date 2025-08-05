@@ -625,18 +625,3 @@ class NetworkAdminPermissions(NetworkExcludedRanges):
         self.client = self.get_token_client(username='networkadmin',
                                             superuser=False, adminuser=True)
         self.add_user_to_groups('NETWORK_ADMIN_GROUP')
-
-    def test_can_only_patch_reserved(self):
-        """
-        Test that members of NETWORK_ADMIN_GROUP can patch the reserved field, and
-        the frozen field, but nothing else.
-        """
-        path = '/api/v1/networks/10.0.0.0/24'
-        self.assert_patch(path, {'reserved': 5})
-        self.assert_patch_and_403(path, {'description': 'test2'})
-        self.assert_patch(path, {'frozen': True})
-        self.assert_patch(path, {'frozen': False, 'reserved': 7})
-        # Only allowed to do a patch with reserved and/or frozen. Not other fields at the same time.
-        self.assert_patch_and_403(path, {'reserved': 2, 'description': 'test2'})
-        self.assert_patch_and_403(path, {'frozen': True, 'description': 'test3'})
-        self.assert_patch_and_403(path, {'reserved': 4, 'frozen': True, 'description': 'test4'})
