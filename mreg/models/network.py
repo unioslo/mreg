@@ -275,6 +275,7 @@ class NetGroupRegexPermission(BaseModel):
         )
         if require_ip:
             qs = qs.filter(
-                reduce(lambda x, y: x | y, [Q(range__net_contains=ip) for ip in ips])
+                # NOTE: using `contains_or_equals` to match /32 (v4) and /128 (v6) CIDR ranges
+                reduce(lambda x, y: x | y, [Q(range__net_contains_or_equals=ip) for ip in ips])
             )
         return qs
