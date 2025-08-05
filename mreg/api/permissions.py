@@ -82,8 +82,7 @@ class IsSuperOrAdminOrReadOnly(IsAuthenticated):
 
 class IsSuperOrNetworkAdminMember(IsAuthenticated):
     """
-    Permit user if in super user group and also the network admin
-    can change some views and some fields.
+    Permit user if in super user group or network admin group.
     """
 
     def has_permission(self, request, view):
