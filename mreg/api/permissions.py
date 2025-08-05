@@ -87,7 +87,6 @@ class IsSuperOrNetworkAdminMember(IsAuthenticated):
     """
 
     def has_permission(self, request, view):
-        import mreg.api.v1.views
         if not super().has_permission(request, view):
             return False
 
@@ -95,16 +94,7 @@ class IsSuperOrNetworkAdminMember(IsAuthenticated):
         if user.is_mreg_superuser:
             return True
         if user.is_mreg_network_admin:
-            if isinstance(view, mreg.api.v1.views.NetworkDetail):
-                if request.method == 'PATCH':
-                    # Only allow update of the reserved/frozen fields
-                    allowed_fields = {'frozen', 'reserved'}
-                    if allowed_fields.issuperset(request.data):
-                        return True
-                return False
-
             return True
-
         return False
 
 
