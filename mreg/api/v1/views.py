@@ -805,7 +805,7 @@ class NetworkList(MregListCreateAPIView):
 
     queryset = Network.objects.all().prefetch_related("excluded_ranges")
     serializer_class = NetworkSerializer
-    permission_classes = (IsSuperGroupMember | IsAuthenticatedAndReadOnly,)
+    permission_classes = (IsSuperOrNetworkAdminMember | IsAuthenticatedAndReadOnly,)
     lookup_field = "network"
     filterset_class = NetworkFilterSet
 
