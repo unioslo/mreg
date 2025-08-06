@@ -394,7 +394,7 @@ class NetworksTestCase(MregAPITestCase):
         response = self.assert_get('/networks/%s/first_unused' % self.network_ipv6_sample.network)
         self.assertEqual(response.data, '2001:db8::4')
 
-    def test_networks_get_first_unued_on_full_network_404_not_found(self):
+    def test_networks_get_first_unused_on_full_network_404_not_found(self):
         """GET first unused IP on a full network should return 404 not found."""
         data = {
             'network': '172.16.0.0/30',
@@ -402,6 +402,16 @@ class NetworksTestCase(MregAPITestCase):
         }
         self.assert_post('/networks/', data)
         self.assert_get_and_404('/networks/%s/first_unused' % data['network'])
+    
+    def test_networks_create_host_full_network_409_conflict(self):
+        """Creating a host on a full network should return 409 conflict."""
+        data = {
+            'network': '172.16.1.0/30',
+            'description': 'Tiny network',
+        }
+        self.assert_post('/networks/', data)
+        ret = self.assert_post_and_409('/hosts/', {'name': 'hostcreateconflictfullnetwork.example.org', 'network': data['network']})
+        self.assertEqual(ret.content, b'{"ERROR":"no available IP in network"}')
 
     def test_networks_get_random_unused_200_ok(self):
         """GET on /networks/<ip/mask>/random_unused should return 200 ok and data."""
