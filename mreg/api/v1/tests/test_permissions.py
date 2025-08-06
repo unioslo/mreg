@@ -411,3 +411,47 @@ class ReservedAddressPermissionsTestCase(MregAPITestCase):
         with self.temporary_client_as_network_admin():
             self.assert_post_and_201('/hosts/', host_nwaddr)
             self.assert_post_and_201('/hosts/', host_bcaddr)
+
+    def test_single_host_network_ipv4(self):
+        """Test /32 networks (IPv4 single host)."""
+        Network.objects.create(
+            network='192.168.2.1/32',
+            description='Single host network'
+        )
+        NetGroupRegexPermission.objects.create(
+            group=settings.NETWORK_ADMIN_GROUP,
+            range='192.168.2.1/32',
+            regex=r'.*\.example\.org$'
+        )
+
+        data = {'name': 'test.example.org', 'ipaddress': '192.168.2.1'}
+        
+        # Regular user denied
+        with self.temporary_client_as_normal_user():
+            self.assert_post_and_403('/hosts/', data)
+
+        # Network admin permitted
+        with self.temporary_client_as_network_admin():
+            self.assert_post_and_201('/hosts/', data)
+    
+    def test_single_host_network_ipv6(self):
+        """Test /128 networks (IPv6 single host)."""
+        Network.objects.create(
+            network='2001:db8::1/128',
+            description='Single host network'
+        )
+        NetGroupRegexPermission.objects.create(
+            group=settings.NETWORK_ADMIN_GROUP,
+            range='2001:db8::1/128',
+            regex=r'.*\.example\.org$'
+        )
+
+        data = {'name': 'test.example.org', 'ipaddress': '2001:db8::1'}
+
+        # Regular user denied
+        with self.temporary_client_as_normal_user():
+            self.assert_post_and_403('/hosts/', data)
+
+        # Network admin permitted
+        with self.temporary_client_as_network_admin():
+            self.assert_post_and_201('/hosts/', data)
