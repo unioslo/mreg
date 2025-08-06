@@ -418,7 +418,7 @@ class HostList(HostPermissionsListCreateAPIView):
 
             if not ip:
                 content = {"ERROR": "no available IP in network"}
-                return Response(content, status=status.HTTP_404_NOT_FOUND)
+                return Response(content, status=status.HTTP_409_CONFLICT)
 
             hostdata["ipaddress"] = ip
 
@@ -805,7 +805,7 @@ class NetworkList(MregListCreateAPIView):
 
     queryset = Network.objects.all().prefetch_related("excluded_ranges")
     serializer_class = NetworkSerializer
-    permission_classes = (IsSuperGroupMember | IsAuthenticatedAndReadOnly,)
+    permission_classes = (IsSuperOrNetworkAdminMember | IsAuthenticatedAndReadOnly,)
     lookup_field = "network"
     filterset_class = NetworkFilterSet
 
