@@ -63,6 +63,20 @@ def get_mock_request(user: mock.Mock, mock_user_from_request: mock.Mock, path: s
     return request
 
 
+def create_network_and_permissions(
+    *groups: str,
+    network: str,
+    regex: str = r'.*\.example\.org$',
+    description: str = 'Test network'
+) -> Network:
+    """Create a network and assign permissions to it for the given group(s)."""
+    net = Network.objects.create(network=network, description=description)
+    for group in groups:
+        NetGroupRegexPermission.objects.create(group=group, range=network, regex=regex)
+    return net
+
+
+
 class TestIsGrantedNetGroupRegexPermission(MregAPITestCase):
 
     @mock.patch('mreg.api.permissions.User.from_request')
@@ -182,13 +196,19 @@ class ReservedAddressPermissionsTestCase(MregAPITestCase):
 
     def setUp(self):
         super().setUp()
-        # Create test networks
-        self.network_ipv4 = Network.objects.create(
+        self.regular_user_group = Group.objects.create(name='testgroup')
+
+        # Create test networks and give permissions to users and network admins
+        self.network_ipv4 = create_network_and_permissions(
+            settings.NETWORK_ADMIN_GROUP,
+            self.regular_user_group.name,
             network='10.0.0.0/24', 
             description='Test IPv4 network'
         )
-        self.network_ipv6 = Network.objects.create(
-            network='2001:db8::/64', 
+        self.network_ipv6 = create_network_and_permissions(
+            settings.NETWORK_ADMIN_GROUP,
+            self.regular_user_group.name,
+            network='2001:db8::/64',
             description='Test IPv6 network'
         )
         
@@ -200,6 +220,7 @@ class ReservedAddressPermissionsTestCase(MregAPITestCase):
         # IPv6 only has network address (no broadcast)
         self.ipv6_network_addr = '2001:db8::'    # network address
         self.ipv6_regular_addr = '2001:db8::10'  # regular address
+        
 
         class ReservedAddress(str, Enum):
             IPV4_NETWORK = self.ipv4_network_addr
@@ -217,20 +238,7 @@ class ReservedAddressPermissionsTestCase(MregAPITestCase):
             ReservedAddress.IPV6_NETWORK,
         ]
 
-        self.regular_user_group = Group.objects.create(name='testgroup')
 
-        # Give network admins and regular users permissions for the test networks
-        for group in [settings.NETWORK_ADMIN_GROUP, self.regular_user_group.name]:
-            NetGroupRegexPermission.objects.create(
-                group=group,
-                range=self.network_ipv4.network,
-                regex=r'.*\.example\.org$'
-            )
-            NetGroupRegexPermission.objects.create(
-                group=group,
-                range=self.network_ipv6.network,
-                regex=r'.*\.example\.org$'
-            )
 
     @mock.patch('mreg.api.permissions.User.from_request')
     @mock.patch('mreg.api.permissions.IsGrantedNetGroupRegexPermission.has_obj_perm', return_value=False)
@@ -386,18 +394,13 @@ class ReservedAddressPermissionsTestCase(MregAPITestCase):
     def test_small_network_reserved_addresses_ipv4(self):
         """Test reserved addresses in very small ipv4 networks."""
         # In a /30: .0 = network, .1 = first host, .2 = second host, .3 = broadcast
-        Network.objects.create(
+        create_network_and_permissions(
+            settings.NETWORK_ADMIN_GROUP,
+            self.regular_user_group.name,
             network='192.168.1.0/30',
-            description='Small test network'
+            description='Small test network',
+            regex=r'.*\.example\.org$'
         )
-
-        # Create permissions for the small network
-        for group in [settings.NETWORK_ADMIN_GROUP, self.regular_user_group.name]:
-            NetGroupRegexPermission.objects.create(
-                    group=group,
-                    range="192.168.1.0/30",
-                    regex=r'.*\.example\.org$'
-            )
 
         host_nwaddr = {'name': 'nwaddr.example.org', 'ipaddress': "192.168.1.0"}
         host_bcaddr = {'name': 'bcaddr.example.org', 'ipaddress': "192.168.1.3"}
@@ -414,14 +417,10 @@ class ReservedAddressPermissionsTestCase(MregAPITestCase):
 
     def test_single_host_network_ipv4(self):
         """Test /32 networks (IPv4 single host)."""
-        Network.objects.create(
+        create_network_and_permissions(
+            settings.NETWORK_ADMIN_GROUP,
             network='192.168.2.1/32',
             description='Single host network'
-        )
-        NetGroupRegexPermission.objects.create(
-            group=settings.NETWORK_ADMIN_GROUP,
-            range='192.168.2.1/32',
-            regex=r'.*\.example\.org$'
         )
 
         data = {'name': 'test.example.org', 'ipaddress': '192.168.2.1'}
@@ -436,14 +435,10 @@ class ReservedAddressPermissionsTestCase(MregAPITestCase):
     
     def test_single_host_network_ipv6(self):
         """Test /128 networks (IPv6 single host)."""
-        Network.objects.create(
+        create_network_and_permissions(
+            settings.NETWORK_ADMIN_GROUP,
             network='2001:db8::1/128',
             description='Single host network'
-        )
-        NetGroupRegexPermission.objects.create(
-            group=settings.NETWORK_ADMIN_GROUP,
-            range='2001:db8::1/128',
-            regex=r'.*\.example\.org$'
         )
 
         data = {'name': 'test.example.org', 'ipaddress': '2001:db8::1'}
