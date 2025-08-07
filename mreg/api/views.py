@@ -33,6 +33,7 @@ start_time = int(time.time())
 # be last makes the context of the libpq version more clear.
 LIBRARIES_TO_REPORT = [
     "djangorestframework",
+    "drf-standardized-errors",
     "django-auth-ldap",
     "django-filter", 
     "django-logging-json",
