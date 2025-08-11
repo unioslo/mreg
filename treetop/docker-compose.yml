@@ -1,0 +1,19 @@
+# This docker file allows you to set up a TreeTop policy server for tests.
+services:
+  cedar-server:
+    image: svenstaro/miniserve
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/data:ro
+    command: ["/data", "--port", "8080"]
+
+  treetop-server:
+    image: ghcr.io/terjekv/treetop-rest:develop
+    ports:
+      - "9999:9999"
+    environment:
+      - APP_POLICY_URL=http://cedar-server:8080/mreg.cedar
+      - APP_HOST_LABEL_URL=http://cedar-server:8080/host_labels.json
+      - RUST_LOG=info,treetop=debug
+    command: ["server", "--host", "0.0.0.0"]
