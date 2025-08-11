@@ -3,7 +3,11 @@
 @id("MREG.admins_policy")
 permit (
     principal in MREG::Group::"admins",
-    action in MREG::Action::"host_access",
+    action in
+        [MREG::Action::"create_host",
+         MREG::Action::"delete_host",
+         MREG::Action::"view_host",
+         MREG::Action::"edit_host"],
     resource is Host
 );
 
@@ -12,14 +16,33 @@ permit (
 @id("MREG.webadmins_policy")
 permit (
     principal in MREG::Group::"webadmins",
-    action in MREG::Action::"host_access",
+    action in
+        [MREG::Action::"edit_host",
+         MREG::Action::"delete_host",
+         MREG::Action::"create_host"],
     resource is Host
 )
 when
 {
     resource.nameLabels.contains("webserver") &&
-    resource.ip.isInRange(ip("192.168.1.0/24"))
+    resource.ip.isInRange("192.168.1.0/24")
 };
+
+// Users can only view hosts
+@id("MREG.users_policy")
+permit (
+    principal in MREG::Group::"users",
+    action == MREG::Action::"view_host",
+    resource is Host
+);
+
+// Charlie does not get to delete hosts, no matter what.
+@id("MREG.charlie_forbid_delete_host_policy")
+forbid (
+    principal == MREG::User::"charlie",
+    action == MREG::Action::"delete_host",
+    resource is Host
+);
 
 // Admins can manipulate any IP address, even if it is a gw, a broadcast address,
 // the network address, reserved. These three groups are unified as "restricted" IPs.
@@ -34,17 +57,6 @@ permit (
          MREG::Action::"ip_restricted_management"],
     resource is IPAddress
 );
-
-
-/// Test group access, used during testing.
-@id("MREG.test_group_policy")
-permit (
-    principal in MREG::Group::"testgroup",
-    action in [MREG::Action::"host_access"],
-    resource is Host
-) when {
-    resource.ip.isInRange(ip("10.0.0.0/24"))
-};
 
 /// Network Admins can manage any IP in any network
 @id("MREG.network_admins_ip_network_policy")
@@ -63,8 +75,8 @@ permit (
 )
 when
 {
-    resource.ip.isInRange(ip("192.168.1.0/24")) ||
-    resource.ip.isInRange(ip("10.0.0.0/8"))
+    resource.ip.isInRange("192.168.1.0/24") ||
+    resource.ip.isInRange("10.0.0.0/8")
 };
 
 /// Admins can do whatever with labels.
@@ -80,7 +92,7 @@ permit (
 );
 
 /// Superadmins
-@id("MREG.superadmin")
+@id("MREG.is_superuser")
 permit (
     principal in MREG::Group::"default-super-group",
     action, // Superadmins don't care what the action is
@@ -88,34 +100,34 @@ permit (
 );
 
 /// Normal (?) admins
-@id("MREG.admin")
+@id("MREG.is_admin")
 permit (
     principal in MREG::Group::"default-admin-group",
-    action == MREG::Action::"admin_access",
+    action == MREG::Action::"is_admin",
     resource
 );
 
 /// Host Policy Admins 
-@id("MREG.hostpolicy_admin")
+@id("MREG.is_hostpolicy_admin")
 permit (
     principal in MREG::Group::"default-hostpolicyadmin-group",
-    action == MREG::Action::"hostpolicy_admin_access",
+    action == MREG::Action::"is_hostpolicy_admin",
     resource
 );
 
 /// DNS Wildcard Admins 
-@id("MREG.dns_wildcard_admin")
+@id("MREG.is_dns_wildcard_admin")
 permit (
     principal in MREG::Group::"default-dns-wildcard-group",
-    action == MREG::Action::"dns_wildcard_admin_access",
+    action == MREG::Action::"is_dns_wildcard_admin",
     resource
 );
 
 /// DNS Underscore Admins
-@id("MREG.dns_underscore_admin")
+@id("MREG.is_dns_underscore_admin")
 permit (
     principal in MREG::Group::"default-dns-underscore-group",
-    action == MREG::Action::"dns_underscore_admin_access",
+    action == MREG::Action::"is_dns_underscore_admin",
     resource
 );
 

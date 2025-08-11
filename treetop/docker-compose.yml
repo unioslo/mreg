@@ -10,7 +10,6 @@ services:
 
   treetop-server:
     image: ghcr.io/terjekv/treetop-rest:develop
-    pull_policy: "always"
     ports:
       - "9999:9999"
     environment:

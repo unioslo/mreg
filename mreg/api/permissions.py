@@ -384,7 +384,16 @@ class IsSuperGroupMember(IsAuthenticated):
         if not super().has_permission(request, view):
             return False
 
-        return self.user_is_superuser(request=request, view=view)
+
+        return policy_parity(
+                User.from_request(request).is_mreg_superuser,
+                request=request,
+                view=view,
+                permission_class=self.__class__.__name__,
+                action="is_superuser",
+                resource_kind="Generic",
+                resource_attrs={"kind": "Any", "id": "any"},
+            )
 
 
 class IsSuperOrAdminOrReadOnly(IsAuthenticated):
@@ -397,7 +406,15 @@ class IsSuperOrAdminOrReadOnly(IsAuthenticated):
             return False
         if request.method in SAFE_METHODS:
             return True
-        return self.user_is_admin(request=request, view=view)
+        return policy_parity(
+                User.from_request(request).is_mreg_superuser_or_admin,
+                request=request,
+                view=view,
+                permission_class=self.__class__.__name__,
+                action="is_admin", # Superadmins don't care what the action is
+                resource_kind="Generic",
+                resource_attrs={"kind": "Any", "id": "any"},
+            )
 
     
 
