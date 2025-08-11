@@ -11,6 +11,7 @@ from mreg.models.host import HostGroup
 from mreg.models.network import NetGroupRegexPermission, Network
 
 from mreg.models.auth import User
+from mreg.api.treetop import policy_parity
 
 # NOTE: We _must_ import `rest_framework.generics` in an `if TYPE_CHECKING:`
 # block because DRF does some dynamic import shenanigans on runtime using
@@ -64,7 +65,18 @@ class IsSuperGroupMember(IsAuthenticated):
     def has_permission(self, request, view):
         if not super().has_permission(request, view):
             return False
-        return User.from_request(request).is_mreg_superuser
+
+        user = 
+
+        return policy_parity(
+                User.from_request(request).is_mreg_superuser,
+                request=request,
+                view=view,
+                permission_class=self.__class__.__name__,
+                action="is_superuser",
+                resource_kind="Generic",
+                resource_attrs={"kind": "Any", "id": "any"},
+            )
 
 
 class IsSuperOrAdminOrReadOnly(IsAuthenticated):
@@ -77,8 +89,17 @@ class IsSuperOrAdminOrReadOnly(IsAuthenticated):
             return False
         if request.method in SAFE_METHODS:
             return True
-        return User.from_request(request).is_mreg_superuser_or_admin
+        return policy_parity(
+                User.from_request(request).is_mreg_superuser_or_admin,
+                request=request,
+                view=view,
+                permission_class=self.__class__.__name__,
+                action="is_admin", # Superadmins don't care what the action is
+                resource_kind="Generic",
+                resource_attrs={"kind": "Any", "id": "any"},
+            )
 
+    
 
 class IsSuperOrNetworkAdminMember(IsAuthenticated):
     """
