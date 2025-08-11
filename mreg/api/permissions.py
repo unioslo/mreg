@@ -66,8 +66,6 @@ class IsSuperGroupMember(IsAuthenticated):
         if not super().has_permission(request, view):
             return False
 
-        user = 
-
         return policy_parity(
                 User.from_request(request).is_mreg_superuser,
                 request=request,
