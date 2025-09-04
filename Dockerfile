@@ -4,8 +4,8 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-RUN apk update
-RUN apk add --virtual build-deps gcc python3-dev openldap-dev musl-dev git
+RUN apk update \
+    && apk add --virtual build-deps gcc python3-dev openldap-dev musl-dev git
 # Copy entire build context to the image.
 # In order to build the project, we need both the .git directory and project files.
 # However, we cannot mix files and directories in the COPY command, because
@@ -24,6 +24,8 @@ ENTRYPOINT [ "/bin/sh" ]
 FROM python:3.11-alpine
 EXPOSE 8000
 
+WORKDIR /app
+
 # Don't allow uv to download anything
 ENV UV_OFFLINE=1
 
@@ -36,7 +38,6 @@ COPY mreg /app/mreg/
 COPY mregsite /app/mregsite/
 COPY hostpolicy /app/hostpolicy/
 COPY --from=ghcr.io/astral-sh/uv:0.6.16 /uv /uvx /bin/
-WORKDIR /app
 RUN apk update && apk upgrade \
     && apk add libldap vim findutils \
     && rm -rf /var/cache/apk/* \
