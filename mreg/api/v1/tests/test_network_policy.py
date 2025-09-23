@@ -785,6 +785,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         res = self.assert_get(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}")
         self.assertEqual(res.json()['global_name'], "community01")
 
+        # Test via direct modification of the object
         policy.community_mapping_prefix = "test"
         policy.save()
 
@@ -792,6 +793,13 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         self.assertEqual(res.json()['global_name'], "test01")
         res = self.assert_get(f"{NETWORK_ENDPOINT}{network.network}/communities/{community_other.pk}")
         self.assertEqual(res.json()['global_name'], "test02")                
+
+        # Test via the API (PATCH request)
+        self.assert_patch_and_200(f"{POLICY_ENDPOINT}{policy.pk}", data={"community_mapping_prefix": "patched"})
+        res = self.assert_get(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}")
+        self.assertEqual(res.json()['global_name'], "patched01")
+        res = self.assert_get(f"{NETWORK_ENDPOINT}{network.network}/communities/{community_other.pk}")
+        self.assertEqual(res.json()['global_name'], "patched02")                
 
         community_other.delete()
 
