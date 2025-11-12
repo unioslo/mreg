@@ -1046,14 +1046,14 @@ wheels = [
 
 [[package]]
 name = "treetop-client"
-version = "0.0.2"
+version = "0.0.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/fa/a1/ae06eb362cdc44ccf2bea1c2af6856e038cebac63ceb4908434482e1323a/treetop_client-0.0.2.tar.gz", hash = "sha256:c89794d09fc9c31d39cb0e13ee03f1559bbe2ec893a0647698f48747a1759f8f", size = 5103, upload_time = "2025-07-28T19:34:36.677Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/87/2e/1920bff4d2f621cbab9d97a54eff9bc71a3a4c9eaabf16a4164a56ac7565/treetop_client-0.0.3.tar.gz", hash = "sha256:863b3a7f01e794e03674b4c7e011655c753432621c71e2f909ab966f4a7b5dda", size = 5409, upload_time = "2025-09-01T10:35:26.513Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/98/e4/9587921902ece105f616310b66cae9e4f40e38c8673d5e74ff2a66b61d57/treetop_client-0.0.2-py3-none-any.whl", hash = "sha256:af08d71d9d74a3913c7655fe3a5e1dc579e335ddecf562710ca2443b5227d16a", size = 6108, upload_time = "2025-07-28T19:34:35.405Z" },
+    { url = "https://files.pythonhosted.org/packages/00/c6/77e4dd3519bab99832d7b45869d57230f1028352c5a6942b7c33484b83e3/treetop_client-0.0.3-py3-none-any.whl", hash = "sha256:cf294f607401755ef02813a26cb8228fdba06835d1081ee43412e53fe4a8a21c", size = 6443, upload_time = "2025-09-01T10:35:25.446Z" },
 ]
 
 [[package]]

@@ -126,6 +126,7 @@ class Hosts(HostBasePermissions):
         def _post_and_get(name, ipaddress, client=self.client):
             data = {'name': name, 'ipaddress': ipaddress}
             ret = client.post('/api/v1/hosts/', data)
+            assert ret.status_code == 201
             return self.assert_get(ret['Location'])
 
         Network.objects.create(network='10.2.0.0/25')

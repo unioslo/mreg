@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 import ipaddress
-from typing import TYPE_CHECKING
+from django.db import models
+from typing import TYPE_CHECKING, Iterable, Mapping, Optional, Tuple, Any
 from rest_framework import exceptions
 from rest_framework.permissions import IsAuthenticated as DRFIsAuthenticated, SAFE_METHODS
 from rest_framework.request import Request
+
+from structlog import get_logger
 
 from mreg.api.v1.serializers import HostSerializer
 from mreg.models.host import HostGroup
 from mreg.models.network import NetGroupRegexPermission, Network
 
-from mreg.models.auth import User
+from mreg.models.auth import User, MregAdminGroup
 from mreg.api.treetop import policy_parity
 
 # NOTE: We _must_ import `rest_framework.generics` in an `if TYPE_CHECKING:`
@@ -22,7 +25,226 @@ if TYPE_CHECKING:
     from rest_framework.serializers import Serializer
     from mreg.models.base import BaseModel
 
+logger = get_logger()
 
+DEFAULT_RESOURCE_ATTRS = {"kind": "Any", "id": "any"}
+
+
+class ParityMixin:
+    """Small helpers to reduce repetition around policy_parity."""
+
+    def pp(
+        self,
+        *,
+        decision: bool,
+        action: str,
+        request: Request,
+        view: "GenericAPIView",
+        resource_kind: str = "Generic",
+        resource_id: str = "any",
+        resource_attrs: Optional[Mapping[str, str]] = None,
+    ) -> bool:
+        return policy_parity(
+            decision,
+            request=request,
+            view=view,
+            permission_class=self.__class__.__name__,
+            action=action,
+            resource_kind=resource_kind,
+            resource_id=resource_id,
+            resource_attrs=resource_attrs or DEFAULT_RESOURCE_ATTRS,
+        )
+
+    def pp_host(
+        self,
+        *,
+        decision: bool,
+        request: Request,
+        view: "GenericAPIView",
+        resource_id: str = "",
+        action: str = "host_access",
+        resource_attrs: Optional[Mapping[str, str]] = None,
+    ) -> bool:
+        """Helper for host-related actions.
+
+        Assumes `resource_kind="Host"` and `action="host_access"`, and tries to extract the resource ID from
+        `resource_attrs["hostname"]` if not explicitly given.
+        """
+
+        if not resource_id and resource_attrs and hasattr(resource_attrs, "hostname"):
+            resource_id = resource_attrs["hostname"]
+
+        return self.pp(
+            decision=decision,
+            action=action,
+            request=request,
+            view=view,
+            resource_kind="Host",
+            resource_id=resource_id or "any",
+            resource_attrs=resource_attrs or DEFAULT_RESOURCE_ATTRS,
+        )
+
+    def pp_any(
+        self,
+        *,
+        checks: Iterable[Tuple[bool, str]],  # (decision, action)
+        request: Request,
+        view: "GenericAPIView",
+        resource_kind: str = "Generic",
+        resource_attrs: Optional[Mapping[str, str]] = None,
+    ) -> bool:
+        for decision, action in checks:
+            if self.pp(
+                decision=decision,
+                action=action,
+                request=request,
+                view=view,
+                resource_kind=resource_kind,
+                resource_attrs=resource_attrs or DEFAULT_RESOURCE_ATTRS,
+            ):
+                return True
+        return False
+
+    def pp_all(
+        self,
+        *,
+        checks: Iterable[Tuple[bool, str]],
+        request: Request,
+        view: "GenericAPIView",
+        resource_kind: str = "Generic",
+        resource_attrs: Optional[Mapping[str, str]] = None,
+    ) -> bool:
+        for decision, action in checks:
+            if not self.pp(
+                decision=decision,
+                action=action,
+                request=request,
+                view=view,
+                resource_kind=resource_kind,
+                resource_attrs=resource_attrs or DEFAULT_RESOURCE_ATTRS,
+            ):
+                return False
+        return True
+
+    def pp_generic_action(self, attrs: Mapping[str, str], decision: bool, action: str, request: Request, view: GenericAPIView, kind: str = "Generic", id: str = "Any") -> bool:
+        return self.pp(
+            decision=decision,
+            action=action,
+            request=request,
+            view=view,
+            resource_kind=kind,
+            resource_id=id,
+            resource_attrs={ kind: kind, **attrs }
+        )
+
+    def user_has_permission(self, membership: MregAdminGroup, request: Request, view: GenericAPIView, exclude_superuser: bool = False) -> bool:
+        """
+        Check if the user has a given generic permission level.
+        """
+        user = User.from_request(request)
+        memberlist = membership.settings_groups_or_raise()
+        
+        if not exclude_superuser and membership != MregAdminGroup.SUPERUSER:
+            memberlist.extend(MregAdminGroup.SUPERUSER.settings_groups_or_raise())
+
+        is_member = user.is_member_of_any(memberlist)
+
+        match membership:
+            case MregAdminGroup.SUPERUSER:
+                action = "superuser_access"
+            case MregAdminGroup.ADMINUSER:
+                action = "admin_access"
+            case MregAdminGroup.GROUP_ADMIN:
+                action = "hostgroup_admin_access"
+            case MregAdminGroup.NETWORK_ADMIN:
+                action = "network_admin_access"
+            case MregAdminGroup.DNS_WILDCARD:
+                action = "dns_wildcard_admin_access"
+            case MregAdminGroup.DNS_UNDERSCORE:
+                action = "dns_underscore_admin_access"
+            case MregAdminGroup.HOSTPOLICY_ADMIN:
+                action = "hostpolicy_admin_access"
+
+        return self.pp(
+            decision=is_member,
+            action=action,
+            request=request,
+            view=view,
+        )
+
+    def user_is_superuser(self, request: Request, view: GenericAPIView) -> bool:
+        """
+        Check if the user is a superuser.
+        """
+        return self.user_has_permission(
+            membership=MregAdminGroup.SUPERUSER,
+            request=request,
+            view=view,
+        )
+        
+    def user_is_admin(self, request: Request, view: GenericAPIView) -> bool:
+        """
+        Check if the user is an admin.
+        """
+        return self.user_has_permission(
+            membership=MregAdminGroup.ADMINUSER,
+            request=request,
+            view=view,
+        )   
+
+    def user_is_network_admin(self, request: Request, view: GenericAPIView) -> bool:
+        """
+        Check if the user is a network admin.
+        """
+        return self.user_has_permission(
+            membership=MregAdminGroup.NETWORK_ADMIN,
+            request=request,
+            view=view,
+        )
+
+    def user_is_dns_wildcard_admin(self, request: Request, view: GenericAPIView) -> bool:
+        """
+        Check if the user is a DNS wildcard admin.
+        """
+        return self.user_has_permission(
+            membership=MregAdminGroup.DNS_WILDCARD,
+            request=request,
+            view=view,
+        )
+
+    def user_is_dns_underscore_admin(self, request: Request, view: GenericAPIView) -> bool:
+        """
+        Check if the user is a DNS underscore admin.
+        """
+        return self.user_has_permission(
+            membership=MregAdminGroup.DNS_UNDERSCORE,
+            request=request,
+            view=view,
+        )
+
+    def user_is_hostgroup_admin(self, request: Request, view: GenericAPIView) -> bool:
+        """
+        Check if the user is a hostgroup admin.
+        """
+        return self.user_has_permission(
+            membership=MregAdminGroup.GROUP_ADMIN,
+            request=request,
+            view=view,
+        )
+
+    def user_is_any(
+        self,
+        *memberships: MregAdminGroup,
+        request: Request,
+        view: GenericAPIView
+    ) -> bool:
+        """
+        Check if the user is a member of any of the given groups.
+        """
+        for membership in memberships:
+            if self.user_has_permission(membership, request, view):
+                return True
+        return False
 
 class CRUDPermissionsMixin:
     """
@@ -43,10 +265,55 @@ class CRUDPermissionsMixin:
         return False
 
 
-class IsAuthenticated(DRFIsAuthenticated, CRUDPermissionsMixin):
+class IsAuthenticated(DRFIsAuthenticated, CRUDPermissionsMixin, ParityMixin):
     """
     Allows access only to authenticated users.
     """
+
+    def deny_superuser_only_names(self, data=None, name=None, view=None, request=None):
+        """Check for superuser only names. If match, return True."""
+        import mreg.api.v1.views as v1_views
+
+        if data is not None:
+            name = data.get('name', '')
+            if not name:
+                if 'host' in data:
+                    name = data['host'].name
+
+        name = (name or '').strip() # Guarantee coercion to string
+
+        if not request: # pragma: no cover
+            return False
+
+        if not view: # pragma: no cover
+            return False
+
+        # Underscore is allowed for non-superuser in SRV records,
+        # and for members of <DNS_UNDERSCORE_GROUP> in all records.
+        if '_' in name and not isinstance(view, (v1_views.SrvDetail, v1_views.SrvList)) \
+                    and not self.user_is_dns_underscore_admin(request, view):
+            return True
+
+        # Except for super-users, only members of the DNS wildcard group can create wildcard records.
+        # And then only below subdomains, like *.sub.example.com
+        if '*' in name and (not self.user_is_dns_wildcard_admin(request, view) or name.count('.') < 3):
+            return True
+
+        return False
+
+    def deny_reserved_ipaddress(self, ip: str, request: Request, view: GenericAPIView) -> bool:
+        """Check if an ip address is reserved, and if so, only permit
+        NETWORK_ADMIN_GROUP members."""
+
+        if self.user_is_network_admin(request, view):
+            return False
+
+        network = Network.objects.filter(network__net_contains=ip).first()
+        if not network:
+            return False
+        
+        return network.is_reserved_ipaddress(ip)
+
     pass
 
 
@@ -66,15 +333,7 @@ class IsSuperGroupMember(IsAuthenticated):
         if not super().has_permission(request, view):
             return False
 
-        return policy_parity(
-                User.from_request(request).is_mreg_superuser,
-                request=request,
-                view=view,
-                permission_class=self.__class__.__name__,
-                action="is_superuser",
-                resource_kind="Generic",
-                resource_attrs={"kind": "Any", "id": "any"},
-            )
+        return self.user_is_superuser(request=request, view=view)
 
 
 class IsSuperOrAdminOrReadOnly(IsAuthenticated):
@@ -87,15 +346,7 @@ class IsSuperOrAdminOrReadOnly(IsAuthenticated):
             return False
         if request.method in SAFE_METHODS:
             return True
-        return policy_parity(
-                User.from_request(request).is_mreg_superuser_or_admin,
-                request=request,
-                view=view,
-                permission_class=self.__class__.__name__,
-                action="is_admin", # Superadmins don't care what the action is
-                resource_kind="Generic",
-                resource_attrs={"kind": "Any", "id": "any"},
-            )
+        return self.user_is_admin(request=request, view=view)
 
     
 
@@ -108,12 +359,7 @@ class IsSuperOrNetworkAdminMember(IsAuthenticated):
         if not super().has_permission(request, view):
             return False
 
-        user = User.from_request(request)
-        if user.is_mreg_superuser:
-            return True
-        if user.is_mreg_network_admin:
-            return True
-        return False
+        return self.user_is_any(MregAdminGroup.SUPERUSER, MregAdminGroup.NETWORK_ADMIN, request=request, view=view)
 
 
 class IsSuperOrGroupAdminOrReadOnly(IsAuthenticated):
@@ -124,57 +370,11 @@ class IsSuperOrGroupAdminOrReadOnly(IsAuthenticated):
     def has_permission(self, request, view):
         if not super().has_permission(request, view):
             return False
-        user = User.from_request(request)
         if request.method in SAFE_METHODS:
             return True
-        return user.is_mreg_superuser or user.is_mreg_hostgroup_admin
 
+        return self.user_is_any(MregAdminGroup.SUPERUSER, MregAdminGroup.GROUP_ADMIN, request=request, view=view)
 
-def _deny_superuser_only_names(data=None, name=None, view=None, request=None):
-    """Check for superuser only names. If match, return True."""
-    import mreg.api.v1.views
-
-    if data is not None:
-        name = data.get('name', '')
-        if not name:
-            if 'host' in data:
-                name = data['host'].name
-
-    if not request: # pragma: no cover
-        return False
-
-    user = User.from_request(request)
-
-    # Underscore is allowed for non-superuser in SRV records,
-    # and for members of <DNS_UNDERSCORE_GROUP> in all records.
-    if '_' in name and not isinstance(view, (mreg.api.v1.views.SrvDetail,
-                                             mreg.api.v1.views.SrvList)) \
-                   and not user.is_mreg_dns_underscore_admin:
-        return True
-
-    # Except for super-users, only members of the DNS wildcard group can create wildcard records.
-    # And then only below subdomains, like *.sub.example.com
-    if '*' in name and (not user.is_mreg_dns_wildcard_admin or name.count('.') < 3):
-        return True
-
-    return False
-
-
-def is_reserved_ip(ip):
-    network = Network.objects.filter(network__net_contains=ip).first()
-    if network:
-        return any(ip == str(i) for i in network.get_reserved_ipaddresses())
-    return False
-
-
-def _deny_reserved_ipaddress(ip, request):
-    """Check if an ip address is reserved, and if so, only permit
-    NETWORK_ADMIN_GROUP members."""
-    if is_reserved_ip(ip):
-        if User.from_request(request).is_mreg_network_admin:
-            return False
-        return True
-    return False
 class IsGrantedNetGroupRegexPermission(IsAuthenticated):
     """
     Permit user if the user has been granted access through a
@@ -208,55 +408,87 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
             return True
         return False
 
-    @staticmethod
-    def has_perm(user, hostname, ips, require_ip=True):
-        return bool(NetGroupRegexPermission.find_perm(user.group_list,
-                                                      hostname, ips, require_ip))
+    def has_perm(self, user, hostname, ips, request: Request, view: GenericAPIView, require_ip=True):
+        legacy = bool(NetGroupRegexPermission.find_perm(user.group_list, hostname, ips, require_ip))
+        policy: list[bool] = []
+        if ips:
+            # This will perform one policy lookup per IP for the host. This should probably be optimized server side.        
+            for ip in ips:
+                policy.append(self.pp_host(decision=legacy, request=request, view=view, resource_attrs={"hostname": hostname, "ip": ip}))
+        else:
+            policy.append(self.pp_host(decision=legacy, request=request, view=view, resource_attrs={"hostname": hostname}))
 
-    def has_obj_perm(self, user, obj):
-        return self.has_perm(user, *self._get_hostname_and_ips(obj))
+        return any(policy)
+
+    def has_obj_perm(self, user: User, obj: str, request: Request, view: GenericAPIView) -> bool:
+        return self.has_perm(user, *self._get_hostname_and_ips(obj), request=request, view=view)
 
     def has_create_permission(self, request, view, validated_serializer):
-        import mreg.api.v1.views
+        import mreg.api.v1.views as v1_views
         user = User.from_request(request)
-        if user.is_mreg_superuser:
+
+        logger.debug("create_permission_check", user=user.username, view=view.__class__.__name__, data=validated_serializer.validated_data)
+
+        if self.user_is_superuser(request=request, view=view):
             return True
 
         hostname = None
         ips = []
-        data = validated_serializer.validated_data
-        if _deny_superuser_only_names(data=data, view=view, request=request):
+        
+        attrs: dict[str, Any] = {}
+        data: dict[str, Any] = validated_serializer.validated_data # type: ignore
+
+        # Convert all data from the serializer to strings to feed as attributes to the policy engine.
+        # We also introspect BaseModel instances to flatten them out (one level deep).
+        # For example:
+        # key: Host value: hostobj -> attrs["host.id"] = "1", attrs["host.name"] = "hostname.example.com"
+        if data:
+            for key, value in data.items():
+                if isinstance(value, (str, int, float, bool)):
+                    attrs[key] = value
+                elif isinstance(value, models.Model):
+                    for field in value._meta.fields:
+                        attrs[f"{key}_{field.name}"] = str(getattr(value, field.name, ''))
+                else:
+                    attrs[key] = str(value)
+
+
+        ipaddress = data.get('ipaddress', None)
+        host = data.get('host', None)
+
+        object_type = validated_serializer.instance.__class__.__name__.lower()
+        # First check if we are asking for a restricted name.
+        if self.deny_superuser_only_names(data=data, view=view, request=request):
             return False
-        if 'ipaddress' in data:
-            if _deny_reserved_ipaddress(data['ipaddress'], request):
-                return False
-        if user.is_mreg_admin:
+        # Then check if we are asking for an IP address *and* it is reserved.
+        if ipaddress and self.deny_reserved_ipaddress(ip=ipaddress, view=view, request=request):
+            return False
+        # If the user is an admin, they are now free to create (minus the above checks).
+        if self.pp_generic_action(decision=user.is_mreg_admin, action="create", kind=object_type, attrs=attrs, request=request, view=view):
             return True
-        if isinstance(view, (mreg.api.v1.views.IpaddressList,
-                             mreg.api.v1.views.PtrOverrideList)):
-            if 'host' in data:
-                if not self.has_obj_perm(user, data['host']):
-                    return False
-        if isinstance(view, mreg.api.v1.views.CnameList):
-            # only check the cname, don't care about ip addresses
-            return self.has_perm(user, data['name'], (), require_ip=False)
-        if isinstance(view, (mreg.api.v1.views.HostList,
-                             mreg.api.v1.views.IpaddressList,
-                             mreg.api.v1.views.PtrOverrideList)):
-            # HostList does not require ipaddress, but if none, the permissions
-            # will not match, so just refuse it.
-            ip = data.get('ipaddress', None)
-            if ip is None:
+        # Now check if the user has permission to the host object (if any).
+        if isinstance(view, (v1_views.IpaddressList, v1_views.PtrOverrideList)):
+            if host and not self.has_obj_perm(user, host, request=request, view=view):
                 return False
-            ips.append(ip)
-            hostname = data['host'].name
+        # CNAMEs are special, we check only the cname, not the ip addresses.
+        if isinstance(view, v1_views.CnameList):
+            return self.has_perm(user, data['name'], (), require_ip=False, request=request, view=view)
+        # For hosts and other objects, we need to check the host and its IPs.
+        if isinstance(view, (v1_views.HostList, v1_views.IpaddressList, v1_views.PtrOverrideList)):
+            # HostList does not require ipaddress, but if none, the permissions will not match, so just refuse it.
+            # If the Host object is missing or invalid, refuse it (this should be caught by the serializer anyway).
+            if not (ipaddress and host):
+                return False
+                            
+            ips.append(ipaddress)
+            hostname = host.name
         elif 'host' in data:
             hostname, ips = self._get_hostname_and_ips(data['host'])
         else:
             raise exceptions.PermissionDenied(f"Unhandled view: {view}")
 
         if ips and hostname:
-            return self.has_perm(user, hostname, ips)
+            return self.has_perm(user, hostname, ips, request=request, view=view)
         return False
 
     def has_destroy_permission(self, request, view, validated_serializer):
@@ -272,45 +504,47 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
             obj = obj.host
         else:
             raise exceptions.PermissionDenied(f"Unhandled view: {view}")
-        if _deny_superuser_only_names(name=obj.name, view=view, request=request):
+        if self.deny_superuser_only_names(name=obj.name, view=view, request=request):
             return False
         if hasattr(obj, 'ipaddress'):
-            if _deny_reserved_ipaddress(obj.ipaddress, request):
+            if self.deny_reserved_ipaddress(ip=obj.ipaddress, view=view, request=request):
                 return False
-        if user.is_mreg_admin:
+            
+        object_type = obj.__class__.__name__.lower()
+        if self.pp_generic_action(decision=user.is_mreg_admin, action="destroy", kind=object_type, attrs={"id": str(obj)}, request=request, view=view):
             return True
-        return self.has_obj_perm(user, obj)
+        return self.has_obj_perm(user, obj, request=request, view=view)
 
     def has_update_permission(self, request, view, validated_serializer):
-        import mreg.api.v1.views
+        import mreg.api.v1.views as v1_views
         user = User.from_request(request)
 
         if user.is_mreg_superuser:
             return True
-        data = validated_serializer.validated_data
-        if _deny_superuser_only_names(data=data, view=view, request=request):
+        data: dict[str, Any] = validated_serializer.validated_data  # type: ignore
+        if self.deny_superuser_only_names(data=data, view=view, request=request):
             return False
         if 'ipaddress' in data:
-            if _deny_reserved_ipaddress(data['ipaddress'], request):
+            if self.deny_reserved_ipaddress(ip=data['ipaddress'], view=view, request=request):
                 return False
-        if user.is_mreg_admin:
+        if self.user_is_admin(request=request, view=view):
             return True
         obj = view.get_object()
-        if isinstance(view, mreg.api.v1.views.HostDetail):
+        if isinstance(view, v1_views.HostDetail):
             hostname, ips = self._get_hostname_and_ips(obj)
             # If renaming a host, make sure the user has permission to both the
             # new and and old hostname.
             if 'name' in data:
-                if not self.has_perm(user, data['name'], ips):
+                if not self.has_perm(user, data['name'], ips, request=request, view=view):
                     return False
-            return self.has_perm(user, hostname, ips)
+            return self.has_perm(user, hostname, ips, request=request, view=view)
         elif hasattr(obj, 'host'):
             # If changing host object, make sure the user has permission the
             # new one.
             if 'host' in data and data['host'] != obj.host:
-                if not self.has_obj_perm(user, data['host']):
+                if not self.has_obj_perm(user, data['host'], request=request, view=view):
                     return False
-            return self.has_obj_perm(user, obj.host)
+            return self.has_obj_perm(user, obj.host, request=request, view=view)
         # Testing these kinds of should-never-happen codepaths is hard.
         # We have to basically mock a complete API call and then break it.
         raise exceptions.PermissionDenied(f"Unhandled view: {view}")  # pragma: no cover
