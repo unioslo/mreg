@@ -44,15 +44,15 @@ class CommunitySerializer(serializers.ModelSerializer):
         if not getattr(settings, "MREG_MAP_GLOBAL_COMMUNITY_NAMES", False):
             return None
 
-        prefix = getattr(settings, "MREG_GLOBAL_COMMUNITY_PREFIX", "community")
+        prefix = getattr(settings, "MREG_GLOBAL_COMMUNITY_TEMPLATE_PATTERN", "community")
 
         network = obj.network
         if network is None:
             raise ValueError({"error": f"Community {obj} has no network."})
         
         policy = network.policy
-        if policy and policy.community_mapping_prefix:
-            prefix = policy.community_mapping_prefix
+        if policy and policy.community_template_pattern:
+            prefix = policy.community_template_pattern
         
         # Retrieve all communities for the network in a stable order (using pk).
         communities = obj.network.communities.order_by("pk")
@@ -613,7 +613,7 @@ class NetworkPolicySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = NetworkPolicy
-        fields = ['id', 'name', 'description', 'attributes', 'communities', 'community_mapping_prefix', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'description', 'attributes', 'communities', 'community_template_pattern', 'created_at', 'updated_at']
 
     def validate_name(self, value):
         value = value.lower()
