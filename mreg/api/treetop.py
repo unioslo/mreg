@@ -1,6 +1,8 @@
 from __future__ import annotations
 import logging
-from typing import Any, Optional
+from typing import Any, Optional, Mapping
+import ipaddress
+import json
 
 from django.conf import settings
 from rest_framework.request import Request
@@ -9,7 +11,7 @@ from django.views import View
 from mreg.models.auth import User as MregUser  # your request->user wrapper
 
 from treetop_client.client import TreeTopClient
-from treetop_client.models import Request as TreeTopRequest, User as TreeTopUser, Action as TreeTopAction, Resource as TreeTopResource
+from treetop_client.models import Request as TreeTopRequest, User as TreeTopUser, Action, Resource, ResourceAttribute, ResourceAttributeType
 
 logger = logging.getLogger("mreg.policy.parity")
 
@@ -45,7 +47,8 @@ def policy_parity(
     permission_class: Optional[str] = None,
     action: str,
     resource_kind: str,
-    resource_attrs: dict[str, Any],
+    resource_id: str,
+    resource_attrs: Mapping[str, str],
 ) -> bool:
     """
     Log legacy-vs-policy parity and return `decision` unchanged.
@@ -57,19 +60,41 @@ def policy_parity(
     # Build policy request
     muser = MregUser.from_request(request)
     principal = TreeTopUser.new(muser.username, POLICY_NAMESPACE, groups=list(muser.group_list))
-    pol_action = TreeTopAction.new(action, POLICY_NAMESPACE)
-    res = TreeTopResource.new(resource_kind, resource_attrs)
+    pol_action = Action.new(action, POLICY_NAMESPACE)
+
+    attrs = {}
+
+    for k, v in resource_attrs.items():
+        try:
+            ip = ipaddress.ip_address(v)
+            attrs[k] = ResourceAttribute.new(str(ip), ResourceAttributeType.IP)
+        except ValueError:
+            attrs[k] = ResourceAttribute.new(v, ResourceAttributeType.STRING)
+#            if v.isdigit():
+#                attrs[k] = ResourceAttribute.new(v, ResourceAttributeType.NUMBER)
+#            elif v.lower() in ("true", "false"):
+#                attrs[k] = ResourceAttribute.new(v.lower(), ResourceAttributeType.BOOLEAN)
+#            else:
+#                attrs[k] = ResourceAttribute.new(v, ResourceAttributeType.STRING)
+
+    res = Resource.new(resource_kind, resource_id, attrs=attrs)
+
+    if len(pol_action.id.namespace) > 0:
+        fully_qualified_action = "::".join(pol_action.id.namespace) + f"::{pol_action.id.id}"
+    else:
+        fully_qualified_action = f"{pol_action.id.id}"
 
     context = {
         "path": request.path,
         "method": request.method,
         "permission": permission_class or (view and view.__class__.__name__),
         "view": view and view.__class__.__name__,
-        "resource_kind": resource_kind,
-        "action": getattr(pol_action, "name", str(pol_action)),
+        "model": _model_name_from_view(view),
         "principal": muser.username,
         "groups": list(muser.group_list),
-        "model": _model_name_from_view(view),
+        "action": fully_qualified_action,
+        "resource_kind": resource_kind,
+        "resource_attrs": resource_attrs,
         "correlation_id": _corr_id(request),
     }
 
@@ -87,24 +112,23 @@ def policy_parity(
         parity = True
 
     payload: dict[str, object] = {
-        **context,
+        "parity": parity,
         "legacy_decision": bool(decision),
         "policy_decision": pol_allowed,
-        "parity": parity,
-        "resource_attrs": resource_attrs,
         "error": error,
+        "context": context,
     }
 
     if parity:
         logger.warning("policy_parity_mismatch", extra=payload)
-        log_policy_parity("OK", payload)
+        log_policy_parity(payload)
     else:
         logger.info("policy_parity_ok", extra=payload)
-        log_policy_parity("MISMATCH", payload)
+        log_policy_parity(payload)
 
     return decision
 
 # Log data to a file in addition to normal logging
-def log_policy_parity(result: str, payload: dict[str, Any]):
+def log_policy_parity(payload: dict[str, Any]):
     with open(POLICY_EXTRA_LOG_FILE_NAME, "a") as log_file:
-        log_file.write(f"{result}: {payload}\n")
+        log_file.write(f"{json.dumps(payload)}\n")

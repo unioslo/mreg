@@ -50,6 +50,7 @@ def get_mock_user(
 
     user.configure_mock(**group_attrs)
     user.group_list = []
+    user.username = "mockuser"
     return user
 
 
@@ -87,9 +88,10 @@ class TestIsGrantedNetGroupRegexPermission(MregAPITestCase):
         self,
         mock_get_hostname_and_ips,
         mock_has_obj_perm,
-        mock_user_from_request
+        mock_user_from_request,
     ):
         user = get_mock_user()  # Regular user
+        user.is_member_of_any.return_value = False
         request = get_mock_request(user, mock_user_from_request)
 
         # Mock view that is not an instance of any of the checked classes
@@ -97,6 +99,7 @@ class TestIsGrantedNetGroupRegexPermission(MregAPITestCase):
 
         # Mock object that doesn't have 'host' attribute
         view.get_object = mock.Mock(return_value=None)
+        view.__class__.__name__ = "MockView"
 
         # Mock serializer with data that doesn't have 'host' or 'ipaddress'
         serializer = mock.Mock()
