@@ -48,17 +48,17 @@ class MregAppConfig(AppConfig):
             if not isinstance(map_global_names, bool):
                 raise ValueError('Config option MREG_MAP_GLOBAL_COMMUNITY_NAMES must be a boolean.')
             
-            global_prefix = getattr(settings, 'MREG_GLOBAL_COMMUNITY_PREFIX', 'community')
+            global_prefix = getattr(settings, 'MREG_GLOBAL_COMMUNITY_TEMPLATE_PATTERN', 'community')
             if not isinstance(global_prefix, str):
-                raise ValueError('Config option MREG_GLOBAL_COMMUNITY_PREFIX must be a string.')
+                raise ValueError('Config option MREG_GLOBAL_COMMUNITY_TEMPLATE_PATTERN must be a string.')
 
             # Global prefix must be form A-Za-z0-9-_, so we'll regexp-match this.
             if not re.match(GLOBAL_PREFIX_REGEX, global_prefix):
-                raise ValueError('Config option MREG_GLOBAL_COMMUNITY_PREFIX must be a string containing only A-Za-z0-9-_.')
+                raise ValueError('Config option MREG_GLOBAL_COMMUNITY_TEMPLATE_PATTERN must be a string containing only A-Za-z0-9-_.')
             
             # Max length of the global prefix is 64 characters, but we set aside 4 characters for the index.
             if len(global_prefix) > MAX_GLOBAL_PREFIX_LENGTH:
-                raise ValueError(f'Config option MREG_GLOBAL_COMMUNITY_PREFIX has max length of {MAX_GLOBAL_PREFIX_LENGTH}.')
+                raise ValueError(f'Config option MREG_GLOBAL_COMMUNITY_TEMPLATE_PATTERN has max length of {MAX_GLOBAL_PREFIX_LENGTH}.')
 
 
         def create_protected_attributes(sender, **kwargs):

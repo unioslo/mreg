@@ -769,7 +769,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         new_network.delete()
 
     @override_settings(MREG_MAP_GLOBAL_COMMUNITY_NAMES=True)
-    @override_settings(MREG_GLOBAL_COMMUNITY_PREFIX="community")
+    @override_settings(MREG_GLOBAL_COMMUNITY_TEMPLATE_PATTERN="community")
     @override_settings(MREG_MAX_COMMUNITES_PER_NETWORK=20) # Also implies one zero-padded index
     def test_community_mapping_enabled(self):
         """Test that the community mapping works."""
@@ -786,7 +786,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         self.assertEqual(res.json()['global_name'], "community01")
 
         # Test via direct modification of the object
-        policy.community_mapping_prefix = "test"
+        policy.community_template_pattern = "test"
         policy.save()
 
         res = self.assert_get(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}")
@@ -795,7 +795,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         self.assertEqual(res.json()['global_name'], "test02")                
 
         # Test via the API (PATCH request)
-        self.assert_patch_and_200(f"{POLICY_ENDPOINT}{policy.pk}", data={"community_mapping_prefix": "patched"})
+        self.assert_patch_and_200(f"{POLICY_ENDPOINT}{policy.pk}", data={"community_template_pattern": "patched"})
         res = self.assert_get(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}")
         self.assertEqual(res.json()['global_name'], "patched01")
         res = self.assert_get(f"{NETWORK_ENDPOINT}{network.network}/communities/{community_other.pk}")
@@ -805,7 +805,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
 
 
     @parametrize(
-        ("community_mapping_prefix", "return_value"),
+        ("community_template_pattern", "return_value"),
         [
             param("community", 201, id="community"),
             param("has_underscore", 201, id="has_underscore"),
@@ -817,12 +817,12 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
             param("has#special", 400, id="has_special_2"),
         ]
     )
-    def test_community_mapping_prefix_validation(self, community_mapping_prefix: str, return_value: int):
+    def test_community_template_pattern_validation(self, community_template_pattern: str, return_value: int):
         """Test that the community mapping prefix is validated."""
         data = {
             "name": "test",
             "description": "test",
-            "community_mapping_prefix": community_mapping_prefix,
+            "community_template_pattern": community_template_pattern,
         }
 
         if return_value == 201:
@@ -832,7 +832,22 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         else:
             self.assert_post_and_400(f"{POLICY_ENDPOINT}", data=data)
 
+    def test_community_template_pattern_is_unique(self):
+        """Test that the community mapping prefix is unique."""
+        pattern = "notunique"    
 
+        data = {
+            "name": "test_unique_ok",
+            "description": "test",
+            "community_template_pattern": pattern,
+        }
+
+        res = self.assert_post_and_201(f"{POLICY_ENDPOINT}", data=data)
+        id = res.json()['id']
+
+        data['name'] = "test_unique_notok"
+        self.assert_post_and_400(f"{POLICY_ENDPOINT}", data=data)
+        self.assert_delete_and_204(f"{POLICY_ENDPOINT}{id}")
 
     @override_settings(MREG_MAP_GLOBAL_COMMUNITY_NAMES=False)
     def test_community_mapping_disabled(self):
@@ -849,6 +864,17 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
 
         res = self.assert_post_and_406(f"{NETWORK_ENDPOINT}{network.network}/communities/", data={"name": "c2", "description": "c2desc"})
         self.assertEqual(res.json()['errors'][0]['detail'], f"Network '{network.network}' already has the maximum allowed communities (1).")
+
+    @override_settings(MREG_MAX_COMMUNITES_PER_NETWORK=20)
+    def test_max_communities_per_network_set_in_network(self):
+        """Test that we can only have a certain number of communities per network."""
+        _, _, network, _, _ = self.create_policy_setup()
+        network.max_communities = 1
+        network.save()
+
+        res = self.assert_post_and_406(f"{NETWORK_ENDPOINT}{network.network}/communities/", data={"name": "c2", "description": "c2desc"})
+        self.assertEqual(res.json()['errors'][0]['detail'], f"Network '{network.network}' already has the maximum allowed communities (1).")
+
 
     @override_settings(MREG_MAX_COMMUNITES_PER_NETWORK=1)
     def test_max_communities_per_network_allows_patch(self):

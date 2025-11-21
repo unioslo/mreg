@@ -154,12 +154,12 @@ def validate_regex(regex):
         raise ValidationError(str(e))
 
 
-def validate_community_prefix_mapping_name(name):
+def validate_community_template_pattern(name):
     """Validates that the policy name is valid."""
-    if len(name) > getattr(settings, "MREG_COMMUNITY_PREFIX_MAX_LENGTH", 100):
+    if len(name) > getattr(settings, "MREG_COMMUNITY_TEMPLATE_PATTERN_MAX_LENGTH", 100):
         raise ValidationError("Policy name is too long")
 
-    name_regex = getattr(settings, "MREG_COMMUNITY_PREFIX_ALLOWED_REGEX", "^[a-zA-Z0-9_]+$")
+    name_regex = getattr(settings, "MREG_COMMUNITY_TEMPLATE_PATTERN_ALLOWED_REGEX", "^[a-zA-Z0-9_]+$")
     validator = RegexValidator(name_regex, message="Must match: " + name_regex)
     validator(name)
 
