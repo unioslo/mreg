@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mreg"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
     "Django>=5.0a1,<5.1",
     "djangorestframework==3.14.0",
@@ -26,6 +26,7 @@ dependencies = [
     "pyyaml",
     # For testing inside Docker image
     "unittest-parametrize",
+    "treetop-client>=0.0.3"
 ]
 dynamic = ["version"]
 
