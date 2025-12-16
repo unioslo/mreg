@@ -9,7 +9,7 @@ from rest_framework import serializers
 
 from mreg.models.base import NameServer, Label, History
 from mreg.models.zone import ForwardZone, ReverseZone, ForwardZoneDelegation, ReverseZoneDelegation
-from mreg.models.host import Host, HostGroup, BACnetID, Ipaddress, PtrOverride
+from mreg.models.host import Host, HostGroup, BACnetID, Ipaddress, PtrOverride, HostContact
 from mreg.models.resource_records import Cname, Loc, Naptr, Srv, Sshfp, Txt, Hinfo, Mx
 from mreg.models.network_policy import NetworkPolicy, NetworkPolicyAttribute, NetworkPolicyAttributeValue, Community, HostCommunityMapping
 
@@ -260,6 +260,15 @@ class BACnetID_ID_Serializer(serializers.ModelSerializer):
         model = BACnetID
         fields = ('id',)
 
+class HostContactSerializer(serializers.ModelSerializer):
+    """Serializer for host contact email addresses."""
+    
+    class Meta:
+        model = HostContact
+        fields = ('id', 'email', 'created_at', 'updated_at')
+        read_only_fields = ('id', 'created_at', 'updated_at')
+
+
 class HostCommunityMappingSerializer(serializers.ModelSerializer):
     community = CommunitySerializer(read_only=True)
     ipaddress = serializers.PrimaryKeyRelatedField(read_only=True)
@@ -320,21 +329,65 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
         many=True, read_only=True, source="hostcommunitymapping_set",
         allow_null=True, help_text="Communities to which the host belongs, with IP mapping."
     )
-
+    
+    # Contact fields
+    contacts = HostContactSerializer(many=True, read_only=True, help_text="Contact email addresses for this host (read-only).")
+    contact_emails = serializers.ListField(
+        child=serializers.EmailField(),
+        write_only=True,
+        required=False,
+        allow_empty=True,
+        help_text="List of contact email addresses (write-only)."
+    )
+    contact = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text="Space-separated contact emails (deprecated, use contacts/contact_emails instead)."
+    )
 
     class Meta:
         model = Host
         fields = '__all__'
+    
+    def to_representation(self, instance):
+        """Customize serialization output - populate contact field with space-separated emails."""
+        ret = super().to_representation(instance)
+        # Add backward-compatible contact field (space-separated emails)
+        emails = instance.get_contact_emails()
+        ret['contact'] = ' '.join(emails) if emails else ''
+        return ret
 
     def validate(self, data):
+        # Store contact_emails before super().validate() which might remove empty lists due to nonify
+        contact_emails_present = 'contact_emails' in data
+        contact_emails_value = data.get('contact_emails')
+        
         data = super().validate(data)
+        
+        # Restore contact_emails if it was present (even if empty list)
+        if contact_emails_present:
+            data['contact_emails'] = contact_emails_value
+        
         name = data.get('name')
         if name:
             if Cname.objects.filter(name=name).exists():
                 raise ValidationError409("CNAME record exists for {}".format(name))
             if Host.objects.filter(name=name).exists():
                 raise ValidationError409("Host already exists with name {}".format(name))
+
+        # Backward compatibility: convert contact field (space-separated or single email) to contact_emails list
+        if 'contact' in data and 'contact_emails' not in data:
+            contact = data.pop('contact')
+            if contact:  # Only process if not empty
+                # Split by space to support multiple emails
+                emails = [email.strip() for email in contact.split() if email.strip()]
+                if emails:
+                    data['contact_emails'] = emails
+        elif 'contact' in data:
+            # If both are provided, ignore the deprecated contact field
+            data.pop('contact')
     
+
         # We defer all validation of community data to update and create as we cannot
         # validate community information before IP address creation has potentially
         # taken place during create or update.
@@ -343,6 +396,10 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
     def create(self, validated_data):
         ipaddr = validated_data.pop('ipaddress', None)
         community = validated_data.pop('communities', None)
+        contact_emails = validated_data.pop('contact_emails', None)
+        deprecated_contact = validated_data.pop('contact', None)
+        if deprecated_contact and not contact_emails:
+            contact_emails = [deprecated_contact]
         
         with transaction.atomic():
             host = Host.objects.create(**validated_data)
@@ -354,6 +411,11 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
                     raise serializers.ValidationError({"ipaddress": "Invalid IP address."})
                 Ipaddress.objects.create(host=host, ipaddress=ipaddr)
             
+            # Add contact emails if provided
+            if contact_emails:
+                for email in contact_emails:
+                    host.add_contact(email)
+            
             # Assign community if provided
             if community:
                 self._assign_community(host, community)
@@ -363,12 +425,15 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
     def update(self, instance, validated_data):
         ipaddr = validated_data.pop('ipaddress', None)
         community = validated_data.pop('communities', None)
+        # Use a sentinel value to distinguish "not provided" from "empty list"
+        _sentinel = object()
+        contact_emails = validated_data.pop('contact_emails', _sentinel)
         
         with transaction.atomic():
             # Update host fields
             for attr, value in validated_data.items():
-                # Communities are handled separately, below
-                if attr == 'communities': 
+                # Communities and contacts are handled separately, below
+                if attr in ('communities', 'contacts'): 
                     continue
                 setattr(instance, attr, value)
             instance.save()
@@ -383,6 +448,14 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
                 except ValueError:
                     raise serializers.ValidationError({"ipaddress": "Invalid IP address."})
                 Ipaddress.objects.create(host=instance, ipaddress=ipaddr)
+            
+            # Update contact emails if provided (replaces all contacts)
+            # Check against sentinel to allow empty list [] to clear all contacts
+            if contact_emails is not _sentinel:
+                instance.contacts.clear()
+                if contact_emails:  # Only add if list is not empty
+                    for email in contact_emails:
+                        instance.add_contact(email)
             
             # Assign or unassign community
             if community is not None:

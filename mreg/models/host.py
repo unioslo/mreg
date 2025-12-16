@@ -17,9 +17,26 @@ from structlog import get_logger
 
 logger = get_logger()
 
+
+class HostContact(BaseModel):
+    """Model to store contact email addresses for hosts."""
+    email = models.EmailField()
+    
+    class Meta:
+        db_table = "host_contact"
+        
+    def __str__(self):
+        return self.email
+
+
 class Host(ForwardZoneMember):
     name = LowerCaseDNSNameField(unique=True)
-    contact = models.EmailField(blank=True)
+    contacts = models.ManyToManyField(
+        HostContact,
+        blank=True,
+        related_name='hosts',
+        help_text="Contact email addresses for this host."
+    )
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
     comment = models.TextField(blank=True)
 
@@ -38,6 +55,45 @@ class Host(ForwardZoneMember):
 
     def __str__(self):
         return str(self.name)
+
+    def add_contact(self, email: str) -> HostContact:
+        """
+        Add a contact email to this host.
+        
+        Args:
+            email: Email address to add
+            
+        Returns:
+            The HostContact instance
+        """
+        contact, _ = HostContact.objects.get_or_create(email=email)
+        self.contacts.add(contact)
+        return contact
+
+    def remove_contact(self, email: str) -> None:
+        """
+        Remove a contact email from this host.
+        
+        Args:
+            email: Email address to remove
+            
+        Raises:
+            HostContact.DoesNotExist: If the contact doesn't exist
+        """
+        try:
+            contact = HostContact.objects.get(email=email)
+            self.contacts.remove(contact)
+        except HostContact.DoesNotExist:
+            raise NotAcceptable(f"Contact email '{email}' not found for this host.")
+
+    def get_contact_emails(self) -> list[str]:
+        """
+        Get all contact emails for this host.
+        
+        Returns:
+            List of email addresses
+        """
+        return list(self.contacts.values_list('email', flat=True))
 
     def _resolve_community_mapping(
         self,

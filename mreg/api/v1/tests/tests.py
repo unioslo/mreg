@@ -577,7 +577,7 @@ class APIAutoupdateZonesTestCase(MregAPITestCase):
         super().setUp()
         self.host1 = {"name": "host1.example.org",
                       "ipaddress": "10.10.0.1",
-                      "contact": "mail@example.org"}
+                      "contact_emails": ["mail@example.org"]}
         self.delegation = {"name": "delegated.example.org",
                            "nameservers": "ns.example.org"}
         self.subzone = {"name": "sub.example.org",
@@ -681,22 +681,22 @@ class APIAutoupdateHostZoneTestCase(MregAPITestCase):
 
         self.org_host1 = {"name": "host1.example.org",
                           "ipaddress": "10.10.0.1",
-                          "contact": "mail@example.org"}
+                          "contact_emails": ["mail@example.org"]}
         self.org_host2 = {"name": "example.org",
                           "ipaddress": "10.10.0.2",
-                          "contact": "mail@example.org"}
+                          "contact_emails": ["mail@example.org"]}
         self.sub_host1 = {"name": "host1.sub.example.org",
                           "ipaddress": "10.20.0.1",
-                          "contact": "mail@example.org"}
+                          "contact_emails": ["mail@example.org"]}
         self.sub_host2 = {"name": "sub.example.org",
                           "ipaddress": "10.20.0.1",
-                          "contact": "mail@example.org"}
+                          "contact_emails": ["mail@example.org"]}
         self.long_host1 = {"name": "host1.longexample.org",
                            "ipaddress": "10.30.0.1",
-                           "contact": "mail@example.org"}
+                           "contact_emails": ["mail@example.org"]}
         self.long_host2 = {"name": "longexample.org",
                            "ipaddress": "10.30.0.2",
-                           "contact": "mail@example.org"}
+                           "contact_emails": ["mail@example.org"]}
 
     def test_add_host_known_zone(self):
         def _add(host):
@@ -723,7 +723,7 @@ class APIAutoupdateHostZoneTestCase(MregAPITestCase):
     def test_add_to_nonexistent(self):
         data = {"name": "host1.example.net",
                 "ipaddress": "10.10.0.10",
-                "contact": "mail@example.org"}
+                "contact_emails": ["mail@example.org"]}
         self.assert_post_and_201("/hosts/", data)
         res = self.assert_get(f"/hosts/{data['name']}")
         self.assertEqual(res.json()['zone'], None)
@@ -749,14 +749,14 @@ class APIHostsTestCase(MregAPITestCase):
     def setUp(self):
         """Define the test client and other test variables."""
         super().setUp()
-        self.host_one = Host(name='host1.example.org', contact='mail1@example.org')
-        self.host_two = Host(name='host2.example.org', contact='mail2@example.org')
-        self.patch_data = {'name': 'new-name1.example.com', 'contact': 'updated@mail.com'}
-        self.patch_data_name = {'name': 'host2.example.org', 'contact': 'updated@mail.com'}
+        self.host_one = Host(name='host1.example.org')
+        self.host_two = Host(name='host2.example.org')
+        self.patch_data = {'name': 'new-name1.example.com', 'contact_emails': ['updated@mail.com']}
+        self.patch_data_name = {'name': 'host2.example.org', 'contact_emails': ['updated@mail.com']}
         self.post_data = {'name': 'new-name2.example.org', "ipaddress": '127.0.0.2',
-                          'contact': 'hostmaster@example.org'}
+                          'contact_emails': ['hostmaster@example.org']}
         self.post_data_name = {'name': 'host1.example.org', "ipaddress": '127.0.0.2',
-                               'contact': 'hostmaster@example.org'}
+                               'contact_emails': ['hostmaster@example.org']}
         self.zone_sample = create_forward_zone()
         clean_and_save(self.host_one)
         clean_and_save(self.host_two)
@@ -787,8 +787,10 @@ class APIHostsTestCase(MregAPITestCase):
         self._one_hit_and_host_one(f"id__in={self.host_one.id}")
 
     def test_host_get_200_ok_by_contact(self):
-        """Getting an existing entry by ip should return 200"""
-        self._one_hit_and_host_one(f"contact={self.host_one.contact}")
+        """Getting an existing entry by contact email should return 200"""
+        # Add a contact to host_one first
+        self.host_one.add_contact('mail1@example.org')
+        self._one_hit_and_host_one("contacts__email=mail1@example.org")
 
     def test_host_get_200_ok_by_name(self):
         """Getting an existing entry by name should return 200"""
@@ -851,10 +853,179 @@ class APIHostsTestCase(MregAPITestCase):
         self.assert_post_and_400('/hosts/', data)
         Network.objects.get(network=data['network']).delete()
 
+    def test_hosts_post_backward_compat_single_contact(self):
+        """"Posting with deprecated single 'contact' field should work (backward compatibility)"""
+        data = {'name': 'legacy-host.example.org', 'contact': 'legacy@example.com'}
+        response = self.assert_post_and_201('/hosts/', data)
+        # Verify the contact was added to the contacts list
+        host_data = self.assert_get(response['Location']).json()
+        self.assertEqual(len(host_data['contacts']), 1)
+        self.assertEqual(host_data['contacts'][0]['email'], 'legacy@example.com')
+        self.assertEqual(host_data['contact'], 'legacy@example.com')
+    
+    def test_hosts_patch_backward_compat_single_contact(self):
+        """"Patching with deprecated single 'contact' field should work (backward compatibility)"""
+        data = {'contact': 'updated-legacy@example.com'}
+        self.assert_patch_and_204('/hosts/%s' % self.host_one.name, data)
+        # Verify the contact was updated
+        host_data = self.assert_get('/hosts/%s' % self.host_one.name).json()
+        self.assertEqual(len(host_data['contacts']), 1)
+        self.assertEqual(host_data['contacts'][0]['email'], 'updated-legacy@example.com')
+
+    def test_hosts_post_with_contact_emails(self):
+        """"Posting with contact_emails list should work"""
+        data = {'name': 'multi-contact-host.example.org', 
+                'contact_emails': ['admin1@example.com', 'admin2@example.com']}
+        response = self.assert_post_and_201('/hosts/', data)
+        # Verify the contacts were added
+        host_data = self.assert_get(response['Location']).json()
+        self.assertEqual(len(host_data['contacts']), 2)
+        emails = {contact['email'] for contact in host_data['contacts']}
+        self.assertEqual(emails, {'admin1@example.com', 'admin2@example.com'})
+        self.assertEqual(host_data['contact'], 'admin1@example.com admin2@example.com')
+        # Verify each contact has full structure with id, email, timestamps
+        for contact in host_data['contacts']:
+            self.assertIn('id', contact)
+            self.assertIn('email', contact)
+            self.assertIn('created_at', contact)
+            self.assertIn('updated_at', contact)
+    
+    def test_hosts_patch_with_contact_emails(self):
+        """"Patching with contact_emails list should replace all contacts"""
+        # First add some contacts
+        self.host_one.add_contact('old1@example.com')
+        self.host_one.add_contact('old2@example.com')
+        
+        # Update with new contacts
+        data = {'contact_emails': ['new1@example.com', 'new2@example.com', 'new3@example.com']}
+        self.assert_patch_and_204('/hosts/%s' % self.host_one.name, data)
+        
+        # Verify the contacts were replaced
+        host_data = self.assert_get('/hosts/%s' % self.host_one.name).json()
+        self.assertEqual(len(host_data['contacts']), 3)
+        emails = {contact['email'] for contact in host_data['contacts']}
+        self.assertEqual(emails, {'new1@example.com', 'new2@example.com', 'new3@example.com'})
+    
+    def test_hosts_get_contacts_read_format(self):
+        """"Getting a host should return contacts with full object structure"""
+        # Add contacts to host
+        self.host_one.add_contact('contact1@example.com')
+        self.host_one.add_contact('contact2@example.com')
+        
+        # Get the host
+        host_data = self.assert_get('/hosts/%s' % self.host_one.name).json()
+        
+        # Verify contacts field exists and has proper structure
+        self.assertIn('contacts', host_data)
+        self.assertEqual(len(host_data['contacts']), 2)
+        
+        # Each contact should be a full object with id, email, timestamps
+        for contact in host_data['contacts']:
+            self.assertIsInstance(contact, dict)
+            self.assertIn('id', contact)
+            self.assertIn('email', contact)
+            self.assertIn('created_at', contact)
+            self.assertIn('updated_at', contact)
+            self.assertIsInstance(contact['id'], int)
+            self.assertIsInstance(contact['email'], str)
+    
+    def test_hosts_post_empty_contact_emails(self):
+        """"Posting with empty contact_emails list should work"""
+        data = {'name': 'no-contact-host.example.org', 'contact_emails': []}
+        # Use JSON format since multipart can't represent empty arrays
+        original_format = self.format
+        self.format = ClientTestFormat.JSON
+        response = self.assert_post_and_201('/hosts/', data)
+        self.format = original_format
+        host_data = self.assert_get(response['Location']).json()
+        self.assertEqual(len(host_data['contacts']), 0)
+    
+    def test_hosts_patch_clear_contacts(self):
+        """"Patching with empty contact_emails should clear all contacts"""
+        # First add some contacts
+        self.host_one.add_contact('remove-me@example.com')
+        
+        # Clear contacts - use JSON format since multipart can't represent empty arrays
+        data = {'contact_emails': []}
+        original_format = self.format
+        self.format = ClientTestFormat.JSON
+        self.assert_patch_and_204('/hosts/%s' % self.host_one.name, data)
+        self.format = original_format
+        
+        # Verify contacts were cleared
+        host_data = self.assert_get('/hosts/%s' % self.host_one.name).json()
+        self.assertEqual(len(host_data['contacts']), 0)
+    
+    def test_hosts_filter_by_contact(self):
+        """"Filtering by deprecated contact field should work (backward compatibility)"""
+        # Create hosts with contacts
+        self.host_one.add_contact('filter-test@example.com')
+        self.host_two.add_contact('other@example.com')
+        
+        # Filter using deprecated contact parameter
+        response = self.assert_get('/hosts/?contact=filter-test@example.com')
+        data = response.json()
+        self.assertEqual(data['count'], 1)
+        self.assertEqual(data['results'][0]['name'], self.host_one.name)
+    
+    def test_hosts_filter_by_contacts_email(self):
+        """"Filtering by new contacts__email field should work"""
+        # Create hosts with contacts
+        self.host_one.add_contact('new-filter@example.com')
+        self.host_two.add_contact('other@example.com')
+        
+        # Filter using new contacts__email parameter
+        response = self.assert_get('/hosts/?contacts__email=new-filter@example.com')
+        data = response.json()
+        self.assertEqual(data['count'], 1)
+        self.assertEqual(data['results'][0]['name'], self.host_one.name)
+    
+    def test_hosts_filter_by_contact_icontains(self):
+        """"Filtering by contact with icontains should work"""
+        # Create hosts with contacts
+        self.host_one.add_contact('admin-team@example.com')
+        self.host_two.add_contact('support-team@example.com')
+        
+        # Filter using deprecated contact__icontains parameter
+        response = self.assert_get('/hosts/?contact__icontains=admin')
+        data = response.json()
+        self.assertEqual(data['count'], 1)
+        self.assertEqual(data['results'][0]['name'], self.host_one.name)
+    
+    def test_hosts_get_deprecated_contact_field(self):
+        """"Reading a host should return deprecated contact field with space-separated emails"""
+        # Add multiple contacts
+        self.host_one.add_contact('admin1@example.com')
+        self.host_one.add_contact('admin2@example.com')
+        
+        # Get the host
+        host_data = self.assert_get('/hosts/%s' % self.host_one.name).json()
+        
+        # Verify deprecated contact field exists and contains space-separated emails
+        self.assertIn('contact', host_data)
+        emails = host_data['contact'].split()
+        self.assertEqual(len(emails), 2)
+        self.assertIn('admin1@example.com', emails)
+        self.assertIn('admin2@example.com', emails)
+    
+    def test_hosts_post_with_space_separated_contact(self):
+        """"Posting with deprecated contact field containing space-separated emails should work"""
+        data = {'name': 'space-sep-host.example.org', 'contact': 'admin1@example.com admin2@example.com'}
+        original_format = self.format
+        self.format = ClientTestFormat.JSON
+        response = self.assert_post_and_201('/hosts/', data)
+        self.format = original_format
+        
+        # Verify both contacts were added
+        host_data = self.assert_get(response['Location']).json()
+        self.assertEqual(len(host_data['contacts']), 2)
+        emails = {contact['email'] for contact in host_data['contacts']}
+        self.assertEqual(emails, {'admin1@example.com', 'admin2@example.com'})
+
     def test_hosts_post_400_invalid_ip(self):
         """"Posting a new host with an invalid IP should return 400"""
         post_data = {'name': 'failing.example.org', 'ipaddress': '300.400.500.600',
-                     'contact': 'fail@example.org'}
+                     'contact_emails': ['fail@example.org']}
         self.assert_post_and_400('/hosts/', post_data)
         self.assert_get_and_404('/hosts/failing.example.org')
 
@@ -917,7 +1088,7 @@ class APIHostsTestCaseAsAdminuser(APIHostsTestCase):
 
 class APIHostsAutoTxtRecords(MregAPITestCase):
 
-    data = {'name': 'host.example.org', 'contact': 'mail@example.org'}
+    data = {'name': 'host.example.org', 'contact_emails': ['mail@example.org']}
     settings.TXT_AUTO_RECORDS = {'example.org': ('test1', 'test2')}
 
     def test_no_zone_no_txts_added(self):
