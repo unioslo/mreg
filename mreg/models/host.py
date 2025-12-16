@@ -56,7 +56,7 @@ class Host(ForwardZoneMember):
     def __str__(self):
         return str(self.name)
 
-    def add_contact(self, email: str) -> HostContact:
+    def add_contact(self, email: str) -> tuple['HostContact', bool]:
         """
         Add a contact email to this host.
         
@@ -64,27 +64,33 @@ class Host(ForwardZoneMember):
             email: Email address to add
             
         Returns:
-            The HostContact instance
+            Tuple of (HostContact instance, created) where created is True if this is a new association
         """
         contact, _ = HostContact.objects.get_or_create(email=email)
+        # Check if this contact is already associated with this host
+        if contact in self.contacts.all():
+            return (contact, False)
         self.contacts.add(contact)
-        return contact
+        return (contact, True)
 
-    def remove_contact(self, email: str) -> None:
+    def remove_contact(self, email: str) -> bool:
         """
         Remove a contact email from this host.
         
         Args:
             email: Email address to remove
             
-        Raises:
-            HostContact.DoesNotExist: If the contact doesn't exist
+        Returns:
+            True if the contact was removed, False if it wasn't associated with this host
         """
         try:
             contact = HostContact.objects.get(email=email)
-            self.contacts.remove(contact)
+            if contact in self.contacts.all():
+                self.contacts.remove(contact)
+                return True
+            return False
         except HostContact.DoesNotExist:
-            raise NotAcceptable(f"Contact email '{email}' not found for this host.")
+            return False
 
     def get_contact_emails(self) -> list[str]:
         """

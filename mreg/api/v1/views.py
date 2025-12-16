@@ -52,6 +52,7 @@ from .serializers import (
     CnameSerializer,
     HinfoSerializer,
     HistorySerializer,
+    HostContactSerializer,
     HostSerializer,
     IpaddressSerializer,
     LocSerializer,
@@ -486,6 +487,93 @@ class HostDetail(HostPermissionsUpdateDestroy,
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
         return super().patch(request, *args, **kwargs)
+
+
+class HostContactsView(HostPermissionsUpdateDestroy, APIView):
+    """
+    Manage contacts for a host.
+
+    GET: List all contacts for the host
+    POST: Add one or more contacts (expects {"emails": ["email1@example.com", ...]})
+    DELETE: Remove one or more contacts (expects {"emails": ["email1@example.com", ...]})
+    """
+
+    def get_host(self, name):
+        """Get the host object by name."""
+        return get_object_or_404(Host, name=name.lower())
+
+    def get(self, request, name):
+        """List all contacts for the host."""
+        host = self.get_host(name)
+        serializer = HostContactSerializer(host.contacts.all(), many=True)
+        return Response(serializer.data)
+
+    def post(self, request, name):
+        """Add one or more contacts to the host."""
+        host = self.get_host(name)
+        emails = request.data.get('emails', [])
+        
+        if not emails:
+            return Response(
+                {"error": "Must provide 'emails' list"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if not isinstance(emails, list):
+            return Response(
+                {"error": "'emails' must be a list"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        added = []
+        already_exists = []
+        for email in emails:
+            contact, created = host.add_contact(email)
+            if created:
+                added.append(email)
+            else:
+                already_exists.append(email)
+
+        response_data = {
+            "added": added,
+            "already_exists": already_exists,
+        }
+        return Response(response_data, status=status.HTTP_200_OK)
+
+    def delete(self, request, name):
+        """Remove one or more contacts from the host, or clear all if no emails provided."""
+        host = self.get_host(name)
+        emails = request.data.get('emails', None)
+        
+        # If no emails parameter provided, clear all contacts
+        if emails is None:
+            removed_emails = host.get_contact_emails()
+            host.contacts.clear()
+            return Response(
+                {"removed": removed_emails},
+                status=status.HTTP_200_OK
+            )
+
+        if not isinstance(emails, list):
+            return Response(
+                {"error": "'emails' must be a list"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        removed = []
+        not_found = []
+        for email in emails:
+            success = host.remove_contact(email)
+            if success:
+                removed.append(email)
+            else:
+                not_found.append(email)
+
+        response_data = {
+            "removed": removed,
+            "not_found": not_found,
+        }
+        return Response(response_data, status=status.HTTP_200_OK)
 
 
 class HistoryList(MregMixin, generics.ListAPIView):

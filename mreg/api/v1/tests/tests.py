@@ -1022,6 +1022,160 @@ class APIHostsTestCase(MregAPITestCase):
         emails = {contact['email'] for contact in host_data['contacts']}
         self.assertEqual(emails, {'admin1@example.com', 'admin2@example.com'})
 
+    def test_hosts_contacts_action_list(self):
+        """"GET /hosts/{name}/contacts/ should list all contacts"""
+        # Add contacts
+        self.host_one.add_contact('contact1@example.com')
+        self.host_one.add_contact('contact2@example.com')
+        
+        # List contacts using custom action
+        response = self.assert_get('/hosts/%s/contacts/' % self.host_one.name)
+        data = response.json()
+        
+        self.assertEqual(len(data), 2)
+        emails = {contact['email'] for contact in data}
+        self.assertEqual(emails, {'contact1@example.com', 'contact2@example.com'})
+        
+        # Verify structure
+        for contact in data:
+            self.assertIn('id', contact)
+            self.assertIn('email', contact)
+            self.assertIn('created_at', contact)
+            self.assertIn('updated_at', contact)
+    
+    def test_hosts_contacts_action_add(self):
+        """"POST /hosts/{name}/contacts/ should add contacts atomically"""
+        # Start with one contact
+        self.host_one.add_contact('existing@example.com')
+        
+        # Add new contacts using custom action
+        original_format = self.format
+        self.format = ClientTestFormat.JSON
+        data = {'emails': ['new1@example.com', 'new2@example.com']}
+        response = self.assert_post_and_200('/hosts/%s/contacts/' % self.host_one.name, data)
+        self.format = original_format
+        
+        # Verify response
+        result = response.json()
+        self.assertEqual(len(result['added']), 2)
+        self.assertEqual(len(result['already_exists']), 0)
+        self.assertIn('new1@example.com', result['added'])
+        self.assertIn('new2@example.com', result['added'])
+        
+        # Verify contacts were added (existing should still be there)
+        host_data = self.assert_get('/hosts/%s' % self.host_one.name).json()
+        self.assertEqual(len(host_data['contacts']), 3)
+        emails = {contact['email'] for contact in host_data['contacts']}
+        self.assertEqual(emails, {'existing@example.com', 'new1@example.com', 'new2@example.com'})
+    
+    def test_hosts_contacts_action_add_duplicate(self):
+        """"POST /hosts/{name}/contacts/ with existing email should report already_exists"""
+        # Add initial contact
+        self.host_one.add_contact('duplicate@example.com')
+        
+        # Try to add duplicate
+        original_format = self.format
+        self.format = ClientTestFormat.JSON
+        data = {'emails': ['duplicate@example.com', 'new@example.com']}
+        response = self.assert_post_and_200('/hosts/%s/contacts/' % self.host_one.name, data)
+        self.format = original_format
+        
+        # Verify response
+        result = response.json()
+        self.assertEqual(len(result['added']), 1)
+        self.assertEqual(len(result['already_exists']), 1)
+        self.assertIn('new@example.com', result['added'])
+        self.assertIn('duplicate@example.com', result['already_exists'])
+    
+    def test_hosts_contacts_action_delete(self):
+        """"DELETE /hosts/{name}/contacts/ should remove contacts atomically"""
+        # Add contacts
+        self.host_one.add_contact('keep@example.com')
+        self.host_one.add_contact('remove1@example.com')
+        self.host_one.add_contact('remove2@example.com')
+        
+        # Remove contacts using custom action
+        original_format = self.format
+        self.format = ClientTestFormat.JSON
+        data = {'emails': ['remove1@example.com', 'remove2@example.com']}
+        path = self._create_path('/hosts/%s/contacts/' % self.host_one.name)
+        response = self.client.delete(path, 
+                                     data=data,
+                                     content_type='application/json')
+        self.format = original_format
+        
+        # Verify response
+        result = response.json()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(result['removed']), 2)
+        self.assertEqual(len(result['not_found']), 0)
+        self.assertIn('remove1@example.com', result['removed'])
+        self.assertIn('remove2@example.com', result['removed'])
+        
+        # Verify only keep@example.com remains
+        host_data = self.assert_get('/hosts/%s' % self.host_one.name).json()
+        self.assertEqual(len(host_data['contacts']), 1)
+        self.assertEqual(host_data['contacts'][0]['email'], 'keep@example.com')
+    
+    def test_hosts_contacts_action_delete_not_found(self):
+        """"DELETE /hosts/{name}/contacts/ with non-existent email should report not_found"""
+        # Add one contact
+        self.host_one.add_contact('exists@example.com')
+        
+        # Try to remove existing and non-existing
+        original_format = self.format
+        self.format = ClientTestFormat.JSON
+        data = {'emails': ['exists@example.com', 'nonexistent@example.com']}
+        path = self._create_path('/hosts/%s/contacts/' % self.host_one.name)
+        response = self.client.delete(path,
+                                     data=data,
+                                     content_type='application/json')
+        self.format = original_format
+        
+        # Verify response
+        result = response.json()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(result['removed']), 1)
+        self.assertEqual(len(result['not_found']), 1)
+        self.assertIn('exists@example.com', result['removed'])
+        self.assertIn('nonexistent@example.com', result['not_found'])
+    
+    def test_hosts_contacts_action_add_no_emails(self):
+        """"POST /hosts/{name}/contacts/ without emails should return 400"""
+        original_format = self.format
+        self.format = ClientTestFormat.JSON
+        response = self.assert_post_and_400('/hosts/%s/contacts/' % self.host_one.name, {})
+        self.format = original_format
+        self.assertIn('error', response.json())
+    
+    def test_hosts_contacts_action_delete_no_emails(self):
+        """"DELETE /hosts/{name}/contacts/ without emails should clear all contacts"""
+        # Add some contacts first
+        self.host_one.add_contact('contact1@example.com')
+        self.host_one.add_contact('contact2@example.com')
+        self.host_one.add_contact('contact3@example.com')
+        
+        original_format = self.format
+        self.format = ClientTestFormat.JSON
+        path = self._create_path('/hosts/%s/contacts/' % self.host_one.name)
+        response = self.client.delete(path,
+                                     data={},
+                                     content_type='application/json')
+        self.format = original_format
+        
+        # Verify response
+        self.assertEqual(response.status_code, 200)
+        result = response.json()
+        self.assertIn('removed', result)
+        self.assertEqual(len(result['removed']), 3)
+        self.assertIn('contact1@example.com', result['removed'])
+        self.assertIn('contact2@example.com', result['removed'])
+        self.assertIn('contact3@example.com', result['removed'])
+        
+        # Verify all contacts were cleared
+        host_data = self.assert_get('/hosts/%s' % self.host_one.name).json()
+        self.assertEqual(len(host_data['contacts']), 0)
+
     def test_hosts_post_400_invalid_ip(self):
         """"Posting a new host with an invalid IP should return 400"""
         post_data = {'name': 'failing.example.org', 'ipaddress': '300.400.500.600',

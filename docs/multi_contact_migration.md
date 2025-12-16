@@ -193,7 +193,143 @@ The API maintains full backward compatibility for old clients:
 - **Not providing contact fields**: Leaves existing contacts unchanged
 - **Empty list `[]`**: Clears all contacts
 
-**Important**: There is no "append" mode - updates always replace the entire contact list.
+**Important**: Standard PATCH/PUT operations replace the entire contact list, which can lead to race conditions when multiple clients attempt to add/remove contacts simultaneously, as they all read the existing list first. To address this, atomic contact operation endpoints are provided below.
+
+### 6. Atomic Contact Operations
+
+To prevent race conditions when multiple clients need to modify contacts, atomic operation endpoints are provided:
+
+#### List Contacts
+
+```
+GET /api/v1/hosts/{hostname}/contacts/
+```
+
+Returns a list of all contacts for the host:
+
+```json
+[
+  {
+    "id": 1,
+    "email": "admin1@example.com",
+    "created_at": "2025-12-10T10:00:00Z",
+    "updated_at": "2025-12-10T10:00:00Z"
+  },
+  {
+    "id": 2,
+    "email": "admin2@example.com",
+    "created_at": "2025-12-10T10:00:00Z",
+    "updated_at": "2025-12-10T10:00:00Z"
+  }
+]
+```
+
+#### Add Contacts (Atomic)
+
+```
+POST /api/v1/hosts/{hostname}/contacts/
+Content-Type: application/json
+
+{
+  "emails": ["newadmin@example.com", "monitor@example.com"]
+}
+```
+
+Response (200 OK):
+
+```json
+{
+  "added": ["newadmin@example.com", "monitor@example.com"],
+  "already_exists": []
+}
+```
+
+If some emails already exist:
+
+```json
+{
+  "added": ["newadmin@example.com"],
+  "already_exists": ["monitor@example.com"]
+}
+```
+
+**Benefits:**
+
+- Atomically adds contacts without reading the full list first
+- No race condition - multiple clients can add contacts simultaneously
+- Returns clear feedback about which emails were added vs already existed, but does not fail if some or all already exist
+
+#### Remove Contacts (Atomic)
+
+**Remove specific contacts:**
+
+```
+DELETE /api/v1/hosts/{hostname}/contacts/
+Content-Type: application/json
+
+{
+  "emails": ["oldadmin@example.com", "retired@example.com"]
+}
+```
+
+Response (200 OK):
+
+```json
+{
+  "removed": ["oldadmin@example.com", "retired@example.com"],
+  "not_found": []
+}
+```
+
+If some emails don't exist:
+
+```json
+{
+  "removed": ["oldadmin@example.com"],
+  "not_found": ["retired@example.com"]
+}
+```
+
+**Clear all contacts:**
+
+To remove all contacts without specifying individual emails, simply omit the `emails` parameter:
+
+```
+DELETE /api/v1/hosts/{hostname}/contacts/
+Content-Type: application/json
+
+{}
+```
+
+Response (200 OK):
+
+```json
+{
+  "removed": ["admin1@example.com", "admin2@example.com", "admin3@example.com"]
+}
+```
+
+**Benefits:**
+
+- Atomically removes contacts without reading the full list first
+- No race condition - multiple clients can remove contacts simultaneously
+- Returns clear feedback about which emails were removed vs didn't exist
+- Convenient clear-all operation when no emails parameter is provided
+
+#### When to Use Atomic Operations
+
+Use the atomic endpoints (`/hosts/{hostname}/contacts/`) when:
+
+- Multiple clients may modify contacts simultaneously
+- You want to add contacts without replacing the entire list
+- You want to remove specific contacts without affecting others
+- You need to avoid race conditions
+
+Use standard PATCH/PUT (`/hosts/{hostname}/`) when:
+
+- You want to replace the entire contact list
+- You're making multiple changes to the host and want a single transaction
+- Single-client scenarios where race conditions aren't a concern
 
 #### Summary of Backward Compatibility
 
