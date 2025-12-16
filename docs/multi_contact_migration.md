@@ -213,49 +213,7 @@ The implementation provides **full backward compatibility** for the old `contact
 3. Update any custom queries to use `contacts__email` instead of `contact`
 4. Monitor for any issues
 
-## Testing
-
-### Unit Tests Updates Needed
-
-Tests that create hosts with the `contact` field should be updated:
-
-**Old pattern:**
-
-```python
-host = Host(name='host1.example.org', contact='mail@example.org')
-host.save()
-```
-
-**New pattern (Option 1 - Using model methods):**
-
-```python
-host = Host(name='host1.example.org')
-host.save()
-host.add_contact('mail@example.org')
-```
-
-**New pattern (Option 2 - Using API):**
-
-```python
-data = {
-    "name": "host1.example.org",
-    "contact_emails": ["mail@example.org"]
-}
-response = self.client.post('/api/v1/hosts/', data)
-```
-
-### Test Files to Update
-
-- `mreg/api/v1/tests/tests_bacnet.py`
-- `mreg/api/v1/tests/tests.py`
-- Any other test files that reference `contact` field
-
-## Database Impact
-
-- **New table**: `host_contact` for storing contact emails
-- **New table**: `host_host_contacts` (Django auto-created for ManyToMany)
-- **Modified table**: `host` - removed deprecated `contact` field
-- **Data migration**: Existing contacts were preserved and migrated to new structure
+(Note, the old `contact` field will remain available for backward compatibility indefinitely, but it is recommended to migrate to the new fields for future-proofing.)
 
 ## Rollback Procedure
 
