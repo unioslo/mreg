@@ -145,12 +145,18 @@ class IpaddressSerializer(ValidationMixin, serializers.ModelSerializer):
     class Meta:
         model = Ipaddress
         fields = '__all__'
+        # Exclude default UniqueTogetherValidator to handle it manually in validate()
+        # This is needed because the validator tries to access instance.host before
+        # the instance is saved, causing RelatedObjectDoesNotExist errors in DRF 3.15+
+        validators = []
 
     def validate(self, data):
         """
         Make sure a mac address is semi-unique:
         - Unique if the IP is not in a network.
         - Only in use by one IP per network.
+        
+        Also validates the unique_together constraint on (host, ipaddress).
         """
 
         def _raise_if_mac_found(qs, mac):
@@ -164,6 +170,21 @@ class IpaddressSerializer(ValidationMixin, serializers.ModelSerializer):
 
         data = super().validate(data)
         _validate_ip_not_in_network_excluded_range(data.get('ipaddress'))
+        
+        # Manually validate unique_together constraint on (host, ipaddress)
+        # This replaces the default UniqueTogetherValidator which has issues in DRF 3.15+
+        host = data.get('host')
+        ipaddress = data.get('ipaddress')
+        
+        if host and ipaddress:
+            # Check if this combination already exists
+            qs = Ipaddress.objects.filter(host=host, ipaddress=ipaddress)
+            if self.instance:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise serializers.ValidationError({
+                    'ipaddress': 'This IP address is already assigned to this host.'
+                })
         mac = data.get('macaddress')
         if mac is None and self.instance and self.instance.macaddress:
             mac = self.instance.macaddress
