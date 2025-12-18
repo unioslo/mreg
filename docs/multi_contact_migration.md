@@ -43,12 +43,11 @@ This single migration performs all the necessary changes:
 
 - Added `HostContactSerializer` for representing contact objects
 - Updated `HostSerializer`:
-  - Added `contacts` field (read-only) - returns list of `HostContact` objects with full details (id, email, timestamps)
-  - Added `contact_emails` field (write-only) - accepts a list of email strings for creating/updating contacts
+  - Added `contacts` field – see usage below
   - Added `contact` field (read/write, deprecated) - for full backward compatibility:
     - **Read**: Returns space-separated string of all contact emails
     - **Write**: Accepts single email or space-separated multiple emails, automatically converted to list
-  - Updated `create()` and `update()` methods to handle both `contact_emails` and deprecated `contact` field
+  - Updated `create()` and `update()` methods to handle both `contacts` input and deprecated `contact` field
   - Added `to_representation()` override to automatically populate the deprecated `contact` field in GET responses
 
 #### API Usage Examples
@@ -59,7 +58,7 @@ This single migration performs all the necessary changes:
 POST /api/v1/hosts/
 {
   "name": "server.example.com",
-  "contact_emails": ["admin1@example.com", "admin2@example.com"]
+  "contacts": ["admin1@example.com", "admin2@example.com"]
 }
 ```
 
@@ -92,7 +91,7 @@ POST /api/v1/hosts/
 ```json
 PATCH /api/v1/hosts/server.example.com/
 {
-  "contact_emails": ["newadmin@example.com"]
+  "contacts": ["newadmin@example.com"]
 }
 ```
 
@@ -101,7 +100,7 @@ PATCH /api/v1/hosts/server.example.com/
 ```json
 PATCH /api/v1/hosts/server.example.com/
 {
-  "contact_emails": []
+  "contacts": []
 }
 ```
 
@@ -123,7 +122,7 @@ PATCH /api/v1/hosts/server.example.com/
 }
 ```
 
-Note: The deprecated `contact` field is automatically converted to `contact_emails` internally. Space-separated emails are split into a list. If both `contact` and `contact_emails` are provided, `contact` is ignored.
+Note: The deprecated `contact` field is automatically converted to the new `contacts` input internally. Space-separated emails are split into a list. If both `contact` and `contacts` are provided, `contact` is ignored.
 
 #### Filters (`mreg/api/v1/filters.py`)
 
@@ -143,17 +142,17 @@ The API maintains full backward compatibility for old clients:
 
 **Recommended (new format):**
 
-- Use `contact_emails` field with a list of email addresses
-- Supports multiple contacts: `{"contact_emails": ["admin1@example.com", "admin2@example.com"]}`
-- Supports single contact: `{"contact_emails": ["admin@example.com"]}`
-- Supports clearing contacts: `{"contact_emails": []}`
+- Use `contacts` field with a list of email addresses
+- Supports multiple contacts: `{"contacts": ["admin1@example.com", "admin2@example.com"]}`
+- Supports single contact: `{"contacts": ["admin@example.com"]}` or `{"contacts": "admin@example.com"}` (multipart)
+- Supports clearing contacts: `{"contacts": []}`
 
 **Deprecated (old format - still works):**
 
 - Use `contact` field with email string(s): `{"contact": "admin@example.com"}` or `{"contact": "admin1@example.com admin2@example.com"}`
-- Single email is automatically converted to single-item `contact_emails` list
-- Space-separated emails are automatically split and converted to `contact_emails` list
-- If both `contact` and `contact_emails` are provided, `contact` is ignored
+- Single email is automatically converted to a single-item list internally
+- Space-separated emails are automatically split and converted to list internally
+- If both `contact` and `contacts` are provided, `contact` is ignored
 - Supports both single and multiple contacts via space-separated format
 
 #### Read Operations (GET)
@@ -187,7 +186,7 @@ The API maintains full backward compatibility for old clients:
 
 #### Update Behavior
 
-- **PATCH/PUT with `contact_emails`**: Replaces ALL existing contacts with the new list
+- **PATCH/PUT with `contacts`**: Replaces ALL existing contacts with the new list
 - **PATCH/PUT with `contact`** (single email): Replaces ALL existing contacts with a single-item list
 - **PATCH/PUT with `contact`** (space-separated): Replaces ALL existing contacts with the parsed list
 - **Not providing contact fields**: Leaves existing contacts unchanged
@@ -344,7 +343,7 @@ The implementation provides **full backward compatibility** for the old `contact
 
 ### Update Client Applications
 
-1. Update all client applications to use `contact_emails` for writes
+1. Update all client applications to use `contacts` for writes
 2. Update all client applications to read from `contacts` field
 3. Update any custom queries to use `contacts__email` instead of `contact`
 4. Monitor for any issues

@@ -330,19 +330,13 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
         allow_null=True, help_text="Communities to which the host belongs, with IP mapping."
     )
     
-    # Contact fields
+    # Contacts: read returns full objects; write is handled manually via initial_data
     contacts = HostContactSerializer(many=True, read_only=True, help_text="Contact email addresses for this host (read-only).")
-    contact_emails = serializers.ListField(
-        child=serializers.EmailField(),
-        write_only=True,
-        required=False,
-        allow_empty=True,
-        help_text="List of contact email addresses (write-only)."
-    )
     contact = serializers.CharField(
         required=False,
         allow_blank=True,
-        help_text="Space-separated contact emails (deprecated, use contacts/contact_emails instead)."
+        write_only=True,
+        help_text="Space-separated contact emails (deprecated, use contacts instead)."
     )
 
     class Meta:
@@ -350,7 +344,7 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
         fields = '__all__'
     
     def to_representation(self, instance):
-        """Customize serialization output - populate contact field with space-separated emails."""
+        """Customize serialization output."""
         ret = super().to_representation(instance)
         # Add backward-compatible contact field (space-separated emails)
         emails = instance.get_contact_emails()
@@ -358,16 +352,8 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
         return ret
 
     def validate(self, data):
-        # Store contact_emails before super().validate() which might remove empty lists due to nonify
-        contact_emails_present = 'contact_emails' in data
-        contact_emails_value = data.get('contact_emails')
-        
         data = super().validate(data)
-        
-        # Restore contact_emails if it was present (even if empty list)
-        if contact_emails_present:
-            data['contact_emails'] = contact_emails_value
-        
+
         name = data.get('name')
         if name:
             if Cname.objects.filter(name=name).exists():
@@ -375,17 +361,8 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
             if Host.objects.filter(name=name).exists():
                 raise ValidationError409("Host already exists with name {}".format(name))
 
-        # Backward compatibility: convert contact field (space-separated or single email) to contact_emails list
-        if 'contact' in data and 'contact_emails' not in data:
-            contact = data.pop('contact')
-            if contact:  # Only process if not empty
-                # Split by space to support multiple emails
-                emails = [email.strip() for email in contact.split() if email.strip()]
-                if emails:
-                    data['contact_emails'] = emails
-        elif 'contact' in data:
-            # If both are provided, ignore the deprecated contact field
-            data.pop('contact')
+        # Don't pop 'contact' here - let create/update handle it from validated_data
+        # since it's a defined field that DRF will deserialize properly
     
 
         # We defer all validation of community data to update and create as we cannot
@@ -396,10 +373,28 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
     def create(self, validated_data):
         ipaddr = validated_data.pop('ipaddress', None)
         community = validated_data.pop('communities', None)
-        contact_emails = validated_data.pop('contact_emails', None)
-        deprecated_contact = validated_data.pop('contact', None)
-        if deprecated_contact and not contact_emails:
-            contact_emails = [deprecated_contact]
+        
+        # Backward compatibility: check deprecated contact field first
+        # Try validated_data first (it's a defined field), then initial_data
+        deprecated_contact = validated_data.pop('contact', None) or self.initial_data.get('contact', None)
+        
+        # Read contacts list of emails from the raw input (supports JSON lists and multipart lists)
+        contacts = None
+        # If deprecated contact provided, use it and ignore contacts field
+        if deprecated_contact:
+            contacts = deprecated_contact.split()
+        else:
+            try:
+                # QueryDict for multipart supports getlist
+                contacts = self.initial_data.getlist('contacts')  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            if contacts is None:
+                raw = self.initial_data.get('contacts', None)
+                if isinstance(raw, list):
+                    contacts = raw
+                elif isinstance(raw, str):
+                    contacts = [raw]
         
         with transaction.atomic():
             host = Host.objects.create(**validated_data)
@@ -412,8 +407,8 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
                 Ipaddress.objects.create(host=host, ipaddress=ipaddr)
             
             # Add contact emails if provided
-            if contact_emails:
-                for email in contact_emails:
+            if contacts:
+                for email in contacts:
                     host.add_contact(email)
             
             # Assign community if provided
@@ -427,7 +422,28 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
         community = validated_data.pop('communities', None)
         # Use a sentinel value to distinguish "not provided" from "empty list"
         _sentinel = object()
-        contact_emails = validated_data.pop('contact_emails', _sentinel)
+        
+        # Backward compatibility: check deprecated contact field first
+        # Try validated_data first (it's a defined field), then initial_data
+        deprecated_contact = validated_data.pop('contact', None) or self.initial_data.get('contact', None)
+        
+        # Read contacts list of emails from the raw input (supports JSON lists and multipart lists)
+        contacts = _sentinel
+        # If deprecated contact provided, use it and ignore contacts field
+        if deprecated_contact:
+            contacts = deprecated_contact.split()
+        else:
+            try:
+                contacts_list = self.initial_data.getlist('contacts')  # type: ignore[attr-defined]
+                contacts = contacts_list
+            except Exception:
+                pass
+            if contacts is _sentinel:
+                raw = self.initial_data.get('contacts', _sentinel)
+                if isinstance(raw, list):
+                    contacts = raw
+                elif isinstance(raw, str):
+                    contacts = [raw]
         
         with transaction.atomic():
             # Update host fields
@@ -451,10 +467,11 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
             
             # Update contact emails if provided (replaces all contacts)
             # Check against sentinel to allow empty list [] to clear all contacts
-            if contact_emails is not _sentinel:
+            # Note: instance must be saved before manipulating M2M relationships
+            if contacts is not _sentinel:
                 instance.contacts.clear()
-                if contact_emails:  # Only add if list is not empty
-                    for email in contact_emails:
+                if contacts:  # Only add if list is not empty
+                    for email in contacts:
                         instance.add_contact(email)
             
             # Assign or unassign community

@@ -577,7 +577,7 @@ class APIAutoupdateZonesTestCase(MregAPITestCase):
         super().setUp()
         self.host1 = {"name": "host1.example.org",
                       "ipaddress": "10.10.0.1",
-                      "contact_emails": ["mail@example.org"]}
+                      "contacts": ["mail@example.org"]}
         self.delegation = {"name": "delegated.example.org",
                            "nameservers": "ns.example.org"}
         self.subzone = {"name": "sub.example.org",
@@ -681,22 +681,22 @@ class APIAutoupdateHostZoneTestCase(MregAPITestCase):
 
         self.org_host1 = {"name": "host1.example.org",
                           "ipaddress": "10.10.0.1",
-                          "contact_emails": ["mail@example.org"]}
+                          "contacts": ["mail@example.org"]}
         self.org_host2 = {"name": "example.org",
                           "ipaddress": "10.10.0.2",
-                          "contact_emails": ["mail@example.org"]}
+                          "contacts": ["mail@example.org"]}
         self.sub_host1 = {"name": "host1.sub.example.org",
                           "ipaddress": "10.20.0.1",
-                          "contact_emails": ["mail@example.org"]}
+                          "contacts": ["mail@example.org"]}
         self.sub_host2 = {"name": "sub.example.org",
                           "ipaddress": "10.20.0.1",
-                          "contact_emails": ["mail@example.org"]}
+                          "contacts": ["mail@example.org"]}
         self.long_host1 = {"name": "host1.longexample.org",
                            "ipaddress": "10.30.0.1",
-                           "contact_emails": ["mail@example.org"]}
+                           "contacts": ["mail@example.org"]}
         self.long_host2 = {"name": "longexample.org",
                            "ipaddress": "10.30.0.2",
-                           "contact_emails": ["mail@example.org"]}
+                           "contacts": ["mail@example.org"]}
 
     def test_add_host_known_zone(self):
         def _add(host):
@@ -723,7 +723,7 @@ class APIAutoupdateHostZoneTestCase(MregAPITestCase):
     def test_add_to_nonexistent(self):
         data = {"name": "host1.example.net",
                 "ipaddress": "10.10.0.10",
-                "contact_emails": ["mail@example.org"]}
+                "contacts": ["mail@example.org"]}
         self.assert_post_and_201("/hosts/", data)
         res = self.assert_get(f"/hosts/{data['name']}")
         self.assertEqual(res.json()['zone'], None)
@@ -751,12 +751,12 @@ class APIHostsTestCase(MregAPITestCase):
         super().setUp()
         self.host_one = Host(name='host1.example.org')
         self.host_two = Host(name='host2.example.org')
-        self.patch_data = {'name': 'new-name1.example.com', 'contact_emails': ['updated@mail.com']}
-        self.patch_data_name = {'name': 'host2.example.org', 'contact_emails': ['updated@mail.com']}
+        self.patch_data = {'name': 'new-name1.example.com', 'contacts': ['updated@mail.com']}
+        self.patch_data_name = {'name': 'host2.example.org', 'contacts': ['updated@mail.com']}
         self.post_data = {'name': 'new-name2.example.org', "ipaddress": '127.0.0.2',
-                          'contact_emails': ['hostmaster@example.org']}
+                          'contacts': ['hostmaster@example.org']}
         self.post_data_name = {'name': 'host1.example.org', "ipaddress": '127.0.0.2',
-                               'contact_emails': ['hostmaster@example.org']}
+                               'contacts': ['hostmaster@example.org']}
         self.zone_sample = create_forward_zone()
         clean_and_save(self.host_one)
         clean_and_save(self.host_two)
@@ -872,10 +872,10 @@ class APIHostsTestCase(MregAPITestCase):
         self.assertEqual(len(host_data['contacts']), 1)
         self.assertEqual(host_data['contacts'][0]['email'], 'updated-legacy@example.com')
 
-    def test_hosts_post_with_contact_emails(self):
-        """"Posting with contact_emails list should work"""
+    def test_hosts_post_with_contacts(self):
+        """"Posting with contacts list should work"""
         data = {'name': 'multi-contact-host.example.org', 
-                'contact_emails': ['admin1@example.com', 'admin2@example.com']}
+                'contacts': ['admin1@example.com', 'admin2@example.com']}
         response = self.assert_post_and_201('/hosts/', data)
         # Verify the contacts were added
         host_data = self.assert_get(response['Location']).json()
@@ -890,14 +890,14 @@ class APIHostsTestCase(MregAPITestCase):
             self.assertIn('created_at', contact)
             self.assertIn('updated_at', contact)
     
-    def test_hosts_patch_with_contact_emails(self):
-        """"Patching with contact_emails list should replace all contacts"""
+    def test_hosts_patch_with_contacts(self):
+        """"Patching with contacts list should replace all contacts"""
         # First add some contacts
         self.host_one.add_contact('old1@example.com')
         self.host_one.add_contact('old2@example.com')
         
         # Update with new contacts
-        data = {'contact_emails': ['new1@example.com', 'new2@example.com', 'new3@example.com']}
+        data = {'contacts': ['new1@example.com', 'new2@example.com', 'new3@example.com']}
         self.assert_patch_and_204('/hosts/%s' % self.host_one.name, data)
         
         # Verify the contacts were replaced
@@ -929,9 +929,9 @@ class APIHostsTestCase(MregAPITestCase):
             self.assertIsInstance(contact['id'], int)
             self.assertIsInstance(contact['email'], str)
     
-    def test_hosts_post_empty_contact_emails(self):
-        """"Posting with empty contact_emails list should work"""
-        data = {'name': 'no-contact-host.example.org', 'contact_emails': []}
+    def test_hosts_post_empty_contacts(self):
+        """"Posting with empty contacts list should work"""
+        data = {'name': 'no-contact-host.example.org', 'contacts': []}
         # Use JSON format since multipart can't represent empty arrays
         original_format = self.format
         self.format = ClientTestFormat.JSON
@@ -941,12 +941,12 @@ class APIHostsTestCase(MregAPITestCase):
         self.assertEqual(len(host_data['contacts']), 0)
     
     def test_hosts_patch_clear_contacts(self):
-        """"Patching with empty contact_emails should clear all contacts"""
+        """"Patching with empty contacts should clear all contacts"""
         # First add some contacts
         self.host_one.add_contact('remove-me@example.com')
         
         # Clear contacts - use JSON format since multipart can't represent empty arrays
-        data = {'contact_emails': []}
+        data = {'contacts': []}
         original_format = self.format
         self.format = ClientTestFormat.JSON
         self.assert_patch_and_204('/hosts/%s' % self.host_one.name, data)
@@ -1179,7 +1179,7 @@ class APIHostsTestCase(MregAPITestCase):
     def test_hosts_post_400_invalid_ip(self):
         """"Posting a new host with an invalid IP should return 400"""
         post_data = {'name': 'failing.example.org', 'ipaddress': '300.400.500.600',
-                     'contact_emails': ['fail@example.org']}
+                     'contacts': ['fail@example.org']}
         self.assert_post_and_400('/hosts/', post_data)
         self.assert_get_and_404('/hosts/failing.example.org')
 
@@ -1242,7 +1242,7 @@ class APIHostsTestCaseAsAdminuser(APIHostsTestCase):
 
 class APIHostsAutoTxtRecords(MregAPITestCase):
 
-    data = {'name': 'host.example.org', 'contact_emails': ['mail@example.org']}
+    data = {'name': 'host.example.org', 'contacts': ['mail@example.org']}
     settings.TXT_AUTO_RECORDS = {'example.org': ('test1', 'test2')}
 
     def test_no_zone_no_txts_added(self):
