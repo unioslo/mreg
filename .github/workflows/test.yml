@@ -57,8 +57,12 @@ jobs:
         run: uv run tox -r
         env:
           MREG_DB_PASSWORD: postgres
-      - name: Show coverage report for debugging
-        run: uv run coverage report
+      - name: Combine coverage data
+        run: |
+          # Combine coverage data from parallel test runs
+          uv run coverage combine
+          # Show coverage report for debugging
+          uv run coverage report
       - name: Check migrations
         run: |
           export MREG_DB_NAME=mreg MREG_DB_USER=mreg MREG_DB_PASSWORD=postgres
@@ -107,7 +111,7 @@ jobs:
       - name: Install Coveralls
         run: |
           uv venv --no-project
-          uv pip install coveralls coverage
+          uv pip install coveralls
       - name: Run Coveralls
         run: uv run --no-project coveralls
         env:
@@ -117,8 +121,6 @@ jobs:
           COVERALLS_PARALLEL: true
           COVERALLS_FLAG_NAME: python-${{ matrix.python-version }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Combine coverage files
-        run: coverage combine
 
   finish:
     name: Coveralls Completed
