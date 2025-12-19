@@ -8,8 +8,8 @@ on:
     types: [opened, reopened, synchronize]
   workflow_dispatch:
 
-env:
-  UV_FROZEN: 1
+#env:
+#  UV_FROZEN: 1
 
 name: CI
 jobs:
