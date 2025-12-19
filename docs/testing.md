@@ -120,23 +120,11 @@ class MyLDAPTest(TestCase):
 
 ## Coverage with Parallel Tests
 
-Coverage.py requires special configuration to work with Django's parallel testing. This is already configured in `pyproject.toml`:
-
-```toml
-[tool.coverage.run]
-concurrency = ["multiprocessing"]
-parallel = true
-sigterm = true
-```
-
-**Running tests with coverage:**
+Coverage works with parallel testing using the `--parallel` flag:
 
 ```bash
-# Run tests with coverage (multiprocessing support)
-coverage run --concurrency=multiprocessing manage.py test --parallel
-
-# Combine coverage data from all parallel processes
-coverage combine
+# Run tests with coverage
+coverage run manage.py test --parallel
 
 # Generate report
 coverage report -m
@@ -145,15 +133,7 @@ coverage report -m
 coverage html
 ```
 
-**Important**: Always run `coverage combine` after parallel test execution to merge the coverage data files from all worker processes. Without this, you'll only see coverage from one process.
-
-The `tox.ini` configuration handles this automatically:
-```ini
-commands =
-    coverage run --concurrency=multiprocessing manage.py test --parallel
-    coverage combine
-    coverage report -m
-```
+Coverage automatically combines data from all parallel processes.
 
 ## Debugging Parallel Test Failures
 
