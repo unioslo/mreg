@@ -311,7 +311,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         network.delete()
         self.assertFalse(Community.objects.filter(pk=community_id).exists())  # Cascade delete
 
-    def create_community_no_name_400(self):
+    def test_create_community_no_name_400(self):
         """Test creating a community without a name."""
         network = Network.objects.create(network="10.0.0.0/24", description="test_network")
         data = {

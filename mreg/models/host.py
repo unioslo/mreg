@@ -220,7 +220,8 @@ class Host(ForwardZoneMember):
                     comm_inst = Community.objects.get(name=community, network=net)
                 except Community.DoesNotExist:
                     raise NotAcceptable(f"No community named '{community}' found for network {net}.")
-                except Community.MultipleObjectsReturned:
+                except Community.MultipleObjectsReturned:  # pragma: no cover
+                    # Cannot test: Community has unique constraint on (name, network)
                     raise NotAcceptable(f"Multiple communities found for network {net} with name '{community}'.")
                 return ip, comm_inst
             else:
@@ -237,7 +238,8 @@ class Host(ForwardZoneMember):
                         matches.append((ipaddr, comm_inst))
                     except Community.DoesNotExist:
                         continue
-                    except Community.MultipleObjectsReturned:
+                    except Community.MultipleObjectsReturned:  # pragma: no cover
+                        # Cannot test: Community has unique constraint on (name, network)
                         raise NotAcceptable(f"Multiple communities found for network {net} with name '{community}'.")
                 if not matches:
                     raise NotAcceptable(f"No community named '{community}' found on any IP network for this host.")
@@ -273,7 +275,9 @@ class Host(ForwardZoneMember):
         resolved_ip, resolved_comm = self._resolve_community_mapping(community, ipaddress)
         try:
             net = Network.objects.get(network__net_contains=resolved_ip.ipaddress)
-        except Network.DoesNotExist:
+        except Network.DoesNotExist:  # pragma: no cover
+            # Cannot test: Defensive check for race condition where network is deleted
+            # between resolution in _resolve_community_mapping and this lookup
             raise NotAcceptable("No network found for the provided IP address.")
 
         mac_required = getattr(settings, "MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY", False)
