@@ -1,5 +1,4 @@
 from unittest import TestCase, mock
-import json
 from django.core.exceptions import ValidationError
 from mreg.api.v1.history import HistoryLog, DjangoJSONModelEncoder
 
