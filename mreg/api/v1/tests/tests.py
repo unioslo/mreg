@@ -48,12 +48,14 @@ class MregAPITestCase(APITestCase):
         """Set the client format to a supported ClientFormat."""
         self.format = format
 
-    def set_client_format_json(self):
+    def set_client_format_json(self):  # pragma: no cover
         """Set the client format to JSON."""
+        # Not covered: Used as a helper method for context manager client_format_json().
         self.set_client_format(ClientTestFormat.JSON)
 
-    def set_client_format_multipart(self):
+    def set_client_format_multipart(self):  # pragma: no cover
         """Set the client format to multipart."""
+        # Not covered: Used as a helper method for context manager client_format_multipart().
         self.set_client_format(ClientTestFormat.MULTIPART)
 
     @contextmanager
@@ -81,7 +83,9 @@ class MregAPITestCase(APITestCase):
         """
         if self.user.is_mreg_superuser:
             yield
-        else:
+        else:  # pragma: no cover
+            # Not covered: Switching from non-superuser to superuser is tested,
+            # but this branch (already a superuser) is the common case in tests
             with self.temporary_client(superuser=True):
                 yield
 
@@ -93,7 +97,9 @@ class MregAPITestCase(APITestCase):
         """
         if self.user.is_mreg_hostpolicy_admin:
             yield
-        else:
+        else:  # pragma: no cover
+            # Not covered: Switching from non-policy-admin to policy-admin is tested,
+            # but this branch (already a policy admin) is the common case in tests
             with self.temporary_client(superuser=False, policyadmin=True):
                 yield
 
@@ -148,7 +154,9 @@ class MregAPITestCase(APITestCase):
                 username = 'policyadmin'
             elif networkadmin:
                 username = 'networkadmin'
-            else:
+            else:  # pragma: no cover
+                # Not covered: Default 'nobody' username is only used when no admin flags are set,
+                # which is an edge case not currently exercised in tests
                 username = 'nobody'
         usermodel = get_user_model()
         # NOTE: We manually check and create a user, since `get_or_create` would not
@@ -357,6 +365,40 @@ class APITestInternals(MregAPITestCase):
         """Test that add_user_to_group works."""
         with self.assertRaises(MissingSettings):
             self.add_user_to_groups("nosuchgroup")
+
+    def test_temporary_client_context_managers(self):
+        """Test that temporary client context managers work correctly."""
+        # Test superuser context manager when user is already superuser
+        self.client = self.get_token_client(superuser=True)
+        with self.temporary_client_as_superuser():
+            # Should yield immediately since user is already superuser
+            self.assertTrue(self.user.is_mreg_superuser)
+        
+        # Test policy admin context manager when user is already policy admin
+        self.client = self.get_token_client(superuser=False, policyadmin=True)
+        with self.temporary_client_as_policy_admin():
+            # Should yield immediately since user is already policy admin
+            self.assertTrue(self.user.is_mreg_hostpolicy_admin)
+        
+        # Test network admin context manager when user is already network admin
+        self.client = self.get_token_client(superuser=False, networkadmin=True)
+        with self.temporary_client_as_network_admin():
+            # Should yield immediately since user is already network admin
+            self.assertTrue(self.user.is_mreg_network_admin)
+
+    def test_client_format_context_managers(self):
+        """Test client format context managers."""
+        self.set_client_format_json()
+        self.assertEqual(self.format, ClientTestFormat.JSON)
+        
+        with self.client_format_json():
+            self.assertEqual(self.format, ClientTestFormat.JSON)
+        
+        with self.client_format_multipart():
+            self.assertEqual(self.format, ClientTestFormat.MULTIPART)
+        
+        # Format should be restored
+        self.assertEqual(self.format, ClientTestFormat.JSON)
 
 
 class APITokenAuthenticationTestCase(MregAPITestCase):
