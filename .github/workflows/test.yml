@@ -114,9 +114,14 @@ jobs:
           # Note: Set service name to work around
           # https://github.com/TheKevJames/coveralls-python/issues/252
           COVERALLS_SERVICE_NAME: github
-          COVERALLS_PARALLEL: false
+          COVERALLS_PARALLEL: true
           COVERALLS_FLAG_NAME: python-${{ matrix.python-version }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Combine coverage files
+        run: |
+          uv venv --no-project
+          uv pip install coverage
+          coverage combine
 
   finish:
     name: Coveralls Completed

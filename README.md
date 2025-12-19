@@ -126,6 +126,17 @@ uv run manage.py test --parallel=4
 
 This will significantly reduce test execution time (from 10-12 minutes to 2-4 minutes typically). Django creates separate test databases for each parallel process, and tests still use transaction rollback for isolation.
 
+**Running with coverage:**
+
+```bash
+# Run tests with coverage
+coverage run --concurrency=multiprocessing manage.py test --parallel
+coverage combine
+coverage report -m
+```
+
+The `coverage combine` step is required to merge coverage data from all parallel processes.
+
 ## Local Settings
 
 To override entries in `mregsite/settings.py`, create a file `mregsite/local_settings.py` and add the entries there.
