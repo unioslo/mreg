@@ -4,7 +4,7 @@ from unittest import mock
 from django.conf import settings
 from django.contrib.auth.models import Group
 from django.test import RequestFactory
-from django.test.client import WSGIRequest
+from django.core.handlers.wsgi import WSGIRequest
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.test import APIClient, force_authenticate
 from mreg.api.permissions import IsGrantedNetGroupRegexPermission, IsGrantedReservedAddressPermission
@@ -310,6 +310,48 @@ class ReservedAddressPermissionsTestCase(MregAPITestCase):
             data = {'name': 'test-regular-ipv6.example.org', 'ipaddress': self.ipv6_regular_addr}
             self.assert_post_and_201('/hosts/', data)
 
+    @mock.patch('mreg.api.permissions.User.from_request')
+    def test_has_update_permission_with_invalid_ip(
+        self,
+        mock_user_from_request
+    ):
+        """Test has_update_permission with an invalid IP address."""
+        user = get_mock_user()  # Regular user
+        request = get_mock_request(user, mock_user_from_request)
+
+        view = mock.Mock()
+        
+        serializer = mock.Mock()
+        # Set an invalid IP address - should return True and let serializer handle validation
+        serializer.validated_data = {"ipaddress": "not-an-ip-address"}
+
+        permission = IsGrantedReservedAddressPermission()
+
+        # Should return True because the permission class lets the serializer validate the IP
+        result = permission.has_update_permission(request, view, serializer)
+        self.assertTrue(result)
+        
+    @mock.patch('mreg.api.permissions.User.from_request')
+    def test_has_create_permission_with_invalid_ip(
+        self,
+        mock_user_from_request
+    ):
+        """Test has_create_permission with an invalid IP address."""
+        user = get_mock_user()  # Regular user
+        request = get_mock_request(user, mock_user_from_request)
+
+        view = mock.Mock()
+        
+        serializer = mock.Mock()
+        # Set an invalid IP address - should return True and let serializer handle validation
+        serializer.validated_data = {"ipaddress": "not-an-ip-address"}
+
+        permission = IsGrantedReservedAddressPermission()
+
+        # Should return True because the permission class lets the serializer validate the IP
+        result = permission.has_create_permission(request, view, serializer)
+        self.assertTrue(result)
+
     def test_ipaddress_endpoint_reserved_addresses(self):
         """Test reserved address restrictions on /ipaddresses/ endpoint."""
         # Create a host first
@@ -474,3 +516,22 @@ class ReservedAddressPermissionsTestCase(MregAPITestCase):
         
         user_policy = get_mock_user(hostpolicy_admin=True)
         self.assertTrue(user_policy.is_mreg_hostpolicy_admin)
+
+class IsSuperGroupMemberTestCase(MregAPITestCase):
+    """Test IsSuperGroupMember permission class."""
+
+    def test_unauthenticated_user_denied(self):
+        """Test that unauthenticated users are denied access."""
+        from mreg.api.permissions import IsSuperGroupMember
+        from django.contrib.auth.models import AnonymousUser
+        
+        # Create an unauthenticated request
+        request = RequestFactory().get('/')
+        request.user = AnonymousUser()
+        
+        view = mock.Mock()
+        permission = IsSuperGroupMember()
+        
+        # Should return False for unauthenticated user
+        result = permission.has_permission(request, view)
+        self.assertFalse(result)
