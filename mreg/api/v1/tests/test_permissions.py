@@ -450,3 +450,27 @@ class ReservedAddressPermissionsTestCase(MregAPITestCase):
         # Network admin permitted
         with self.temporary_client_as_network_admin():
             self.assert_post_and_201('/hosts/', data)
+
+    def test_get_mock_user_all_permissions(self):
+        """Test get_mock_user helper with all permission combinations."""
+        # Test each admin type individually to cover all branches
+        user_superuser = get_mock_user(superuser=True)
+        self.assertTrue(user_superuser.is_mreg_superuser)
+        
+        user_admin = get_mock_user(admin=True)
+        self.assertTrue(user_admin.is_mreg_admin)
+        
+        user_network_admin = get_mock_user(network_admin=True)
+        self.assertTrue(user_network_admin.is_mreg_network_admin)
+        
+        user_hostgroup_admin = get_mock_user(hostgroup_admin=True)
+        self.assertTrue(user_hostgroup_admin.is_mreg_hostgroup_admin)
+        
+        user_dns_wildcard = get_mock_user(dns_wildcard_admin=True)
+        self.assertTrue(user_dns_wildcard.is_mreg_dns_wildcard_admin)
+        
+        user_underscore = get_mock_user(underscore_admin=True)
+        self.assertTrue(user_underscore.is_mreg_dns_underscore_admin)
+        
+        user_policy = get_mock_user(hostpolicy_admin=True)
+        self.assertTrue(user_policy.is_mreg_hostpolicy_admin)
