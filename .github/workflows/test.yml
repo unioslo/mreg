@@ -107,7 +107,7 @@ jobs:
       - name: Install Coveralls
         run: |
           uv venv --no-project
-          uv pip install coveralls
+          uv pip install coveralls coverage
       - name: Run Coveralls
         run: uv run --no-project coveralls
         env:
@@ -118,10 +118,7 @@ jobs:
           COVERALLS_FLAG_NAME: python-${{ matrix.python-version }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Combine coverage files
-        run: |
-          uv venv --no-project
-          uv pip install coverage
-          coverage combine
+        run: coverage combine
 
   finish:
     name: Coveralls Completed
