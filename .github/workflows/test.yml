@@ -59,8 +59,6 @@ jobs:
           MREG_DB_PASSWORD: postgres
       - name: Combine coverage data
         run: |
-          # Combine coverage data from parallel test runs
-          uv run coverage combine
           # Show coverage report for debugging
           uv run coverage report
       - name: Check migrations
