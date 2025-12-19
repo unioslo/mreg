@@ -27,11 +27,7 @@ def patch_netfields_for_django52():
     library's NetFieldDecoratorMixin.process_lhs() returns tuples, causing
     AttributeError: 'tuple' object has no attribute 'extend'.
     """
-    try: 
-        from netfields.lookups import NetFieldDecoratorMixin # noqa
-    except ImportError:
-        # netfields not installed
-        return
+    from netfields.lookups import NetFieldDecoratorMixin
 
     # Store the original process_lhs method
     original_process_lhs = NetFieldDecoratorMixin.process_lhs
