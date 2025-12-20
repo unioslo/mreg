@@ -5,9 +5,8 @@ from collections import Counter, defaultdict
 from django.db import transaction
 from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
-
 from django_filters import rest_framework as rest_filters
-
+from drf_spectacular.utils import OpenApiParameter, OpenApiTypes, extend_schema
 from rest_framework import filters, generics, status
 from rest_framework.decorators import api_view
 from rest_framework.exceptions import (ErrorDetail, MethodNotAllowed, NotFound,
@@ -15,23 +14,23 @@ from rest_framework.exceptions import (ErrorDetail, MethodNotAllowed, NotFound,
 from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from drf_spectacular.utils import OpenApiParameter, OpenApiTypes, extend_schema
-from mreg.models.base import NameServer, History
-from mreg.models.host import Host, Ipaddress, PtrOverride
-from mreg.models.network import Network, NetGroupRegexPermission, NetworkExcludedRange
-from mreg.models.resource_records import Cname, Loc, Naptr, Srv, Sshfp, Txt, Hinfo, Mx
-from mreg.models.network_policy import Community, HostCommunityMapping, NetworkPolicy
-from mreg.types import IPAllocationMethod
 
 from mreg.api.errors import Conflict, ErrorCode
 from mreg.api.responses import created_response
 from mreg.api.permissions import (
     IsAuthenticatedAndReadOnly,
     IsGrantedNetGroupRegexPermission,
+    IsGrantedReservedAddressPermission,
     IsSuperOrAdminOrReadOnly,
     IsSuperOrNetworkAdminMember,
-    IsGrantedReservedAddressPermission,
 )
+from mreg.mixins import LowerCaseLookupMixin
+from mreg.models.base import History, NameServer
+from mreg.models.host import Host, Ipaddress, PtrOverride
+from mreg.models.network import NetGroupRegexPermission, Network, NetworkExcludedRange
+from mreg.models.network_policy import Community, HostCommunityMapping, NetworkPolicy
+from mreg.models.resource_records import Cname, Hinfo, Loc, Mx, Naptr, Srv, Sshfp, Txt
+from mreg.types import IPAllocationMethod
 
 from .filters import (
     CnameFilterSet,
@@ -69,15 +68,14 @@ from .serializers import (
     NameServerSerializer,
     NaptrSerializer,
     NetGroupRegexPermissionSerializer,
-    NetworkSerializer,
     NetworkExcludedRangeSerializer,
+    NetworkSerializer,
     PtrOverrideSerializer,
     SrvSerializer,
     SshfpSerializer,
     TxtSerializer,
 )
 
-from mreg.mixins import LowerCaseLookupMixin
 
 
 STRING_MAP_SCHEMA = {
@@ -112,25 +110,24 @@ class JSONContentTypeMixin:
     - Throws rest_framework.exceptions.UnsupportedMediaType if the content type is not JSON and there was a body.
     """
 
-    required_content_type = 'application/json'
-    methods_to_check = ['POST', 'PUT', 'PATCH', 'DELETE']
+    required_content_type = "application/json"
+    methods_to_check = ["POST", "PUT", "PATCH", "DELETE"]
 
     def dispatch(self, request, *args, **kwargs):
         if request.method in self.methods_to_check:
             has_body = self._has_request_body(request)
             if has_body:
-                content_type = request.headers.get('Content-Type', '')
+                content_type = request.headers.get("Content-Type", "")
                 if not content_type.startswith(self.required_content_type):  # pragma: no cover
                     # Not covered: DRF's content negotiation handles this before reaching here in practice.
                     # This is defensive code for edge cases where DRF's handlers are bypassed.
                     url = request.build_absolute_uri()
                     detail_message = (
-                        f'Content-Type for {request.method} request to {url} '
-                        f'must be {self.required_content_type} (was {content_type})'
+                        f"Content-Type for {request.method} request to {url} must be {self.required_content_type} (was {content_type})"
                     )
                     raise UnsupportedMediaType(detail_message)
 
-        return super().dispatch(request, *args, **kwargs) # type: ignore
+        return super().dispatch(request, *args, **kwargs)  # type: ignore
 
     def _has_request_body(self, request):
         """
@@ -140,7 +137,7 @@ class JSONContentTypeMixin:
             bool: True if the request has a body, False otherwise.
         """
         # Check Content-Length header
-        content_length = request.META.get('CONTENT_LENGTH')
+        content_length = request.META.get("CONTENT_LENGTH")
         if content_length:
             try:
                 return int(content_length) > 0
@@ -150,8 +147,8 @@ class JSONContentTypeMixin:
                 return False
 
         # Check Transfer-Encoding header for chunked requests
-        transfer_encoding = request.META.get('HTTP_TRANSFER_ENCODING', '').lower()
-        if 'chunked' in transfer_encoding:  # pragma: no cover
+        transfer_encoding = request.META.get("HTTP_TRANSFER_ENCODING", "").lower()
+        if "chunked" in transfer_encoding:  # pragma: no cover
             # Not covered: Chunked transfer encoding is handled by WSGI/ASGI servers
             # and Django test client doesn't support true chunked encoding.
             return True
@@ -164,7 +161,8 @@ class JSONContentTypeMixin:
             # Not covered: Requires exotic failure modes in body reading (e.g., broken streams,
             # middleware interference). Django's request handling is robust in normal conditions.
             return False
-        
+
+
 class MregMixin:
     filter_backends = (
         filters.SearchFilter,
@@ -185,11 +183,7 @@ class HostLogMixin(HistoryLog):
         data.pop("zone", None)
         # No need to store host, as changes to a host will also log, unless the
         # host itself has changed
-        if (
-            action == "update"
-            and "host" in data
-            and data["host"].id == orig_data["host"]
-        ):
+        if action == "update" and "host" in data and data["host"].id == orig_data["host"]:
             pass
         else:
             data.pop("host", None)
@@ -289,16 +283,12 @@ class MregPermissionsUpdateDestroy:
 
     def check_destroy_permissions(self, request, validated_serializer):
         for permission in self.get_permissions():
-            if not permission.has_destroy_permission(
-                request, self, validated_serializer
-            ):
+            if not permission.has_destroy_permission(request, self, validated_serializer):
                 self.permission_denied(request)
 
     def check_update_permissions(self, request, validated_serializer):
         for permission in self.get_permissions():
-            if not permission.has_update_permission(
-                request, self, validated_serializer
-            ):
+            if not permission.has_update_permission(request, self, validated_serializer):
                 self.permission_denied(request)
 
 
@@ -310,9 +300,7 @@ class MregPermissionsListCreateAPIView(MregListCreateAPIView):
 
     def check_create_permissions(self, request, validated_serializer):
         for permission in self.get_permissions():
-            if not permission.has_create_permission(
-                request, self, validated_serializer
-            ):
+            if not permission.has_create_permission(request, self, validated_serializer):
                 self.permission_denied(request)
 
 
@@ -341,10 +329,7 @@ class CnameList(HostPermissionsListCreateAPIView):
     filterset_class = CnameFilterSet
 
 
-
-class CnameDetail(HostPermissionsUpdateDestroy,
-                  LowerCaseLookupMixin,
-                  MregRetrieveUpdateDestroyAPIView):
+class CnameDetail(HostPermissionsUpdateDestroy, LowerCaseLookupMixin, MregRetrieveUpdateDestroyAPIView):
     """
     get:
     Returns details for the specified cname.
@@ -375,10 +360,7 @@ class HinfoList(HostPermissionsListCreateAPIView):
     filterset_class = HinfoFilterSet
 
 
-
-class HinfoDetail(HostPermissionsUpdateDestroy,
-                  LowerCaseLookupMixin,
-                  MregRetrieveUpdateDestroyAPIView):
+class HinfoDetail(HostPermissionsUpdateDestroy, LowerCaseLookupMixin, MregRetrieveUpdateDestroyAPIView):
     """
     get:
     Returns details for a hinfo.
@@ -452,7 +434,7 @@ class HostList(HostPermissionsListCreateAPIView):
         # request.data is immutable
         hostdata = request.data.copy()
 
-        # Hostdata *may* be MultiValueDict, which means that pop will return a list, even if get 
+        # Hostdata *may* be MultiValueDict, which means that pop will return a list, even if get
         # would return a single value...
 
         if "network" in hostdata:
@@ -494,7 +476,7 @@ class HostList(HostPermissionsListCreateAPIView):
             ipkey = hostdata.pop("ipaddress")
             if isinstance(ipkey, list):
                 ipkey = ipkey[0]
-                
+
             host = Host()
             hostserializer = HostSerializer(host, data=hostdata)
 
@@ -534,9 +516,7 @@ class HostList(HostPermissionsListCreateAPIView):
                 )
 
 
-class HostDetail(HostPermissionsUpdateDestroy,
-                 LowerCaseLookupMixin,
-                 MregRetrieveUpdateDestroyAPIView):
+class HostDetail(HostPermissionsUpdateDestroy, LowerCaseLookupMixin, MregRetrieveUpdateDestroyAPIView):
     """
     get:
     Returns details for the specified host. Includes relations like IP address/a-records, ptr-records, cnames.
@@ -651,13 +631,12 @@ class HostContactsView(HostPermissionsUpdateDestroy, APIView):
 
 
 class HistoryList(MregMixin, generics.ListAPIView):
-    queryset = History.objects.all().order_by('id')
+    queryset = History.objects.all().order_by("id")
     serializer_class = HistorySerializer
     filterset_class = HistoryFilterSet
 
 
 class HistoryDetail(MregMixin, generics.RetrieveAPIView):
-
     queryset = History.objects.all()
     serializer_class = HistorySerializer
 
@@ -707,7 +686,7 @@ class IpaddressDetail(HostPermissionsUpdateDestroy, MregRetrieveUpdateDestroyAPI
                 raise NotFound(
                     "No network found for the new IP address, cannot update due to community membership"
                 )
-            
+
             network_match = False
             for community in communities:
                 if community.network == network:
@@ -1004,7 +983,7 @@ class NetworkDetail(MregRetrieveUpdateDestroyAPIView):
                     raise NotFound("No such policy")
                 policy.can_be_used_with_communities_or_raise()
                 network.policy = policy
-                
+
             network.save()
 
         return super().patch(request, *args, **kwargs)
@@ -1037,9 +1016,7 @@ class NetworkExcludedRangeList(MregListCreateAPIView):
         """
         if "network" not in self.kwargs:
             return NetworkExcludedRange.objects.none()
-        qs = get_object_or_404(
-            Network, network=self.kwargs["network"]
-        ).excluded_ranges.all()
+        qs = get_object_or_404(Network, network=self.kwargs["network"]).excluded_ranges.all()
         return NetworkExcludedRangeFilterSet(data=self.request.GET, queryset=qs).qs
 
 
@@ -1240,7 +1217,7 @@ class TxtDetail(HostPermissionsUpdateDestroy, MregRetrieveUpdateDestroyAPIView):
 class NetGroupRegexPermissionList(MregListCreateAPIView):
     """ """
 
-    queryset = NetGroupRegexPermission.objects.all().order_by('id')
+    queryset = NetGroupRegexPermission.objects.all().order_by("id")
     serializer_class = NetGroupRegexPermissionSerializer
     permission_classes = (IsSuperOrAdminOrReadOnly,)
     filterset_class = NetGroupRegexPermissionFilterSet
@@ -1249,7 +1226,7 @@ class NetGroupRegexPermissionList(MregListCreateAPIView):
 class NetGroupRegexPermissionDetail(MregRetrieveUpdateDestroyAPIView):
     """ """
 
-    queryset = NetGroupRegexPermission.objects.all().order_by('id')
+    queryset = NetGroupRegexPermission.objects.all().order_by("id")
     serializer_class = NetGroupRegexPermissionSerializer
     permission_classes = (IsSuperOrAdminOrReadOnly,)
 
@@ -1328,9 +1305,7 @@ def _dhcpv6_hosts_by_ipv4(iprange):
     qs = qs.exclude(macaddress="").filter(host__in=_unique_host_ids(qs))
     ipv4_hosts = _unique_host_ids(qs)
     ipv4 = ipv4.filter(host__in=ipv4_hosts)
-    ipv4_host2mac = {
-        hostname: mac for hostname, mac in ipv4.values_list("host__name", "macaddress")
-    }
+    ipv4_host2mac = {hostname: mac for hostname, mac in ipv4.values_list("host__name", "macaddress")}
     ipv6 = ipv6.filter(host__in=ipv4_hosts).order_by("ipaddress")
     ret = []
     for values in ipv6.values("host__name", "host__zone__name", "ipaddress"):
