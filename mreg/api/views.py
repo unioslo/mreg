@@ -7,8 +7,8 @@ import django
 import ldap
 import structlog
 from django.conf import settings
-from django_auth_ldap.backend import LDAPBackend
 from django.contrib.auth.models import update_last_login
+from django_auth_ldap.backend import LDAPBackend
 from psycopg2 import __libpq_version__ as libpq_version
 from rest_framework import serializers, status
 from rest_framework.authtoken.views import ObtainAuthToken
@@ -34,10 +34,10 @@ start_time = int(time.time())
 LIBRARIES_TO_REPORT = [
     "djangorestframework",
     "django-auth-ldap",
-    "django-filter", 
+    "django-filter",
     "django-logging-json",
     "django-netfields",
-    "gunicorn", 
+    "gunicorn",
     "sentry-sdk",
     "structlog",
     "rich",
@@ -46,17 +46,12 @@ LIBRARIES_TO_REPORT = [
 
 
 class ObtainExpiringAuthToken(ObtainAuthToken):
-
     def post(self, request: Request, *args: Any, **kwargs: Any):
         serializer = self.serializer_class(data=request.data, context={"request": request})
         try:
             serializer.is_valid(raise_exception=True)
         except serializers.ValidationError as err:
-            if (
-                isinstance(request.POST, dict)
-                and "username" in request.POST
-                and "password" in request.POST
-            ):
+            if isinstance(request.POST, dict) and "username" in request.POST and "password" in request.POST:
                 raise AuthenticationFailed()
             else:
                 raise err
@@ -65,8 +60,7 @@ class ObtainExpiringAuthToken(ObtainAuthToken):
             # Not covered: Defensive check for malformed serializer output.
             # Django REST Framework's AuthTokenSerializer guarantees validated_data
             # is a dict with 'user' key when validation succeeds.
-            not isinstance(serializer.validated_data, dict)
-            or "user" not in serializer.validated_data
+            not isinstance(serializer.validated_data, dict) or "user" not in serializer.validated_data
         ):
             raise AuthenticationFailed()
 
@@ -83,13 +77,12 @@ class ObtainExpiringAuthToken(ObtainAuthToken):
         # But, it does not use its first argument, so it is safe to pass it None even if
         # the stubs complain.
         userobject = User.objects.get(username=user)
-        update_last_login(None, userobject) # type: ignore[call-arg]
+        update_last_login(None, userobject)  # type: ignore[call-arg]
 
         return Response({"token": token.key})
 
 
 class TokenLogout(APIView):
-
     permission_classes = (IsAuthenticated,)
 
     def post(self, request: Request):
@@ -98,19 +91,20 @@ class TokenLogout(APIView):
         request.user.delete()
         return Response(status=status.HTTP_200_OK)
 
-class TokenIsValid(APIView):
 
+class TokenIsValid(APIView):
     permission_classes = (IsAuthenticated,)
 
     def get(self, request: Request):
-        return Response(status=status.HTTP_200_OK)  
+        return Response(status=status.HTTP_200_OK)
+
 
 ###
 ### User infomation views
 ####
 
-class UserInfo(APIView):
 
+class UserInfo(APIView):
     permission_classes = (IsAuthenticated,)
 
     def get(self, request: Request):
@@ -131,10 +125,8 @@ class UserInfo(APIView):
 
         # Gather target user's information
         target_groups = target_user.groups.all()
-        target_permissions = NetGroupRegexPermission.objects.filter(
-            group__in=[group.name for group in target_groups]
-        )
-        
+        target_permissions = NetGroupRegexPermission.objects.filter(group__in=[group.name for group in target_groups])
+
         token = ExpiringToken.objects.filter(user=target_user).first()
         token_data = None
         if token:
@@ -143,9 +135,9 @@ class UserInfo(APIView):
                 "created": token.created_at.astimezone(),
                 "expire": token.expire_at.astimezone(),
                 "last_used": token.last_used.astimezone() if token.last_used else None,
-                "lifespan": str(token.lifespan_left)
+                "lifespan": str(token.lifespan_left),
             }
-            
+
         data = {
             "username": target_user.username,
             "last_login": target_user.last_login.astimezone() if target_user.last_login else None,
@@ -177,12 +169,12 @@ class UserInfo(APIView):
         }
 
         return Response(status=status.HTTP_200_OK, data=data)
-    
+
+
 ###
 ### Introspection views
 ###
 class MregVersion(APIView):
-    
     permission_classes = (IsAuthenticated,)
 
     def get(self, request: Request):
@@ -191,8 +183,8 @@ class MregVersion(APIView):
         }
         return Response(status=status.HTTP_200_OK, data=data)
 
-class MetaVersions(APIView):
 
+class MetaVersions(APIView):
     permission_classes = (IsSuperOrNetworkAdminMember,)
 
     def get(self, request: Request):
@@ -209,7 +201,7 @@ class MetaVersions(APIView):
                 # importlib.metadata.version is reliable for properly installed packages.
                 logger.warning(event="library", reason=f"Failed to get version for {library}: {e}")
                 data[library] = "<unknown>"
-        
+
         data["libpq"] = str(libpq_version)
         return Response(status=status.HTTP_200_OK, data=data)
 
@@ -244,7 +236,7 @@ class HealthLDAP(APIView):
         except Exception as e:
             logger.exception("Error during LDAP check", error=str(e))
         return False
-    
+
     def _check_ldap_connection(self) -> None:
         connection = None  # may be set in the try block
 
