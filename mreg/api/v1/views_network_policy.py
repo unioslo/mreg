@@ -43,7 +43,9 @@ class HostCommunityMappingLogMixin(HistoryLog):
     @staticmethod
     def manipulate_data(action, serializer, data, orig_data):
         """Manipulate the data for the history log."""
-        pass
+        pass  # pragma: no cover
+        # Not covered: Empty implementation required by HistoryLog parent class.
+        # No data manipulation needed for host-community mapping history.
 
 
 class NetworkPolicyList(JSONContentTypeMixin, generics.ListCreateAPIView):

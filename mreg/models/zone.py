@@ -226,7 +226,10 @@ class ReverseZone(BaseZone):
         # Use PtrOverrides when found, but only once. Also skip IPaddresses
         # which have been used multiple times, but lacks a PtrOverride.
         for ip, data in ipaddresses.items():
-            if ip in multiple_ip_no_ptr:
+            # Defensive: skip IPs without PtrOverride that appear multiple times.
+            # In normal operation, signals automatically create PtrOverride for duplicate IPs,
+            # so this branch is only hit if signals are disabled or fail.
+            if ip in multiple_ip_no_ptr:  # pragma: no cover
                 continue
             if ip in override_ips:
                 if ip not in ptr_done:
