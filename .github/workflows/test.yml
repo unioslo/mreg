@@ -57,6 +57,8 @@ jobs:
         run: uv run tox -r
         env:
           MREG_DB_PASSWORD: postgres
+      - name: Show coverage report for debugging
+        run: uv run coverage report
       - name: Check migrations
         run: |
           export MREG_DB_NAME=mreg MREG_DB_USER=mreg MREG_DB_PASSWORD=postgres

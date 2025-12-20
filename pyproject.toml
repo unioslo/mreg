@@ -59,3 +59,8 @@ py-modules = ["mreg", "mregsite", "hostpolicy"]
 
 [tool.setuptools_scm]
 version_file = "mreg/_version.py"
+
+[tool.coverage.run]
+concurrency = ["multiprocessing"]
+parallel = true
+sigterm = true
