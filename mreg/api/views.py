@@ -113,7 +113,10 @@ class ObtainExpiringAuthToken(ObtainAuthToken):
             else:
                 raise err
 
-        if (
+        if (  # pragma: no cover
+            # Not covered: Defensive check for malformed serializer output.
+            # Django REST Framework's AuthTokenSerializer guarantees validated_data
+            # is a dict with 'user' key when validation succeeds.
             not isinstance(serializer.validated_data, dict)
             or "user" not in serializer.validated_data
         ):
@@ -253,7 +256,9 @@ class MetaVersions(APIView):
         for library in LIBRARIES_TO_REPORT:
             try:
                 data[library] = version(library)
-            except Exception as e:
+            except Exception as e:  # pragma: no cover
+                # Not covered: Requires a library to be installed but fail version lookup.
+                # importlib.metadata.version is reliable for properly installed packages.
                 logger.warning(event="library", reason=f"Failed to get version for {library}: {e}")
                 data[library] = "<unknown>"
         
