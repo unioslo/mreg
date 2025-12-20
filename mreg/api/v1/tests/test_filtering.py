@@ -50,7 +50,7 @@ def create_ipaddresses(hosts: List[Host]) -> List[Ipaddress]:
     ipaddresses: List[Ipaddress] = []
     for i, host in enumerate(hosts):
         ipaddresses.append(
-            Ipaddress.objects.create(
+            Ipaddress.objects.create(  # type: ignore[attr-defined]
                 host=host,
                 ipaddress=f"10.0.0.{i}",
             )
@@ -176,8 +176,8 @@ class FilterTestCase(ParametrizedTestCase, MregAPITestCase):
         msg_prefix = f"{endpoint} : {query_key} -> {target} => "
 
         response = self.client.get(f"/api/v1/{endpoint}/?{query_key}={target}")
-        self.assertEqual(response.status_code, 200, msg=f"{msg_prefix} {response.content}")
-        data = response.json()
+        self.assertEqual(response.status_code, 200, msg=f"{msg_prefix} {response.content}")  # type: ignore[attr-defined]
+        data = response.json()  # type: ignore[attr-defined]
         self.assertEqual(data["count"], expected_hits, msg=f"{msg_prefix} {data}")
 
         for obj in chain(ipadresses, cnames, hosts):
@@ -227,8 +227,8 @@ class FilterTestCase(ParametrizedTestCase, MregAPITestCase):
         roles, atoms, labels = create_roles(endpoint, hosts, atoms, labels)
 
         response = self.client.get(f"/api/v1/hostpolicy/{endpoint}/?{query_key}={target}")
-        self.assertEqual(response.status_code, 200, msg=f"{msg_prefix} {response.content}")
-        data = response.json()
+        self.assertEqual(response.status_code, 200, msg=f"{msg_prefix} {response.content}")  # type: ignore[attr-defined]
+        data = response.json()  # type: ignore[attr-defined]
         self.assertEqual(data["count"], expected_hits, msg=f"{msg_prefix} {data}")
 
         for obj in chain(roles, atoms, labels, hosts):
@@ -260,6 +260,66 @@ class FilterTestCase(ParametrizedTestCase, MregAPITestCase):
             )
 
         response = self.client.get(f"/api/v1/permissions/netgroupregex/?range={cidr}")
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
+        self.assertEqual(response.status_code, 200)  # type: ignore[attr-defined]
+        data = response.json()  # type: ignore[attr-defined]
         self.assertEqual(data["count"], 1 if exists else 0)
+
+    def test_filter_netgroup_regex_permission_invalid_cidr(self) -> None:
+        """Test that invalid CIDR raises ValidationError."""
+        NetGroupRegexPermission.objects.create(regex=".*", range="10.0.0.0/24")
+        response = self.client.get("/api/v1/permissions/netgroupregex/?range=invalid_cidr")
+        self.assertEqual(response.status_code, 400)  # type: ignore[attr-defined]
+        self.assertIn("Invalid CIDR", str(response.content))  # type: ignore[attr-defined]
+
+    def test_filter_network_invalid_regex(self) -> None:
+        """Test that invalid regex raises ValidationError."""
+        from mreg.models.network import Network
+        Network.objects.create(network="10.0.0.0/24")
+        response = self.client.get("/api/v1/networks/?network__regex=[invalid")
+        self.assertEqual(response.status_code, 400)  # type: ignore[attr-defined]
+        self.assertIn("Invalid regex pattern", str(response.content))  # type: ignore[attr-defined]
+
+    def test_filter_history_json_data(self) -> None:
+        """Test JSON filtering on History model."""
+        from mreg.models.base import History
+        
+        # Create history entries with different data
+        History.objects.create(  # type: ignore[attr-defined]
+            user="testuser1",
+            resource="host",
+            name="host1.example.com",
+            model_id=1,
+            model="Host",
+            action="create",
+            data={"ipaddress": "10.0.0.1", "zone": "example.com"}
+        )
+        History.objects.create(  # type: ignore[attr-defined]
+            user="testuser2",
+            resource="host",
+            name="host2.example.com",
+            model_id=2,
+            model="Host",
+            action="update",
+            data={"ipaddress": "10.0.0.2", "zone": "test.com"}
+        )
+        History.objects.create(  # type: ignore[attr-defined]
+            user="testuser3",
+            resource="host",
+            name="host3.example.com",
+            model_id=3,
+            model="Host",
+            action="create",
+            data={"ipaddress": "10.0.0.3", "zone": "example.com"}
+        )
+
+        # Test filtering by JSON field exact match
+        response = self.client.get("/api/v1/history/?data__zone=example.com")
+        self.assertEqual(response.status_code, 200)  # type: ignore[attr-defined]
+        data = response.json()  # type: ignore[attr-defined]
+        self.assertEqual(data["count"], 2)
+
+        # Test filtering by JSON field __in
+        response = self.client.get("/api/v1/history/?data__ipaddress__in=10.0.0.1,10.0.0.2")
+        self.assertEqual(response.status_code, 200)  # type: ignore[attr-defined]
+        data = response.json()  # type: ignore[attr-defined]
+        self.assertEqual(data["count"], 2)
