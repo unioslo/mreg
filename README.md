@@ -48,7 +48,7 @@ For a full example, see `docker-compose.yml`.
 
 #### Manually
 
-> [!TIP] 
+> [!TIP]
 > Depending on your operating system, you may need to install additional packages to get the necessary dependencies for the project. At the very least you will probably require development packages for Python 3.
 
 ##### A step by step
@@ -113,6 +113,29 @@ To run the tests for the system, simply run
 ```bash
 uv run manage.py test
 ```
+
+For **faster test execution**, you can run tests in parallel:
+
+```bash
+# Auto-detect number of CPUs
+uv run manage.py test --parallel
+
+# Or specify the number of processes
+uv run manage.py test --parallel=4
+```
+
+This will significantly reduce test execution time (from 10-12 minutes to 2-4 minutes typically). Django creates separate test databases for each parallel process, and tests still use transaction rollback for isolation.
+
+**Running with coverage:**
+
+```bash
+# Run tests with coverage
+coverage run --concurrency=multiprocessing manage.py test --parallel
+coverage combine
+coverage report -m
+```
+
+The `coverage combine` step is required to merge coverage data from all parallel processes.
 
 ## Local Settings
 

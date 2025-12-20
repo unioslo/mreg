@@ -10,12 +10,10 @@ from django_filters import rest_framework as rest_filters
 
 from rest_framework import filters, generics, status
 from rest_framework.decorators import api_view
-from rest_framework.exceptions import MethodNotAllowed, ParseError, PermissionDenied, UnsupportedMediaType, ValidationError
+from rest_framework.exceptions import MethodNotAllowed, ParseError, UnsupportedMediaType
 from rest_framework.renderers import JSONRenderer
-from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from mreg.models.auth import User
 from mreg.models.base import NameServer, History
 from mreg.models.host import Host, Ipaddress, PtrOverride
 from mreg.models.network import Network, NetGroupRegexPermission
@@ -26,7 +24,6 @@ from mreg.types import IPAllocationMethod
 from mreg.api.permissions import (
     IsAuthenticatedAndReadOnly,
     IsGrantedNetGroupRegexPermission,
-    IsSuperGroupMember,
     IsSuperOrAdminOrReadOnly,
     IsSuperOrNetworkAdminMember,
     IsGrantedReservedAddressPermission,

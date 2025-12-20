@@ -13,6 +13,14 @@ class MregAppConfig(AppConfig):
     def ready(self):
         import mreg.signals # noqa
         from mreg.models.network_policy import NetworkPolicyAttribute
+        from mreg.netfields_compat import patch_netfields_for_django52
+        
+        # Apply Django 5.2+ compatibility patch for netfields.
+        # Django 6.0's BuiltinLookup.process_lhs() explicitly returns list(params)
+        # Up until that point, it as optional to return either list or tuple, but this could cause
+        # issues. As such, we simply patch netfields to always return list from Django 5.2+.
+        # See: https://docs.djangoproject.com/en/dev/releases/6.0/#custom-orm-expressions-should-return-params-as-a-tuple
+        patch_netfields_for_django52()
 
         def _validate_mreg_prefixed_settings():
             protected_attrs = getattr(settings, 'MREG_PROTECTED_POLICY_ATTRIBUTES', [])
