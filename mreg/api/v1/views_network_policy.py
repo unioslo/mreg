@@ -1,29 +1,17 @@
 from django.db import transaction
 from django.urls import reverse
-
-from rest_framework import generics, exceptions, status, response
-from mreg.models.network_policy import NetworkPolicy, NetworkPolicyAttribute, Community, HostCommunityMapping
-from mreg.models.network import Network
-from mreg.models.host import Host, Ipaddress
-from mreg.api.v1.serializers import (
-    NetworkPolicySerializer,
-    NetworkPolicyAttributeSerializer,
-    CommunitySerializer,
-    HostSerializer,
-)
-
-from mreg.api.v1.filters import (
-    NetworkPolicyAttributeFilterSet,
-    NetworkPolicyFilterSet,
-    CommunityFilterSet,
-    HostFilterSet,
-)
+from rest_framework import exceptions, generics, response, status
 
 from mreg.api.errors import ValidationError409
-
-from mreg.api.v1.views import JSONContentTypeMixin, HistoryLog
 from mreg.api.permissions import IsGrantedNetGroupRegexPermission, IsSuperOrNetworkAdminMember
 from mreg.api.v1.endpoints import URL
+from mreg.api.v1.filters import CommunityFilterSet, HostFilterSet, NetworkPolicyAttributeFilterSet, NetworkPolicyFilterSet
+from mreg.api.v1.serializers import CommunitySerializer, HostSerializer, NetworkPolicyAttributeSerializer, NetworkPolicySerializer
+from mreg.api.v1.views import HistoryLog, JSONContentTypeMixin
+from mreg.models.host import Host, Ipaddress
+from mreg.models.network import Network
+from mreg.models.network_policy import Community, HostCommunityMapping, NetworkPolicy, NetworkPolicyAttribute
+
 
 class CommunityLogMixin(HistoryLog):
     log_resource = "community"
@@ -34,6 +22,7 @@ class CommunityLogMixin(HistoryLog):
     def manipulate_data(action, serializer, data, orig_data):
         """Manipulate the data for the history log."""
         pass
+
 
 class HostCommunityMappingLogMixin(HistoryLog):
     log_resource = "community"
@@ -75,9 +64,7 @@ class NetworkPolicyList(JSONContentTypeMixin, generics.ListCreateAPIView):
         headers = self.get_success_headers(serializer.data)
 
         # Dynamically generate the Location URL
-        headers["Location"] = request.build_absolute_uri(
-            reverse(URL.NetworkPolicy.DETAIL, kwargs={"pk": network_policy.id})
-        )
+        headers["Location"] = request.build_absolute_uri(reverse(URL.NetworkPolicy.DETAIL, kwargs={"pk": network_policy.id}))
         return response.Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
 
@@ -102,12 +89,11 @@ class NetworkPolicyAttributeList(JSONContentTypeMixin, generics.ListCreateAPIVie
     filterset_class = NetworkPolicyAttributeFilterSet
     ordering_fields = ("id",)
 
-
     def create(self, request, *args, **kwargs):
         name = request.data.get("name")
         if not name:
             raise exceptions.ValidationError("'name' is required.")
-        
+
         try:
             NetworkPolicyAttribute.objects.get(name=name)
             raise ValidationError409(detail=f"NetworkPolicyAttribute with the name '{name}' already exists.")
@@ -127,6 +113,7 @@ class NetworkPolicyAttributeList(JSONContentTypeMixin, generics.ListCreateAPIVie
 
         return response.Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
+
 class NetworkPolicyAttributeDetail(JSONContentTypeMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = NetworkPolicyAttribute.objects.all().order_by("id")
     serializer_class = NetworkPolicyAttributeSerializer
@@ -145,7 +132,7 @@ class NetworkCommunityList(JSONContentTypeMixin, CommunityLogMixin, generics.Lis
     def create(self, request, *args, **kwargs):
         network = self.kwargs.get("network")
 
-        if not network: # pragma: no cover (we are using this as part of the URL)
+        if not network:  # pragma: no cover (we are using this as part of the URL)
             raise exceptions.ValidationError("A network is required.")
 
         # Note, we can't use the serializer's is_valid method here because that'll raise a 400 exception
@@ -165,7 +152,7 @@ class NetworkCommunityList(JSONContentTypeMixin, CommunityLogMixin, generics.Lis
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
+
         with transaction.atomic():
             community = serializer.save(network=network)
             self.save_log_create(serializer)
@@ -175,8 +162,7 @@ class NetworkCommunityList(JSONContentTypeMixin, CommunityLogMixin, generics.Lis
         headers["Location"] = request.build_absolute_uri(
             reverse(URL.NetworkPolicy.COMMUNITY_DETAIL, kwargs={"network": str(network.network), "cpk": community.id})
         )
-        return response.Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)        
-
+        return response.Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
 
 # Retrieve, update, or delete a specific Community under a specific Network
@@ -197,7 +183,7 @@ class NetworkCommunityDetail(JSONContentTypeMixin, CommunityLogMixin, generics.R
 
 class HostInCommunityMixin(JSONContentTypeMixin, HostCommunityMappingLogMixin):
     def get_policy_and_community(self):
-        network= self.kwargs.get("network")  # type: ignore
+        network = self.kwargs.get("network")  # type: ignore
         cpk = self.kwargs.get("cpk")  # type: ignore
 
         try:
@@ -223,9 +209,7 @@ class NetworkCommunityHostList(HostInCommunityMixin, generics.ListCreateAPIView)
 
     def get_queryset(self):
         _, community = self.get_policy_and_community()
-        return HostFilterSet(
-            data=self.request.GET, queryset=Host.objects.filter(communities__in=[community]).order_by("id")
-        ).qs
+        return HostFilterSet(data=self.request.GET, queryset=Host.objects.filter(communities__in=[community]).order_by("id")).qs
 
     def create(self, request, *args, **kwargs):
         _, community = self.get_policy_and_community()
@@ -242,16 +226,16 @@ class NetworkCommunityHostList(HostInCommunityMixin, generics.ListCreateAPIView)
             ip = ip_hits.first()
             if ip is None:
                 raise exceptions.NotFound(f"Host not found based on ip '{ipaddress}'.")
-            
+
             if ip_hits.count() > 1:
                 raise exceptions.NotAcceptable(f"Multiple hosts found for ip '{ipaddress}', must provide host ID as well.")
-            
+
             host = ip.host
 
         if not host:
             # Ensure host exists. If not, an appropriate 404 is raised.
             host = generics.get_object_or_404(Host, pk=host_id)
-            
+
         host.add_to_community(community, ipaddress)
 
         return response.Response(HostSerializer(host).data, status=status.HTTP_201_CREATED)
@@ -264,9 +248,7 @@ class NetworkCommunityHostDetail(HostInCommunityMixin, generics.RetrieveDestroyA
 
     def get_queryset(self):
         _, community = self.get_policy_and_community()
-        return HostFilterSet(
-            data=self.request.GET, queryset=Host.objects.filter(communities__in=[community]).order_by("id")
-        ).qs
+        return HostFilterSet(data=self.request.GET, queryset=Host.objects.filter(communities__in=[community]).order_by("id")).qs
 
     def get_object(self):
         queryset = self.get_queryset()

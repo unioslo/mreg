@@ -1,7 +1,8 @@
 from django.core.exceptions import ValidationError
 from django.test import TestCase
+
 from mreg.models.host import Host, Ipaddress, PtrOverride
-from mreg.models.zone import ReverseZone, ForwardZone
+from mreg.models.zone import ForwardZone, ReverseZone
 
 from .base import clean_and_save
 
@@ -43,15 +44,11 @@ class ModelReverseZoneTestCase(TestCase):
 
     def test_reject_invalid_names(self):
         def _assert(name):
-            zone = ReverseZone(
-                name=name, primary_ns="ns.example.org", email="hostmaster@example.org"
-            )
+            zone = ReverseZone(name=name, primary_ns="ns.example.org", email="hostmaster@example.org")
             self.assert_validation_error(zone)
 
         _assert("x.8.d.0.1.0.0.2.ip6.arpa")
-        _assert(
-            "0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.d.0.1.0.0.2.ip6.arpa"
-        )
+        _assert("0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.d.0.1.0.0.2.ip6.arpa")
 
     def test_model_can_delete_a_zone(self):
         """Test that the model is able to delete a zone."""
@@ -85,9 +82,7 @@ class ModelReverseZoneTestCase(TestCase):
         )
         with self.assertRaises(ValidationError) as context:
             clean_and_save(zone)
-        self.assertEqual(
-            context.exception.messages, ["Maximum CIDR for RFC 2317 is 25"]
-        )
+        self.assertEqual(context.exception.messages, ["Maximum CIDR for RFC 2317 is 25"])
 
     def test_get_ipaddresses_wildcard_rejection(self):
         """Test that hostnames with wildcards are rejected in PTR records."""
@@ -98,25 +93,25 @@ class ModelReverseZoneTestCase(TestCase):
             email="hostmaster@example.org",
         )
         clean_and_save(forward_zone)
-        
+
         reverse_zone = ReverseZone(
             name="0.10.in-addr.arpa",
             primary_ns="ns.example.org",
             email="hostmaster@example.org",
         )
         clean_and_save(reverse_zone)
-        
+
         # Create a host with a wildcard name
         wildcard_host = Host(name="*.example.org", zone=forward_zone)
         clean_and_save(wildcard_host)
-        
+
         # Create an IP address for the wildcard host
         ip = Ipaddress(host=wildcard_host, ipaddress="10.0.1.1")
         clean_and_save(ip)
-        
+
         # Get PTR records from the reverse zone
         result = reverse_zone.get_ipaddresses()
-        
+
         # The wildcard host should not appear in the results (line 222 hit)
         hostnames = [r[2] for r in result]
         self.assertNotIn("*.example.org", hostnames)
@@ -130,25 +125,26 @@ class ModelReverseZoneTestCase(TestCase):
             email="hostmaster@example.org",
         )
         clean_and_save(forward_zone)
-        
+
         reverse_zone = ReverseZone(
             name="0.10.in-addr.arpa",
             primary_ns="ns.example.org",
             email="hostmaster@example.org",
         )
         clean_and_save(reverse_zone)
-        
+
         # Create a host without any IP addresses
         host = Host(name="external.example.org", zone=forward_zone)
         clean_and_save(host)
-        
+
         # Create a PtrOverride for an IP that doesn't have an Ipaddress object
         ptr = PtrOverride(host=host, ipaddress="10.0.3.1")
         clean_and_save(ptr)
-        
+
         # Get PTR records from the reverse zone
         result = reverse_zone.get_ipaddresses()
-        
+
         # The standalone PtrOverride should appear in the results (line 242 hit)
         ips_and_hosts = [(str(r[0]), r[2]) for r in result]
+        self.assertIn(("10.0.3.1", "external.example.org"), ips_and_hosts)
         self.assertIn(("10.0.3.1", "external.example.org"), ips_and_hosts)

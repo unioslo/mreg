@@ -1,21 +1,21 @@
 import urllib.parse
 
-from unittest_parametrize import ParametrizedTestCase, param, parametrize
+from django.contrib.auth.models import Group
 from django.db import transaction
 from django.test import override_settings
-from django.contrib.auth.models import Group
+from unittest_parametrize import ParametrizedTestCase, param, parametrize
 
-from mreg.utils import is_protected_policy_attribute
-
-from mreg.models.network_policy import NetworkPolicy, NetworkPolicyAttribute, NetworkPolicyAttributeValue, Community
 from mreg.models.host import Host, Ipaddress
-from mreg.models.network import Network, NetGroupRegexPermission
+from mreg.models.network import NetGroupRegexPermission, Network
+from mreg.models.network_policy import Community, NetworkPolicy, NetworkPolicyAttribute, NetworkPolicyAttributeValue
+from mreg.utils import is_protected_policy_attribute
 
 from .tests import MregAPITestCase
 
 POLICY_ENDPOINT = "/api/v1/networkpolicies/"
 ATTRIBUTE_ENDPOINT = "/api/v1/networkpolicyattributes/"
 NETWORK_ENDPOINT = "/api/v1/networks/"
+
 
 class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
     def setUp(self):
@@ -25,7 +25,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
     def _create_network_policy(self, name: str, attributes: list[tuple[str, bool]]) -> NetworkPolicy:
         with transaction.atomic():
             np = NetworkPolicy.objects.create(name=name)
-            for attribute in attributes: # pragma: no cover
+            for attribute in attributes:  # pragma: no cover
                 NetworkPolicyAttributeValue.objects.create(
                     policy=np, attribute=NetworkPolicyAttribute.objects.get(name=attribute[0]), value=attribute[1]
                 )
@@ -53,7 +53,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
 
     def _get_protected_attribute_isolated(self) -> NetworkPolicyAttribute:
         return NetworkPolicyAttribute.objects.get(name="isolated")
-    
+
     def _get_protected_attribute(self, name: str) -> NetworkPolicyAttribute:
         return NetworkPolicyAttribute.objects.get(name=name)
 
@@ -131,7 +131,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         attribute_id = ret.json()["id"]
 
         self.assert_delete_and_204(f"{ATTRIBUTE_ENDPOINT}{attribute_id}")
-    
+
     def test_patch_attribute(self):
         """Test updating a network policy attribute."""
         data = {"name": "attribute", "description": "attribute desc"}
@@ -247,9 +247,9 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         np = self._create_network_policy("test_policy", [])
         network = Network.objects.create(network="10.0.0.0/24", description="test_network")
         self.assert_patch_and_204(f"{NETWORK_ENDPOINT}{network.network}", data={"policy": np.pk})
-        network = Network.objects.get(pk=network.pk)        
+        network = Network.objects.get(pk=network.pk)
         self.assertEqual(network.policy, np)
-    
+
     def test_delete_policy_from_network(self):
         """Test deleting a policy from a network."""
         np = self._create_network_policy("test_policy", [])
@@ -271,7 +271,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         """Test updating a network with a policy with missing attributes."""
         np = self._create_network_policy("test_policy", [("isolated", True)])
         network = Network.objects.create(network="10.0.0.0/24", description="test_network")
-        network.policy = np # type: ignore
+        network.policy = np  # type: ignore
         network.save()
         np_missing_attribute = self._create_network_policy("test_policy_missing_attribute", [])
         self.assert_patch_and_406(f"{NETWORK_ENDPOINT}{network.network}", data={"policy": np_missing_attribute.pk})
@@ -365,7 +365,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         self.assert_post_and_201(f"{NETWORK_ENDPOINT}{network.network}/communities/", data=data)
         self.assert_post_and_409(f"{NETWORK_ENDPOINT}{network.network}/communities/", data=data)
 
-        data["name"] = data["name"].upper()    
+        data["name"] = data["name"].upper()
         self.assert_post_and_409(f"{NETWORK_ENDPOINT}{network.network}/communities/", data=data)
 
         network.delete()
@@ -428,8 +428,9 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         np = self._create_network_policy("empty_policy", [])
         net = Network.objects.create(network="10.0.0.0/24", description="test_network")
 
-        res = self.assert_post_and_406(f"{NETWORK_ENDPOINT}{net.network}/communities/",
-                                       data={"name": "community", "description": "community desc"})
+        res = self.assert_post_and_406(
+            f"{NETWORK_ENDPOINT}{net.network}/communities/", data={"name": "community", "description": "community desc"}
+        )
 
         expected_msg = (
             "Network does not have a policy. "
@@ -437,11 +438,12 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         )
         self.assertEqual(res.json()['errors'][0]['detail'], expected_msg)
 
-        net.policy = np # type: ignore
+        net.policy = np  # type: ignore
         net.save()
 
-        res = self.assert_post_and_406(f"{NETWORK_ENDPOINT}{net.network}/communities/",
-                                       data={"name": "community", "description": "community desc"})
+        res = self.assert_post_and_406(
+            f"{NETWORK_ENDPOINT}{net.network}/communities/", data={"name": "community", "description": "community desc"}
+        )
 
         expected_msg = (
             "Network policy 'empty_policy' is missing "
@@ -452,9 +454,8 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         np.attributes.set([self._get_protected_attribute("isolated")])
         np.save()
 
-        res = self.assert_post(f"{NETWORK_ENDPOINT}{net.network}/communities/",
-                               data={"name": "community", "description": "community desc"})
-        
+        res = self.assert_post(f"{NETWORK_ENDPOINT}{net.network}/communities/", data={"name": "community", "description": "community desc"})
+
         community_id = res.json()["id"]
 
         self.assert_get(f"{NETWORK_ENDPOINT}{net.network}/communities/{community_id}")
@@ -484,7 +485,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         self.assertFalse(Host.objects.filter(name="hostwithcommunity.example.com").exists())
 
         # Fix the network, all good.
-        data['ipaddress'] = "10.0.1.1"
+        data["ipaddress"] = "10.0.1.1"
         res = self.assert_post("/api/v1/hosts/", data=data)
         host = self.assert_get(res.headers["Location"])
         Host.objects.get(pk=host.json()["id"]).delete()
@@ -543,7 +544,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
     def test_add_host_to_community_ip_has_no_mac_406(self):
         """Test adding a host to a community with an IP that has no MAC."""
         _, community, network, host, _ = self.create_policy_setup()
-        ip = host.ipaddresses.first() # type: ignore
+        ip = host.ipaddresses.first()  # type: ignore
 
         # explicit ipaddress
         data = {"id": host.pk, "ipaddress": ip.ipaddress}
@@ -565,23 +566,23 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
     def test_add_host_to_community_ok_with_ip(self):
         """Test adding a host to a community with an IP."""
         _, community, network, host, _ = self.create_policy_setup()
-        ip = host.ipaddresses.first() # type: ignore
+        ip = host.ipaddresses.first()  # type: ignore
 
-        data = {"id": host.pk, "ipaddress": ip.ipaddress }
+        data = {"id": host.pk, "ipaddress": ip.ipaddress}
         ret = self.assert_post_and_201(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}/hosts/", data=data)
         self.assertEqual(ret.json()["name"], "hostwithcommunity.example.com")
-        self.assertEqual(ret.json()["communities"][0]['ipaddress'], ip.pk)    
+        self.assertEqual(ret.json()["communities"][0]["ipaddress"], ip.pk)
 
     @override_settings(MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY=False)
     def test_add_host_to_community_ok_with_ip_only(self):
         """Test adding a host to a community with an IP only."""
         _, community, network, host, _ = self.create_policy_setup()
-        ip = host.ipaddresses.first() # type: ignore
+        ip = host.ipaddresses.first()  # type: ignore
 
-        data = {"ipaddress": ip.ipaddress }
+        data = {"ipaddress": ip.ipaddress}
         ret = self.assert_post_and_201(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}/hosts/", data=data)
         self.assertEqual(ret.json()["name"], "hostwithcommunity.example.com")
-        self.assertEqual(ret.json()["communities"][0]['ipaddress'], ip.pk)    
+        self.assertEqual(ret.json()["communities"][0]["ipaddress"], ip.pk)
 
     @override_settings(MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY=True)
     def test_add_host_to_community_ip_has_mac(self):
@@ -593,14 +594,14 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         data = {"id": host.pk, "ipaddress": ip.ipaddress}
         ret = self.assert_post_and_201(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}/hosts/", data=data)
         self.assertEqual(ret.json()["name"], "hostwithcommunity.example.com")
-        self.assertEqual(ret.json()["communities"][0]['ipaddress'], ip.pk)
+        self.assertEqual(ret.json()["communities"][0]["ipaddress"], ip.pk)
 
     @override_settings(MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY=False)
     def test_add_host_to_community_with_ip_only_multiple_uses_of_ip_406(self):
         """Test adding a host to a community with an IP that is used by multiple hosts."""
         _, community, network, host, _ = self.create_policy_setup()
         host2 = Host.objects.create(name="hostwithcommunity2.example.com")
-        ip = Ipaddress.objects.create(host=host2, ipaddress=host.ipaddresses.first().ipaddress) # type: ignore
+        ip = Ipaddress.objects.create(host=host2, ipaddress=host.ipaddresses.first().ipaddress)  # type: ignore
 
         data = {"ipaddress": ip.ipaddress}
         self.assert_post_and_406(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}/hosts/", data=data)
@@ -651,7 +652,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         community2 = self._create_community("community_other", "community desc", network1)
         community3 = self._create_community("community_other", "community desc", network2)
 
-        ip1 = host.ipaddresses.first() # type: ignore
+        ip1 = host.ipaddresses.first()  # type: ignore
         ip2 = Ipaddress.objects.create(host=host, ipaddress="10.0.0.2")
         ip3 = Ipaddress.objects.create(host=host, ipaddress="10.0.1.1")
 
@@ -673,15 +674,15 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         self.assertEqual(len(res.json()["ipaddresses"]), 3)
         self.assertEqual(len(res.json()["communities"]), 3)
         self.assertEqual(res.json()["communities"][0]["ipaddress"], ip1.pk)
-        self.assertEqual(res.json()["communities"][0]["community"]['name'], community1.name)
+        self.assertEqual(res.json()["communities"][0]["community"]["name"], community1.name)
         self.assertEqual(res.json()["communities"][1]["ipaddress"], ip2.pk)
-        self.assertEqual(res.json()["communities"][1]["community"]['name'], community2.name)
+        self.assertEqual(res.json()["communities"][1]["community"]["name"], community2.name)
         self.assertEqual(res.json()["communities"][2]["ipaddress"], ip3.pk)
-        self.assertEqual(res.json()["communities"][2]["community"]['name'], community3.name)
+        self.assertEqual(res.json()["communities"][2]["community"]["name"], community3.name)
 
         network2.delete()
         community2.delete()
-        community3.delete()        
+        community3.delete()
 
     @override_settings(MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY=False)
     def test_get_individual_host_from_community_ok(self):
@@ -749,7 +750,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         community2.delete()
         ip.delete()
         host.delete()
-    
+
     @override_settings(MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY=False)
     def test_delete_host_from_community_ok(self):
         """Test deleting a host from a community."""
@@ -779,7 +780,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
     def test_change_ip_of_host_to_outside_of_community_gives_409(self):
         """Test changing the IP of a host to an IP outside the community."""
         _, community, _, host, ip = self.create_policy_setup()
-        host.add_to_community(community)        
+        host.add_to_community(community)
 
         data = {"ipaddress": "10.0.1.0"}
 
@@ -795,39 +796,38 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
 
     @override_settings(MREG_MAP_GLOBAL_COMMUNITY_NAMES=True)
     @override_settings(MREG_GLOBAL_COMMUNITY_TEMPLATE_PATTERN="community")
-    @override_settings(MREG_MAX_COMMUNITES_PER_NETWORK=20) # Also implies one zero-padded index
+    @override_settings(MREG_MAX_COMMUNITES_PER_NETWORK=20)  # Also implies one zero-padded index
     def test_community_mapping_enabled(self):
         """Test that the community mapping works."""
         policy, community, network, _, _ = self.create_policy_setup()
 
         res = self.assert_get(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}")
-        self.assertEqual(res.json()['global_name'], "community01")
+        self.assertEqual(res.json()["global_name"], "community01")
 
         community_other = self._create_community("community2", "community desc", network)
         res = self.assert_get(f"{NETWORK_ENDPOINT}{network.network}/communities/{community_other.pk}")
-        self.assertEqual(res.json()['global_name'], "community02")
+        self.assertEqual(res.json()["global_name"], "community02")
 
         res = self.assert_get(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}")
-        self.assertEqual(res.json()['global_name'], "community01")
+        self.assertEqual(res.json()["global_name"], "community01")
 
         # Test via direct modification of the object
         policy.community_template_pattern = "test"
         policy.save()
 
         res = self.assert_get(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}")
-        self.assertEqual(res.json()['global_name'], "test01")
+        self.assertEqual(res.json()["global_name"], "test01")
         res = self.assert_get(f"{NETWORK_ENDPOINT}{network.network}/communities/{community_other.pk}")
-        self.assertEqual(res.json()['global_name'], "test02")                
+        self.assertEqual(res.json()["global_name"], "test02")
 
         # Test via the API (PATCH request)
         self.assert_patch_and_200(f"{POLICY_ENDPOINT}{policy.pk}", data={"community_template_pattern": "patched"})
         res = self.assert_get(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}")
-        self.assertEqual(res.json()['global_name'], "patched01")
+        self.assertEqual(res.json()["global_name"], "patched01")
         res = self.assert_get(f"{NETWORK_ENDPOINT}{network.network}/communities/{community_other.pk}")
-        self.assertEqual(res.json()['global_name'], "patched02")                
+        self.assertEqual(res.json()["global_name"], "patched02")
 
         community_other.delete()
-
 
     @parametrize(
         ("community_template_pattern", "return_value"),
@@ -840,7 +840,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
             param("has space", 400, id="has_space"),
             param("has@special", 400, id="has_special"),
             param("has#special", 400, id="has_special_2"),
-        ]
+        ],
     )
     def test_community_template_pattern_validation(self, community_template_pattern: str, return_value: int):
         """Test that the community mapping prefix is validated."""
@@ -852,14 +852,14 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
 
         if return_value == 201:
             res = self.assert_post_and_201(f"{POLICY_ENDPOINT}", data=data)
-            id = res.json()['id']
+            id = res.json()["id"]
             self.assert_delete_and_204(f"{POLICY_ENDPOINT}{id}")
         else:
             self.assert_post_and_400(f"{POLICY_ENDPOINT}", data=data)
 
     def test_community_template_pattern_is_unique(self):
         """Test that the community mapping prefix is unique."""
-        pattern = "notunique"    
+        pattern = "notunique"
 
         data = {
             "name": "test_unique_ok",
@@ -868,9 +868,9 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         }
 
         res = self.assert_post_and_201(f"{POLICY_ENDPOINT}", data=data)
-        id = res.json()['id']
+        id = res.json()["id"]
 
-        data['name'] = "test_unique_notok"
+        data["name"] = "test_unique_notok"
         self.assert_post_and_400(f"{POLICY_ENDPOINT}", data=data)
         self.assert_delete_and_204(f"{POLICY_ENDPOINT}{id}")
 
@@ -880,7 +880,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         _, community, network, _, _ = self.create_policy_setup()
 
         res = self.assert_get(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}")
-        self.assertEqual(res.json()['global_name'], None)
+        self.assertEqual(res.json()["global_name"], None)
 
     @override_settings(MREG_MAX_COMMUNITES_PER_NETWORK=1)
     def test_max_communities_per_network(self):
@@ -888,7 +888,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         _, _, network, _, _ = self.create_policy_setup()
 
         res = self.assert_post_and_406(f"{NETWORK_ENDPOINT}{network.network}/communities/", data={"name": "c2", "description": "c2desc"})
-        self.assertEqual(res.json()['errors'][0]['detail'], f"Network '{network.network}' already has the maximum allowed communities (1).")
+        self.assertEqual(res.json()["errors"][0]["detail"], f"Network '{network.network}' already has the maximum allowed communities (1).")
 
     @override_settings(MREG_MAX_COMMUNITES_PER_NETWORK=20)
     def test_max_communities_per_network_set_in_network(self):
@@ -898,8 +898,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         network.save()
 
         res = self.assert_post_and_406(f"{NETWORK_ENDPOINT}{network.network}/communities/", data={"name": "c2", "description": "c2desc"})
-        self.assertEqual(res.json()['errors'][0]['detail'], f"Network '{network.network}' already has the maximum allowed communities (1).")
-
+        self.assertEqual(res.json()["errors"][0]["detail"], f"Network '{network.network}' already has the maximum allowed communities (1).")
 
     @override_settings(MREG_MAX_COMMUNITES_PER_NETWORK=1)
     def test_max_communities_per_network_allows_patch(self):
@@ -907,24 +906,17 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         _, community, network, _, _ = self.create_policy_setup()
 
         res = self.assert_patch_and_200(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}", data={"description": "new desc"})
-        self.assertEqual(res.json()['description'], "new desc")
+        self.assertEqual(res.json()["description"], "new desc")
+
 
 class NetworkPolicyFilterTestCase(ParametrizedTestCase, MregAPITestCase):
     def setUp(self):
         super().setUp()
         # Create a known set of network policies.
-        self.policy1 = NetworkPolicy.objects.create(
-            name="PolicyOne", description="The first policy"
-        )
-        self.policy2 = NetworkPolicy.objects.create(
-            name="PolicyTwo", description="The second policy"
-        )
-        self.policy3 = NetworkPolicy.objects.create(
-            name="PolicyThree", description="The third plan"
-        )
-        self.policy4 = NetworkPolicy.objects.create(
-            name="PolicyFourAndOne", description="A combination policy"
-        )
+        self.policy1 = NetworkPolicy.objects.create(name="PolicyOne", description="The first policy")
+        self.policy2 = NetworkPolicy.objects.create(name="PolicyTwo", description="The second policy")
+        self.policy3 = NetworkPolicy.objects.create(name="PolicyThree", description="The third plan")
+        self.policy4 = NetworkPolicy.objects.create(name="PolicyFourAndOne", description="A combination policy")
         self.policies = [self.policy1, self.policy2, self.policy3, self.policy4]
 
         # Create networks associated with the policies.
@@ -987,7 +979,7 @@ class NetworkPolicyFilterTestCase(ParametrizedTestCase, MregAPITestCase):
             param({"name__regex": ".*one.*"}, 2, id="regex_one"),
             param({"description__icontains": "policy"}, 3, id="policy_icontains_description"),
             param({"name": "NonExistent"}, 0, id="nonexistent"),
-        ]
+        ],
     )
     def test_network_policy_filter(self, query_params, expected_count):
         """Test filtering network policies."""
@@ -1007,7 +999,7 @@ class NetworkPolicyFilterTestCase(ParametrizedTestCase, MregAPITestCase):
             param({"policy__name__icontains": "one"}, 2, id="name_icontains"),
             param({"policy__name__regex": "^policy.*one$"}, 2, id="name_regex"),
             param({"policy__description__icontains": "policy"}, 3, id="description_icontains"),
-        ]
+        ],
     )
     def test_network_filter_by_policy(self, query_params, expected_count):
         """Test filtering networks by policy."""
@@ -1040,27 +1032,26 @@ class NetworkPolicyFilterTestCase(ParametrizedTestCase, MregAPITestCase):
         for policy in self.policies:
             policy.delete()
 
+
 class NetworkPolicyPermissionsTestCase(ParametrizedTestCase, MregAPITestCase):
     def setUp(self):
         super().setUp()
         self.set_client_format_json()
 
     def grant_user_access_to_network(self, network: Network):
-        group, _ = Group.objects.get_or_create(name='testgroup')
+        group, _ = Group.objects.get_or_create(name="testgroup")
         group.user_set.add(self.user)
-        NetGroupRegexPermission.objects.create(group='testgroup',
-                                               range=network.network,
-                                               regex=r'^irrelevant$')
+        NetGroupRegexPermission.objects.create(group="testgroup", range=network.network, regex=r"^irrelevant$")
         self.addCleanup(group.delete)
 
     def test_permissions_create_network_policy(self):
         """Test creating a network policy as different users."""
         with self.temporary_client_as_normal_user():
             self.assert_post_and_403(POLICY_ENDPOINT, data={"name": "policy"})
-        
+
         with self.temporary_client_as_network_admin():
             self.assert_post_and_201(POLICY_ENDPOINT, data={"name": "policy"})
-        
+
         NetworkPolicy.objects.get(name="policy").delete()
 
     def test_permissions_update_network_policy(self):
@@ -1069,23 +1060,23 @@ class NetworkPolicyPermissionsTestCase(ParametrizedTestCase, MregAPITestCase):
         self.addCleanup(policy.delete)
         with self.temporary_client_as_normal_user():
             self.assert_patch_and_403(f"{POLICY_ENDPOINT}{policy.pk}", data={"name": "new_name"})
-        
+
         with self.temporary_client_as_network_admin():
             self.assert_patch_and_200(f"{POLICY_ENDPOINT}{policy.pk}", data={"name": "new_name"})
-        
+
     def test_permissions_delete_network_policy(self):
         """Test deleting a network policy as different users."""
         policy = NetworkPolicy.objects.create(name="policy")
         self.addCleanup(policy.delete)
         with self.temporary_client_as_normal_user():
             self.assert_delete_and_403(f"{POLICY_ENDPOINT}{policy.pk}")
-        
+
         with self.temporary_client_as_network_admin():
             self.assert_delete_and_204(f"{POLICY_ENDPOINT}{policy.pk}")
 
     def test_permissions_create_community(self):
         """Test creating a community as different users.
-        
+
         Note that users with network permissions should be able to create communities within the network."""
         network = Network.objects.create(network="10.0.0.0/24", description="test_network")
         network_other = Network.objects.create(network="10.0.1.0/24", description="test_network_other")
@@ -1100,7 +1091,7 @@ class NetworkPolicyPermissionsTestCase(ParametrizedTestCase, MregAPITestCase):
             self.assert_post_and_403(f"{NETWORK_ENDPOINT}{network.network}/communities/", data={"name": "community"})
             self.grant_user_access_to_network(network_other)
             self.assert_post_and_403(f"{NETWORK_ENDPOINT}{network.network}/communities/", data={"name": "community"})
-            self.grant_user_access_to_network(network)            
+            self.grant_user_access_to_network(network)
             self.assert_post_and_201(f"{NETWORK_ENDPOINT}{network.network}/communities/", data={"name": "community"})
             Community.objects.get(name="community").delete()
 
@@ -1112,14 +1103,14 @@ class NetworkPolicyPermissionsTestCase(ParametrizedTestCase, MregAPITestCase):
 
         with self.temporary_client_as_network_admin():
             res = self.assert_patch_and_200(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}", data={"name": "new_name"})
-            self.assertEqual(res.json()['name'], "new_name")
-        
+            self.assertEqual(res.json()["name"], "new_name")
+
         with self.temporary_client_as_normal_user():
             self.assert_patch_and_403(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}", data={"name": "not_new_name"})
             self.assertEqual(Community.objects.get(pk=community.pk).name, "new_name")
 
             self.grant_user_access_to_network(network)
-            res = self.assert_patch_and_200(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}",
-                                            data={"name": "new_name_by_user"})
-            self.assertEqual(res.json()['name'], "new_name_by_user")
-
+            res = self.assert_patch_and_200(
+                f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}", data={"name": "new_name_by_user"}
+            )
+            self.assertEqual(res.json()["name"], "new_name_by_user")
