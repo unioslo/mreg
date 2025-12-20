@@ -558,7 +558,8 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         _, community, _, host, _ = self.create_policy_setup()
 
         data = {"id": host.pk}
-        self.assert_post_and_404(f"{NETWORK_ENDPOINT}/10.99.99.00/24/communities/{community.pk}/hosts/", data=data)
+        # Use a properly formatted network that doesn't exist (lines 203-204)
+        self.assert_post_and_404(f"{NETWORK_ENDPOINT}192.168.99.0/24/communities/{community.pk}/hosts/", data=data)
 
     @override_settings(MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY=False)
     def test_add_host_to_community_ok_with_ip(self):
@@ -612,6 +613,22 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
 
         data = {"id": host.pk, "ipaddress": "10.9.9.9"}
         self.assert_post_and_406(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}/hosts/", data=data)
+
+    def test_add_host_to_community_without_id_or_ipaddress(self):
+        """Test adding a host to a community without providing id or ipaddress (line 235)."""
+        _, community, network, _, _ = self.create_policy_setup()
+
+        # Provide neither id nor ipaddress
+        data = {}
+        self.assert_post_and_400(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}/hosts/", data=data)
+
+    def test_add_host_to_community_with_nonexistent_ip_only(self):
+        """Test adding a host to a community with only a non-existent IP (line 242)."""
+        _, community, network, _, _ = self.create_policy_setup()
+
+        # Provide only a non-existent ipaddress (no host id)
+        data = {"ipaddress": "10.0.0.99"}
+        self.assert_post_and_404(f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}/hosts/", data=data)
 
     @override_settings(MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY=False)
     def test_add_host_to_community_with_ip_different_network(self):
