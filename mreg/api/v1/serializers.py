@@ -370,6 +370,24 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
         # taken place during create or update.
         return data
     
+    def _add_contacts_to_host(self, host: Host, contacts: list[str]) -> None:
+        """
+        Add contacts to a host, collecting any validation errors.
+        
+        Args:
+            host: The Host instance to add contacts to
+            contacts: List of email addresses to add
+            
+        Raises:
+            serializers.ValidationError: If any email addresses are invalid
+        """
+        result = host.add_contacts(contacts)
+        
+        if result['invalid']:
+            raise serializers.ValidationError(
+                {"contacts": f"Invalid email address(es): {', '.join(result['invalid'])}"}
+            )
+    
     def create(self, validated_data):
         ipaddr = validated_data.pop('ipaddress', None)
         community = validated_data.pop('communities', None)
@@ -408,8 +426,7 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
             
             # Add contact emails if provided
             if contacts:
-                for email in contacts:
-                    host.add_contact(email)
+                self._add_contacts_to_host(host, contacts)
             
             # Assign community if provided
             if community:
@@ -471,8 +488,7 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
             if contacts is not _sentinel:
                 instance.contacts.clear()
                 if contacts:  # Only add if list is not empty
-                    for email in contacts:
-                        instance.add_contact(email)
+                    self._add_contacts_to_host(instance, contacts)
             
             # Assign or unassign community
             if community is not None:

@@ -19,14 +19,32 @@ logger = get_logger()
 
 
 class HostContact(BaseModel):
-    """Model to store contact email addresses for hosts."""
-    email = models.EmailField()
+    """
+    Model to store contact email addresses for hosts.
+    
+    Orphaned contacts (not associated with any hosts) are automatically
+    cleaned up via signals when hosts are deleted or contacts are removed.
+    """
+    email = models.EmailField(unique=True)
     
     class Meta:
         db_table = "host_contact"
         
     def __str__(self):
         return self.email
+    
+    def save(self, *args, **kwargs):
+        """Override save to always validate the email field."""
+        self.full_clean()
+        super().save(*args, **kwargs)
+    
+    @classmethod
+    def cleanup_orphaned_contacts(cls):
+        """Remove HostContact instances that are not associated with any hosts."""
+        orphaned = cls.objects.filter(hosts__isnull=True)
+        count = orphaned.count()
+        orphaned.delete()
+        return count
 
 
 class Host(ForwardZoneMember):
@@ -56,15 +74,20 @@ class Host(ForwardZoneMember):
     def __str__(self):
         return str(self.name)
 
-    def add_contact(self, email: str) -> tuple['HostContact', bool]:
+    def _add_contact(self, email: str) -> tuple['HostContact', bool]:
         """
-        Add a contact email to this host.
+        Internal method to add a single contact email to this host.
+        
+        Note: Use add_contacts() for the public API which handles validation.
         
         Args:
             email: Email address to add
             
         Returns:
             Tuple of (HostContact instance, created) where created is True if this is a new association
+            
+        Raises:
+            django.core.exceptions.ValidationError: If the email address is invalid
         """
         contact, _ = HostContact.objects.get_or_create(email=email)
         # Check if this contact is already associated with this host
@@ -72,6 +95,46 @@ class Host(ForwardZoneMember):
             return (contact, False)
         self.contacts.add(contact)
         return (contact, True)
+    
+    def add_contacts(self, emails: list[str]) -> dict[str, list[str]]:
+        """
+        Add multiple contact emails to this host.
+        
+        Args:
+            emails: List of email addresses to add
+            
+        Returns:
+            dict: Result dictionary with keys:
+                - added: List of successfully added emails
+                - already_exists: List of emails that already existed
+                - invalid: List of invalid email addresses
+        """
+        from django.core.exceptions import ValidationError
+        
+        added = []
+        already_exists = []
+        invalid_emails = []
+        
+        for email in emails:
+            try:
+                contact, created = self._add_contact(email)
+                if created:
+                    added.append(email)
+                else:
+                    already_exists.append(email)
+            except ValidationError as e:
+                # Extract email validation errors from Django ValidationError
+                # Check if error_dict exists and contains 'email' key
+                if hasattr(e, 'error_dict') and e.error_dict and 'email' in e.error_dict:
+                    invalid_emails.append(email)
+                else:
+                    raise
+        
+        return {
+            'added': added,
+            'already_exists': already_exists,
+            'invalid': invalid_emails,
+        }
 
     def remove_contact(self, email: str) -> bool:
         """

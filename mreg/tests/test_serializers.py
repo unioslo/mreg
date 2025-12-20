@@ -122,7 +122,7 @@ class HostSerializerTests(TestCase):
 
     def test_update_replaces_contacts_from_raw_string_and_skips_contact_field(self):
         host = Host.objects.create(name="host-update.example")
-        host.add_contact("old@example.com")
+        host._add_contact("old@example.com")
         serializer = HostSerializer(instance=host)
         serializer.initial_data = {"contacts": "new@example.com"}
         validated_data = {"contacts": ["should-be-ignored"], "comment": "updated"}

@@ -21,8 +21,9 @@ This migration adds support for multiple contact email addresses per host, repla
 - Added `contacts` ManyToManyField relationship to `HostContact`
 - Removed deprecated `contact` field
 - Added helper methods:
-  - `add_contact(email: str)`: Add a contact email to the host
-  - `remove_contact(email: str)`: Remove a contact email from the host
+  - `_add_contact(email: str)`: Add a single contact email to the host (internal use, may throw ValidationError from the database layer)
+  - `add_contacts(emails: list[str])`: Add multiple contact emails to the host, returning a tuple of (added_emails, already_existing_emails, invalid_emails).
+  - `remove_contact(email: str)`: Remove contact email from the host
   - `get_contact_emails()`: Get list of all contact emails
 
 ### 3. Migration
@@ -200,7 +201,7 @@ To prevent race conditions when multiple clients need to modify contacts, atomic
 
 #### List Contacts
 
-```
+```bash
 GET /api/v1/hosts/{hostname}/contacts/
 ```
 
@@ -225,7 +226,7 @@ Returns a list of all contacts for the host:
 
 #### Add Contacts (Atomic)
 
-```
+```bash
 POST /api/v1/hosts/{hostname}/contacts/
 Content-Type: application/json
 
@@ -262,7 +263,7 @@ If some emails already exist:
 
 **Remove specific contacts:**
 
-```
+```bash
 DELETE /api/v1/hosts/{hostname}/contacts/
 Content-Type: application/json
 
@@ -293,7 +294,7 @@ If some emails don't exist:
 
 To remove all contacts without specifying individual emails, simply omit the `emails` parameter:
 
-```
+```bash
 DELETE /api/v1/hosts/{hostname}/contacts/
 Content-Type: application/json
 

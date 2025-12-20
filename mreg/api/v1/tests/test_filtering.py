@@ -22,7 +22,7 @@ def create_hosts(name: str, count: int) -> List[Host]:
             ttl=3600,
             comment="Test host",
         )
-        host.add_contact("admin@example.com")
+        host._add_contact("admin@example.com")
         hosts.append(host)
 
     return hosts

@@ -789,7 +789,7 @@ class APIHostsTestCase(MregAPITestCase):
     def test_host_get_200_ok_by_contact(self):
         """Getting an existing entry by contact email should return 200"""
         # Add a contact to host_one first
-        self.host_one.add_contact('mail1@example.org')
+        self.host_one._add_contact('mail1@example.org')
         self._one_hit_and_host_one("contacts__email=mail1@example.org")
 
     def test_host_get_200_ok_by_name(self):
@@ -893,8 +893,8 @@ class APIHostsTestCase(MregAPITestCase):
     def test_hosts_patch_with_contacts(self):
         """"Patching with contacts list should replace all contacts"""
         # First add some contacts
-        self.host_one.add_contact('old1@example.com')
-        self.host_one.add_contact('old2@example.com')
+        self.host_one._add_contact('old1@example.com')
+        self.host_one._add_contact('old2@example.com')
         
         # Update with new contacts
         data = {'contacts': ['new1@example.com', 'new2@example.com', 'new3@example.com']}
@@ -909,8 +909,8 @@ class APIHostsTestCase(MregAPITestCase):
     def test_hosts_get_contacts_read_format(self):
         """"Getting a host should return contacts with full object structure"""
         # Add contacts to host
-        self.host_one.add_contact('contact1@example.com')
-        self.host_one.add_contact('contact2@example.com')
+        self.host_one._add_contact('contact1@example.com')
+        self.host_one._add_contact('contact2@example.com')
         
         # Get the host
         host_data = self.assert_get('/hosts/%s' % self.host_one.name).json()
@@ -943,7 +943,7 @@ class APIHostsTestCase(MregAPITestCase):
     def test_hosts_patch_clear_contacts(self):
         """"Patching with empty contacts should clear all contacts"""
         # First add some contacts
-        self.host_one.add_contact('remove-me@example.com')
+        self.host_one._add_contact('remove-me@example.com')
         
         # Clear contacts - use JSON format since multipart can't represent empty arrays
         data = {'contacts': []}
@@ -959,8 +959,8 @@ class APIHostsTestCase(MregAPITestCase):
     def test_hosts_filter_by_contact(self):
         """"Filtering by deprecated contact field should work (backward compatibility)"""
         # Create hosts with contacts
-        self.host_one.add_contact('filter-test@example.com')
-        self.host_two.add_contact('other@example.com')
+        self.host_one._add_contact('filter-test@example.com')
+        self.host_two._add_contact('other@example.com')
         
         # Filter using deprecated contact parameter
         response = self.assert_get('/hosts/?contact=filter-test@example.com')
@@ -971,8 +971,8 @@ class APIHostsTestCase(MregAPITestCase):
     def test_hosts_filter_by_contacts_email(self):
         """"Filtering by new contacts__email field should work"""
         # Create hosts with contacts
-        self.host_one.add_contact('new-filter@example.com')
-        self.host_two.add_contact('other@example.com')
+        self.host_one._add_contact('new-filter@example.com')
+        self.host_two._add_contact('other@example.com')
         
         # Filter using new contacts__email parameter
         response = self.assert_get('/hosts/?contacts__email=new-filter@example.com')
@@ -983,8 +983,8 @@ class APIHostsTestCase(MregAPITestCase):
     def test_hosts_filter_by_contact_icontains(self):
         """"Filtering by contact with icontains should work"""
         # Create hosts with contacts
-        self.host_one.add_contact('admin-team@example.com')
-        self.host_two.add_contact('support-team@example.com')
+        self.host_one._add_contact('admin-team@example.com')
+        self.host_two._add_contact('support-team@example.com')
         
         # Filter using deprecated contact__icontains parameter
         response = self.assert_get('/hosts/?contact__icontains=admin')
@@ -995,8 +995,8 @@ class APIHostsTestCase(MregAPITestCase):
     def test_hosts_get_deprecated_contact_field(self):
         """"Reading a host should return deprecated contact field with space-separated emails"""
         # Add multiple contacts
-        self.host_one.add_contact('admin1@example.com')
-        self.host_one.add_contact('admin2@example.com')
+        self.host_one._add_contact('admin1@example.com')
+        self.host_one._add_contact('admin2@example.com')
         
         # Get the host
         host_data = self.assert_get('/hosts/%s' % self.host_one.name).json()
@@ -1025,8 +1025,8 @@ class APIHostsTestCase(MregAPITestCase):
     def test_hosts_contacts_action_list(self):
         """"GET /hosts/{name}/contacts/ should list all contacts"""
         # Add contacts
-        self.host_one.add_contact('contact1@example.com')
-        self.host_one.add_contact('contact2@example.com')
+        self.host_one._add_contact('contact1@example.com')
+        self.host_one._add_contact('contact2@example.com')
         
         # List contacts using custom action
         response = self.assert_get('/hosts/%s/contacts/' % self.host_one.name)
@@ -1046,7 +1046,7 @@ class APIHostsTestCase(MregAPITestCase):
     def test_hosts_contacts_action_add(self):
         """"POST /hosts/{name}/contacts/ should add contacts atomically"""
         # Start with one contact
-        self.host_one.add_contact('existing@example.com')
+        self.host_one._add_contact('existing@example.com')
         
         # Add new contacts using custom action
         original_format = self.format
@@ -1071,7 +1071,7 @@ class APIHostsTestCase(MregAPITestCase):
     def test_hosts_contacts_action_add_duplicate(self):
         """"POST /hosts/{name}/contacts/ with existing email should report already_exists"""
         # Add initial contact
-        self.host_one.add_contact('duplicate@example.com')
+        self.host_one._add_contact('duplicate@example.com')
         
         # Try to add duplicate
         original_format = self.format
@@ -1090,9 +1090,9 @@ class APIHostsTestCase(MregAPITestCase):
     def test_hosts_contacts_action_delete(self):
         """"DELETE /hosts/{name}/contacts/ should remove contacts atomically"""
         # Add contacts
-        self.host_one.add_contact('keep@example.com')
-        self.host_one.add_contact('remove1@example.com')
-        self.host_one.add_contact('remove2@example.com')
+        self.host_one._add_contact('keep@example.com')
+        self.host_one._add_contact('remove1@example.com')
+        self.host_one._add_contact('remove2@example.com')
         
         # Remove contacts using custom action
         original_format = self.format
@@ -1120,7 +1120,7 @@ class APIHostsTestCase(MregAPITestCase):
     def test_hosts_contacts_action_delete_not_found(self):
         """"DELETE /hosts/{name}/contacts/ with non-existent email should report not_found"""
         # Add one contact
-        self.host_one.add_contact('exists@example.com')
+        self.host_one._add_contact('exists@example.com')
         
         # Try to remove existing and non-existing
         original_format = self.format
@@ -1151,9 +1151,9 @@ class APIHostsTestCase(MregAPITestCase):
     def test_hosts_contacts_action_delete_no_emails(self):
         """"DELETE /hosts/{name}/contacts/ without emails should clear all contacts"""
         # Add some contacts first
-        self.host_one.add_contact('contact1@example.com')
-        self.host_one.add_contact('contact2@example.com')
-        self.host_one.add_contact('contact3@example.com')
+        self.host_one._add_contact('contact1@example.com')
+        self.host_one._add_contact('contact2@example.com')
+        self.host_one._add_contact('contact3@example.com')
         
         original_format = self.format
         self.format = ClientTestFormat.JSON
@@ -1175,6 +1175,24 @@ class APIHostsTestCase(MregAPITestCase):
         # Verify all contacts were cleared
         host_data = self.assert_get('/hosts/%s' % self.host_one.name).json()
         self.assertEqual(len(host_data['contacts']), 0)
+    
+    def test_hosts_contacts_action_add_400_invalid_email(self):
+        """"POST /hosts/{name}/contacts/ with invalid email should return 400"""
+        with self.client_format_json():
+            data = {'emails': ['invalid email']}
+            response = self.assert_post_and_400('/hosts/%s/contacts/' % self.host_one.name, data)
+            result = response.json()
+            self.assertIn('error', result)
+            self.assertIn('Invalid email', result['error'])
+    
+    def test_hosts_contacts_action_add_400_invalid_email_mixed(self):
+        """"POST /hosts/{name}/contacts/ with mixed valid/invalid emails should return 400"""
+        with self.client_format_json():
+            data = {'emails': ['valid@example.com', 'invalid email', 'also@bad']}
+            response = self.assert_post_and_400('/hosts/%s/contacts/' % self.host_one.name, data)
+            result = response.json()
+            self.assertIn('error', result)
+            self.assertIn('Invalid email', result['error'])
 
     def test_hosts_post_400_invalid_ip(self):
         """"Posting a new host with an invalid IP should return 400"""

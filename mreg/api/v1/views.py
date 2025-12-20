@@ -525,18 +525,17 @@ class HostContactsView(HostPermissionsUpdateDestroy, APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        added = []
-        already_exists = []
-        for email in emails:
-            contact, created = host.add_contact(email)
-            if created:
-                added.append(email)
-            else:
-                already_exists.append(email)
+        result = host.add_contacts(emails)
+        
+        if result['invalid']:
+            return Response(
+                {"error": f"Invalid email address(es): {', '.join(result['invalid'])}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         response_data = {
-            "added": added,
-            "already_exists": already_exists,
+            "added": result['added'],
+            "already_exists": result['already_exists'],
         }
         return Response(response_data, status=status.HTTP_200_OK)
 
