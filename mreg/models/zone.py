@@ -10,18 +10,8 @@ from mreg.fields import LowerCaseDNSNameField
 from mreg.managers import LowerCaseManager, lower_case_manager_factory
 from mreg.models.base import BaseModel, NameServer, ZoneHelpers
 from mreg.models.host import Ipaddress, PtrOverride
-from mreg.utils import (
-    create_serialno,
-    encode_mail,
-    get_network_from_zonename,
-    idna_encode,
-    qualify,
-)
-from mreg.validators import (
-    validate_32bit_uint,
-    validate_reverse_zone_name,
-    validate_ttl,
-)
+from mreg.utils import create_serialno, encode_mail, get_network_from_zonename, idna_encode, qualify
+from mreg.validators import validate_32bit_uint, validate_reverse_zone_name, validate_ttl
 
 
 class BaseZone(BaseModel, ZoneHelpers):
@@ -29,9 +19,7 @@ class BaseZone(BaseModel, ZoneHelpers):
     primary_ns = LowerCaseDNSNameField()
     nameservers = models.ManyToManyField(NameServer, db_column="ns")
     email = models.EmailField()
-    serialno = models.BigIntegerField(
-        default=create_serialno, validators=[validate_32bit_uint]
-    )
+    serialno = models.BigIntegerField(default=create_serialno, validators=[validate_32bit_uint])
     serialno_updated_at = models.DateTimeField(default=timezone.now)
     refresh = models.IntegerField(default=10800)
     retry = models.IntegerField(default=3600)
@@ -75,9 +63,7 @@ $TTL {default_ttl}
                                          {soa_ttl} ) ; Negative Cache
 ; zone.updated_at: {zupdated_at}
 ; zone.serialno_updated_at: {supdated_at}
-""".format_map(
-            data
-        )
+""".format_map(data)
         return zf
 
     def update_serialno(self, force=False):
@@ -87,11 +73,7 @@ $TTL {default_ttl}
         # Need the have a timedelta as serialno_updated_at to not exhaust
         # the 1000 possible daily serial numbers.
         min_delta = timedelta(minutes=1)
-        if (
-            force
-            or self.updated
-            and timezone.now() > self.serialno_updated_at + min_delta
-        ):
+        if force or self.updated and timezone.now() > self.serialno_updated_at + min_delta:
             new_serial = create_serialno(self.serialno)
             # If hitting the daily limit, make sure not to change the
             # other variables.
@@ -203,9 +185,7 @@ class ReverseZone(BaseZone):
             qs = model.objects.filter(ipaddress__range=(from_ip, to_ip))
             for exclude in excluded_ranges:
                 qs = qs.exclude(ipaddress__range=(exclude.from_ip, exclude.to_ip))
-            for ip, ttl, hostname in qs.values_list(
-                "ipaddress", "host__ttl", "host__name"
-            ):
+            for ip, ttl, hostname in qs.values_list("ipaddress", "host__ttl", "host__name"):
                 data[ip] = (ttl, hostname)
         # XXX: send signal/mail to hostmaster(?) about issues with multiple_ip_no_ptr
         count = defaultdict(int)
