@@ -1231,6 +1231,21 @@ class APIHostsTestCase(MregAPITestCase):
         self.assert_patch_and_409('/hosts/%s' % self.host_one.name,
                                   {'name': 'new-name2.example.org'})
 
+    def test_hosts_patch_400_invalid_contact_string(self):
+        """Invalid contact as string should fail"""
+        self.assert_patch_and_400('/hosts/%s' % self.host_one.name,
+                                  {'contacts': "I'm the contact"})
+   
+    def test_hosts_patch_400_invalid_contact_list(self):
+        """Invalid email contact as list should fail."""
+        self.assert_patch_and_400('/hosts/%s' % self.host_one.name,
+                                  {'contacts': ["I'm the contact"]})
+    
+    def test_hosts_patch_400_invalid_contact_list_multiple(self):
+        """Mixing valid and invalid contacts in list should fail."""
+        self.assert_patch_and_400('/hosts/%s' % self.host_one.name,
+                                  {'contacts': ["valid@email.com", "I'm the contact"]})
+
 
 class APIHostsTestCaseAsAdminuser(APIHostsTestCase):
     """Same tests as in APIHostsTestCase, only test as admin and not super"""
