@@ -4,11 +4,7 @@ This document describes the Prometheus metrics exposed by MREG, their purpose, l
 
 ## Endpoint
 
-Metrics are exposed at the following endpoint:
-
-```
-/api/meta/metrics
-```
+Metrics are exposed at the following endpoint: `/api/meta/metrics`.
 
 ## HTTP Metrics
 
@@ -50,6 +46,12 @@ Metrics are exposed at the following endpoint:
   - Labels: method, path, exception
   - Unit: exceptions
   - Description: Total number of uncaught application exceptions that resulted in 500 responses, partitioned by exception class name.
+
+- Name: mreg_http_unresolved_requests_total
+  - Type: Counter
+  - Labels: method, status
+  - Unit: requests
+  - Description: Requests whose normalized path could not be resolved (e.g., 404s). Useful for monitoring spikes in unresolved routes.
 
 ## Database Metrics
 
@@ -113,14 +115,6 @@ Metrics are exposed at the following endpoint:
 - Gauges are carefully paired to prevent underflow.
 - For multi-process deployments, ensure Prometheus client multiprocess mode is configured or scrape per-worker and aggregate in Prometheus.
 - Avoid building dashboards/alerts on high-cardinality labels; stick to method/path/status/exception.
-
-## Ops Counters
-
-- Name: mreg_http_unresolved_requests_total
-  - Type: Counter
-  - Labels: method, status
-  - Unit: requests
-  - Description: Requests whose normalized path could not be resolved (e.g., 404s). Useful for monitoring spikes in unresolved routes.
 
 ## Alerting Examples
 
