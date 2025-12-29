@@ -172,34 +172,42 @@ jobs:
         | docker login ghcr.io -u ${{ github.actor }} --password-stdin
     - name: Push image
       run: |
+        echo "::group::Publishing Docker images"
         IMAGE_ID=ghcr.io/${{ github.repository_owner }}/mreg
         SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
 
         # Pull request - tag with pr-<number>
         if [[ ${{ github.event_name }} == "pull_request" ]]; then
           PR_NUMBER="${{ github.event.number }}"
-          echo "Publishing PR image for PR #$PR_NUMBER"
+          echo "Publishing PR image: pr-$PR_NUMBER"
           docker tag mreg:latest $IMAGE_ID:pr-$PR_NUMBER
           docker push $IMAGE_ID:pr-$PR_NUMBER
         fi
 
         # Master branch commits - tag with master and master-<SHA>
         if [[ ${{ github.ref }} == "refs/heads/master" ]]; then
-          echo "Publishing master image for commit: $SHORT_SHA"
+          echo "Publishing master images: master-$SHORT_SHA, master"
           docker tag mreg:latest $IMAGE_ID:master-$SHORT_SHA
           docker push $IMAGE_ID:master-$SHORT_SHA
           docker tag mreg:latest $IMAGE_ID:master
           docker push $IMAGE_ID:master
+          
+          # If this is also a version tag, publish as latest
+          if [[ ${{ github.ref }} == refs/tags/v* ]]; then
+            echo "Publishing latest image: latest"
+            docker tag mreg:latest $IMAGE_ID:latest
+            docker push $IMAGE_ID:latest
+          fi
         fi
 
-        # Version tags - tag with version and latest
+        # Version tags - tag with version
+        # NOTE: This can run on non-master branches, so that we can publish
+        # security fixes on version branches without updating the latest tag.
         if [[ ${{ github.ref }} == refs/tags/v* ]]; then
           VERSION=${GITHUB_REF#refs/tags/}
-          echo "Publishing version: $VERSION and latest"
+          echo "Publishing version image: $VERSION"
           
           docker tag mreg:latest $IMAGE_ID:$VERSION
           docker push $IMAGE_ID:$VERSION
-          
-          docker tag mreg:latest $IMAGE_ID:latest
-          docker push $IMAGE_ID:latest
         fi
+        echo "::endgroup::"
