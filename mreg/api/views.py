@@ -38,17 +38,24 @@ def _observe_ldap_call(operation: str, func: Callable[[], Any]) -> Any:
     Labels by operation and exception class name (for failures).
     """
     t0 = monotonic()
+    outcome = "success"
     try:
         return func()
     except Exception as e:  # pragma: no cover - defensive metrics recording
+        outcome = "failure"
         try:
             LDAP_CALL_FAILURES.labels(operation, e.__class__.__name__).inc()
         except Exception:
             pass
         raise
     finally:
+        duration = monotonic() - t0
         try:
-            LDAP_CALL_LATENCY.labels(operation).observe(monotonic() - t0)
+            LDAP_CALL_LATENCY.labels(operation).observe(duration)
+        except Exception:  # pragma: no cover - defensive
+            pass
+        try:
+            LDAP_CALL_LATENCY_BY_OUTCOME.labels(operation, outcome).observe(duration)
         except Exception:  # pragma: no cover - defensive
             pass
 
@@ -56,6 +63,13 @@ LDAP_CALL_LATENCY = Histogram(
     "mreg_ldap_call_duration_seconds",
     "LDAP call duration seconds",
     ["operation"],
+    buckets=[0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5],
+)
+
+LDAP_CALL_LATENCY_BY_OUTCOME = Histogram(
+    "mreg_ldap_call_duration_seconds_by_outcome",
+    "LDAP call duration seconds split by success or failure",
+    ["operation", "outcome"],
     buckets=[0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5],
 )
 
