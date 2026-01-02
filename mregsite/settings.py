@@ -150,6 +150,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "mreg.middleware.metrics.PrometheusRequestMiddleware",
     "mreg.middleware.logging_http.LoggingMiddleware",
 ]
 

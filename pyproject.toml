@@ -26,6 +26,7 @@ dependencies = [
     "pyyaml",
     # For testing inside Docker image
     "unittest-parametrize",
+    "prometheus-client>=0.20",
 ]
 dynamic = ["version"]
 
