@@ -431,11 +431,11 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         res = self.assert_post_and_406(f"{NETWORK_ENDPOINT}{net.network}/communities/",
                                        data={"name": "community", "description": "community desc"})
 
-        self.assertEqual(
-            res.json()['errors'][0]['detail'],
+        expected_msg = (
             "Network does not have a policy. "
             "The policy must have the following attributes: ['isolated']"
         )
+        self.assertEqual(res.json()['errors'][0]['detail'], expected_msg)
 
         net.policy = np # type: ignore
         net.save()
@@ -443,11 +443,11 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         res = self.assert_post_and_406(f"{NETWORK_ENDPOINT}{net.network}/communities/",
                                        data={"name": "community", "description": "community desc"})
 
-        self.assertEqual(
-            res.json()['errors'][0]['detail'],
-            "Network policy 'empty_policy' is missing the following "
-            "required attributes: ['isolated']"
+        expected_msg = (
+            "Network policy 'empty_policy' is missing "
+            "the following required attributes: ['isolated']"
         )
+        self.assertEqual(res.json()['errors'][0]['detail'], expected_msg)
 
         np.attributes.set([self._get_protected_attribute("isolated")])
         np.save()

@@ -12,7 +12,6 @@ class ModelHostsTestCase(TestCase):
         """Define the test client and other test variables."""
         self.host_one = Host(
             name="host.example.org",
-            contact="mail@example.org",
             ttl=300,
             comment="some comment",
         )
@@ -46,14 +45,14 @@ class ModelHostsTestCase(TestCase):
         self.assertEqual(
             self.host_one, Host.objects.get(name=self.host_one.name.upper())
         )
-        upper = Host(name=self.host_one.name.upper(), contact=self.host_one.contact)
+        upper = Host(name=self.host_one.name.upper())
         with self.assertRaises(ValidationError) as context:
             clean_and_save(upper)
         self.assertEqual(
             context.exception.messages, ["Host with this Name already exists."]
         )
         hostname = "UPPERCASE.EXAMPLE.ORG"
-        host = Host.objects.create(name=hostname, contact="mail@example.org")
+        host = Host.objects.create(name=hostname)
         # Must do a refresh_from_db() as host.name is otherwise the unmodfied
         # uppercase hostname.
         host.refresh_from_db()
