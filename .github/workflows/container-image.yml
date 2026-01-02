@@ -174,32 +174,58 @@ jobs:
       run: |
         IMAGE_ID=ghcr.io/${{ github.repository_owner }}/mreg
         SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+        
+        # Initialize array to track published tags
+        PUBLISHED_TAGS=()
 
         # Pull request - tag with pr-<number>
         if [[ ${{ github.event_name }} == "pull_request" ]]; then
           PR_NUMBER="${{ github.event.number }}"
-          echo "Publishing PR image for PR #$PR_NUMBER"
+          echo "::notice title=Docker Image::Publishing PR image: pr-$PR_NUMBER"
           docker tag mreg:latest $IMAGE_ID:pr-$PR_NUMBER
           docker push $IMAGE_ID:pr-$PR_NUMBER
+          PUBLISHED_TAGS+=("pr-$PR_NUMBER")
         fi
 
         # Master branch commits - tag with master and master-<SHA>
         if [[ ${{ github.ref }} == "refs/heads/master" ]]; then
-          echo "Publishing master image for commit: $SHORT_SHA"
+          echo "::notice title=Docker Image::Publishing master images: master-$SHORT_SHA, master"
           docker tag mreg:latest $IMAGE_ID:master-$SHORT_SHA
           docker push $IMAGE_ID:master-$SHORT_SHA
           docker tag mreg:latest $IMAGE_ID:master
           docker push $IMAGE_ID:master
+          PUBLISHED_TAGS+=("master-$SHORT_SHA" "master")
+          
+          # If this is also a version tag, publish as latest
+          if [[ ${{ github.ref }} == refs/tags/v* ]]; then
+            echo "::notice title=Docker Image::Publishing latest image: latest"
+            docker tag mreg:latest $IMAGE_ID:latest
+            docker push $IMAGE_ID:latest
+            PUBLISHED_TAGS+=("latest")
+          fi
         fi
 
-        # Version tags - tag with version and latest
+        # Version tags - tag with version
+        # NOTE: This can run on non-master branches, so that we can publish
+        # security fixes on version branches without updating the latest tag.
         if [[ ${{ github.ref }} == refs/tags/v* ]]; then
           VERSION=${GITHUB_REF#refs/tags/}
-          echo "Publishing version: $VERSION and latest"
+          echo "::notice title=Docker Image::Publishing version image: $VERSION"
           
           docker tag mreg:latest $IMAGE_ID:$VERSION
           docker push $IMAGE_ID:$VERSION
-          
-          docker tag mreg:latest $IMAGE_ID:latest
-          docker push $IMAGE_ID:latest
+          PUBLISHED_TAGS+=("$VERSION")
+        fi
+
+        # Generate job summary
+        if [[ ${#PUBLISHED_TAGS[@]} -gt 0 ]]; then
+          {
+            echo "## 🐳 Published Docker Images"
+            echo ""
+            echo "The following tags were published to \`$IMAGE_ID\`:"
+            echo ""
+            for tag in "${PUBLISHED_TAGS[@]}"; do
+              echo "- \`$tag\`"
+            done
+          } >> $GITHUB_STEP_SUMMARY
         fi
