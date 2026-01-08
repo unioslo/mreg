@@ -22,18 +22,50 @@ import mreg.log_processors
 
 DefaultT = TypeVar("DefaultT", str, int, float, bool)
 
+_TRUE = {"1", "true", "t", "yes", "y", "on"}
+_FALSE = {"0", "false", "f", "no", "n", "off"}
 
 def envvar(var: str, default: DefaultT) -> DefaultT:
     """Get the value of an environment variable as a specific type.
-    
+
     The type of the default value specifies the return type.
+    Boolean defaults are parsed from common true/false strings.
     """
-    val = os.environ.get(var, default)
-    try:
-        return type(default)(val)
-    except ValueError:
+    raw = os.environ.get(var)
+    if raw is None:
         return default
 
+    if isinstance(default, bool):
+        s = raw.strip().lower()
+        if s in _TRUE:
+            return True
+        if s in _FALSE:
+            return False
+        return default
+
+    try:
+        return type(default)(raw) 
+    except (ValueError, TypeError):
+        return default
+
+def parse_protected_attrs(raw: str) -> list[dict]:
+    out: list[dict] = []
+    for part in raw.split(","):
+        part = part.strip()
+        if not part:
+            continue
+
+        key, value = (part.split("=", 1) + [""])[:2]
+        key = key.strip()
+        value = value.strip()
+
+        if not key:
+            # Either skip silently or raise; skipping is safer for prod.
+            continue
+
+        desc = value if value else f"Protected attribute {key}."
+        out.append({"name": key, "description": desc})
+    return out
 
 TESTING = len(sys.argv) > 1 and sys.argv[1] == "test"
 
@@ -48,13 +80,13 @@ SECRET_KEY = ")e#67040xjxar=zl^y#@#b*zilv2dxtraj582$^(e6!wf++_n#"
 
 LOG_LEVEL = envvar("MREG_LOG_LEVEL", "CRITICAL").upper()
 
-REQUESTS_THRESHOLD_SLOW = 1000
-REQUESTS_LOG_LEVEL_SLOW = "WARNING"
+REQUESTS_THRESHOLD_SLOW = envvar("MREG_REQUESTS_THRESHOLD_SLOW", 1000)
+REQUESTS_LOG_LEVEL_SLOW = envvar("MREG_REQUESTS_LOG_LEVEL_SLOW", "WARNING")
 
-REQUESTS_THRESHOLD_VERY_SLOW = 5000
-REQUESTS_LOG_LEVEL_VERY_SLOW = "CRITICAL"
+REQUESTS_THRESHOLD_VERY_SLOW = envvar("MREG_REQUESTS_THRESHOLD_VERY_SLOW", 5000)
+REQUESTS_LOG_LEVEL_VERY_SLOW = envvar("MREG_REQUESTS_LOG_LEVEL_VERY_SLOW", "CRITICAL")
 
-LOGGING_MAX_BODY_LENGTH = 3000
+LOGGING_MAX_BODY_LENGTH = envvar("MREG_LOGGING_MAX_BODY_LENGTH", 3000)
 
 LOG_FILE_SIZE = envvar("MREG_LOG_FILE_SIZE", 50 * 1024 * 1024)
 LOG_FILE_COUNT = envvar("MREG_LOG_FILE_COUNT", 10)
@@ -62,14 +94,30 @@ LOG_FILE_NAME = os.path.join(
     BASE_DIR, envvar("MREG_LOG_FILE_NAME", "logs/app.log")
 )
 
-
-MREG_PROTECTED_POLICY_ATTRIBUTES = [
+MREG_PROTECTED_POLICY_ATTRIBUTES_DEFAULT = [
     {"name": "isolated", "description": "The network uses client isolation."},
 ]
 
-MREG_CREATING_COMMUNITY_REQUIRES_POLICY_WITH_ATTRIBUTES = [] # [ "isolated" ]
+no_protected = envvar("MREG_NO_PROTECTED_POLICY_ATTRIBUTES", False)
+raw = (envvar("MREG_PROTECTED_POLICY_ATTRIBUTES", "") or "").strip()
 
-MREG_MAX_COMMUNITES_PER_NETWORK = 20
+if no_protected or raw == "NONE":
+    _protected = []
+elif raw:
+    # Explicit env replaces defaults
+    _protected = parse_protected_attrs(raw)
+else:
+    # Unset => defaults apply
+    _protected = list(MREG_PROTECTED_POLICY_ATTRIBUTES_DEFAULT)
+
+MREG_PROTECTED_POLICY_ATTRIBUTES = _protected
+
+raw = (envvar("MREG_REQUIRED_POLICY_ATTRIBUTES", "") or "").strip()
+MREG_CREATING_COMMUNITY_REQUIRES_POLICY_WITH_ATTRIBUTES = [
+    a.strip() for a in raw.split(",") if a.strip()
+]
+
+MREG_MAX_COMMUNITES_PER_NETWORK = envvar("MREG_MAX_COMMUNITES_PER_NETWORK", 20)
 
 MREG_MAP_GLOBAL_COMMUNITY_NAMES = envvar("MREG_MAP_GLOBAL_COMMUNITY_NAMES", False)
 MREG_GLOBAL_COMMUNITY_TEMPLATE_PATTERN =  envvar("MREG_GLOBAL_COMMUNITY_TEMPLATE_PATTERN", "community")
