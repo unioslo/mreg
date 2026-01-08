@@ -83,8 +83,8 @@ MREG_DB_POOL_MAX_SIZE = envvar("MREG_DB_POOL_MAX_SIZE", 25)
 MREG_DB_POOL_MAX_IDLE = envvar("MREG_DB_POOL_MAX_IDLE", 300)
 MREG_DB_POOL_MAX_LIFETIME = envvar("MREG_DB_POOL_MAX_LIFETIME", 3600)
 
-MREG_DB_PYSYCOPG_CONNECT_TIMEOUT = envvar("MREG_DB_PSYSCOPG_CONNECT_TIMEOUT", 5)
-MREG_DB_PSYSCOPG_OPTIONS = envvar("MREG_DB_PSYSCOPG_OPTIONS", "-c statement_timeout=30000")
+MREG_DB_PSYCOPG_CONNECT_TIMEOUT = envvar("MREG_DB_PSYCOPG_CONNECT_TIMEOUT", 5)
+MREG_DB_PSYCOPG_OPTIONS = envvar("MREG_DB_PSYCOPG_OPTIONS", "-c statement_timeout=30000")
 
 # If the log directory doesn't exist, create it.
 log_dir = os.path.dirname(LOG_FILE_NAME)
@@ -200,8 +200,8 @@ DATABASES = {
                 "max_lifetime": MREG_DB_POOL_MAX_LIFETIME,  # Max connection lifetime (seconds)
             },
             # psycopg3 connection parameters
-            "connect_timeout": MREG_DB_PYSYCOPG_CONNECT_TIMEOUT,  # 5 second timeout for initial connection
-            "options": MREG_DB_PSYSCOPG_OPTIONS,  # 30 second statement timeout
+            "connect_timeout": MREG_DB_PSYCOPG_CONNECT_TIMEOUT,  # 5 second timeout for initial connection
+            "options": MREG_DB_PSYCOPG_OPTIONS,  # 30 second statement timeout
         },
     }
 }
