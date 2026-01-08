@@ -195,7 +195,7 @@ DATABASES = {
             # Native psycopg3 connection pooling (Django 5.2+)
             "pool": {
                 "max_size": MREG_DB_POOL_MAX_SIZE,  # Maximum connections in the pool
-                "min_size": MREG_DB_POOL_MIN_SIZE,   # Minimum idle connections to maintain
+                "min_size": MREG_DB_POOL_MIN_SIZE,  # Minimum idle connections to maintain
                 "max_idle": MREG_DB_POOL_MAX_IDLE,  # Max idle time before connection is closed (seconds)
                 "max_lifetime": MREG_DB_POOL_MAX_LIFETIME,  # Max connection lifetime (seconds)
             },
