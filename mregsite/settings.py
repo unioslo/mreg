@@ -78,6 +78,13 @@ MREG_COMMUNITY_TEMPLATE_PATTERN_MAX_LENGTH = 100
 MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY = True
 MREG_REQUIRE_VLAN_FOR_NETWORK_TO_HAVE_COMMUNITY = False
 
+MREG_DB_ENGINE = envvar("MREG_DB_ENGINE", "django.db.backends.postgresql")
+MREG_DB_NAME = envvar("MREG_DB_NAME", "mreg")
+MREG_DB_USER = envvar("MREG_DB_USER", "mreg")
+MREG_DB_PASSWORD = envvar("MREG_DB_PASSWORD", "")
+MREG_DB_HOST = envvar("MREG_DB_HOST", "localhost")
+MREG_DB_PORT = envvar("MREG_DB_PORT", "5432")
+
 MREG_DB_POOL_MIN_SIZE = envvar("MREG_DB_POOL_MIN_SIZE", 5)
 MREG_DB_POOL_MAX_SIZE = envvar("MREG_DB_POOL_MAX_SIZE", 25)
 MREG_DB_POOL_MAX_IDLE = envvar("MREG_DB_POOL_MAX_IDLE", 300)
@@ -184,12 +191,12 @@ WSGI_APPLICATION = "mregsite.wsgi.application"
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": envvar("MREG_DB_NAME", "mreg"),
-        "USER": envvar("MREG_DB_USER", "mreg"),
-        "PASSWORD": envvar("MREG_DB_PASSWORD", ""),
-        "HOST": envvar("MREG_DB_HOST", "localhost"),
-        "PORT": envvar("MREG_DB_PORT", "5432"),
+        "ENGINE": MREG_DB_ENGINE,
+        "NAME": MREG_DB_NAME,
+        "USER": MREG_DB_USER,
+        "PASSWORD": MREG_DB_PASSWORD,
+        "HOST": MREG_DB_HOST,        
+        "PORT": MREG_DB_PORT,
         "CONN_MAX_AGE": 0,  # Let the pool manage connection lifecycle
         "OPTIONS": {
             # Native psycopg3 connection pooling (Django 5.2+)
