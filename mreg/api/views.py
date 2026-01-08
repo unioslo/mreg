@@ -7,10 +7,11 @@ from typing import Any, cast, Callable
 import django
 import ldap
 import structlog
+from  psycopg import pq
+
 from django.conf import settings
 from django_auth_ldap.backend import LDAPBackend
 from django.contrib.auth.models import update_last_login
-from psycopg2 import __libpq_version__ as libpq_version
 from rest_framework import serializers, status
 from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.exceptions import AuthenticationFailed, NotFound, PermissionDenied
@@ -92,7 +93,7 @@ LIBRARIES_TO_REPORT = [
     "sentry-sdk",
     "structlog",
     "rich",
-    "psycopg2-binary",
+    "psycopg",
 ]
 
 
@@ -256,7 +257,7 @@ class MetaVersions(APIView):
                 logger.warning(event="library", reason=f"Failed to get version for {library}: {e}")
                 data[library] = "<unknown>"
         
-        data["libpq"] = str(libpq_version)
+        data["libpq"] = str(pq.version())
         return Response(status=status.HTTP_200_OK, data=data)
 
 

@@ -182,6 +182,19 @@ DATABASES = {
         "PASSWORD": envvar("MREG_DB_PASSWORD", ""),
         "HOST": envvar("MREG_DB_HOST", "localhost"),
         "PORT": envvar("MREG_DB_PORT", "5432"),
+        "CONN_MAX_AGE": 0,  # Let the pool manage connection lifecycle
+        "OPTIONS": {
+            # Native psycopg3 connection pooling (Django 5.2+)
+            "pool": {
+                "max_size": 25,  # Maximum connections in the pool
+                "min_size": 5,   # Minimum idle connections to maintain
+                "max_idle": 300,  # Max idle time before connection is closed (seconds)
+                "max_lifetime": 3600,  # Max connection lifetime (seconds)
+            },
+            # psycopg3 connection parameters
+            "connect_timeout": 5,  # 5 second timeout for initial connection
+            "options": "-c statement_timeout=30000",  # 30 second statement timeout
+        },
     }
 }
 
