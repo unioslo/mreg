@@ -2,7 +2,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import connection
 from sys import stdout
 from django.conf import settings
-from psycopg2 import connect
+from psycopg import connect
 
 
 class Command(BaseCommand):

@@ -81,7 +81,7 @@ LDAP_CALL_FAILURES = Counter(
 )
 
 # Note the order here. This order is preserved in the response.
-# Also, we add libpq-data to the end of this list so letting psycopg2-binary
+# Also, we add libpq-data to the end of this list so letting psycopg
 # be last makes the context of the libpq version more clear.
 LIBRARIES_TO_REPORT = [
     "djangorestframework",
