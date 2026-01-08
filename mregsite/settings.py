@@ -78,6 +78,14 @@ MREG_COMMUNITY_TEMPLATE_PATTERN_MAX_LENGTH = 100
 MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY = True
 MREG_REQUIRE_VLAN_FOR_NETWORK_TO_HAVE_COMMUNITY = False
 
+MREG_DB_POOL_MIN_SIZE = envvar("MREG_DB_POOL_MIN_SIZE", 5)
+MREG_DB_POOL_MAX_SIZE = envvar("MREG_DB_POOL_MAX_SIZE", 25)
+MREG_DB_POOL_MAX_IDLE = envvar("MREG_DB_POOL_MAX_IDLE", 300)
+MREG_DB_POOL_MAX_LIFETIME = envvar("MREG_DB_POOL_MAX_LIFETIME", 3600)
+
+MREG_DB_PYSYCOPG_CONNECT_TIMEOUT = envvar("MREG_DB_PSYSCOPG_CONNECT_TIMEOUT", 5)
+MREG_DB_PSYSCOPG_OPTIONS = envvar("MREG_DB_PSYSCOPG_OPTIONS", "-c statement_timeout=30000")
+
 # If the log directory doesn't exist, create it.
 log_dir = os.path.dirname(LOG_FILE_NAME)
 if not os.path.exists(log_dir): # pragma: no cover
@@ -186,14 +194,14 @@ DATABASES = {
         "OPTIONS": {
             # Native psycopg3 connection pooling (Django 5.2+)
             "pool": {
-                "max_size": 25,  # Maximum connections in the pool
-                "min_size": 5,   # Minimum idle connections to maintain
-                "max_idle": 300,  # Max idle time before connection is closed (seconds)
-                "max_lifetime": 3600,  # Max connection lifetime (seconds)
+                "max_size": MREG_DB_POOL_MAX_SIZE,  # Maximum connections in the pool
+                "min_size": MREG_DB_POOL_MIN_SIZE,   # Minimum idle connections to maintain
+                "max_idle": MREG_DB_POOL_MAX_IDLE,  # Max idle time before connection is closed (seconds)
+                "max_lifetime": MREG_DB_POOL_MAX_LIFETIME,  # Max connection lifetime (seconds)
             },
             # psycopg3 connection parameters
-            "connect_timeout": 5,  # 5 second timeout for initial connection
-            "options": "-c statement_timeout=30000",  # 30 second statement timeout
+            "connect_timeout": MREG_DB_PYSYCOPG_CONNECT_TIMEOUT,  # 5 second timeout for initial connection
+            "options": MREG_DB_PSYSCOPG_OPTIONS,  # 30 second statement timeout
         },
     }
 }
