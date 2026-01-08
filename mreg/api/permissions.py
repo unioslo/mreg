@@ -32,7 +32,39 @@ DEFAULT_RESOURCE_ATTRS = {"kind": "Any", "id": "any"}
 
 
 class ParityMixin:
-    """Small helpers to reduce repetition around policy_parity."""
+    """Small helpers to reduce repetition around policy_parity.
+
+    The public pp() method logs every call. For cases where multiple checks
+    feed into a single decision (pp_any, pp_all), use _pp() internally to avoid
+    nested logging and only log the final result.
+    """
+
+    def _pp(
+        self,
+        *,
+        decision: bool,
+        action: str,
+        request: Request,
+        view: "GenericAPIView",
+        resource_kind: str = "Generic",
+        resource_id: str = "any",
+        resource_attrs: Optional[Mapping[str, str]] = None,
+        log: bool = True,
+    ) -> bool:
+        """Internal policy parity check. Set log=False to skip logging."""
+        if not log:
+            # For internal use: return decision without calling policy_parity
+            return decision
+        return policy_parity(
+            decision,
+            request=request,
+            view=view,
+            permission_class=self.__class__.__name__,
+            action=action,
+            resource_kind=resource_kind,
+            resource_id=resource_id,
+            resource_attrs=resource_attrs or DEFAULT_RESOURCE_ATTRS,
+        )
 
     def pp(
         self,
@@ -45,15 +77,15 @@ class ParityMixin:
         resource_id: str = "any",
         resource_attrs: Optional[Mapping[str, str]] = None,
     ) -> bool:
-        return policy_parity(
-            decision,
+        return self._pp(
+            decision=decision,
+            action=action,
             request=request,
             view=view,
-            permission_class=self.__class__.__name__,
-            action=action,
             resource_kind=resource_kind,
             resource_id=resource_id,
             resource_attrs=resource_attrs or DEFAULT_RESOURCE_ATTRS,
+            log=True,
         )
 
     def pp_host(
@@ -94,14 +126,16 @@ class ParityMixin:
         resource_kind: str = "Generic",
         resource_attrs: Optional[Mapping[str, str]] = None,
     ) -> bool:
+        # Use internal _pp with log=False to avoid nested logging for each check
         for decision, action in checks:
-            if self.pp(
+            if self._pp(
                 decision=decision,
                 action=action,
                 request=request,
                 view=view,
                 resource_kind=resource_kind,
                 resource_attrs=resource_attrs or DEFAULT_RESOURCE_ATTRS,
+                log=False,
             ):
                 return True
         return False
@@ -115,19 +149,30 @@ class ParityMixin:
         resource_kind: str = "Generic",
         resource_attrs: Optional[Mapping[str, str]] = None,
     ) -> bool:
+        # Use internal _pp with log=False to avoid nested logging for each check
         for decision, action in checks:
-            if not self.pp(
+            if not self._pp(
                 decision=decision,
                 action=action,
                 request=request,
                 view=view,
                 resource_kind=resource_kind,
                 resource_attrs=resource_attrs or DEFAULT_RESOURCE_ATTRS,
+                log=False,
             ):
                 return False
         return True
 
-    def pp_generic_action(self, attrs: Mapping[str, str], decision: bool, action: str, request: Request, view: GenericAPIView, kind: str = "Generic", id: str = "Any") -> bool:
+    def pp_generic_action(
+        self,
+        attrs: Mapping[str, str],
+        decision: bool,
+        action: str,
+        request: Request,
+        view: GenericAPIView,
+        kind: str = "Generic",
+        id: str = "Any"
+    ) -> bool:
         return self.pp(
             decision=decision,
             action=action,
@@ -138,7 +183,13 @@ class ParityMixin:
             resource_attrs={ kind: kind, **attrs }
         )
 
-    def user_has_permission(self, membership: MregAdminGroup, request: Request, view: GenericAPIView, exclude_superuser: bool = False) -> bool:
+    def user_has_permission(
+        self,
+        membership: MregAdminGroup,
+        request: Request,
+        view: GenericAPIView,
+        exclude_superuser: bool = False
+    ) -> bool:
         """
         Check if the user has a given generic permission level.
         """
