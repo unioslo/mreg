@@ -3,6 +3,8 @@ import logging
 from typing import Any, Optional, Mapping
 import ipaddress
 import json
+import threading
+from contextlib import contextmanager
 
 from django.conf import settings
 from rest_framework.request import Request
@@ -14,6 +16,9 @@ from treetop_client.client import TreeTopClient
 from treetop_client.models import Request as TreeTopRequest, User as TreeTopUser, Action, Resource, ResourceAttribute, ResourceAttributeType
 
 logger = logging.getLogger("mreg.policy.parity")
+
+# Thread-local storage for parity checking bypass flag
+_thread_local = threading.local()
 
 # Configure these in settings.py
 POLICY_PARITY_ENABLED = getattr(settings, "POLICY_PARITY_ENABLED", True)
@@ -27,6 +32,34 @@ if POLICY_TRUNCATE_LOG_FILE:
         pass
 
 treetopclient = TreeTopClient(base_url=POLICY_BASE_URL)
+
+@contextmanager
+def disable_policy_parity():
+    """Context manager to temporarily disable policy parity checking.
+    
+    Useful for tests that modify permissions/state mid-test, which would
+    cause the legacy and policy systems to be out of sync.
+    
+    Example:
+        def test_permission_changes(self):
+            with disable_policy_parity():
+                # Modify permissions here
+                user.groups.add(some_group)
+                # Make API calls - parity checking will be skipped
+    """
+    old_value = getattr(_thread_local, "skip_parity", False)
+    _thread_local.skip_parity = True
+    try:
+        yield
+    finally:
+        _thread_local.skip_parity = old_value
+
+def _is_parity_enabled() -> bool:
+    """Check if parity checking should be performed in current context."""
+    if not POLICY_PARITY_ENABLED:
+        return False
+    # Skip parity checking if we're in a disabled context
+    return not getattr(_thread_local, "skip_parity", False)
 
 def _corr_id(request: Request) -> Optional[str]:
     return request.headers.get("X-Correlation-ID") or request.META.get("HTTP_X_CORRELATION_ID")
@@ -54,12 +87,12 @@ def policy_parity(
     Log legacy-vs-policy parity and return `decision` unchanged.
     Use this anywhere you currently 'return True/False'.
     """
-    if not POLICY_PARITY_ENABLED:
+    if not _is_parity_enabled():
         return decision
 
     # Build policy request
     muser = MregUser.from_request(request)
-    principal = TreeTopUser.new(muser.username, POLICY_NAMESPACE, groups=list(muser.group_list))
+    principal = TreeTopUser.new(str(muser.username), POLICY_NAMESPACE, groups=list(muser.group_list))
     pol_action = Action.new(action, POLICY_NAMESPACE)
 
     attrs = {}
@@ -77,7 +110,7 @@ def policy_parity(
 #            else:
 #                attrs[k] = ResourceAttribute.new(v, ResourceAttributeType.STRING)
 
-    res = Resource.new(resource_kind, resource_id, attrs=attrs)
+    res = Resource.new(str(resource_kind), resource_id, attrs=attrs)
 
     if len(pol_action.id.namespace) > 0:
         fully_qualified_action = "::".join(pol_action.id.namespace) + f"::{pol_action.id.id}"
@@ -104,6 +137,18 @@ def policy_parity(
         pol_allowed = bool(resp.is_allowed())
     except Exception as exc:
         error = repr(exc)
+        # Log policy server errors prominently
+        logger.error(
+            f"Policy server error: {type(exc).__name__}: {exc}",
+            extra={
+                "error_type": type(exc).__name__,
+                "error_msg": str(exc),
+                "path": request.path,
+                "correlation_id": _corr_id(request),
+            },
+        )
+        # If policy server fails, we cannot determine parity. Return legacy decision
+        # but flag this in the payload for monitoring.
 
     parity = False
     if bool(decision) and pol_allowed:
@@ -111,7 +156,7 @@ def policy_parity(
     elif not bool(decision) and not pol_allowed:
         parity = True
 
-    payload: dict[str, object] = {
+    payload: dict[str, Any] = {
         "parity": parity,
         "legacy_decision": bool(decision),
         "policy_decision": pol_allowed,
@@ -120,10 +165,10 @@ def policy_parity(
     }
 
     if parity:
-        logger.warning("policy_parity_mismatch", extra=payload)
+        logger.info("policy_parity_ok", extra=payload)
         log_policy_parity(payload)
     else:
-        logger.info("policy_parity_ok", extra=payload)
+        logger.warning("policy_parity_mismatch", extra=payload)
         log_policy_parity(payload)
 
     return decision
