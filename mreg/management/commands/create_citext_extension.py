@@ -28,7 +28,7 @@ class Command(BaseCommand):
                         host=settings.DATABASES['default']['HOST'],
                         user=settings.DATABASES['default']['USER'],
                         password=settings.DATABASES['default']['PASSWORD'],
-                        database=options['database']
+                        dbname=options['database']
                 )
             with con.cursor() as cursor:
                 cursor.execute("CREATE EXTENSION IF NOT EXISTS citext")
