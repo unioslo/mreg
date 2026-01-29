@@ -1,5 +1,5 @@
 # build stage
-FROM python:3.11-alpine AS builder
+FROM python:3.12-alpine AS builder
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
@@ -21,7 +21,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 ENTRYPOINT [ "/bin/sh" ]
 
 # final stage
-FROM python:3.11-alpine
+FROM python:3.12-alpine
 EXPOSE 8000
 
 WORKDIR /app
@@ -30,7 +30,7 @@ WORKDIR /app
 ENV UV_OFFLINE=1
 
 # Copy over venv with all installed dependencies
-COPY --from=builder --chown=app:app /app/.venv /app/.venv
+COPY --from=builder /app/.venv /app/.venv
 
 # Copy over application files
 COPY entrypoint* manage.py /app/
