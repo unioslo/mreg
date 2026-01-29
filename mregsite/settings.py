@@ -22,18 +22,50 @@ import mreg.log_processors
 
 DefaultT = TypeVar("DefaultT", str, int, float, bool)
 
+_TRUE = {"1", "true", "t", "yes", "y", "on"}
+_FALSE = {"0", "false", "f", "no", "n", "off"}
 
 def envvar(var: str, default: DefaultT) -> DefaultT:
     """Get the value of an environment variable as a specific type.
-    
+
     The type of the default value specifies the return type.
+    Boolean defaults are parsed from common true/false strings.
     """
-    val = os.environ.get(var, default)
-    try:
-        return type(default)(val)
-    except ValueError:
+    raw = os.environ.get(var)
+    if raw is None:
         return default
 
+    if isinstance(default, bool):
+        s = raw.strip().lower()
+        if s in _TRUE:
+            return True
+        if s in _FALSE:
+            return False
+        return default
+
+    try:
+        return type(default)(raw) 
+    except (ValueError, TypeError):
+        return default
+
+def parse_protected_attrs(raw: str) -> list[dict]:
+    out: list[dict] = []
+    for part in raw.split(","):
+        part = part.strip()
+        if not part:
+            continue
+
+        key, value = (part.split("=", 1) + [""])[:2]
+        key = key.strip()
+        value = value.strip()
+
+        if not key:
+            # Either skip silently or raise; skipping is safer for prod.
+            continue
+
+        desc = value if value else f"Protected attribute {key}."
+        out.append({"name": key, "description": desc})
+    return out
 
 TESTING = len(sys.argv) > 1 and sys.argv[1] == "test"
 
@@ -48,13 +80,13 @@ SECRET_KEY = ")e#67040xjxar=zl^y#@#b*zilv2dxtraj582$^(e6!wf++_n#"
 
 LOG_LEVEL = envvar("MREG_LOG_LEVEL", "CRITICAL").upper()
 
-REQUESTS_THRESHOLD_SLOW = 1000
-REQUESTS_LOG_LEVEL_SLOW = "WARNING"
+REQUESTS_THRESHOLD_SLOW = envvar("MREG_REQUESTS_THRESHOLD_SLOW", 1000)
+REQUESTS_LOG_LEVEL_SLOW = envvar("MREG_REQUESTS_LOG_LEVEL_SLOW", "WARNING")
 
-REQUESTS_THRESHOLD_VERY_SLOW = 5000
-REQUESTS_LOG_LEVEL_VERY_SLOW = "CRITICAL"
+REQUESTS_THRESHOLD_VERY_SLOW = envvar("MREG_REQUESTS_THRESHOLD_VERY_SLOW", 5000)
+REQUESTS_LOG_LEVEL_VERY_SLOW = envvar("MREG_REQUESTS_LOG_LEVEL_VERY_SLOW", "CRITICAL")
 
-LOGGING_MAX_BODY_LENGTH = 3000
+LOGGING_MAX_BODY_LENGTH = envvar("MREG_LOGGING_MAX_BODY_LENGTH", 3000)
 
 LOG_FILE_SIZE = envvar("MREG_LOG_FILE_SIZE", 50 * 1024 * 1024)
 LOG_FILE_COUNT = envvar("MREG_LOG_FILE_COUNT", 10)
@@ -62,21 +94,52 @@ LOG_FILE_NAME = os.path.join(
     BASE_DIR, envvar("MREG_LOG_FILE_NAME", "logs/app.log")
 )
 
-
-MREG_PROTECTED_POLICY_ATTRIBUTES = [
+MREG_PROTECTED_POLICY_ATTRIBUTES_DEFAULT = [
     {"name": "isolated", "description": "The network uses client isolation."},
 ]
 
-MREG_CREATING_COMMUNITY_REQUIRES_POLICY_WITH_ATTRIBUTES = [] # [ "isolated" ]
+no_protected = envvar("MREG_NO_PROTECTED_POLICY_ATTRIBUTES", False)
+raw = (envvar("MREG_PROTECTED_POLICY_ATTRIBUTES", "") or "").strip()
 
-MREG_MAX_COMMUNITES_PER_NETWORK = 20
+if no_protected or raw == "NONE":
+    _protected = []
+elif raw:
+    # Explicit env replaces defaults
+    _protected = parse_protected_attrs(raw)
+else:
+    # Unset => defaults apply
+    _protected = list(MREG_PROTECTED_POLICY_ATTRIBUTES_DEFAULT)
+
+MREG_PROTECTED_POLICY_ATTRIBUTES = _protected
+
+raw = (envvar("MREG_REQUIRED_POLICY_ATTRIBUTES", "") or "").strip()
+MREG_CREATING_COMMUNITY_REQUIRES_POLICY_WITH_ATTRIBUTES = [
+    a.strip() for a in raw.split(",") if a.strip()
+]
+
+MREG_MAX_COMMUNITES_PER_NETWORK = envvar("MREG_MAX_COMMUNITES_PER_NETWORK", 20)
 
 MREG_MAP_GLOBAL_COMMUNITY_NAMES = envvar("MREG_MAP_GLOBAL_COMMUNITY_NAMES", False)
-MREG_GLOBAL_COMMUNITY_TEMPLATE_PATTERN = "community"
-MREG_COMMUNITY_TEMPLATE_PATTERN_ALLOWED_REGEX = r"^[a-zA-Z0-9_]+$"
-MREG_COMMUNITY_TEMPLATE_PATTERN_MAX_LENGTH = 100
-MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY = True
-MREG_REQUIRE_VLAN_FOR_NETWORK_TO_HAVE_COMMUNITY = False
+MREG_GLOBAL_COMMUNITY_TEMPLATE_PATTERN =  envvar("MREG_GLOBAL_COMMUNITY_TEMPLATE_PATTERN", "community")
+MREG_COMMUNITY_TEMPLATE_PATTERN_ALLOWED_REGEX = envvar("MREG_COMMUNITY_TEMPLATE_PATTERN_ALLOWED_REGEX", r"^[a-zA-Z0-9_]+$")
+MREG_COMMUNITY_TEMPLATE_PATTERN_MAX_LENGTH = envvar("MREG_COMMUNITY_TEMPLATE_PATTERN_MAX_LENGTH", 100)
+MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY = envvar("MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY", True)
+MREG_REQUIRE_VLAN_FOR_NETWORK_TO_HAVE_COMMUNITY = envvar("MREG_REQUIRE_VLAN_FOR_NETWORK_TO_HAVE_COMMUNITY", False)
+
+MREG_DB_ENGINE = envvar("MREG_DB_ENGINE", "django.db.backends.postgresql")
+MREG_DB_NAME = envvar("MREG_DB_NAME", "mreg")
+MREG_DB_USER = envvar("MREG_DB_USER", "mreg")
+MREG_DB_PASSWORD = envvar("MREG_DB_PASSWORD", "")
+MREG_DB_HOST = envvar("MREG_DB_HOST", "localhost")
+MREG_DB_PORT = envvar("MREG_DB_PORT", "5432")
+
+MREG_DB_POOL_MIN_SIZE = envvar("MREG_DB_POOL_MIN_SIZE", 5)
+MREG_DB_POOL_MAX_SIZE = envvar("MREG_DB_POOL_MAX_SIZE", 25)
+MREG_DB_POOL_MAX_IDLE = envvar("MREG_DB_POOL_MAX_IDLE", 300)
+MREG_DB_POOL_MAX_LIFETIME = envvar("MREG_DB_POOL_MAX_LIFETIME", 3600)
+
+MREG_DB_PSYCOPG_CONNECT_TIMEOUT = envvar("MREG_DB_PSYCOPG_CONNECT_TIMEOUT", 5)
+MREG_DB_PSYCOPG_OPTIONS = envvar("MREG_DB_PSYCOPG_OPTIONS", "-c statement_timeout=30000")
 
 # If the log directory doesn't exist, create it.
 log_dir = os.path.dirname(LOG_FILE_NAME)
@@ -150,6 +213,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "mreg.middleware.metrics.PrometheusRequestMiddleware",
     "mreg.middleware.logging_http.LoggingMiddleware",
 ]
 
@@ -175,12 +239,25 @@ WSGI_APPLICATION = "mregsite.wsgi.application"
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": envvar("MREG_DB_NAME", "mreg"),
-        "USER": envvar("MREG_DB_USER", "mreg"),
-        "PASSWORD": envvar("MREG_DB_PASSWORD", ""),
-        "HOST": envvar("MREG_DB_HOST", "localhost"),
-        "PORT": envvar("MREG_DB_PORT", "5432"),
+        "ENGINE": MREG_DB_ENGINE,
+        "NAME": MREG_DB_NAME,
+        "USER": MREG_DB_USER,
+        "PASSWORD": MREG_DB_PASSWORD,
+        "HOST": MREG_DB_HOST,        
+        "PORT": MREG_DB_PORT,
+        "CONN_MAX_AGE": 0,  # Let the pool manage connection lifecycle
+        "OPTIONS": {
+            # Native psycopg3 connection pooling (Django 5.2+)
+            "pool": {
+                "max_size": MREG_DB_POOL_MAX_SIZE,  # Maximum connections in the pool
+                "min_size": MREG_DB_POOL_MIN_SIZE,  # Minimum idle connections to maintain
+                "max_idle": MREG_DB_POOL_MAX_IDLE,  # Max idle time before connection is closed (seconds)
+                "max_lifetime": MREG_DB_POOL_MAX_LIFETIME,  # Max connection lifetime (seconds)
+            },
+            # psycopg3 connection parameters
+            "connect_timeout": MREG_DB_PSYCOPG_CONNECT_TIMEOUT,  # 5 second timeout for initial connection
+            "options": MREG_DB_PSYCOPG_OPTIONS,  # 30 second statement timeout
+        },
     }
 }
 

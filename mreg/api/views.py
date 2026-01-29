@@ -1,15 +1,17 @@
 import platform
 import time
+from time import monotonic
 from importlib.metadata import version
-from typing import Any, cast
+from typing import Any, cast, Callable
 
 import django
 import ldap
 import structlog
+from  psycopg import pq
+
 from django.conf import settings
 from django_auth_ldap.backend import LDAPBackend
 from django.contrib.auth.models import update_last_login
-from psycopg2 import __libpq_version__ as libpq_version
 from rest_framework import serializers, status
 from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.exceptions import AuthenticationFailed, NotFound, PermissionDenied
@@ -17,6 +19,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from django.http import HttpResponse
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
 from mreg.__about__ import __version__ as mreg_version
 from mreg.api.permissions import IsSuperOrNetworkAdminMember
@@ -28,8 +32,56 @@ logger = structlog.getLogger(__name__)
 
 start_time = int(time.time())
 
+
+def _observe_ldap_call(operation: str, func: Callable[[], Any]) -> Any:
+    """Observe an LDAP operation's duration and count failures.
+
+    Labels by operation and exception class name (for failures).
+    """
+    t0 = monotonic()
+    outcome = "success"
+    try:
+        return func()
+    except Exception as e:  # pragma: no cover - defensive metrics recording
+        outcome = "failure"
+        try:
+            LDAP_CALL_FAILURES.labels(operation, e.__class__.__name__).inc()
+        except Exception:
+            pass
+        raise
+    finally:
+        duration = monotonic() - t0
+        try:
+            LDAP_CALL_LATENCY.labels(operation).observe(duration)
+        except Exception:  # pragma: no cover - defensive
+            pass
+        try:
+            LDAP_CALL_LATENCY_BY_OUTCOME.labels(operation, outcome).observe(duration)
+        except Exception:  # pragma: no cover - defensive
+            pass
+
+LDAP_CALL_LATENCY = Histogram(
+    "mreg_ldap_call_duration_seconds",
+    "LDAP call duration seconds",
+    ["operation"],
+    buckets=[0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5],
+)
+
+LDAP_CALL_LATENCY_BY_OUTCOME = Histogram(
+    "mreg_ldap_call_duration_seconds_by_outcome",
+    "LDAP call duration seconds split by success or failure",
+    ["operation", "outcome"],
+    buckets=[0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5],
+)
+
+LDAP_CALL_FAILURES = Counter(
+    "mreg_ldap_call_failures_total",
+    "LDAP call failures by operation and exception type",
+    ["operation", "exception"],
+)
+
 # Note the order here. This order is preserved in the response.
-# Also, we add libpq-data to the end of this list so letting psycopg2-binary
+# Also, we add libpq-data to the end of this list so letting psycopg
 # be last makes the context of the libpq version more clear.
 LIBRARIES_TO_REPORT = [
     "djangorestframework",
@@ -41,7 +93,7 @@ LIBRARIES_TO_REPORT = [
     "sentry-sdk",
     "structlog",
     "rich",
-    "psycopg2-binary",
+    "psycopg",
 ]
 
 
@@ -205,7 +257,7 @@ class MetaVersions(APIView):
                 logger.warning(event="library", reason=f"Failed to get version for {library}: {e}")
                 data[library] = "<unknown>"
         
-        data["libpq"] = str(libpq_version)
+        data["libpq"] = str(pq.version())
         return Response(status=status.HTTP_200_OK, data=data)
 
 
@@ -234,7 +286,7 @@ class HealthLDAP(APIView):
         try:
             self._check_ldap_connection()
             return True
-        except ldap.LDAPError as e:
+        except ldap.LDAPError as e: # type: ignore[attr-defined]
             logger.exception("LDAP connection error", error=str(e))
         except Exception as e:
             logger.exception("Error during LDAP check", error=str(e))
@@ -245,12 +297,28 @@ class HealthLDAP(APIView):
 
         try:
             ldap_backend = LDAPBackend()
-            connection = ldap_backend.ldap.initialize(settings.AUTH_LDAP_SERVER_URI)
-            connection.simple_bind_s(settings.AUTH_LDAP_BIND_DN, settings.AUTH_LDAP_BIND_PASSWORD)
+            connection = _observe_ldap_call(
+                "initialize", lambda: ldap_backend.ldap.initialize(settings.AUTH_LDAP_SERVER_URI)
+            )
+            _observe_ldap_call(
+                "bind", lambda: connection.simple_bind_s(settings.AUTH_LDAP_BIND_DN, settings.AUTH_LDAP_BIND_PASSWORD)
+            )
         finally:
             # We may have established a connection, so we should close it
             if connection:
                 try:
-                    connection.unbind_s()
+                    _observe_ldap_call("unbind", connection.unbind_s)
                 except Exception:
                     logger.exception("Failed to unbind from LDAP server")
+
+
+class MetricsView(APIView):
+    """Expose Prometheus metrics at a stable API url.
+
+    The middleware avoids instrumenting this endpoint to prevent recursion.
+    """
+
+    permission_classes = ()
+
+    def get(self, request: Request):
+        return HttpResponse(generate_latest(), content_type=CONTENT_TYPE_LATEST)

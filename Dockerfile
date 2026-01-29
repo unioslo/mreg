@@ -30,7 +30,7 @@ WORKDIR /app
 ENV UV_OFFLINE=1
 
 # Copy over venv with all installed dependencies
-COPY --from=builder --chown=app:app /app/.venv /app/.venv
+COPY --from=builder /app/.venv /app/.venv
 
 # Copy over application files
 COPY entrypoint* manage.py /app/
