@@ -89,6 +89,7 @@ LIBRARIES_TO_REPORT = [
     "django-filter", 
     "django-logging-json",
     "django-netfields",
+    "drf-standardized-errors",
     "gunicorn", 
     "sentry-sdk",
     "structlog",
