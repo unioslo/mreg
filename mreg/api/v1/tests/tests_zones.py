@@ -17,9 +17,9 @@ class ForwardZonesTestCase(MregAPITestCase):
             name="example.org",
             primary_ns="ns1.example.org",
             email="hostmaster@example.org")
-        self.host_one = Host(name='ns1.example.org', contact="hostmaster@example.org")
-        self.host_two = Host(name='ns2.example.org', contact="hostmaster@example.org")
-        self.host_three = Host(name='ns3.example.org', contact="hostmaster@example.org")
+        self.host_one = Host(name='ns1.example.org')
+        self.host_two = Host(name='ns2.example.org')
+        self.host_three = Host(name='ns3.example.org')
         self.ns_one = NameServer(name='ns1.example.org', ttl=400)
         self.ns_two = NameServer(name='ns2.example.org', ttl=400)
         self.post_data_one = {'name': 'example.com',
@@ -144,9 +144,9 @@ class ReverseZonesTestCase(MregAPITestCase):
             name="0.0.10.in-addr.arpa",
             primary_ns="ns1.example.org",
             email="hostmaster@example.org")
-        self.host_one = Host(name='ns1.example.org', contact="hostmaster@example.org")
-        self.host_two = Host(name='ns2.example.org', contact="hostmaster@example.org")
-        self.host_three = Host(name='ns3.example.org', contact="hostmaster@example.org")
+        self.host_one = Host(name='ns1.example.org')
+        self.host_two = Host(name='ns2.example.org')
+        self.host_three = Host(name='ns3.example.org')
         self.ns_one = NameServer(name='ns1.example.org', ttl=400)
         self.ns_two = NameServer(name='ns2.example.org', ttl=400)
         self.post_data_one = {'name': '0.10.in-addr.arpa',

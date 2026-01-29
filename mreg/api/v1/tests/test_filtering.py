@@ -17,14 +17,13 @@ def create_hosts(name: str, count: int) -> List[Host]:
 
     hosts: List[Host] = []
     for i in range(count):
-        hosts.append(
-            Host.objects.create(
-                name=f"{name}{i}.example.com".replace("_", ""),
-                contact="admin@example.com",
-                ttl=3600,
-                comment="Test host",
-            )
+        host = Host.objects.create(
+            name=f"{name}{i}.example.com".replace("_", ""),
+            ttl=3600,
+            comment="Test host",
         )
+        host._add_contact("admin@example.com")
+        hosts.append(host)
 
     return hosts
 

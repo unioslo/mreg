@@ -42,7 +42,7 @@ EXACT_OPERATORS: OperatorList = ["exact"]
 HOST_FIELDS = {
     "host": INT_OPERATORS,
     "host__comment": STRING_OPERATORS,
-    "host__contact": STRING_OPERATORS,
+    "host__contacts__email": STRING_OPERATORS,
     "host__name": STRING_OPERATORS,
     "host__ttl": INT_OPERATORS,
 }
@@ -163,13 +163,26 @@ class HistoryFilterSet(filters.FilterSet):
 class HostFilterSet(filters.FilterSet):
     zone = filters.NumberFilter(field_name="zone_id")
     zone__name = filters.CharFilter(field_name="zone_id__name")
+    
+    # Backward compatibility: alias host__contact to host__contacts__email
+    contact = filters.CharFilter(field_name="contacts__email", lookup_expr="exact")
+    contact__exact = filters.CharFilter(field_name="contacts__email", lookup_expr="exact")
+    contact__iexact = filters.CharFilter(field_name="contacts__email", lookup_expr="iexact")
+    contact__regex = filters.CharFilter(field_name="contacts__email", lookup_expr="regex")
+    contact__contains = filters.CharFilter(field_name="contacts__email", lookup_expr="contains")
+    contact__icontains = filters.CharFilter(field_name="contacts__email", lookup_expr="icontains")
+    contact__startswith = filters.CharFilter(field_name="contacts__email", lookup_expr="startswith")
+    contact__istartswith = filters.CharFilter(field_name="contacts__email", lookup_expr="istartswith")
+    contact__endswith = filters.CharFilter(field_name="contacts__email", lookup_expr="endswith")
+    contact__iendswith = filters.CharFilter(field_name="contacts__email", lookup_expr="iendswith")
 
     class Meta:
         model = Host
         fields = {
             "id": INT_OPERATORS,
             "name": STRING_OPERATORS,
-            "contact": STRING_OPERATORS,
+            "contacts": INT_OPERATORS,
+            "contacts__email": STRING_OPERATORS,
             "ttl": INT_OPERATORS,
             "comment": STRING_OPERATORS,
             # These are related fields, ie, inverse relationships
