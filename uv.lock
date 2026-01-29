@@ -523,14 +523,14 @@ ci = [
     { name = "pytest-django" },
     { name = "tox-gh-actions" },
     { name = "tox-uv", specifier = ">=1.29" },
-    { name = "uv", specifier = ">=0.9" },
+    { name = "uv", specifier = ">=0.10" },
 ]
 dev = [
     { name = "coverage", extras = ["toml"] },
     { name = "pytest" },
     { name = "pytest-django" },
     { name = "tox-uv", specifier = ">=1.29" },
-    { name = "uv", specifier = ">=0.9" },
+    { name = "uv", specifier = ">=0.10" },
 ]
 
 [[package]]
