@@ -148,6 +148,7 @@ coverage html
 **Important**: Always run `coverage combine` after parallel test execution to merge the coverage data files from all worker processes. Without this, you'll only see coverage from one process.
 
 The `tox.ini` configuration handles this automatically:
+
 ```ini
 commands =
     coverage run --concurrency=multiprocessing manage.py test --parallel
