@@ -79,7 +79,6 @@ def test_db_metrics_recorded_with_values() -> None:
 
     host = Host.objects.create(
         name="db_metric_test.example.com",
-        contact="test@example.com",
         ttl=3600,
         comment="test",
     )
@@ -109,7 +108,6 @@ def test_db_query_count_metrics() -> None:
 
     host = Host.objects.create(
         name="db_count_test.example.com",
-        contact="test@example.com",
         ttl=3600,
         comment="test",
     )
