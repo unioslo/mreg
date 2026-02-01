@@ -27,8 +27,8 @@ class LowerCaseLookupMixinTestCase(TestCase):
         """Set up test objects."""
         self.factory = APIRequestFactory()
         
-        self.host1 = Host.objects.create(name="testhost.example.org", contact="test@example.org")
-        self.host2 = Host.objects.create(name="anotherhost.example.org", contact="test@example.org")
+        self.host1 = Host.objects.create(name="testhost.example.org")
+        self.host2 = Host.objects.create(name="anotherhost.example.org")
     
     def test_get_object_lowercase_lookup(self):
         """Test that get_object performs case-insensitive lookup."""
