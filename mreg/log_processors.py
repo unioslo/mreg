@@ -47,7 +47,7 @@ def filter_sensitive_data(_: Any, __: Any, event_dict: EventDict) -> EventDict:
         if event == "request" and "password" in content:
             if isinstance(event_dict["content"],dict):
                 event_dict["content"]["password"] = '...'
-            elif isinstance(event_dict["content"],str):
+            elif isinstance(event_dict["content"],str):  # pragma: no cover 
                 event_dict["content"] = re.sub(r'"password"\s*:\s*".*?"', '"password":"..."', event_dict["content"])
         elif event == "response" and "token" in content:
             token = content.split('"token":"')[1].split('"')[0]

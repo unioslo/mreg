@@ -8,9 +8,13 @@ that are not covered by the main functional tests.
 from unittest_parametrize import ParametrizedTestCase
 
 from mreg.models.host import Host, Ipaddress
+from django.test import TestCase, RequestFactory
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.test import APIClient
 from mreg.models.network import Network
 from mreg.models.network_policy import Community, NetworkPolicy
 
+from mreg.api.v1.views_m2m import M2MPermissions
 from .tests import MregAPITestCase
 
 
@@ -152,6 +156,59 @@ class HostListPostTest(MregAPITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("allocation_method", str(response.data))  # type: ignore[attr-defined]
         self.assertIn("network", str(response.data))  # type: ignore[attr-defined]
+
+class HostContactsViewCoverageTests(MregAPITestCase):
+    def setUp(self):
+        super().setUp()
+        self.set_client_format_json()
+        self.host = Host.objects.create(name="contacts-coverage.example")
+
+    def test_post_emails_not_list(self):
+        response = self.client.post(
+            f"/api/v1/hosts/{self.host.name}/contacts/",
+            data={"emails": "not-a-list"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_delete_emails_not_list(self):
+        response = self.client.delete(
+            f"/api/v1/hosts/{self.host.name}/contacts/",
+            data={"emails": "not-a-list"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+
+class M2MPermissionsTests(TestCase):
+    def test_permission_denied_when_check_fails(self):
+        class DenyPermission:
+            def has_m2m_change_permission(self, request, view):
+                return False
+
+        class DummyView(M2MPermissions):
+            def __init__(self):
+                self.request = RequestFactory().get("/")
+
+            def get_permissions(self):
+                return [DenyPermission()]
+
+            def permission_denied(self, request):
+                raise PermissionDenied()
+
+        view = DummyView()
+
+        with self.assertRaises(PermissionDenied):
+            view.check_m2m_update_permission(view.request)
+
+
+class MetricsViewCoverageTests(TestCase):
+    def test_metrics_view_returns_prometheus_payload(self):
+        client = APIClient()
+        response = client.get("/api/meta/metrics")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("text/plain", response["Content-Type"])
 
 
 class HostDetailPatchTest(ParametrizedTestCase, MregAPITestCase):
