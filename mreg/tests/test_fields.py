@@ -55,12 +55,13 @@ class LowerCaseDNSNameFieldTest(TestCase):
     def test_init_with_custom_validators(self):
         """Test field initialization with custom validators."""
         def custom_validator(x):
-            pass
+            return x
         field = LowerCaseDNSNameField(validators=[custom_validator])
         self.assertEqual(field.max_length, 253)
         self.assertIn(custom_validator, field.validators)
         # When custom validators are provided, the default is not added
         self.assertNotIn(validate_hostname, field.validators)
+        self.assertEqual(custom_validator("ok"), "ok")
 
     def test_get_db_prep_save(self):
         """Test that DNS names are stored in lowercase."""
@@ -81,12 +82,13 @@ class DnsNameFieldTest(TestCase):
     def test_init_with_custom_validators(self):
         """Test field initialization with custom validators."""
         def custom_validator(x):
-            pass
+            return x
         field = DnsNameField(validators=[custom_validator])
         self.assertEqual(field.max_length, 253)
         self.assertIn(custom_validator, field.validators)
         # When custom validators are provided, the default is not added
         self.assertNotIn(validate_hostname, field.validators)
+        self.assertEqual(custom_validator("ok"), "ok")
 
     def test_get_db_prep_save(self):
         """Test that DNS names are stored in lowercase."""

@@ -1,8 +1,13 @@
 from unittest import skip
 
+from django.http import QueryDict
+from django.test import TestCase
+from types import SimpleNamespace
+
 from mreg.models.host import Host
 from mreg.models.zone import ForwardZone, NameServer, ReverseZone
 from mreg.utils import create_serialno
+from mreg.api.v1.views_zones import _get_request_nameservers
 
 from .tests import clean_and_save, MregAPITestCase
 
@@ -615,3 +620,27 @@ class ZoneRFC2317(MregAPITestCase):
     def test_delete_rfc2317_zone(self):
         self.assert_post(self.zonepath, self.data)
         self.assert_delete(self.zonepath + '128/25.0.0.10.in-addr.arpa')
+
+
+class RequestNameserversTests(TestCase):
+    def test_get_request_nameservers_json(self):
+        request = SimpleNamespace(
+            content_type="application/json",
+            data={"primary_ns": ["ns1.example.org", "ns2.example.org"]},
+        )
+
+        names = _get_request_nameservers(request, "primary_ns")
+
+        self.assertEqual(names, ["ns1.example.org", "ns2.example.org"])
+
+    def test_get_request_nameservers_multipart(self):
+        data = QueryDict(mutable=True)
+        data.setlist("primary_ns", ["ns1.example.org", "ns2.example.org"])
+        request = SimpleNamespace(
+            content_type="multipart/form-data",
+            data=data,
+        )
+
+        names = _get_request_nameservers(request, "primary_ns")
+
+        self.assertEqual(names, ["ns1.example.org", "ns2.example.org"])
