@@ -11,6 +11,7 @@ from mreg.api.permissions import IsGrantedNetGroupRegexPermission, IsGrantedRese
 from mreg.models.auth import User
 from mreg.models.host import Host, Ipaddress
 from mreg.models.network import Network, NetGroupRegexPermission
+from mreg.api.v1 import views as v1_views
 
 from .tests import MregAPITestCase
 
@@ -112,6 +113,29 @@ class TestIsGrantedNetGroupRegexPermission(MregAPITestCase):
 
         with self.assertRaises(PermissionDenied):
             permission.has_destroy_permission(request, view, serializer)
+
+    @mock.patch('mreg.api.permissions.User.from_request')
+    def test_destroy_permission_reserved_ipaddress_denied(self, mock_user_from_request):
+        class DummyObj:
+            def __init__(self, name, ipaddress):
+                self.name = name
+                self.ipaddress = ipaddress
+
+        user = get_mock_user()  # Regular user
+        request = get_mock_request(user, mock_user_from_request)
+
+        # Reserve a network containing the dummy IP
+        Network.objects.create(network="10.0.0.0/24", description="net")
+
+        view = v1_views.HostDetail()
+        view.get_object = mock.Mock(return_value=DummyObj("host.example.org", "10.0.0.0"))
+
+        serializer = mock.Mock()
+        serializer.validated_data = {}
+
+        permission = IsGrantedNetGroupRegexPermission()
+
+        self.assertFalse(permission.has_destroy_permission(request, view, serializer))
 
 
 class NetGroupRegexPermissionTestCase(MregAPITestCase):

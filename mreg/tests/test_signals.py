@@ -17,6 +17,7 @@ from mreg.signals import (
     _signal_history,
     add_auto_txt_records_on_new_host,
     capture_old_name,
+    cleanup_contacts_after_host_delete,
     cleanup_network_permissions,
     hostgroup_update_updated_at_on_changes,
     log_object_creation,
@@ -44,6 +45,12 @@ class SignalsTest(TestCase):
 
         h = Host.objects.create(name="a.example")
         self.assertEqual(_identifier(h), h.id)
+
+    def test_cleanup_contacts_after_host_delete_missing_contact(self):
+        host = Host.objects.create(name="cleanup-missing.example.org")
+        host._contact_ids_to_check = [999999]  # type: ignore[attr-defined]
+
+        cleanup_contacts_after_host_delete(Host, host)
 
     def test_signal_history_validation_and_save(self):
         # should save valid history

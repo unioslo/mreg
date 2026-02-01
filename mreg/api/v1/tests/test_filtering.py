@@ -115,7 +115,7 @@ def create_roles(
 
 
 def resolve_target(target: Union[str, List[str]]) -> List[int]:
-    if isinstance(target, str):
+    if isinstance(target, str): # pragma: no cover
         return [int(target)]
     else:
         return [int(t) for t in target]

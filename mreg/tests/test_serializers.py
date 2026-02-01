@@ -120,6 +120,25 @@ class HostSerializerTests(TestCase):
         self.assertEqual(host.get_contact_emails(), ["new@example.com"])
         self.assertTrue(Ipaddress.objects.filter(host=host, ipaddress="10.0.0.2").exists())
 
+    def test_create_adds_contacts_from_list(self):
+        serializer = HostSerializer()
+        serializer.initial_data = {"contacts": ["a@example.com", "b@example.com"]}
+        validated_data = {"name": "host-with-contacts-list"}
+
+        host = serializer.create(validated_data)
+
+        self.assertCountEqual(host.get_contact_emails(), ["a@example.com", "b@example.com"])
+
+    def test_create_assigns_community_when_provided(self):
+        serializer = HostSerializer()
+        serializer._assign_community = mock.Mock()
+        serializer.initial_data = {}
+        community = Community(name="comm", description="", network=None)
+
+        host = serializer.create({"name": "host-community.example", "communities": community})
+
+        serializer._assign_community.assert_called_once_with(host, community)
+
     def test_update_replaces_contacts_from_raw_string_and_skips_contact_field(self):
         host = Host.objects.create(name="host-update.example")
         host._add_contact("old@example.com")
@@ -139,6 +158,15 @@ class HostSerializerTests(TestCase):
 
         with self.assertRaises(serializers.ValidationError):
             serializer.update(host, {"ipaddress": "bad-ip"})
+
+    def test_update_adds_ipaddress(self):
+        host = Host.objects.create(name="host-ip-add.example")
+        serializer = HostSerializer(instance=host)
+        serializer.initial_data = {}
+
+        serializer.update(host, {"ipaddress": "10.0.0.9"})
+
+        self.assertTrue(Ipaddress.objects.filter(host=host, ipaddress="10.0.0.9").exists())
 
     def test_update_calls_assign_and_unassign_branches(self):
         host = Host.objects.create(name="branch.example")
@@ -264,6 +292,20 @@ class NetworkPolicyAttributeValueSerializerTests(TestCase):
         with self.assertRaises(serializers.ValidationError):
             serializer.update(value, {"name": "missing", "value": True})
 
+    def test_update_with_existing_attribute_changes_attribute(self):
+        attr_one = NetworkPolicyAttribute.objects.create(name="one", description="")
+        attr_two = NetworkPolicyAttribute.objects.create(name="two", description="")
+        policy = NetworkPolicy.objects.create(name="policy-update-attr", description="")
+        value = NetworkPolicyAttributeValue.objects.create(
+            policy=policy, attribute=attr_one, value=False
+        )
+        serializer = NetworkPolicyAttributeValueSerializer(instance=value)
+
+        updated = serializer.update(value, {"name": attr_two.name, "value": True})
+
+        self.assertEqual(updated.attribute, attr_two)
+        self.assertTrue(updated.value)
+
 
 class NetworkPolicySerializerTests(TestCase):
     def test_validate_name_duplicate_on_create(self):
@@ -273,6 +315,13 @@ class NetworkPolicySerializerTests(TestCase):
         with self.assertRaises(serializers.ValidationError):
             serializer.is_valid(raise_exception=True)
 
+    def test_validate_name_duplicate_on_create_direct(self):
+        existing = NetworkPolicy.objects.create(name="dupe-direct", description="")
+        serializer = NetworkPolicySerializer()
+
+        with self.assertRaises(serializers.ValidationError):
+            serializer.validate_name(existing.name)
+
     def test_validate_name_duplicate_on_update(self):
         first = NetworkPolicy.objects.create(name="first", description="")
         second = NetworkPolicy.objects.create(name="second", description="")
@@ -280,6 +329,14 @@ class NetworkPolicySerializerTests(TestCase):
 
         with self.assertRaises(serializers.ValidationError):
             serializer.is_valid(raise_exception=True)
+
+    def test_validate_name_duplicate_on_update_direct(self):
+        first = NetworkPolicy.objects.create(name="first-direct", description="")
+        second = NetworkPolicy.objects.create(name="second-direct", description="")
+        serializer = NetworkPolicySerializer(instance=first)
+
+        with self.assertRaises(serializers.ValidationError):
+            serializer.validate_name(second.name)
 
     def test_validate_attributes_requires_list(self):
         serializer = NetworkPolicySerializer(
@@ -289,6 +346,12 @@ class NetworkPolicySerializerTests(TestCase):
         with self.assertRaises(serializers.ValidationError):
             serializer.is_valid(raise_exception=True)
 
+    def test_validate_attributes_requires_list_direct(self):
+        serializer = NetworkPolicySerializer()
+
+        with self.assertRaises(serializers.ValidationError):
+            serializer.validate_attributes("not-a-list")
+
     def test_validate_attributes_elements_must_be_dicts(self):
         serializer = NetworkPolicySerializer(
             data={"name": "attr2", "description": "", "attributes": [1, 2]}
@@ -296,6 +359,12 @@ class NetworkPolicySerializerTests(TestCase):
 
         with self.assertRaises(serializers.ValidationError):
             serializer.is_valid(raise_exception=True)
+
+    def test_validate_attributes_elements_must_be_dicts_direct(self):
+        serializer = NetworkPolicySerializer()
+
+        with self.assertRaises(serializers.ValidationError):
+            serializer.validate_attributes([1, 2])
 
     def test_validate_attributes_missing_attribute_definitions(self):
         serializer = NetworkPolicySerializer(
