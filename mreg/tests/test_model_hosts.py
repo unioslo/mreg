@@ -118,7 +118,7 @@ class ModelHostCommunitiesTestCase(TestCase):
         )
         
         # Create host with multiple IPs
-        self.host = Host.objects.create(name="testhost.example.org", contact="test@example.org")
+        self.host = Host.objects.create(name="testhost.example.org")
         self.ip1 = Ipaddress.objects.create(host=self.host, ipaddress="10.0.1.10", macaddress="aa:bb:cc:dd:ee:01")
         self.ip2 = Ipaddress.objects.create(host=self.host, ipaddress="10.0.2.10", macaddress="aa:bb:cc:dd:ee:02")
 
@@ -351,7 +351,7 @@ class ModelPtrOverrideTestCase(TestCase):
 
     def setUp(self):
         """Set up test host."""
-        self.host = Host.objects.create(name="test.example.org", contact="test@example.org")
+        self.host = Host.objects.create(name="test.example.org")
 
     def test_ptroverride_str(self):
         """Test PtrOverride __str__ method."""
@@ -373,7 +373,7 @@ class ModelBACnetIDTestCase(TestCase):
 
     def setUp(self):
         """Set up test host."""
-        self.host = Host.objects.create(name="bacnet.example.org", contact="test@example.org")
+        self.host = Host.objects.create(name="bacnet.example.org")
 
     def test_bacnetid_creation(self):
         """Test creating a BACnetID."""
