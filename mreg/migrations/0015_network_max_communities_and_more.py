@@ -16,6 +16,11 @@ class Migration(migrations.Migration):
             name='max_communities',
             field=models.PositiveIntegerField(blank=True, null=True),
         ),
+        migrations.RenameField(
+            model_name='networkpolicy',
+            old_name='community_mapping_prefix',
+            new_name='community_template_pattern',
+        ),
         migrations.AlterField(
             model_name='networkpolicy',
             name='community_template_pattern',
