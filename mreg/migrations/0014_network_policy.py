@@ -21,7 +21,7 @@ class Migration(migrations.Migration):
                 ('updated_at', models.DateTimeField(auto_now=True)),
                 ('name', mreg.fields.LowerCaseCharField(help_text='Name of the network policy.', max_length=100, unique=True)),
                 ('description', models.TextField(blank=True, help_text='Description of the network policy.')),
-                ('community_template_pattern', models.CharField(blank=True, help_text='Prefix for mapped community names. If not set, the default will be used. This only applies if communities are mapped.', null=True, validators=[mreg.validators.validate_community_template_pattern])),
+                ('community_mapping_prefix', models.CharField(blank=True, help_text='Prefix for mapped community names. If not set, the default will be used. This only applies if communities are mapped.', null=True, validators=[mreg.validators.validate_community_template_pattern])),
             ],
             options={
                 'abstract': False,
