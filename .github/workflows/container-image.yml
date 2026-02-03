@@ -154,7 +154,7 @@ jobs:
     name: Publish
     # Run for version tags, commits to master branch, and pull requests
     if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' || github.event_name == 'pull_request'
-    needs: [test, mreg-cli, test-with-curl]
+    needs: [test, test-with-curl]
     runs-on: ubuntu-latest
     permissions:
       packages: write
