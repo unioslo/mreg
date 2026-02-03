@@ -81,6 +81,22 @@ class BACnetIDTest(MregAPITestCase):
         post_data = {'id': self.id_one.id, 'host': self.host_two.id}
         self.assert_post_and_409(self.basepath, post_data)
 
+    def test_patch_not_allowed(self):
+        response = self.client.patch(
+            self.basejoin(self.id_one.id),
+            data={"id": self.id_one.id},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 405)
+
+    def test_put_not_allowed(self):
+        response = self.client.put(
+            self.basejoin(self.id_one.id),
+            data={"id": self.id_one.id},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 405)
+
     def test_delete_204_ok(self):
         """Delete should return 204 ok"""
         self.assert_delete(self.basejoin(self.id_one.id))

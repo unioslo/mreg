@@ -4,13 +4,14 @@ from unittest import mock
 from django.conf import settings
 from django.contrib.auth.models import Group
 from django.test import RequestFactory
-from django.test.client import WSGIRequest
+from django.core.handlers.wsgi import WSGIRequest
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.test import APIClient, force_authenticate
 from mreg.api.permissions import IsGrantedNetGroupRegexPermission, IsGrantedReservedAddressPermission
 from mreg.models.auth import User
 from mreg.models.host import Host, Ipaddress
 from mreg.models.network import Network, NetGroupRegexPermission
+from mreg.api.v1 import views as v1_views
 
 from .tests import MregAPITestCase
 
@@ -112,6 +113,29 @@ class TestIsGrantedNetGroupRegexPermission(MregAPITestCase):
 
         with self.assertRaises(PermissionDenied):
             permission.has_destroy_permission(request, view, serializer)
+
+    @mock.patch('mreg.api.permissions.User.from_request')
+    def test_destroy_permission_reserved_ipaddress_denied(self, mock_user_from_request):
+        class DummyObj:
+            def __init__(self, name, ipaddress):
+                self.name = name
+                self.ipaddress = ipaddress
+
+        user = get_mock_user()  # Regular user
+        request = get_mock_request(user, mock_user_from_request)
+
+        # Reserve a network containing the dummy IP
+        Network.objects.create(network="10.0.0.0/24", description="net")
+
+        view = v1_views.HostDetail()
+        view.get_object = mock.Mock(return_value=DummyObj("host.example.org", "10.0.0.0"))
+
+        serializer = mock.Mock()
+        serializer.validated_data = {}
+
+        permission = IsGrantedNetGroupRegexPermission()
+
+        self.assertFalse(permission.has_destroy_permission(request, view, serializer))
 
 
 class NetGroupRegexPermissionTestCase(MregAPITestCase):
@@ -310,6 +334,48 @@ class ReservedAddressPermissionsTestCase(MregAPITestCase):
             data = {'name': 'test-regular-ipv6.example.org', 'ipaddress': self.ipv6_regular_addr}
             self.assert_post_and_201('/hosts/', data)
 
+    @mock.patch('mreg.api.permissions.User.from_request')
+    def test_has_update_permission_with_invalid_ip(
+        self,
+        mock_user_from_request
+    ):
+        """Test has_update_permission with an invalid IP address."""
+        user = get_mock_user()  # Regular user
+        request = get_mock_request(user, mock_user_from_request)
+
+        view = mock.Mock()
+        
+        serializer = mock.Mock()
+        # Set an invalid IP address - should return True and let serializer handle validation
+        serializer.validated_data = {"ipaddress": "not-an-ip-address"}
+
+        permission = IsGrantedReservedAddressPermission()
+
+        # Should return True because the permission class lets the serializer validate the IP
+        result = permission.has_update_permission(request, view, serializer)
+        self.assertTrue(result)
+        
+    @mock.patch('mreg.api.permissions.User.from_request')
+    def test_has_create_permission_with_invalid_ip(
+        self,
+        mock_user_from_request
+    ):
+        """Test has_create_permission with an invalid IP address."""
+        user = get_mock_user()  # Regular user
+        request = get_mock_request(user, mock_user_from_request)
+
+        view = mock.Mock()
+        
+        serializer = mock.Mock()
+        # Set an invalid IP address - should return True and let serializer handle validation
+        serializer.validated_data = {"ipaddress": "not-an-ip-address"}
+
+        permission = IsGrantedReservedAddressPermission()
+
+        # Should return True because the permission class lets the serializer validate the IP
+        result = permission.has_create_permission(request, view, serializer)
+        self.assertTrue(result)
+
     def test_ipaddress_endpoint_reserved_addresses(self):
         """Test reserved address restrictions on /ipaddresses/ endpoint."""
         # Create a host first
@@ -450,3 +516,46 @@ class ReservedAddressPermissionsTestCase(MregAPITestCase):
         # Network admin permitted
         with self.temporary_client_as_network_admin():
             self.assert_post_and_201('/hosts/', data)
+
+    def test_get_mock_user_all_permissions(self):
+        """Test get_mock_user helper with all permission combinations."""
+        # Test each admin type individually to cover all branches
+        user_superuser = get_mock_user(superuser=True)
+        self.assertTrue(user_superuser.is_mreg_superuser)
+        
+        user_admin = get_mock_user(admin=True)
+        self.assertTrue(user_admin.is_mreg_admin)
+        
+        user_network_admin = get_mock_user(network_admin=True)
+        self.assertTrue(user_network_admin.is_mreg_network_admin)
+        
+        user_hostgroup_admin = get_mock_user(hostgroup_admin=True)
+        self.assertTrue(user_hostgroup_admin.is_mreg_hostgroup_admin)
+        
+        user_dns_wildcard = get_mock_user(dns_wildcard_admin=True)
+        self.assertTrue(user_dns_wildcard.is_mreg_dns_wildcard_admin)
+        
+        user_underscore = get_mock_user(underscore_admin=True)
+        self.assertTrue(user_underscore.is_mreg_dns_underscore_admin)
+        
+        user_policy = get_mock_user(hostpolicy_admin=True)
+        self.assertTrue(user_policy.is_mreg_hostpolicy_admin)
+
+class IsSuperGroupMemberTestCase(MregAPITestCase):
+    """Test IsSuperGroupMember permission class."""
+
+    def test_unauthenticated_user_denied(self):
+        """Test that unauthenticated users are denied access."""
+        from mreg.api.permissions import IsSuperGroupMember
+        from django.contrib.auth.models import AnonymousUser
+        
+        # Create an unauthenticated request
+        request = RequestFactory().get('/')
+        request.user = AnonymousUser()
+        
+        view = mock.Mock()
+        permission = IsSuperGroupMember()
+        
+        # Should return False for unauthenticated user
+        result = permission.has_permission(request, view)
+        self.assertFalse(result)

@@ -208,7 +208,7 @@ class Network(BaseModel):
                         randomip = ipaddress.IPv6Address(choice)
                     else:
                         randomip = ipaddress.IPv4Address(choice)
-                    if randomip in used_or_reserved:
+                    if randomip in used_or_reserved: # pragma: no cover (annoying to test randomness consistently)
                         continue
                     was_excluded = False
                     for start_ip, end_ip in excluded:

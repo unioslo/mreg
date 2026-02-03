@@ -1,5 +1,6 @@
 from django.core.exceptions import ValidationError
 from django.test import TestCase
+from unittest import mock
 from unittest_parametrize import ParametrizedTestCase, parametrize, param
 
 from mreg.models.host import Host, HostContact
@@ -81,6 +82,20 @@ class ModelHostContactTestCase(TestCase):
         # Verify both hosts have this contact
         self.assertIn(contact1, host1.contacts.all())
         self.assertIn(contact1, host2.contacts.all())
+
+    def test_add_contacts_reraises_non_email_validation_error(self):
+        host = Host.objects.create(name="raise.example.org")
+
+        with mock.patch.object(Host, "_add_contact", side_effect=ValidationError("boom")):
+            with self.assertRaises(ValidationError):
+                host.add_contacts(["bad@example.org"])
+
+    def test_remove_contact_returns_false_if_not_associated(self):
+        host1 = Host.objects.create(name="remove1.example.org")
+        host2 = Host.objects.create(name="remove2.example.org")
+        contact, _ = host1._add_contact("shared-remove@example.org")
+
+        self.assertFalse(host2.remove_contact(contact.email))
 
     def test_orphaned_contact_cleanup(self):
         """Test that orphaned contacts are cleaned up when no hosts reference them."""
