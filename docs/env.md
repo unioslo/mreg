@@ -28,6 +28,14 @@ Must be one of the following:
 - `ERROR`
 - `CRITICAL`
 
+## `MREG_POLICY_PARITY_BATCH_ENABLED`
+
+Boolean flag controlling request-scoped batching of parity authorize checks.
+Default: `True`
+
+When enabled, parity checks are queued during request handling and flushed as a
+single batch call to the policy `authorize` endpoint.
+
 ## `MREG_LOG_FILE_SIZE`
 
 Maximum file size of the log file in bytes. Default: `52428800` (50MB).
