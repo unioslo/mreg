@@ -14,7 +14,11 @@ services:
     ports:
       - "9999:9999"
     environment:
-      - APP_POLICY_URL=http://cedar-server:8080/mreg.cedar
-      - APP_HOST_LABEL_URL=http://cedar-server:8080/host_labels.json
-      - RUST_LOG=info,treetop=debug
-    command: ["server", "--host", "0.0.0.0"]
+      - TREETOP_POLICY_URL=http://cedar-server:8080/mreg.cedar
+      - TREETOP_LABELS_URL=http://cedar-server:8080/labels.json
+      - TREETOP_PORT=9999
+      - TREETOP_CLIENT_ALLOWLIST=*
+      - TREETOP_LISTEN=0.0.0.0
+      - RUST_LOG=mio=warn,actix_server=warn,actix_http=warn,hyper_util=warn,reqwest=warn,info
+    healthcheck:
+      test: ["NONE"]

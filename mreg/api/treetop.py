@@ -62,9 +62,11 @@ def _is_parity_enabled() -> bool:
     return not getattr(_thread_local, "skip_parity", False)
 
 def _corr_id(request: Request) -> Optional[str]:
+    """Return request correlation ID from standard header variants."""
     return request.headers.get("X-Correlation-ID") or request.META.get("HTTP_X_CORRELATION_ID")
 
 def _model_name_from_view(view) -> str:  # type: ignore
+    """Best-effort view model name, preferring serializer Meta.model."""
     # Best effort: try serializer model, else view class name
     try:
         sc = view.get_serializer_class()
@@ -133,8 +135,8 @@ def policy_parity(
 
     pol_allowed, error = None, None
     try:
-        resp = treetopclient.check(TreeTopRequest(principal=principal, action=pol_action, resource=res))
-        pol_allowed = bool(resp.is_allowed())
+        resp = treetopclient.authorize(TreeTopRequest(principal=principal, action=pol_action, resource=res))
+        pol_allowed = bool(resp.all_allowed())
     except Exception as exc:
         error = repr(exc)
         # Log policy server errors prominently
@@ -175,5 +177,6 @@ def policy_parity(
 
 # Log data to a file in addition to normal logging
 def log_policy_parity(payload: dict[str, Any]):
+    """Append one JSON parity event to the configured parity log file."""
     with open(POLICY_EXTRA_LOG_FILE_NAME, "a") as log_file:
         log_file.write(f"{json.dumps(payload)}\n")

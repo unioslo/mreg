@@ -79,6 +79,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SECRET_KEY = ")e#67040xjxar=zl^y#@#b*zilv2dxtraj582$^(e6!wf++_n#"
 
 LOG_LEVEL = envvar("MREG_LOG_LEVEL", "CRITICAL").upper()
+POLICY_PARITY_LOG_LEVEL = envvar("MREG_POLICY_PARITY_LOG_LEVEL", "WARNING").upper()
 
 REQUESTS_THRESHOLD_SLOW = envvar("MREG_REQUESTS_THRESHOLD_SLOW", 1000)
 REQUESTS_LOG_LEVEL_SLOW = envvar("MREG_REQUESTS_LOG_LEVEL_SLOW", "WARNING")
@@ -405,12 +406,30 @@ logging.config.dictConfig(
                 "filename": LOG_FILE_NAME,
                 "formatter": "plain",
             },
+            "policy_parity_default": {
+                "level": POLICY_PARITY_LOG_LEVEL,
+                "class": "logging.StreamHandler",
+                "formatter": "colored",
+            },
+            "policy_parity_file": {
+                "level": POLICY_PARITY_LOG_LEVEL,
+                "class": "logging.handlers.RotatingFileHandler",
+                "maxBytes": LOG_FILE_SIZE,
+                "backupCount": LOG_FILE_COUNT,
+                "filename": LOG_FILE_NAME,
+                "formatter": "plain",
+            },
         },
         "loggers": {
             "": {
                 "handlers": ["default", "file"],
                 "level": "DEBUG",
                 "propagate": True,
+            },
+            "mreg.policy.parity": {
+                "handlers": ["policy_parity_default", "policy_parity_file"],
+                "level": POLICY_PARITY_LOG_LEVEL,
+                "propagate": False,
             },
         },
     }

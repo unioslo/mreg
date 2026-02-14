@@ -1,5 +1,9 @@
 # Disabling Parity Checking in Tests
 
+Related documentation:
+
+- Policy actions and resource/action contracts: [`policies.md`](./policies.md)
+
 ## Problem
 
 Tests that modify permissions or group memberships mid-test cause the legacy permission system and the TreeTop policy engine to be out of sync. Since TreeTop's policy content is immutable, these tests cannot maintain parity between the two systems.
@@ -94,6 +98,61 @@ Do NOT disable parity checking for:
 - Tests that modify non-permission data (hosts, networks, etc.)
 - Tests where both legacy and policy systems should agree
 
+## Scope Rules (Enforcement Guidance)
+
+Keep parity disable scope as narrow as possible:
+
+- Prefer wrapping only the exact mutation and requests that depend on that mutation.
+- Do not wrap an entire test module unless the whole module genuinely mutates permission state.
+- Do not wrap whole suites by default; this hides real policy regressions.
+- Re-enable parity immediately after the mutation scenario has been asserted.
+
 ## Implementation Details
 
 The `disable_policy_parity()` context manager uses thread-local storage to safely disable parity checking for the current thread only, ensuring test isolation in parallel test execution.
+
+## Parity Runbook
+
+Use this sequence when validating parity changes:
+
+1. Run full tests with coverage and parity logging enabled.
+
+```bash
+source .env; .venv/bin/tox -e coverage
+```
+
+2. Count parity mismatches.
+
+```bash
+jq -s '[.[] | select(.parity == false)] | length' policy_parity.log
+```
+
+3. List mismatch lines for triage.
+
+```bash
+rg -n '"parity": false' policy_parity.log
+```
+
+4. Optional: inspect actions seen in the run.
+
+```bash
+jq -r '.context.action // empty' policy_parity.log | sort | uniq -c | sort -nr
+```
+
+## Mismatch Triage Guide
+
+Use the payload fields `legacy_decision`, `policy_decision`, `context.action`, and `context.resource_attrs`.
+
+- `legacy_decision=true`, `policy_decision=false`:
+  - Missing/too-narrow Cedar allow rule.
+  - Action name mismatch (for example wrong CRUD token).
+  - Missing required attributes for Cedar conditions.
+- `legacy_decision=false`, `policy_decision=true`:
+  - Cedar rule is broader than legacy behavior.
+  - Resource kind fallback produced a more permissive policy path than intended.
+- `error` present:
+  - Policy client/server failure. Resolve connectivity/config first before triaging semantics.
+- Unexpected `context.resource_kind` (for example view name fallback):
+  - Fix serializer `Meta.model` usage or explicit resource kind dispatch in permission code.
+
+When fixing mismatches, update code and Cedar together, then rerun the runbook until mismatch count is zero.

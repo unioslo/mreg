@@ -26,7 +26,7 @@ dependencies = [
     "pyyaml",
     # For testing inside Docker image
     "unittest-parametrize",
-   "treetop-client>=0.0.7",
+    "treetop-client>=0.0.1",
     "prometheus-client>=0.24",
 ]
 dynamic = ["version"]
@@ -39,6 +39,7 @@ dev = [
     "pytest",
     "pytest-django",
     "uv>=0.10",
+    "tblib>=3",
 ]
 ci = [
     # Explictly include dev group for non-uv package managers

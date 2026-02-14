@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ipaddress
+import re
 from django.db import models
 from typing import TYPE_CHECKING, Iterable, Mapping, Optional, Tuple, Any
 from rest_framework import exceptions
@@ -38,6 +39,146 @@ class ParityMixin:
     feed into a single decision (pp_any, pp_all), use _pp() internally to avoid
     nested logging and only log the final result.
     """
+
+    _CRUD_METHOD_TO_OPERATION = {
+        "GET": "read",
+        "HEAD": "read",
+        "OPTIONS": "read",
+        "POST": "create",
+        "PUT": "update",
+        "PATCH": "update",
+        "DELETE": "delete",
+    }
+
+    @staticmethod
+    def _stringify_attr_value(value: Any) -> str:
+        """Convert attribute values to strings for TreeTop resource attributes."""
+        return "" if value is None else str(value)
+
+    @staticmethod
+    def _snake_case(value: str) -> str:
+        """Normalize model/resource names to snake_case action/resource tokens."""
+        if value.startswith("BACnet"):
+            value = f"Bacnet{value[len('BACnet'):]}"
+        value = re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", value)
+        value = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", value)
+        value = value.replace("-", "_")
+        value = re.sub(r"[^a-zA-Z0-9_]+", "_", value).strip("_").lower()
+        return value or "generic"
+
+    @staticmethod
+    def _resource_name_from_model(model: Any) -> Optional[str]:
+        """Return a model class name if available, otherwise None."""
+        name = getattr(model, "__name__", None)
+        return str(name) if name else None
+
+    def _resource_kind_from_view(
+        self,
+        *,
+        view: "GenericAPIView",
+        validated_serializer: Optional["Serializer"] = None,
+        obj: Any = None,
+    ) -> str:
+        """Resolve a resource kind for parity from object/serializer/view metadata.
+
+        Resolution order:
+        1. concrete object class
+        2. serializer Meta.model (validated serializer)
+        3. view serializer Meta.model
+        4. validated serializer instance class
+        5. view class name with common DRF suffixes stripped
+        """
+        if obj is not None:
+            return obj.__class__.__name__
+
+        if validated_serializer is not None:
+            serializer_model = self._resource_name_from_model(
+                getattr(getattr(validated_serializer, "Meta", None), "model", None)
+            )
+            if serializer_model:
+                return serializer_model
+
+        try:
+            serializer_class = view.get_serializer_class()
+            view_model = self._resource_name_from_model(
+                getattr(getattr(serializer_class, "Meta", None), "model", None)
+            )
+            if view_model:
+                return view_model
+        except Exception:
+            pass
+
+        if validated_serializer is not None:
+            instance = getattr(validated_serializer, "instance", None)
+            if instance is not None:
+                return instance.__class__.__name__
+
+        view_name = view.__class__.__name__
+        for suffix in ("List", "Detail", "View"):
+            if view_name.endswith(suffix):
+                view_name = view_name[: -len(suffix)]
+                break
+        return view_name or "Generic"
+
+    def _resource_id_from_view(
+        self,
+        *,
+        view: "GenericAPIView",
+        validated_serializer: Optional["Serializer"] = None,
+        obj: Any = None,
+        data: Optional[Mapping[str, Any]] = None,
+        default: str = "any",
+    ) -> str:
+        """Resolve a stable resource identifier for parity logging/evaluation."""
+        if obj is not None:
+            for key in ("pk", "id", "name"):
+                val = getattr(obj, key, None)
+                if val is not None:
+                    return str(val)
+
+        if data:
+            for key in ("pk", "id", "name"):
+                val = data.get(key)
+                if val is not None:
+                    return str(val)
+
+        if validated_serializer is not None:
+            instance = getattr(validated_serializer, "instance", None)
+            if instance is not None:
+                for key in ("pk", "id", "name"):
+                    val = getattr(instance, key, None)
+                    if val is not None:
+                        return str(val)
+
+        view_kwargs = getattr(view, "kwargs", {})
+        if isinstance(view_kwargs, Mapping):
+            for key in ("pk", "id", "name", "cpk", "hostpk", "network"):
+                if key in view_kwargs and view_kwargs[key] is not None:
+                    return str(view_kwargs[key])
+
+        return default
+
+    def _crud_operation_from_method(self, method: str) -> str:
+        """Map an HTTP method to a CRUD operation token."""
+        return self._CRUD_METHOD_TO_OPERATION.get(method.upper(), "read")
+
+    def _crud_action(self, resource_kind: str, operation: str) -> str:
+        """Build a policy action name like `<resource>_<operation>`."""
+        return f"{self._snake_case(resource_kind)}_{operation}"
+
+    def _normalize_resource_attrs(
+        self,
+        *,
+        resource_kind: str,
+        attrs: Optional[Mapping[str, Any]],
+    ) -> dict[str, str]:
+        """Normalize resource attributes to string values with a canonical kind."""
+        normalized = {"kind": self._snake_case(resource_kind)}
+        if attrs:
+            normalized.update(
+                {str(k): self._stringify_attr_value(v) for k, v in attrs.items()}
+            )
+        return normalized
 
     def _pp(
         self,
@@ -77,6 +218,7 @@ class ParityMixin:
         resource_id: str = "any",
         resource_attrs: Optional[Mapping[str, str]] = None,
     ) -> bool:
+        """Run one parity check and emit a single parity log record."""
         return self._pp(
             decision=decision,
             action=action,
@@ -95,16 +237,16 @@ class ParityMixin:
         request: Request,
         view: "GenericAPIView",
         resource_id: str = "",
-        action: str = "host_access",
+        action: str = "host_read",
         resource_attrs: Optional[Mapping[str, str]] = None,
     ) -> bool:
         """Helper for host-related actions.
 
-        Assumes `resource_kind="Host"` and `action="host_access"`, and tries to extract the resource ID from
+        Assumes `resource_kind="Host"` and tries to extract the resource ID from
         `resource_attrs["hostname"]` if not explicitly given.
         """
 
-        if not resource_id and resource_attrs and hasattr(resource_attrs, "hostname"):
+        if not resource_id and resource_attrs and "hostname" in resource_attrs:
             resource_id = resource_attrs["hostname"]
 
         return self.pp(
@@ -126,6 +268,7 @@ class ParityMixin:
         resource_kind: str = "Generic",
         resource_attrs: Optional[Mapping[str, str]] = None,
     ) -> bool:
+        """Return True if any candidate check succeeds, without nested logging."""
         # Use internal _pp with log=False to avoid nested logging for each check
         for decision, action in checks:
             if self._pp(
@@ -149,6 +292,7 @@ class ParityMixin:
         resource_kind: str = "Generic",
         resource_attrs: Optional[Mapping[str, str]] = None,
     ) -> bool:
+        """Return True if all candidate checks succeed, without nested logging."""
         # Use internal _pp with log=False to avoid nested logging for each check
         for decision, action in checks:
             if not self._pp(
@@ -165,22 +309,23 @@ class ParityMixin:
 
     def pp_generic_action(
         self,
-        attrs: Mapping[str, str],
+        attrs: Mapping[str, Any],
         decision: bool,
         action: str,
         request: Request,
         view: GenericAPIView,
         kind: str = "Generic",
-        id: str = "Any"
+        id: str = "any"
     ) -> bool:
+        """Convenience wrapper that normalizes attrs and forwards to pp()."""
         return self.pp(
             decision=decision,
             action=action,
             request=request,
             view=view,
             resource_kind=kind,
-            resource_id=id,
-            resource_attrs={ kind: kind, **attrs }
+            resource_id=str(id),
+            resource_attrs=self._normalize_resource_attrs(resource_kind=kind, attrs=attrs),
         )
 
     def user_has_permission(
@@ -393,6 +538,7 @@ class IsSuperGroupMember(IsAuthenticated):
                 permission_class=self.__class__.__name__,
                 action="is_superuser",
                 resource_kind="Generic",
+                resource_id="any",
                 resource_attrs={"kind": "Any", "id": "any"},
             )
 
@@ -451,11 +597,23 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
         # just do some preliminary checks.
         if not super().has_permission(request, view):
             return False
+
         user = User.from_request(request)
         if request.method in SAFE_METHODS:
-            return True
+            resource_kind = self._resource_kind_from_view(view=view)
+            return self.pp_generic_action(
+                decision=True,
+                action=self._crud_action(resource_kind, "read"),
+                kind=resource_kind,
+                id=self._resource_id_from_view(view=view),
+                attrs={"path": request.path},
+                request=request,
+                view=view,
+            )
+
         if user.is_mreg_superuser_or_admin:
             return True
+
         # Will do do more object checks later, but initially refuse any
         # unwarranted requests.
         qs = NetGroupRegexPermission.objects.filter(group__in=user.group_list)
@@ -469,22 +627,76 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
             return True
         return False
 
-    def has_perm(self, user, hostname, ips, request: Request, view: GenericAPIView, require_ip=True):
+    def has_perm(
+        self,
+        user,
+        hostname,
+        ips,
+        request: Request,
+        view: GenericAPIView,
+        require_ip=True,
+        action: Optional[str] = None,
+        resource_kind: str = "Host",
+        resource_id: Optional[str] = None,
+    ):
+        """Evaluate NetGroupRegexPermission and parity for hostname/IP tuples."""
         legacy = bool(NetGroupRegexPermission.find_perm(user.group_list, hostname, ips, require_ip))
+        operation = self._crud_operation_from_method(request.method)
+        resolved_action = action or self._crud_action(resource_kind, operation)
+        resolved_resource_id = str(resource_id or hostname or "any")
         policy: list[bool] = []
         if ips:
             # This will perform one policy lookup per IP for the host. This should probably be optimized server side.        
             for ip in ips:
-                policy.append(self.pp_host(decision=legacy, request=request, view=view, resource_attrs={"hostname": hostname, "ip": ip}))
+                policy.append(
+                    self.pp(
+                        decision=legacy,
+                        action=resolved_action,
+                        request=request,
+                        view=view,
+                        resource_kind=resource_kind,
+                        resource_id=resolved_resource_id,
+                        resource_attrs={"hostname": str(hostname), "ip": str(ip)},
+                    )
+                )
         else:
-            policy.append(self.pp_host(decision=legacy, request=request, view=view, resource_attrs={"hostname": hostname}))
+            policy.append(
+                self.pp(
+                    decision=legacy,
+                    action=resolved_action,
+                    request=request,
+                    view=view,
+                    resource_kind=resource_kind,
+                    resource_id=resolved_resource_id,
+                    resource_attrs={"hostname": str(hostname)},
+                )
+            )
 
         return any(policy)
 
-    def has_obj_perm(self, user: User, obj: str, request: Request, view: GenericAPIView) -> bool:
-        return self.has_perm(user, *self._get_hostname_and_ips(obj), request=request, view=view)
+    def has_obj_perm(
+        self,
+        user: User,
+        obj: str,
+        request: Request,
+        view: GenericAPIView,
+        action: Optional[str] = None,
+        resource_kind: str = "Host",
+        resource_id: Optional[str] = None,
+    ) -> bool:
+        """Resolve hostname/IPs from an object and delegate to has_perm()."""
+        return self.has_perm(
+            user,
+            *self._get_hostname_and_ips(obj),
+            request=request,
+            view=view,
+            action=action,
+            resource_kind=resource_kind,
+            resource_id=resource_id,
+        )
 
     def has_create_permission(self, request, view, validated_serializer):
+        """Authorize create operations using CRUD parity actions and legacy rules."""
         import mreg.api.v1.views as v1_views
         user = User.from_request(request)
 
@@ -496,8 +708,18 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
         hostname = None
         ips = []
         
-        attrs: dict[str, Any] = {}
+        attrs: dict[str, str] = {}
         data: dict[str, Any] = validated_serializer.validated_data # type: ignore
+        resource_kind = self._resource_kind_from_view(
+            view=view,
+            validated_serializer=validated_serializer,
+        )
+        action = self._crud_action(resource_kind, "create")
+        resource_id = self._resource_id_from_view(
+            view=view,
+            validated_serializer=validated_serializer,
+            data=data,
+        )
 
         # Convert all data from the serializer to strings to feed as attributes to the policy engine.
         # We also introspect BaseModel instances to flatten them out (one level deep).
@@ -506,34 +728,69 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
         if data:
             for key, value in data.items():
                 if isinstance(value, (str, int, float, bool)):
-                    attrs[key] = value
+                    attrs[key] = self._stringify_attr_value(value)
                 elif isinstance(value, models.Model):
                     for field in value._meta.fields:
-                        attrs[f"{key}_{field.name}"] = str(getattr(value, field.name, ''))
+                        attrs[f"{key}_{field.name}"] = self._stringify_attr_value(
+                            getattr(value, field.name, "")
+                        )
                 else:
-                    attrs[key] = str(value)
+                    attrs[key] = self._stringify_attr_value(value)
 
 
         ipaddress = data.get('ipaddress', None)
         host = data.get('host', None)
 
-        object_type = validated_serializer.instance.__class__.__name__.lower()
         # First check if we are asking for a restricted name.
         if self.deny_superuser_only_names(data=data, view=view, request=request):
             return False
         # Then check if we are asking for an IP address *and* it is reserved.
         if ipaddress and self.deny_reserved_ipaddress(ip=ipaddress, view=view, request=request):
             return False
+
+        handled_by_view = isinstance(
+            view,
+            (v1_views.CnameList, v1_views.HostList, v1_views.IpaddressList, v1_views.PtrOverrideList),
+        )
+        if not handled_by_view and 'host' not in data:
+            raise exceptions.PermissionDenied(f"Unhandled view: {view}")
+
         # If the user is an admin, they are now free to create (minus the above checks).
-        if self.pp_generic_action(decision=user.is_mreg_admin, action="create", kind=object_type, attrs=attrs, request=request, view=view):
+        if self.pp_generic_action(
+            decision=user.is_mreg_admin,
+            action=action,
+            kind=resource_kind,
+            id=resource_id,
+            attrs=attrs,
+            request=request,
+            view=view,
+        ):
             return True
         # Now check if the user has permission to the host object (if any).
         if isinstance(view, (v1_views.IpaddressList, v1_views.PtrOverrideList)):
-            if host and not self.has_obj_perm(user, host, request=request, view=view):
+            if host and not self.has_obj_perm(
+                user,
+                host,
+                request=request,
+                view=view,
+                action=action,
+                resource_kind=resource_kind,
+                resource_id=resource_id,
+            ):
                 return False
         # CNAMEs are special, we check only the cname, not the ip addresses.
         if isinstance(view, v1_views.CnameList):
-            return self.has_perm(user, data['name'], (), require_ip=False, request=request, view=view)
+            return self.has_perm(
+                user,
+                data['name'],
+                (),
+                require_ip=False,
+                request=request,
+                view=view,
+                action=action,
+                resource_kind=resource_kind,
+                resource_id=self._stringify_attr_value(data['name']),
+            )
         # For hosts and other objects, we need to check the host and its IPs.
         if isinstance(view, (v1_views.HostList, v1_views.IpaddressList, v1_views.PtrOverrideList)):
             # HostList does not require ipaddress, but if none, the permissions will not match, so just refuse it.
@@ -549,75 +806,167 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
             raise exceptions.PermissionDenied(f"Unhandled view: {view}")
 
         if ips and hostname:
-            return self.has_perm(user, hostname, ips, request=request, view=view)
+            return self.has_perm(
+                user,
+                hostname,
+                ips,
+                request=request,
+                view=view,
+                action=action,
+                resource_kind=resource_kind,
+                resource_id=self._stringify_attr_value(hostname),
+            )
         return False
 
     def has_destroy_permission(self, request, view, validated_serializer):
-        import mreg.api.v1.views
-        user = User.from_request(request)
-
-        if user.is_mreg_superuser:
-            return True
-        obj = view.get_object()
-        if isinstance(view, mreg.api.v1.views.HostDetail):
-            pass
-        elif hasattr(obj, 'host'):
-            obj = obj.host
-        else:
-            raise exceptions.PermissionDenied(f"Unhandled view: {view}")
-        if self.deny_superuser_only_names(name=obj.name, view=view, request=request):
-            return False
-        if hasattr(obj, 'ipaddress'):
-            if self.deny_reserved_ipaddress(ip=obj.ipaddress, view=view, request=request):
-                return False
-            
-        object_type = obj.__class__.__name__.lower()
-        if self.pp_generic_action(
-            decision=user.is_mreg_admin,
-            action="destroy",
-            kind=object_type,
-            attrs={"id": str(obj)},
-            request=request,
-            view=view
-        ):
-            return True
-        return self.has_obj_perm(user, obj, request=request, view=view)
-
-    def has_update_permission(self, request, view, validated_serializer):
+        """Authorize delete operations using CRUD parity actions and legacy rules."""
         import mreg.api.v1.views as v1_views
         user = User.from_request(request)
 
         if user.is_mreg_superuser:
             return True
+
+        target_obj = view.get_object()
+        resource_kind = self._resource_kind_from_view(view=view, obj=target_obj)
+        action = self._crud_action(resource_kind, "delete")
+        resource_id = self._resource_id_from_view(view=view, obj=target_obj)
+
+        host_obj = target_obj
+        if isinstance(view, v1_views.HostDetail):
+            pass
+        elif hasattr(target_obj, 'host'):
+            host_obj = target_obj.host
+        else:
+            raise exceptions.PermissionDenied(f"Unhandled view: {view}")
+        if self.deny_superuser_only_names(name=host_obj.name, view=view, request=request):
+            return False
+        if hasattr(host_obj, 'ipaddress'):
+            if self.deny_reserved_ipaddress(ip=host_obj.ipaddress, view=view, request=request):
+                return False
+
+        if self.pp_generic_action(
+            decision=user.is_mreg_admin,
+            action=action,
+            kind=resource_kind,
+            id=resource_id,
+            attrs={"id": resource_id},
+            request=request,
+            view=view
+        ):
+            return True
+        return self.has_obj_perm(
+            user,
+            host_obj,
+            request=request,
+            view=view,
+            action=action,
+            resource_kind=resource_kind,
+            resource_id=resource_id,
+        )
+
+    def has_update_permission(self, request, view, validated_serializer):
+        """Authorize update operations using CRUD parity actions and legacy rules."""
+        import mreg.api.v1.views as v1_views
+        user = User.from_request(request)
+
+        if user.is_mreg_superuser:
+            return True
+
         data: dict[str, Any] = validated_serializer.validated_data  # type: ignore
+        target_obj = view.get_object()
+        resource_kind = self._resource_kind_from_view(
+            view=view,
+            validated_serializer=validated_serializer,
+            obj=target_obj,
+        )
+        action = self._crud_action(resource_kind, "update")
+        resource_id = self._resource_id_from_view(
+            view=view,
+            validated_serializer=validated_serializer,
+            obj=target_obj,
+            data=data,
+        )
+
         if self.deny_superuser_only_names(data=data, view=view, request=request):
             return False
         if 'ipaddress' in data:
             if self.deny_reserved_ipaddress(ip=data['ipaddress'], view=view, request=request):
                 return False
-        if self.user_is_admin(request=request, view=view):
+
+        if not isinstance(view, v1_views.HostDetail) and not hasattr(target_obj, 'host'):
+            raise exceptions.PermissionDenied(f"Unhandled view: {view}")
+
+        admin_attrs = {
+            str(key): self._stringify_attr_value(value)
+            for key, value in data.items()
+        }
+        if self.pp_generic_action(
+            decision=user.is_mreg_admin,
+            action=action,
+            kind=resource_kind,
+            id=resource_id,
+            attrs=admin_attrs,
+            request=request,
+            view=view,
+        ):
             return True
-        obj = view.get_object()
+
+        obj = target_obj
         if isinstance(view, v1_views.HostDetail):
             hostname, ips = self._get_hostname_and_ips(obj)
             # If renaming a host, make sure the user has permission to both the
             # new and and old hostname.
             if 'name' in data:
-                if not self.has_perm(user, data['name'], ips, request=request, view=view):
+                if not self.has_perm(
+                    user,
+                    data['name'],
+                    ips,
+                    request=request,
+                    view=view,
+                    action=action,
+                    resource_kind=resource_kind,
+                    resource_id=self._stringify_attr_value(data['name']),
+                ):
                     return False
-            return self.has_perm(user, hostname, ips, request=request, view=view)
+            return self.has_perm(
+                user,
+                hostname,
+                ips,
+                request=request,
+                view=view,
+                action=action,
+                resource_kind=resource_kind,
+                resource_id=self._stringify_attr_value(hostname),
+            )
         elif hasattr(obj, 'host'):
             # If changing host object, make sure the user has permission the
             # new one.
             if 'host' in data and data['host'] != obj.host:
-                if not self.has_obj_perm(user, data['host'], request=request, view=view):
+                if not self.has_obj_perm(
+                    user,
+                    data['host'],
+                    request=request,
+                    view=view,
+                    action=action,
+                    resource_kind=resource_kind,
+                    resource_id=resource_id,
+                ):
                     return False
-            return self.has_obj_perm(user, obj.host, request=request, view=view)
+            return self.has_obj_perm(
+                user,
+                obj.host,
+                request=request,
+                view=view,
+                action=action,
+                resource_kind=resource_kind,
+                resource_id=resource_id,
+            )
         # Testing these kinds of should-never-happen codepaths is hard.
         # We have to basically mock a complete API call and then break it.
         raise exceptions.PermissionDenied(f"Unhandled view: {view}")  # pragma: no cover
 
     def _get_hostname_and_ips(self, hostobject):
+        """Extract a host's canonical name and all attached IP addresses."""
         ips = []
         host = HostSerializer(hostobject)
         for i in host.data['ipaddresses']:
@@ -709,4 +1058,3 @@ class IsGrantedReservedAddressPermission(IsAuthenticated):
         # in a `BaseModel` instance instead of a serializer when checking
         # destroy permissions, so we cannot access any sort of validated data.
         return self.has_permission(request, view)
-
