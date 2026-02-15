@@ -36,10 +36,18 @@ _POLICY_PARITY_LOG_INITIALIZED_ENV = "MREG_POLICY_PARITY_LOG_INITIALIZED"
 
 
 def _initialize_policy_parity_log_file() -> None:
-    """Truncate the parity log once in the main process.
+    """Initialize the parity log file exactly once per process tree.
 
-    Parallel test workers import this module too. Guarding on the main process
-    and an environment marker prevents workers from re-truncating the file.
+    The module is imported by Django workers and by parallel test processes.
+    Truncating on every import would erase events from other workers, so this
+    helper truncates only when all of the following are true:
+    1. file truncation is enabled by configuration
+    2. the current process is the main process
+    3. an environment marker is not already set
+
+    Side effects:
+        Opens and truncates ``POLICY_EXTRA_LOG_FILE_NAME`` in write mode.
+        Sets ``MREG_POLICY_PARITY_LOG_INITIALIZED=1`` in ``os.environ``.
     """
     if not POLICY_TRUNCATE_LOG_FILE:
         return
@@ -110,10 +118,12 @@ class _ParityBatchItem:
 
 
 def _batch_depth() -> int:
+    """Return current nesting depth for ``batch_policy_parity`` in this thread."""
     return int(getattr(_thread_local, "batch_depth", 0))
 
 
 def _batch_queue() -> list[_ParityBatchItem]:
+    """Return the thread-local parity queue, creating it on first access."""
     queue = getattr(_thread_local, "batch_queue", None)
     if queue is None:
         queue = []
@@ -122,20 +132,32 @@ def _batch_queue() -> list[_ParityBatchItem]:
 
 
 def _is_batching() -> bool:
+    """Return ``True`` when parity checks should be enqueued instead of sent."""
     return _batch_depth() > 0 and POLICY_PARITY_BATCH_ENABLED
 
 
 def _request_authorize_calls() -> int:
+    """Return number of authorize calls made for the current HTTP request context."""
     return int(getattr(_thread_local, "policy_authorize_calls", 0))
 
 
 def _inc_request_authorize_calls() -> None:
+    """Increment the per-request authorize call counter in thread-local storage."""
     _thread_local.policy_authorize_calls = _request_authorize_calls() + 1
 
 
 @contextmanager
 def batch_policy_parity():
-    """Batch parity checks in the current thread and flush on scope exit."""
+    """Batch parity checks for one request scope and flush on exit.
+
+    This context manager supports nesting. The outermost scope initializes
+    request-local counters/queues, and the final exit flushes queued parity
+    checks via ``flush_policy_parity_batch()`` (when batching is enabled).
+
+    Side effects:
+        Mutates thread-local batch state and updates
+        ``mreg_policy_queries_per_request`` histogram on outermost exit.
+    """
     current_depth = _batch_depth()
     if current_depth == 0:
         _thread_local.policy_authorize_calls = 0
@@ -160,17 +182,12 @@ def batch_policy_parity():
 
 @contextmanager
 def disable_policy_parity():
-    """Context manager to temporarily disable policy parity checking.
-    
-    Useful for tests that modify permissions/state mid-test, which would
-    cause the legacy and policy systems to be out of sync.
-    
-    Example:
-        def test_permission_changes(self):
-            with disable_policy_parity():
-                # Modify permissions here
-                user.groups.add(some_group)
-                # Make API calls - parity checking will be skipped
+    """Temporarily disable parity checks in the current thread context.
+
+    This is primarily intended for tests that intentionally mutate permission
+    state mid-test, where legacy and policy decisions are expected to diverge.
+    The previous value is restored when leaving the context, so nested usage is
+    safe.
     """
     old_value = getattr(_thread_local, "skip_parity", False)
     _thread_local.skip_parity = True
@@ -180,19 +197,32 @@ def disable_policy_parity():
         _thread_local.skip_parity = old_value
 
 def _is_parity_enabled() -> bool:
-    """Check if parity checking should be performed in current context."""
+    """Return whether parity checks should run in the current thread context.
+
+    Parity is enabled only when both conditions are true:
+    1. global parity is enabled in settings
+    2. parity is not temporarily disabled via ``disable_policy_parity()``
+    """
     if not POLICY_PARITY_ENABLED:
         return False
     # Skip parity checking if we're in a disabled context
     return not getattr(_thread_local, "skip_parity", False)
 
 def _corr_id(request: Request) -> Optional[str]:
-    """Return request correlation ID from standard header variants."""
+    """Return request correlation ID from accepted inbound header names.
+
+    Resolution order:
+    1. ``X-Correlation-ID`` in ``request.headers``
+    2. ``HTTP_X_CORRELATION_ID`` in ``request.META``
+    """
     return request.headers.get("X-Correlation-ID") or request.META.get("HTTP_X_CORRELATION_ID")
 
 def _model_name_from_view(view) -> str:  # type: ignore
-    """Best-effort view model name, preferring serializer Meta.model."""
-    # Best effort: try serializer model, else view class name
+    """Best-effort model name for logging context.
+
+    Attempts to resolve ``view.get_serializer_class().Meta.model.__name__``.
+    If serializer/model introspection fails, falls back to the view class name.
+    """
     try:
         sc = view.get_serializer_class()
         return sc.Meta.model.__name__
@@ -201,6 +231,18 @@ def _model_name_from_view(view) -> str:  # type: ignore
 
 
 def _build_resource_attrs(resource_attrs: Mapping[str, str]) -> dict[str, ResourceAttribute]:
+    """Convert plain resource attributes to typed TreeTop attributes.
+
+    Each attribute value is parsed as an IP address when possible and tagged as
+    ``ResourceAttributeType.IP``. Non-IP values are stored as
+    ``ResourceAttributeType.STRING``.
+
+    Args:
+        resource_attrs: Plain key/value attributes from parity call sites.
+
+    Returns:
+        Mapping compatible with ``Resource.new(..., attrs=...)``.
+    """
     attrs: dict[str, ResourceAttribute] = {}
     for key, value in resource_attrs.items():
         try:
@@ -212,6 +254,7 @@ def _build_resource_attrs(resource_attrs: Mapping[str, str]) -> dict[str, Resour
 
 
 def _fully_qualified_action(action: Action) -> str:
+    """Return canonical action name as ``namespace::...::id`` for logs."""
     if len(action.id.namespace) > 0:
         return "::".join(action.id.namespace) + f"::{action.id.id}"
     return f"{action.id.id}"
@@ -224,6 +267,17 @@ def _compute_parity_payload(
     error: Optional[str],
     context: dict[str, Any],
 ) -> dict[str, Any]:
+    """Build normalized payload used for parity logging and metrics accounting.
+
+    Args:
+        decision: Legacy authorization decision.
+        pol_allowed: Decision returned by policy engine, or ``None`` on error.
+        error: Error text when policy evaluation failed.
+        context: Request/action metadata to include in parity logs.
+
+    Returns:
+        Serializable payload containing decisions, parity result, and context.
+    """
     parity = False
     if bool(decision) and pol_allowed:
         parity = True
@@ -240,6 +294,13 @@ def _compute_parity_payload(
 
 
 def _log_parity_payload(payload: dict[str, Any]) -> None:
+    """Emit parity metrics and structured logs for one parity payload.
+
+    Side effects:
+        Increments legacy/policy/parity Prometheus counters, logs either
+        ``policy_parity_ok`` or ``policy_parity_mismatch``, and appends the
+        payload to the parity log file.
+    """
     legacy_decision = payload.get("legacy_decision")
     if legacy_decision is True:
         POLICY_LEGACY_DECISIONS_TOTAL.labels(decision="allow").inc()
@@ -272,6 +333,18 @@ def _result_to_decision_and_error(
     results: Sequence[Any],
     index: int,
 ) -> tuple[Optional[bool], Optional[str]]:
+    """Extract one policy decision/error pair from batched authorize results.
+
+    Args:
+        results: Sequence of authorize result objects.
+        index: Index of the result corresponding to one queued parity check.
+
+    Returns:
+        Tuple ``(allowed, error)`` where:
+        - ``allowed`` is ``True``/``False`` on successful evaluation
+        - ``allowed`` is ``None`` when result is missing or unsuccessful
+        - ``error`` contains descriptive text when unavailable/unsuccessful
+    """
     if index >= len(results):
         return None, f"Missing policy result at index {index}"
 
@@ -284,45 +357,93 @@ def _result_to_decision_and_error(
     return None, str(error)
 
 
+def _authorize_with_metrics(
+    *,
+    policy_requests: Sequence[TreeTopRequest],
+    correlation_id: Optional[str],
+    path: Optional[str],
+) -> tuple[list[Any], Optional[str]]:
+    """Call TreeTop authorize once and record shared metrics and errors.
+
+    Args:
+        policy_requests: One or more policy requests to evaluate.
+        correlation_id: Correlation ID propagated to TreeTop and logs.
+        path: Request path used in error logging context.
+
+    Returns:
+        Tuple ``(results, error)`` where:
+        - ``results`` is the response ``results`` list on success
+        - ``error`` is ``None`` on success, otherwise ``repr(exception)``
+
+    Side effects:
+        Increments authorize call counters, observes latency/request-size
+        histograms, and emits structured error logs on failures.
+    """
+    request_count = len(policy_requests)
+    if request_count == 0:
+        return [], None
+
+    request_payload: TreeTopRequest | list[TreeTopRequest]
+    if request_count == 1:
+        request_payload = policy_requests[0]
+    else:
+        request_payload = list(policy_requests)
+
+    POLICY_REQUESTS_PER_AUTHORIZE.observe(float(request_count))
+    _inc_request_authorize_calls()
+    call_started = monotonic()
+    try:
+        response = treetopclient.authorize(
+            request_payload,
+            correlation_id=correlation_id,
+        )
+        POLICY_AUTHORIZE_CALLS_TOTAL.labels(status="success").inc()
+        POLICY_AUTHORIZE_DURATION_SECONDS.labels(status="success").observe(monotonic() - call_started)
+        return list(getattr(response, "results", [])), None
+    except Exception as exc:
+        POLICY_AUTHORIZE_CALLS_TOTAL.labels(status="exception").inc()
+        POLICY_AUTHORIZE_DURATION_SECONDS.labels(status="exception").observe(monotonic() - call_started)
+        extra = {
+            "error_type": type(exc).__name__,
+            "error_msg": str(exc),
+            "path": path,
+            "correlation_id": correlation_id,
+        }
+        if request_count > 1:
+            extra["batch_size"] = request_count
+        logger.error(
+            f"Policy server error: {type(exc).__name__}: {exc}",
+            extra=extra,
+        )
+        return [], repr(exc)
+
+
 def flush_policy_parity_batch() -> None:
-    """Flush queued parity checks as one authorize batch call."""
+    """Flush queued parity checks through one batched authorize request.
+
+    For each queued item, this function computes the final parity payload and
+    emits metrics/logging via ``_log_parity_payload``. If the authorize call
+    fails, every queued item is logged as an error outcome using the same error
+    string.
+    """
     queue = _batch_queue()
     if not queue:
         return
 
     correlation_id = queue[0].context.get("correlation_id")
-    POLICY_REQUESTS_PER_AUTHORIZE.observe(float(len(queue)))
-    _inc_request_authorize_calls()
     pol_allowed_by_index: list[Optional[bool]] = [None] * len(queue)
     error_by_index: list[Optional[str]] = [None] * len(queue)
-
-    call_started = monotonic()
-    try:
-        response = treetopclient.authorize(
-            [item.policy_request for item in queue],
-            correlation_id=correlation_id,
-        )
-        POLICY_AUTHORIZE_CALLS_TOTAL.labels(status="success").inc()
-        POLICY_AUTHORIZE_DURATION_SECONDS.labels(status="success").observe(monotonic() - call_started)
-        results = list(getattr(response, "results", []))
+    results, authorize_error = _authorize_with_metrics(
+        policy_requests=[item.policy_request for item in queue],
+        correlation_id=correlation_id,
+        path=queue[0].context.get("path"),
+    )
+    if authorize_error is not None:
+        for idx in range(len(queue)):
+            error_by_index[idx] = authorize_error
+    else:
         for idx in range(len(queue)):
             pol_allowed_by_index[idx], error_by_index[idx] = _result_to_decision_and_error(results, idx)
-    except Exception as exc:
-        POLICY_AUTHORIZE_CALLS_TOTAL.labels(status="exception").inc()
-        POLICY_AUTHORIZE_DURATION_SECONDS.labels(status="exception").observe(monotonic() - call_started)
-        error = repr(exc)
-        logger.error(
-            f"Policy server error: {type(exc).__name__}: {exc}",
-            extra={
-                "error_type": type(exc).__name__,
-                "error_msg": str(exc),
-                "path": queue[0].context.get("path"),
-                "correlation_id": correlation_id,
-                "batch_size": len(queue),
-            },
-        )
-        for idx in range(len(queue)):
-            error_by_index[idx] = error
 
     for idx, item in enumerate(queue):
         payload = _compute_parity_payload(
@@ -345,8 +466,23 @@ def policy_parity(
     resource_attrs: Mapping[str, str],
 ) -> bool:
     """
-    Log legacy-vs-policy parity and return `decision` unchanged.
-    Use this anywhere you currently 'return True/False'.
+    Compare legacy authorization with TreeTop policy and log parity metadata.
+
+    This helper never changes request behavior: it always returns ``decision``
+    unchanged. Its purpose is observability during parity rollout.
+
+    Args:
+        decision: Legacy authorization decision to preserve.
+        request: Active DRF request.
+        view: Optional view instance for context logging.
+        permission_class: Optional explicit permission class name.
+        action: Policy action ID to evaluate.
+        resource_kind: Resource type identifier.
+        resource_id: Resource ID for policy evaluation.
+        resource_attrs: Additional resource attributes as strings.
+
+    Returns:
+        The original ``decision`` argument.
     """
     if not _is_parity_enabled():
         return decision
@@ -384,33 +520,18 @@ def policy_parity(
         )
         return decision
 
+    results, authorize_error = _authorize_with_metrics(
+        policy_requests=[pol_request],
+        correlation_id=context["correlation_id"],
+        path=request.path,
+    )
     pol_allowed, error = None, None
-    _inc_request_authorize_calls()
-    call_started = monotonic()
-    try:
-        resp = treetopclient.authorize(pol_request, correlation_id=context["correlation_id"])
-        POLICY_AUTHORIZE_CALLS_TOTAL.labels(status="success").inc()
-        POLICY_AUTHORIZE_DURATION_SECONDS.labels(status="success").observe(monotonic() - call_started)
-        POLICY_REQUESTS_PER_AUTHORIZE.observe(1.0)
-        results = list(getattr(resp, "results", []))
+    if authorize_error is None:
         pol_allowed, error = _result_to_decision_and_error(results, 0)
-    except Exception as exc:
-        POLICY_AUTHORIZE_CALLS_TOTAL.labels(status="exception").inc()
-        POLICY_AUTHORIZE_DURATION_SECONDS.labels(status="exception").observe(monotonic() - call_started)
-        POLICY_REQUESTS_PER_AUTHORIZE.observe(1.0)
-        error = repr(exc)
-        # Log policy server errors prominently
-        logger.error(
-            f"Policy server error: {type(exc).__name__}: {exc}",
-            extra={
-                "error_type": type(exc).__name__,
-                "error_msg": str(exc),
-                "path": request.path,
-                "correlation_id": _corr_id(request),
-            },
-        )
-        # If policy server fails, we cannot determine parity. Return legacy decision
-        # but flag this in the payload for monitoring.
+    else:
+        error = authorize_error
+    # If policy server fails, we cannot determine parity. Return legacy decision
+    # but flag this in the payload for monitoring.
 
     payload = _compute_parity_payload(
         decision=decision,
@@ -423,7 +544,12 @@ def policy_parity(
     return decision
 
 # Log data to a file in addition to normal logging
-def log_policy_parity(payload: dict[str, Any]):
-    """Append one JSON parity event to the configured parity log file."""
+def log_policy_parity(payload: dict[str, Any]) -> None:
+    """Append one JSON parity event to the configured parity log file.
+
+    Args:
+        payload: Serializable parity payload produced by
+            ``_compute_parity_payload``.
+    """
     with open(POLICY_EXTRA_LOG_FILE_NAME, "a") as log_file:
         log_file.write(f"{json.dumps(payload)}\n")
