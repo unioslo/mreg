@@ -48,12 +48,56 @@ class TreeTopParityBatchingTests(SimpleTestCase):
 
     @staticmethod
     def _request() -> HttpRequest:
+        """Build a baseline request object for parity test invocations."""
         request = HttpRequest()
         request.method = "GET"
         request.path = "/api/v1/hosts/"
         request.META["HTTP_X_CORRELATION_ID"] = "test-correlation-id"
         request.user = SimpleNamespace(is_authenticated=True)
         return request
+
+    @staticmethod
+    def _middleware_request() -> HttpRequest:
+        """Build a request object compatible with LoggingMiddleware tests."""
+        request = TreeTopParityBatchingTests._request()
+        request.path_info = request.path
+        request._body = b""
+        request.user = SimpleNamespace(username="tester")
+        return request
+
+    @staticmethod
+    def _normalize_authorize_requests(requests):  # type: ignore[no-untyped-def]
+        """Normalize authorize input to a list for call-count assertions."""
+        return requests if isinstance(requests, list) else [requests]
+
+    @staticmethod
+    def _host_resource_attrs(hostname: str) -> dict[str, str]:
+        """Return standard host resource attributes used by parity tests."""
+        return {"kind": "host", "hostname": hostname}
+
+    def _run_parity_check(self, request: HttpRequest, *, decision: bool, hostname: str) -> bool:
+        """Run one host_read parity check with canonical host test payload."""
+        return policy_parity(
+            decision,
+            request=request,
+            action="host_read",
+            resource_kind="Host",
+            resource_id=hostname,
+            resource_attrs=self._host_resource_attrs(hostname),
+        )
+
+    def _middleware_response_with_checks(self, checks: list[tuple[bool, str]]):
+        """Create middleware callback that emits parity checks then returns 200."""
+        def mock_get_response(http_request: HttpRequest) -> HttpResponse:
+            for decision, hostname in checks:
+                self._run_parity_check(
+                    http_request,
+                    decision=decision,
+                    hostname=hostname,
+                )
+            return HttpResponse(status=200)
+
+        return mock_get_response
 
     def test_initialize_policy_log_file_truncates_only_once(self) -> None:
         """Main process should truncate once and then mark initialization."""
@@ -148,7 +192,7 @@ class TreeTopParityBatchingTests(SimpleTestCase):
         calls: list[tuple[int, str | None]] = []
 
         def fake_authorize(requests, correlation_id=None):  # type: ignore[no-untyped-def]
-            request_list = requests if isinstance(requests, list) else [requests]
+            request_list = self._normalize_authorize_requests(requests)
             calls.append((len(request_list), correlation_id))
             # Keep policy results aligned with legacy decisions in this test.
             decisions = [True, False][: len(request_list)]
@@ -161,26 +205,8 @@ class TreeTopParityBatchingTests(SimpleTestCase):
             patch("mreg.api.treetop.treetopclient.authorize", side_effect=fake_authorize),
             batch_policy_parity(),
         ):
-            self.assertTrue(
-                policy_parity(
-                    True,
-                    request=request,
-                    action="host_read",
-                    resource_kind="Host",
-                    resource_id="host1.example.org",
-                    resource_attrs={"kind": "host", "hostname": "host1.example.org"},
-                )
-            )
-            self.assertFalse(
-                policy_parity(
-                    False,
-                    request=request,
-                    action="host_read",
-                    resource_kind="Host",
-                    resource_id="host2.example.org",
-                    resource_attrs={"kind": "host", "hostname": "host2.example.org"},
-                )
-            )
+            self.assertTrue(self._run_parity_check(request, decision=True, hostname="host1.example.org"))
+            self.assertFalse(self._run_parity_check(request, decision=False, hostname="host2.example.org"))
 
         self.assertEqual(calls, [(2, "test-correlation-id")])
         self.assertEqual(mock_log_policy_parity.call_count, 2)
@@ -197,7 +223,7 @@ class TreeTopParityBatchingTests(SimpleTestCase):
         calls: list[int] = []
 
         def fake_authorize(requests, correlation_id=None):  # type: ignore[no-untyped-def]
-            request_list = requests if isinstance(requests, list) else [requests]
+            request_list = self._normalize_authorize_requests(requests)
             calls.append(len(request_list))
             return _DummyAuthorizeResponse([True] * len(request_list))
 
@@ -207,22 +233,8 @@ class TreeTopParityBatchingTests(SimpleTestCase):
             patch("mreg.api.treetop.POLICY_PARITY_BATCH_ENABLED", True),
             patch("mreg.api.treetop.treetopclient.authorize", side_effect=fake_authorize),
         ):
-            policy_parity(
-                True,
-                request=request,
-                action="host_read",
-                resource_kind="Host",
-                resource_id="host1.example.org",
-                resource_attrs={"kind": "host", "hostname": "host1.example.org"},
-            )
-            policy_parity(
-                True,
-                request=request,
-                action="host_read",
-                resource_kind="Host",
-                resource_id="host2.example.org",
-                resource_attrs={"kind": "host", "hostname": "host2.example.org"},
-            )
+            self._run_parity_check(request, decision=True, hostname="host1.example.org")
+            self._run_parity_check(request, decision=True, hostname="host2.example.org")
 
         self.assertEqual(calls, [1, 1])
         self.assertEqual(mock_log_policy_parity.call_count, 2)
@@ -240,35 +252,19 @@ class TreeTopParityBatchingTests(SimpleTestCase):
         calls: list[tuple[int, str | None]] = []
 
         def fake_authorize(requests, correlation_id=None):  # type: ignore[no-untyped-def]
-            request_list = requests if isinstance(requests, list) else [requests]
+            request_list = self._normalize_authorize_requests(requests)
             calls.append((len(request_list), correlation_id))
             return _DummyAuthorizeResponse([True] * len(request_list))
 
-        request = self._request()
-        request.path_info = request.path
-        request._body = b""
-        request.user = SimpleNamespace(username="tester")
-
-        def mock_get_response(http_request: HttpRequest) -> HttpResponse:
-            policy_parity(
-                True,
-                request=http_request,
-                action="host_read",
-                resource_kind="Host",
-                resource_id="host1.example.org",
-                resource_attrs={"kind": "host", "hostname": "host1.example.org"},
+        request = self._middleware_request()
+        middleware = LoggingMiddleware(
+            self._middleware_response_with_checks(
+                [
+                    (True, "host1.example.org"),
+                    (True, "host2.example.org"),
+                ]
             )
-            policy_parity(
-                True,
-                request=http_request,
-                action="host_read",
-                resource_kind="Host",
-                resource_id="host2.example.org",
-                resource_attrs={"kind": "host", "hostname": "host2.example.org"},
-            )
-            return HttpResponse(status=200)
-
-        middleware = LoggingMiddleware(mock_get_response)
+        )
 
         with (
             patch("mreg.api.treetop.POLICY_PARITY_ENABLED", True),
@@ -303,22 +299,8 @@ class TreeTopParityBatchingTests(SimpleTestCase):
             ),
             batch_policy_parity(),
         ):
-            policy_parity(
-                True,
-                request=request,
-                action="host_read",
-                resource_kind="Host",
-                resource_id="host1.example.org",
-                resource_attrs={"kind": "host", "hostname": "host1.example.org"},
-            )
-            policy_parity(
-                False,
-                request=request,
-                action="host_read",
-                resource_kind="Host",
-                resource_id="host2.example.org",
-                resource_attrs={"kind": "host", "hostname": "host2.example.org"},
-            )
+            self._run_parity_check(request, decision=True, hostname="host1.example.org")
+            self._run_parity_check(request, decision=False, hostname="host2.example.org")
 
         self.assertEqual(mock_log_policy_parity.call_count, 2)
         self.assertEqual(mock_error.call_count, 1)
@@ -349,14 +331,7 @@ class TreeTopParityBatchingTests(SimpleTestCase):
                 side_effect=RuntimeError("policy service unavailable"),
             ),
         ):
-            decision = policy_parity(
-                True,
-                request=request,
-                action="host_read",
-                resource_kind="Host",
-                resource_id="host1.example.org",
-                resource_attrs={"kind": "host", "hostname": "host1.example.org"},
-            )
+            decision = self._run_parity_check(request, decision=True, hostname="host1.example.org")
 
         self.assertTrue(decision)
         self.assertEqual(
@@ -395,43 +370,20 @@ class TreeTopParityBatchingTests(SimpleTestCase):
         base_req_per_auth_sum = _metric_total("mreg_policy_requests_per_authorize_sum")
 
         def fake_authorize(requests, correlation_id=None):  # type: ignore[no-untyped-def]
-            request_list = requests if isinstance(requests, list) else [requests]
+            request_list = self._normalize_authorize_requests(requests)
             decisions = [True, False, True][: len(request_list)]
             return _DummyAuthorizeResponse(decisions)
 
-        request = self._request()
-        request.path_info = request.path
-        request._body = b""
-        request.user = SimpleNamespace(username="tester")
-
-        def mock_get_response(http_request: HttpRequest) -> HttpResponse:
-            policy_parity(
-                True,
-                request=http_request,
-                action="host_read",
-                resource_kind="Host",
-                resource_id="host1.example.org",
-                resource_attrs={"kind": "host", "hostname": "host1.example.org"},
+        request = self._middleware_request()
+        middleware = LoggingMiddleware(
+            self._middleware_response_with_checks(
+                [
+                    (True, "host1.example.org"),
+                    (True, "host2.example.org"),
+                    (False, "host3.example.org"),
+                ]
             )
-            policy_parity(
-                True,
-                request=http_request,
-                action="host_read",
-                resource_kind="Host",
-                resource_id="host2.example.org",
-                resource_attrs={"kind": "host", "hostname": "host2.example.org"},
-            )
-            policy_parity(
-                False,
-                request=http_request,
-                action="host_read",
-                resource_kind="Host",
-                resource_id="host3.example.org",
-                resource_attrs={"kind": "host", "hostname": "host3.example.org"},
-            )
-            return HttpResponse(status=200)
-
-        middleware = LoggingMiddleware(mock_get_response)
+        )
 
         with (
             patch("mreg.api.treetop.POLICY_PARITY_ENABLED", True),
