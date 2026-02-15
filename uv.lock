@@ -511,7 +511,7 @@ requires-dist = [
     { name = "rich", specifier = ">=14" },
     { name = "sentry-sdk", specifier = ">=2.48.0" },
     { name = "structlog", specifier = ">=25" },
-    { name = "treetop-client", specifier = ">=0.0.1" },
+    { name = "treetop-client", specifier = ">=0.0.7" },
     { name = "tzdata", specifier = ">=2025.3" },
     { name = "unittest-parametrize" },
     { name = "uritemplate" },
