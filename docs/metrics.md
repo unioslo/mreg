@@ -101,6 +101,62 @@ Metrics are exposed at the following endpoint: `/api/meta/metrics`.
   - Unit: failures
   - Description: LDAP operation failures by operation and exception class (e.g., bind LDAPError). Useful to see if LDAP is flapping or credential/ACL issues arise.
 
+## Policy Engine Metrics
+
+- Name: mreg_policy_decisions_total
+  - Type: Counter
+  - Labels: decision
+  - Unit: decisions
+  - Description: Policy-engine decisions recorded during parity checks.
+  - Label values: `allow`, `deny`, `error`
+
+- Name: mreg_policy_legacy_decisions_total
+  - Type: Counter
+  - Labels: decision
+  - Unit: decisions
+  - Description: Legacy permission decisions compared against policy parity.
+  - Label values: `allow`, `deny`
+
+- Name: mreg_policy_parity_results_total
+  - Type: Counter
+  - Labels: result
+  - Unit: comparisons
+  - Description: Outcome of legacy vs policy parity comparisons.
+  - Label values: `match`, `mismatch`, `error`
+
+- Name: mreg_policy_authorize_calls_total
+  - Type: Counter
+  - Labels: status
+  - Unit: calls
+  - Description: Calls made to the policy `authorize` endpoint.
+  - Label values: `success`, `exception`
+
+- Name: mreg_policy_authorize_duration_seconds
+  - Type: Histogram
+  - Labels: status
+  - Unit: seconds
+  - Description: Duration of policy `authorize` calls.
+  - Buckets/ranges: `0-1ms`, `1-2.5ms`, `2.5-5ms`, `5-10ms`, `10-25ms`, `25-50ms`, `50-100ms`, `100-250ms`, `250-500ms`, `500ms-1s`, `1-2.5s`, `2.5-5s`, `5s+`
+    - Prometheus boundaries: [0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, +Inf]
+
+- Name: mreg_policy_requests_per_authorize
+  - Type: Histogram
+  - Labels: none
+  - Unit: policy requests
+  - Description: Number of policy requests included in each `authorize` call.
+  - Buckets/ranges: `0`, `1`, `2`, `3`, `4-5`, `6-8`, `9+`
+    - Prometheus boundaries: [0, 1, 2, 3, 5, 8, +Inf]
+
+- Name: mreg_policy_queries_per_request
+  - Type: Histogram
+  - Labels: none
+  - Unit: authorize queries
+  - Description: Number of policy `authorize` queries made per HTTP request.
+  - Buckets/ranges: `0`, `1`, `2`, `3`, `4-5`, `6-8`, `9+`
+    - Prometheus boundaries: [0, 1, 2, 3, 5, 8, +Inf]
+
+When request batching is enabled (default), `mreg_policy_queries_per_request` should usually be `0` (no parity checks queued) or `1` (one batched authorize call).
+
 ## Labeling Strategy
 
 - path: normalized using Django URL resolution to view name (preferred) or route pattern. Falls back to "unresolved" to avoid cardinality explosion from raw paths with IDs.

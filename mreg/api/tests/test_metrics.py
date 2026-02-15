@@ -4,26 +4,11 @@ from unittest.mock import Mock, patch
 
 from rest_framework.test import APIClient
 from django.contrib.auth import get_user_model
-import re
 from typing import Any
 
 from mreg.models.host import Host, Ipaddress
 from mreg.middleware.metrics import PrometheusRequestMiddleware
-
-
-def _parse_prometheus_metric(content: str, metric_name: str) -> dict:
-    """Parse Prometheus text format and extract metrics by name."""
-    result = {}
-    pattern = rf"^{re.escape(metric_name)}(\{{[^}}]*\}})?\s+([0-9.e+-]+)$"
-    for line in content.split('\n'):
-        if line.startswith('#'):
-            continue
-        match = re.match(pattern, line)
-        if match:
-            labels = match.group(1) or ''
-            value = float(match.group(2))
-            result[labels] = value
-    return result
+from mreg.tests.prometheus_test_utils import parse_prometheus_metric as _parse_prometheus_metric
 
 
 
@@ -409,4 +394,3 @@ def test_ldap_metrics_failure_counter(mock_backend: Any) -> None:
         "operation=\"bind\"" in k and "exception=\"LDAPError\"" in k
         for k in failures.keys()
     ), f"Expected LDAPError bind failure metric: {failures}"
-
