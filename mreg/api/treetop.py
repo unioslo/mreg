@@ -4,12 +4,16 @@ from dataclasses import dataclass
 from typing import Any, Optional, Mapping, Sequence
 import ipaddress
 import json
+import multiprocessing
+import os
 import threading
 from contextlib import contextmanager
+from time import monotonic
 
 from django.conf import settings
 from rest_framework.request import Request
 from django.views import View
+from prometheus_client import Counter, Histogram
 
 from mreg.models.auth import User as MregUser  # your request->user wrapper
 
@@ -28,12 +32,72 @@ POLICY_NAMESPACE = getattr(settings, "POLICY_NAMESPACE", ["MREG"])
 POLICY_EXTRA_LOG_FILE_NAME = getattr(settings, "POLICY_EXTRA_LOG_FILE_NAME", "policy_parity.log")
 POLICY_TRUNCATE_LOG_FILE = getattr(settings, "POLICY_TRUNCATE_LOG_FILE", True)
 POLICY_PARITY_BATCH_ENABLED = getattr(settings, "POLICY_PARITY_BATCH_ENABLED", True)
+_POLICY_PARITY_LOG_INITIALIZED_ENV = "MREG_POLICY_PARITY_LOG_INITIALIZED"
 
-if POLICY_TRUNCATE_LOG_FILE:
+
+def _initialize_policy_parity_log_file() -> None:
+    """Truncate the parity log once in the main process.
+
+    Parallel test workers import this module too. Guarding on the main process
+    and an environment marker prevents workers from re-truncating the file.
+    """
+    if not POLICY_TRUNCATE_LOG_FILE:
+        return
+    if multiprocessing.current_process().name != "MainProcess":
+        return
+    if os.environ.get(_POLICY_PARITY_LOG_INITIALIZED_ENV) == "1":
+        return
     with open(POLICY_EXTRA_LOG_FILE_NAME, "w"):
         pass
+    os.environ[_POLICY_PARITY_LOG_INITIALIZED_ENV] = "1"
+
+
+_initialize_policy_parity_log_file()
 
 treetopclient = TreeTopClient(base_url=POLICY_BASE_URL)
+
+POLICY_DECISIONS_TOTAL = Counter(
+    "mreg_policy_decisions_total",
+    "Total policy decisions from the external policy engine.",
+    ["decision"],
+)
+
+POLICY_LEGACY_DECISIONS_TOTAL = Counter(
+    "mreg_policy_legacy_decisions_total",
+    "Total legacy permission decisions used for parity comparison.",
+    ["decision"],
+)
+
+POLICY_PARITY_RESULTS_TOTAL = Counter(
+    "mreg_policy_parity_results_total",
+    "Parity comparison outcomes between legacy and external policy decisions.",
+    ["result"],
+)
+
+POLICY_AUTHORIZE_CALLS_TOTAL = Counter(
+    "mreg_policy_authorize_calls_total",
+    "Total calls to the policy authorize endpoint.",
+    ["status"],
+)
+
+POLICY_AUTHORIZE_DURATION_SECONDS = Histogram(
+    "mreg_policy_authorize_duration_seconds",
+    "Duration of policy authorize endpoint calls in seconds.",
+    ["status"],
+    buckets=[0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5],
+)
+
+POLICY_REQUESTS_PER_AUTHORIZE = Histogram(
+    "mreg_policy_requests_per_authorize",
+    "Number of policy requests sent in each authorize call.",
+    buckets=[0, 1, 2, 3, 5, 8],
+)
+
+POLICY_QUERIES_PER_REQUEST = Histogram(
+    "mreg_policy_queries_per_request",
+    "Number of policy authorize queries made per HTTP request.",
+    buckets=[0, 1, 2, 3, 5, 8],
+)
 
 
 @dataclass(slots=True)
@@ -61,16 +125,22 @@ def _is_batching() -> bool:
     return _batch_depth() > 0 and POLICY_PARITY_BATCH_ENABLED
 
 
+def _request_authorize_calls() -> int:
+    return int(getattr(_thread_local, "policy_authorize_calls", 0))
+
+
+def _inc_request_authorize_calls() -> None:
+    _thread_local.policy_authorize_calls = _request_authorize_calls() + 1
+
+
 @contextmanager
 def batch_policy_parity():
     """Batch parity checks in the current thread and flush on scope exit."""
-    if not POLICY_PARITY_BATCH_ENABLED:
-        yield
-        return
-
     current_depth = _batch_depth()
     if current_depth == 0:
-        _thread_local.batch_queue = []
+        _thread_local.policy_authorize_calls = 0
+        if POLICY_PARITY_BATCH_ENABLED:
+            _thread_local.batch_queue = []
     _thread_local.batch_depth = current_depth + 1
 
     try:
@@ -80,10 +150,13 @@ def batch_policy_parity():
         _thread_local.batch_depth = max(new_depth, 0)
         if new_depth <= 0:
             try:
-                flush_policy_parity_batch()
+                if POLICY_PARITY_BATCH_ENABLED:
+                    flush_policy_parity_batch()
             finally:
+                POLICY_QUERIES_PER_REQUEST.observe(float(_request_authorize_calls()))
                 _thread_local.batch_queue = []
                 _thread_local.batch_depth = 0
+                _thread_local.policy_authorize_calls = 0
 
 @contextmanager
 def disable_policy_parity():
@@ -167,6 +240,27 @@ def _compute_parity_payload(
 
 
 def _log_parity_payload(payload: dict[str, Any]) -> None:
+    legacy_decision = payload.get("legacy_decision")
+    if legacy_decision is True:
+        POLICY_LEGACY_DECISIONS_TOTAL.labels(decision="allow").inc()
+    else:
+        POLICY_LEGACY_DECISIONS_TOTAL.labels(decision="deny").inc()
+
+    policy_decision = payload.get("policy_decision")
+    if policy_decision is True:
+        POLICY_DECISIONS_TOTAL.labels(decision="allow").inc()
+    elif policy_decision is False:
+        POLICY_DECISIONS_TOTAL.labels(decision="deny").inc()
+    else:
+        POLICY_DECISIONS_TOTAL.labels(decision="error").inc()
+
+    if payload.get("error") is not None or policy_decision is None:
+        POLICY_PARITY_RESULTS_TOTAL.labels(result="error").inc()
+    elif payload["parity"]:
+        POLICY_PARITY_RESULTS_TOTAL.labels(result="match").inc()
+    else:
+        POLICY_PARITY_RESULTS_TOTAL.labels(result="mismatch").inc()
+
     if payload["parity"]:
         logger.info("policy_parity_ok", extra=payload)
     else:
@@ -197,18 +291,25 @@ def flush_policy_parity_batch() -> None:
         return
 
     correlation_id = queue[0].context.get("correlation_id")
+    POLICY_REQUESTS_PER_AUTHORIZE.observe(float(len(queue)))
+    _inc_request_authorize_calls()
     pol_allowed_by_index: list[Optional[bool]] = [None] * len(queue)
     error_by_index: list[Optional[str]] = [None] * len(queue)
 
+    call_started = monotonic()
     try:
         response = treetopclient.authorize(
             [item.policy_request for item in queue],
             correlation_id=correlation_id,
         )
+        POLICY_AUTHORIZE_CALLS_TOTAL.labels(status="success").inc()
+        POLICY_AUTHORIZE_DURATION_SECONDS.labels(status="success").observe(monotonic() - call_started)
         results = list(getattr(response, "results", []))
         for idx in range(len(queue)):
             pol_allowed_by_index[idx], error_by_index[idx] = _result_to_decision_and_error(results, idx)
     except Exception as exc:
+        POLICY_AUTHORIZE_CALLS_TOTAL.labels(status="exception").inc()
+        POLICY_AUTHORIZE_DURATION_SECONDS.labels(status="exception").observe(monotonic() - call_started)
         error = repr(exc)
         logger.error(
             f"Policy server error: {type(exc).__name__}: {exc}",
@@ -284,11 +385,19 @@ def policy_parity(
         return decision
 
     pol_allowed, error = None, None
+    _inc_request_authorize_calls()
+    call_started = monotonic()
     try:
         resp = treetopclient.authorize(pol_request, correlation_id=context["correlation_id"])
+        POLICY_AUTHORIZE_CALLS_TOTAL.labels(status="success").inc()
+        POLICY_AUTHORIZE_DURATION_SECONDS.labels(status="success").observe(monotonic() - call_started)
+        POLICY_REQUESTS_PER_AUTHORIZE.observe(1.0)
         results = list(getattr(resp, "results", []))
         pol_allowed, error = _result_to_decision_and_error(results, 0)
     except Exception as exc:
+        POLICY_AUTHORIZE_CALLS_TOTAL.labels(status="exception").inc()
+        POLICY_AUTHORIZE_DURATION_SECONDS.labels(status="exception").observe(monotonic() - call_started)
+        POLICY_REQUESTS_PER_AUTHORIZE.observe(1.0)
         error = repr(exc)
         # Log policy server errors prominently
         logger.error(

@@ -505,7 +505,7 @@ requires-dist = [
     { name = "gunicorn", specifier = ">=23.0.0" },
     { name = "idna", specifier = ">=3.11" },
     { name = "pika", specifier = ">=1.3.2" },
-    { name = "prometheus-client", specifier = ">=0.20" },
+    { name = "prometheus-client", specifier = ">=0.24" },
     { name = "psycopg", extras = ["binary", "pool"], specifier = ">=3.3" },
     { name = "pyyaml" },
     { name = "rich", specifier = ">=14" },

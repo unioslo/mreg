@@ -111,6 +111,8 @@ Keep parity disable scope as narrow as possible:
 
 The `disable_policy_parity()` context manager uses thread-local storage to safely disable parity checking for the current thread only, ensuring test isolation in parallel test execution.
 
+`policy_parity.log` truncation now runs once in the main process only. Parallel test workers append without re-truncating, so a full `tox -e coverage` run keeps one consistent parity log.
+
 ## Parity Runbook
 
 Use this sequence when validating parity changes:
