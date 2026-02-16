@@ -6,7 +6,7 @@ Related documentation:
 
 ## Problem
 
-Tests that modify permissions or group memberships mid-test cause the legacy permission system and the TreeTop policy engine to be out of sync. Since TreeTop's policy content is immutable, these tests cannot maintain parity between the two systems.
+Tests that modify permissions or group memberships mid-test cause the legacy permission system and the TreeTop policy engine to be out of sync. Since TreeTop's policy content is immutable (in this context), these tests cannot maintain parity between the two systems.
 
 ## Solutions
 
