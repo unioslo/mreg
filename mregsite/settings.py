@@ -79,6 +79,16 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SECRET_KEY = ")e#67040xjxar=zl^y#@#b*zilv2dxtraj582$^(e6!wf++_n#"
 
 LOG_LEVEL = envvar("MREG_LOG_LEVEL", "CRITICAL").upper()
+POLICY_PARITY_LOG_LEVEL = envvar("MREG_POLICY_PARITY_LOG_LEVEL", "WARNING").upper()
+POLICY_PARITY_ENABLED = envvar("MREG_POLICY_PARITY_ENABLED", True)
+POLICY_BASE_URL = envvar("MREG_POLICY_BASE_URL", "").strip()
+raw = (envvar("MREG_POLICY_NAMESPACE", "MREG") or "").strip()
+# Accept both Cedar-style `org::MREG` and comma-separated `org,MREG`.
+raw = raw.replace("::", ",")
+POLICY_NAMESPACE = [ns.strip() for ns in raw.split(",") if ns.strip()] or ["MREG"]
+POLICY_EXTRA_LOG_FILE_NAME = envvar("MREG_POLICY_EXTRA_LOG_FILE_NAME", "policy_parity.log")
+POLICY_TRUNCATE_LOG_FILE = envvar("MREG_POLICY_TRUNCATE_LOG_FILE", True)
+POLICY_PARITY_BATCH_ENABLED = envvar("MREG_POLICY_PARITY_BATCH_ENABLED", True)
 
 REQUESTS_THRESHOLD_SLOW = envvar("MREG_REQUESTS_THRESHOLD_SLOW", 1000)
 REQUESTS_LOG_LEVEL_SLOW = envvar("MREG_REQUESTS_LOG_LEVEL_SLOW", "WARNING")
@@ -405,12 +415,30 @@ logging.config.dictConfig(
                 "filename": LOG_FILE_NAME,
                 "formatter": "plain",
             },
+            "policy_parity_default": {
+                "level": POLICY_PARITY_LOG_LEVEL,
+                "class": "logging.StreamHandler",
+                "formatter": "colored",
+            },
+            "policy_parity_file": {
+                "level": POLICY_PARITY_LOG_LEVEL,
+                "class": "logging.handlers.RotatingFileHandler",
+                "maxBytes": LOG_FILE_SIZE,
+                "backupCount": LOG_FILE_COUNT,
+                "filename": LOG_FILE_NAME,
+                "formatter": "plain",
+            },
         },
         "loggers": {
             "": {
                 "handlers": ["default", "file"],
                 "level": "DEBUG",
                 "propagate": True,
+            },
+            "mreg.policy.parity": {
+                "handlers": ["policy_parity_default", "policy_parity_file"],
+                "level": POLICY_PARITY_LOG_LEVEL,
+                "propagate": False,
             },
         },
     }

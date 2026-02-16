@@ -1,0 +1,25 @@
+[
+    {
+        "kind": "Host",
+        "field": "name",
+        "output": "nameLabels",
+        "patterns": [
+            {
+                "name": "in_domain",
+                "regex": "example\\.com$"
+            },
+            {
+                "name": "valid_webserver_name",
+                "regex": "^web-\\d+"
+            },
+            {
+                "name": "admin_subdomain",
+                "regex": "^admin\\."
+            },
+            {
+                "name": "staging_environment",
+                "regex": "^staging\\."
+            }
+        ]
+    }
+]
