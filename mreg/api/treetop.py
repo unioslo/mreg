@@ -27,12 +27,13 @@ _thread_local = threading.local()
 
 # Configure these in settings.py
 POLICY_PARITY_ENABLED = getattr(settings, "POLICY_PARITY_ENABLED", True)
-POLICY_BASE_URL = getattr(settings, "POLICY_BASE_URL", "http://localhost:9999")
+POLICY_BASE_URL = (getattr(settings, "POLICY_BASE_URL", "") or "").strip()
 POLICY_NAMESPACE = getattr(settings, "POLICY_NAMESPACE", ["MREG"])
 POLICY_EXTRA_LOG_FILE_NAME = getattr(settings, "POLICY_EXTRA_LOG_FILE_NAME", "policy_parity.log")
 POLICY_TRUNCATE_LOG_FILE = getattr(settings, "POLICY_TRUNCATE_LOG_FILE", True)
 POLICY_PARITY_BATCH_ENABLED = getattr(settings, "POLICY_PARITY_BATCH_ENABLED", True)
 _POLICY_PARITY_LOG_INITIALIZED_ENV = "MREG_POLICY_PARITY_LOG_INITIALIZED"
+_DEFAULT_POLICY_BASE_URL = "http://localhost:9999"
 
 
 def _initialize_policy_parity_log_file() -> None:
@@ -49,6 +50,8 @@ def _initialize_policy_parity_log_file() -> None:
         Opens and truncates ``POLICY_EXTRA_LOG_FILE_NAME`` in write mode.
         Sets ``MREG_POLICY_PARITY_LOG_INITIALIZED=1`` in ``os.environ``.
     """
+    if not POLICY_PARITY_ENABLED or not POLICY_BASE_URL:
+        return
     if not POLICY_TRUNCATE_LOG_FILE:
         return
     if multiprocessing.current_process().name != "MainProcess":
@@ -62,7 +65,7 @@ def _initialize_policy_parity_log_file() -> None:
 
 _initialize_policy_parity_log_file()
 
-treetopclient = TreeTopClient(base_url=POLICY_BASE_URL)
+treetopclient = TreeTopClient(base_url=POLICY_BASE_URL or _DEFAULT_POLICY_BASE_URL)
 
 POLICY_DECISIONS_TOTAL = Counter(
     "mreg_policy_decisions_total",
@@ -200,10 +203,12 @@ def _is_parity_enabled() -> bool:
     """Return whether parity checks should run in the current thread context.
 
     Parity is enabled only when both conditions are true:
-    1. global parity is enabled in settings
+    1. global parity is enabled in settings, and a policy base URL is configured
     2. parity is not temporarily disabled via ``disable_policy_parity()``
     """
     if not POLICY_PARITY_ENABLED:
+        return False
+    if not POLICY_BASE_URL:
         return False
     # Skip parity checking if we're in a disabled context
     return not getattr(_thread_local, "skip_parity", False)

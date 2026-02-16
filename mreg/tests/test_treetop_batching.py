@@ -104,6 +104,7 @@ class TreeTopParityBatchingTests(SimpleTestCase):
         mocked_open = mock_open()
         with (
             patch("mreg.api.treetop.POLICY_TRUNCATE_LOG_FILE", True),
+            patch("mreg.api.treetop.POLICY_BASE_URL", "http://localhost:9999"),
             patch("mreg.api.treetop.POLICY_EXTRA_LOG_FILE_NAME", "policy_parity.log"),
             patch(
                 "mreg.api.treetop.multiprocessing.current_process",
@@ -122,6 +123,7 @@ class TreeTopParityBatchingTests(SimpleTestCase):
         mocked_open = mock_open()
         with (
             patch("mreg.api.treetop.POLICY_TRUNCATE_LOG_FILE", True),
+            patch("mreg.api.treetop.POLICY_BASE_URL", "http://localhost:9999"),
             patch(
                 "mreg.api.treetop.multiprocessing.current_process",
                 return_value=SimpleNamespace(name="ForkPoolWorker-1"),
@@ -138,6 +140,7 @@ class TreeTopParityBatchingTests(SimpleTestCase):
         mocked_open = mock_open()
         with (
             patch("mreg.api.treetop.POLICY_TRUNCATE_LOG_FILE", False),
+            patch("mreg.api.treetop.POLICY_BASE_URL", "http://localhost:9999"),
             patch("mreg.api.treetop.open", mocked_open),
             patch.dict("mreg.api.treetop.os.environ", {}, clear=True),
         ):
@@ -157,6 +160,13 @@ class TreeTopParityBatchingTests(SimpleTestCase):
 
     def test_is_parity_enabled_false_when_globally_disabled(self) -> None:
         with patch("mreg.api.treetop.POLICY_PARITY_ENABLED", False):
+            self.assertFalse(_is_parity_enabled())
+
+    def test_is_parity_enabled_false_when_base_url_unset(self) -> None:
+        with (
+            patch("mreg.api.treetop.POLICY_PARITY_ENABLED", True),
+            patch("mreg.api.treetop.POLICY_BASE_URL", ""),
+        ):
             self.assertFalse(_is_parity_enabled())
 
     def test_fully_qualified_action_without_namespace(self) -> None:
@@ -201,6 +211,7 @@ class TreeTopParityBatchingTests(SimpleTestCase):
         request = self._request()
         with (
             patch("mreg.api.treetop.POLICY_PARITY_ENABLED", True),
+            patch("mreg.api.treetop.POLICY_BASE_URL", "http://localhost:9999"),
             patch("mreg.api.treetop.POLICY_PARITY_BATCH_ENABLED", True),
             patch("mreg.api.treetop.treetopclient.authorize", side_effect=fake_authorize),
             batch_policy_parity(),
@@ -230,6 +241,7 @@ class TreeTopParityBatchingTests(SimpleTestCase):
         request = self._request()
         with (
             patch("mreg.api.treetop.POLICY_PARITY_ENABLED", True),
+            patch("mreg.api.treetop.POLICY_BASE_URL", "http://localhost:9999"),
             patch("mreg.api.treetop.POLICY_PARITY_BATCH_ENABLED", True),
             patch("mreg.api.treetop.treetopclient.authorize", side_effect=fake_authorize),
         ):
@@ -268,6 +280,7 @@ class TreeTopParityBatchingTests(SimpleTestCase):
 
         with (
             patch("mreg.api.treetop.POLICY_PARITY_ENABLED", True),
+            patch("mreg.api.treetop.POLICY_BASE_URL", "http://localhost:9999"),
             patch("mreg.api.treetop.POLICY_PARITY_BATCH_ENABLED", True),
             patch("mreg.api.treetop.treetopclient.authorize", side_effect=fake_authorize),
         ):
@@ -292,6 +305,7 @@ class TreeTopParityBatchingTests(SimpleTestCase):
         request = self._request()
         with (
             patch("mreg.api.treetop.POLICY_PARITY_ENABLED", True),
+            patch("mreg.api.treetop.POLICY_BASE_URL", "http://localhost:9999"),
             patch("mreg.api.treetop.POLICY_PARITY_BATCH_ENABLED", True),
             patch(
                 "mreg.api.treetop.treetopclient.authorize",
@@ -325,6 +339,7 @@ class TreeTopParityBatchingTests(SimpleTestCase):
         request = self._request()
         with (
             patch("mreg.api.treetop.POLICY_PARITY_ENABLED", True),
+            patch("mreg.api.treetop.POLICY_BASE_URL", "http://localhost:9999"),
             patch("mreg.api.treetop.POLICY_PARITY_BATCH_ENABLED", False),
             patch(
                 "mreg.api.treetop.treetopclient.authorize",
@@ -387,6 +402,7 @@ class TreeTopParityBatchingTests(SimpleTestCase):
 
         with (
             patch("mreg.api.treetop.POLICY_PARITY_ENABLED", True),
+            patch("mreg.api.treetop.POLICY_BASE_URL", "http://localhost:9999"),
             patch("mreg.api.treetop.POLICY_PARITY_BATCH_ENABLED", True),
             patch("mreg.api.treetop.treetopclient.authorize", side_effect=fake_authorize),
         ):
