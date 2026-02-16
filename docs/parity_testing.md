@@ -157,4 +157,4 @@ Use the payload fields `legacy_decision`, `policy_decision`, `context.action`, a
 - Unexpected `context.resource_kind` (for example view name fallback):
   - Fix serializer `Meta.model` usage or explicit resource kind dispatch in permission code.
 
-When fixing mismatches, update code and Cedar together, then rerun the runbook until mismatch count is zero.
+When fixing mismatches, update code and Cedar together, then rerun the tests until mismatch count is zero.
