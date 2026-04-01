@@ -162,7 +162,7 @@ class Host(ForwardZoneMember):
         Returns:
             List of email addresses
         """
-        return list(self.contacts.values_list('email', flat=True))
+        return [c.email for c in self.contacts.all()]
 
     def _resolve_community_mapping(
         self,

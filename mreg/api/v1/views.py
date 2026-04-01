@@ -18,7 +18,7 @@ from mreg.models.base import NameServer, History
 from mreg.models.host import Host, Ipaddress, PtrOverride
 from mreg.models.network import Network, NetGroupRegexPermission
 from mreg.models.resource_records import Cname, Loc, Naptr, Srv, Sshfp, Txt, Hinfo, Mx
-from mreg.models.network_policy import Community, NetworkPolicy
+from mreg.models.network_policy import Community, HostCommunityMapping, NetworkPolicy
 from mreg.types import IPAllocationMethod
 
 from mreg.api.permissions import (
@@ -327,9 +327,11 @@ class HinfoDetail(HostPermissionsUpdateDestroy,
 
 def _host_prefetcher(qs):
     return qs.prefetch_related(
-        "bacnetid", "cnames", "hinfo", "loc", "mxs", "ptr_overrides", "txts"
+        "bacnetid", "cnames", "hinfo", "loc", "mxs", "ptr_overrides", "txts",
+        "srvs", "naptrs", "sshfp_set", "hostgroups", "hostpolicyroles", "contacts",
     ).prefetch_related(
-        Prefetch("ipaddresses", queryset=Ipaddress.objects.order_by("ipaddress"))
+        Prefetch("ipaddresses", queryset=Ipaddress.objects.order_by("ipaddress")),
+        Prefetch("hostcommunitymapping_set", queryset=HostCommunityMapping.objects.select_related("community")),
     )
 
 
