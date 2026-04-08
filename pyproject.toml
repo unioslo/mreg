@@ -21,9 +21,9 @@ dependencies = [
     "sentry-sdk>=2.48.0",
     "tzdata>=2025.3",
     "drf-standardized-errors>=0.15",
-    # For OpenAPI schema generation.
-    "uritemplate",
-    "pyyaml",
+    # For OpenAPI schema generation
+    # Pinned to prevent breaking changes: https://drf-spectacular.readthedocs.io/en/latest/readme.html#release-management
+    "drf-spectacular[sidecar]==0.29.0",
     # For testing inside Docker image
     "unittest-parametrize",
     "prometheus-client>=0.20",
