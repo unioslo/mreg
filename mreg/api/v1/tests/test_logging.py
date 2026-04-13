@@ -143,6 +143,25 @@ class TestLoggingInternals(MregAPITestCase):
             # Check that the body was logged as '<Binary Data>'
             self.assertEqual(cap_logs[0]["content"], "<Binary Data>")
 
+    def test_middleware_uses_policy_parity_batching_context(self) -> None:
+        """Ensure request handling is wrapped in the parity batching context."""
+        middleware = LoggingMiddleware(MagicMock())
+
+        def mock_get_response(_):
+            return HttpResponse(status=200)
+
+        middleware.get_response = mock_get_response
+
+        request = HttpRequest()
+        request._body = b"Some request body"
+        request.user = get_user_model().objects.get(username="superuser")
+
+        with patch("mreg.middleware.logging_http.batch_policy_parity") as mock_batch:
+            middleware(request)
+            mock_batch.assert_called_once()
+            mock_batch.return_value.__enter__.assert_called_once()
+            mock_batch.return_value.__exit__.assert_called_once()
+
 
 class TestLoggingMiddleware(MregAPITestCase):
     """Test logging middleware."""

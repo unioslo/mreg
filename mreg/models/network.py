@@ -74,6 +74,12 @@ class Network(BaseModel):
             ret.add(network.broadcast_address)
         return ret
 
+    def is_reserved_ipaddress(self, ip: str) -> bool:
+        """
+        Check if the given IP address is reserved for this network.
+        """
+        return any(ip == str(i) for i in self.get_reserved_ipaddresses())
+
     def get_excluded_ranges_start_end(self):
         excluded = []
         for start_ip, end_ip in self.excluded_ranges.values_list("start_ip", "end_ip"):
