@@ -13,7 +13,7 @@ https://docs.djangoproject.com/en/2.0/ref/settings/
 import logging.config
 import os
 import sys
-from typing import TypeVar
+from typing import Literal, TypeVar
 
 import structlog
 
@@ -133,6 +133,7 @@ MREG_DB_PASSWORD = envvar("MREG_DB_PASSWORD", "")
 MREG_DB_HOST = envvar("MREG_DB_HOST", "localhost")
 MREG_DB_PORT = envvar("MREG_DB_PORT", "5432")
 
+MREG_DB_POOL_ENABLED = envvar("MREG_DB_POOL_ENABLED", True)
 MREG_DB_POOL_MIN_SIZE = envvar("MREG_DB_POOL_MIN_SIZE", 5)
 MREG_DB_POOL_MAX_SIZE = envvar("MREG_DB_POOL_MAX_SIZE", 25)
 MREG_DB_POOL_MAX_IDLE = envvar("MREG_DB_POOL_MAX_IDLE", 300)
@@ -237,29 +238,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "mregsite.wsgi.application"
 
-DATABASES = {
-    "default": {
-        "ENGINE": MREG_DB_ENGINE,
-        "NAME": MREG_DB_NAME,
-        "USER": MREG_DB_USER,
-        "PASSWORD": MREG_DB_PASSWORD,
-        "HOST": MREG_DB_HOST,        
-        "PORT": MREG_DB_PORT,
-        "CONN_MAX_AGE": 0,  # Let the pool manage connection lifecycle
-        "OPTIONS": {
-            # Native psycopg3 connection pooling (Django 5.2+)
-            "pool": {
-                "max_size": MREG_DB_POOL_MAX_SIZE,  # Maximum connections in the pool
-                "min_size": MREG_DB_POOL_MIN_SIZE,  # Minimum idle connections to maintain
-                "max_idle": MREG_DB_POOL_MAX_IDLE,  # Max idle time before connection is closed (seconds)
-                "max_lifetime": MREG_DB_POOL_MAX_LIFETIME,  # Max connection lifetime (seconds)
-            },
-            # psycopg3 connection parameters
-            "connect_timeout": MREG_DB_PSYCOPG_CONNECT_TIMEOUT,  # 5 second timeout for initial connection
-            "options": MREG_DB_PSYCOPG_OPTIONS,  # 30 second statement timeout
-        },
-    }
-}
 
 
 # Password validation
@@ -454,3 +432,38 @@ if TESTING or "CI" in os.environ:
     HOSTPOLICYADMIN_GROUP = "default-hostpolicyadmin-group"
     DNS_WILDCARD_GROUP = "default-dns-wildcard-group"
     DNS_UNDERSCORE_GROUP = "default-dns-underscore-group"
+
+
+def get_pool_settings() -> dict[str, int] | Literal[False]:
+    """Get the connection pool settings for psycopg3, or False if pooling is disabled."""
+    if not MREG_DB_POOL_ENABLED:
+        return False
+    return {
+        "max_size": MREG_DB_POOL_MAX_SIZE,  # Maximum connections in the pool
+        "min_size": MREG_DB_POOL_MIN_SIZE,  # Minimum idle connections to maintain
+        "max_idle": MREG_DB_POOL_MAX_IDLE,  # Max idle time before connection is closed (seconds)
+        "max_lifetime": MREG_DB_POOL_MAX_LIFETIME,  # Max connection lifetime (seconds)
+    }
+
+# Compatibility hack for older local_settings.py files that define the
+# DATABASES setting directly instead of using the MREG_DB_* variables.
+# Thus, we only set DATABASES if it hasn't already been defined.
+if "DATABASES" not in globals():
+    DATABASES = {
+        "default": {
+            "ENGINE": MREG_DB_ENGINE,
+            "NAME": MREG_DB_NAME,
+            "USER": MREG_DB_USER,
+            "PASSWORD": MREG_DB_PASSWORD,
+            "HOST": MREG_DB_HOST,        
+            "PORT": MREG_DB_PORT,
+            "CONN_MAX_AGE": 0,  # Let the pool manage connection lifecycle
+            "OPTIONS": {
+                # Native psycopg3 connection pooling (Django 5.2+)
+                "pool": get_pool_settings(),
+                # psycopg3 connection parameters
+                "connect_timeout": MREG_DB_PSYCOPG_CONNECT_TIMEOUT,  # 5 second timeout for initial connection
+                "options": MREG_DB_PSYCOPG_OPTIONS,  # 30 second statement timeout
+            },
+        }
+    }

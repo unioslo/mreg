@@ -156,6 +156,7 @@ mreg supports configuration via environment variables with the `MREG_` prefix. T
 
 | Variable | Default | Description |
 | -------- | ------- | ----------- |
+| `MREG_DB_POOL_ENABLED` | `True` | Enable or disable database connection pooling |
 | `MREG_DB_POOL_MIN_SIZE` | `5` | Minimum idle connections in pool |
 | `MREG_DB_POOL_MAX_SIZE` | `25` | Maximum connections in pool |
 | `MREG_DB_POOL_MAX_IDLE` | `300` | Max idle time before closing (seconds) |
@@ -209,19 +210,25 @@ docker run --network host \
 ## Local Settings
 
 To override entries in `mregsite/settings.py`, create a file `mregsite/local_settings.py` and add the entries there.
-For example, the default database setup in `settings.py` uses sqlite3, but if you set up your postgres database
-you'll want to override this when testing. To to this, just add the following to your `local_settings.py` file:
 
 ```python
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'mreg_sample',
-        'USER': 'mreg_user',
-        'PASSWORD': 'mregdbpass',
-        'HOST': 'localhost',
-    }
-}
+MREG_DB_NAME = "mreg_sample"
+MREG_DB_USER = "mreg_user"
+MREG_DB_PASSWORD = "mregdbpass"
+MREG_DB_HOST = "localhost"
+MREG_DB_PORT = "5432"
+```
+
+The default database setup in `settings.py` uses Django's postgres connection pool, but if you want to disable pooling for local development, you can set `MREG_DB_USE_POOL` to `False` in `local_settings.py`:
+
+```python
+MREG_DB_USE_POOL = False
+```
+
+or via environment variable:
+
+```bash
+export MREG_DB_USE_POOL=False
 ```
 
 ## Contributing
