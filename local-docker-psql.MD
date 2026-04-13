@@ -23,14 +23,9 @@ EOF
 Finally add settings to django::
 ```
 cat >> mregsite/local_settings.py << EOF
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql_psycopg2',
-        'NAME': 'mreg',
-        'USER': 'mreg',
-        'PASSWORD': 'mregpass',
-        'HOST': 'localhost',
-    }
-}
+MREG_DB_NAME = "mreg"
+MREG_DB_USER = "mreg"
+MREG_DB_PASSWORD = "mregpass"
+MREG_DB_HOST = "localhost"
 EOF
 ```
