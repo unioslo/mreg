@@ -231,6 +231,36 @@ or via environment variable:
 export MREG_DB_USE_POOL=False
 ```
 
+## Profiling
+
+mreg supports request and query profiling via [django-silk](https://github.com/jazzband/django-silk). Silk is an optional dependency in the `profile` dependency group (and also a part of the `dev` dependency group, thus is installed automatically in development environments). When enabled, Silk provides detailed insights into request performance, including SQL query analysis and optionally cProfile-based profiling of Python code.
+
+When enabled, Silk results are accessible in the web interface at http://127.0.0.1:8000/silk/ by default.
+
+### Enabling profiling
+
+Silk is included in the `dev` dependency group and is available automatically after `uv sync`. For deployments that need it without the full dev group (e.g. a profiling-enabled container image), use `uv sync --only-group profile`.
+
+Set `MREG_PROFILING_ENABLED=True` to activate Silk instrumentation. When enabled, Silk records every request and its associated SQL queries, which are viewable at `/silk/`.
+
+> [!WARNING]
+> Profiling adds overhead to every request. Only enable it in development or controlled environments, never in production.
+
+### Profiling configuration
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `MREG_PROFILING_ENABLED` | `False` | Enable Silk request/query instrumentation |
+| `MREG_SILKY_PYTHON_PROFILER` | `True` | Use cProfile for detailed per-request profiling (requires `MREG_PROFILING_ENABLED`) |
+| `MREG_SILKY_PYTHON_PROFILER_BINARY` | `True` | Save cProfile results to disk as `.prof` files for offline analysis |
+| `MREG_SILKY_PYTHON_PROFILER_RESULT_PATH` | `silk/profiles` | Directory to write `.prof` files into |
+| `MREG_SILKY_META` | `False` | Enable Silk meta-profiling (measures Silk's own overhead) |
+
+When `MREG_SILKY_PYTHON_PROFILER` is disabled, Silk still collects request/response data and timings, but not the detailed call-level profiling information.
+
+The `.prof` files written to `MREG_SILKY_PYTHON_PROFILER_RESULT_PATH` are standard cProfile format and can be opened with tools like `snakeviz` or Python's `pstats` module, in addition to the Silk UI.
+
+
 ## Contributing
 
 Patches and PRs are welcome. However, there are a number of intricacies in both code structure and internal

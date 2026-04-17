@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/2.0/ref/settings/
 
 import logging.config
 import os
+from pathlib import Path
 import sys
 from typing import Literal, TypeVar
 
@@ -48,8 +49,8 @@ def envvar(var: str, default: DefaultT) -> DefaultT:
     except (ValueError, TypeError):
         return default
 
-def parse_protected_attrs(raw: str) -> list[dict]:
-    out: list[dict] = []
+def parse_protected_attrs(raw: str) -> list[dict[str, str]]:
+    out: list[dict[str, str]] = []
     for part in raw.split(","):
         part = part.strip()
         if not part:
@@ -418,6 +419,28 @@ structlog.configure(
     cache_logger_on_first_use=True,
 )
 
+# Django Silk profiling and request inspection settings
+try:
+    import silk  # noqa: F401  # pyright: ignore[reportUnusedImport, reportMissingTypeStubs]
+    _silk_installed = True
+except ImportError:
+    _silk_installed = False
+
+# Enable silk instrumentation of requests and queries
+MREG_PROFILING_ENABLED = envvar("MREG_PROFILING_ENABLED", False)
+
+# Use cProfile for profiling of the selected views.
+# If this is disabled, silk will only collect request/response data and timings, 
+# but not detailed profiling information.
+SILKY_PYTHON_PROFILER = envvar("MREG_SILKY_PYTHON_PROFILER", True)
+
+# Save profiler results to disk for later analysis in silk or with other tools.
+SILKY_PYTHON_PROFILER_BINARY = envvar("MREG_SILKY_PYTHON_PROFILER_BINARY", True)
+SILKY_PYTHON_PROFILER_RESULT_PATH = envvar('MREG_SILKY_PYTHON_PROFILER_RESULT_PATH', 'silk/profiles')
+
+# Meta-profiling of requests (show silk's performance impact)
+SILKY_META = envvar("MREG_SILKY_META", False) # disable meta-profiling by default
+
 # Import local settings that may override those in this file.
 try:
     from .local_settings import *  # noqa: F401,F403
@@ -467,3 +490,103 @@ if "DATABASES" not in globals():
             },
         }
     }
+
+# Configure Silk profiling if enabled
+if MREG_PROFILING_ENABLED:
+    logger = structlog.get_logger(__name__)
+    if not _silk_installed:
+        logger.error(
+            "MREG_PROFILING_ENABLED is set to True, but silk is not installed.",
+            "Install silk with `uv sync --(only-)group profile` or disable profiling.",
+        )
+        sys.exit(1)
+    
+    # NOTE: logging happens twice here on startup for some reason...
+    logger.warning("Profiling is enabled. All requests will be profiled with Silk. This will impact performance.")
+    
+    # Define views to enable Silk profiling for
+    # (Can be overridden by setting SILKY_DYNAMIC_PROFILING in local_settings.py)
+    if "SILKY_DYNAMIC_PROFILING" not in globals():
+        SILKY_DYNAMIC_PROFILING = [
+            {
+                "module": "mreg.api.v1.views",
+                "function": "HostDetail.get",
+                'name': 'Get single host',
+            },
+            {
+                "module": "mreg.api.v1.views",
+                "function": "HostList.get",
+                'name': 'Get hosts',
+            },
+            {
+                "module": "mreg.api.v1.views",
+                "function": "HostList.post",
+                'name': 'Create host',
+            },
+            {
+                "module": "hostpolicy.api.v1.views",
+                "function": "HostPolicyAtomDetail.get",
+                'name': 'Get single Atom',
+            },
+            {
+                "module": "hostpolicy.api.v1.views",
+                "function": "HostPolicyAtomDetail.delete",
+                'name': 'Delete single Atom',
+            },
+            {
+                "module": "hostpolicy.api.v1.views",
+                "function": "HostPolicyAtomList.get",
+                'name': 'Get Atoms',
+            },
+            {
+                "module": "hostpolicy.api.v1.views",
+                "function": "HostPolicyAtomList.post",
+                'name': 'Create Atom',
+            },
+            {
+                "module": "hostpolicy.api.v1.views",
+                "function": "HostPolicyRoleDetail.get",
+                'name': 'Get single Role',
+            },
+            {
+                "module": "hostpolicy.api.v1.views",
+                "function": "HostPolicyRoleDetail.delete",
+                'name': 'Delete a single Role',
+            },
+            {
+                "module": "hostpolicy.api.v1.views",
+                "function": "HostPolicyRoleList.get",
+                'name': 'Get Roles',
+            },
+            {
+                "module": "hostpolicy.api.v1.views",
+                "function": "HostPolicyRoleList.post",
+                'name': 'Create Role',
+            },
+            {
+                "module": "hostpolicy.api.v1.views",
+                "function": "HostPolicyRoleAtomsList.get",
+                'name': 'Get Role Atoms',
+            },
+            {
+                "module": "hostpolicy.api.v1.views",
+                "function": "HostPolicyRoleHostsList.get",
+                'name': 'Get Role Hosts',
+            },
+        ]
+    
+    # Ensure the profiler result path exists and is writable before enabling Silk
+    if SILKY_PYTHON_PROFILER_RESULT_PATH:
+        p = Path(SILKY_PYTHON_PROFILER_RESULT_PATH)
+        if not p.exists():
+            try:
+                p.mkdir(parents=True)
+            except OSError as e:
+                logger.error(f"Failed to create Silk profiler result directory {SILKY_PYTHON_PROFILER_RESULT_PATH}: {e}")
+                sys.exit(1)
+        elif not p.is_dir() or not os.access(p, os.W_OK):
+            logger.error(f"Silk profiler result path {SILKY_PYTHON_PROFILER_RESULT_PATH} is not a writable directory.")
+            sys.exit(1)
+
+    INSTALLED_APPS.append("silk")
+    MIDDLEWARE.insert(0, "silk.middleware.SilkyMiddleware")
