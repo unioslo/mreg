@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/2.0/ref/settings/
 
 import logging.config
 import os
+from pathlib import Path
 import sys
 from typing import Literal, TypeVar
 
@@ -417,6 +418,94 @@ structlog.configure(
     wrapper_class=structlog.stdlib.BoundLogger,
     cache_logger_on_first_use=True,
 )
+
+# Django Silk profiling settings
+try:
+    import silk  # noqa: F401  # pyright: ignore[reportUnusedImport, reportMissingTypeStubs]
+    _silk_installed = True
+except ImportError:
+    _silk_installed = False
+
+if MREG_PROFILING_ENABLED := envvar("MREG_PROFILING_ENABLED", False):
+    if not _silk_installed:
+        print("MREG_PROFILING_ENABLED is set to True, but silk is not installed. Please install silk or disable profiling.")
+        sys.exit(1)
+    print("Profiling is enabled. All requests will be profiled with Silk. This may have a performance impact.")
+    SILKY_DYNAMIC_PROFILING = [
+        {
+            "module": "mreg.api.v1.views",
+            "function": "HostDetail.get",
+            'name': 'Get single host',
+        },
+        {
+            "module": "mreg.api.v1.views",
+            "function": "HostList.get",
+            'name': 'Get hosts',
+        },
+        {
+            "module": "mreg.api.v1.views",
+            "function": "HostList.post",
+            'name': 'Create host',
+        },
+        {
+            "module": "hostpolicy.api.v1.views",
+            "function": "HostPolicyAtomDetail.get",
+            'name': 'Get single Atom',
+        },
+        {
+            "module": "hostpolicy.api.v1.views",
+            "function": "HostPolicyAtomDetail.delete",
+            'name': 'Delete single Atom',
+        },
+        {
+            "module": "hostpolicy.api.v1.views",
+            "function": "HostPolicyAtomList.get",
+            'name': 'Get Atoms',
+        },
+        {
+            "module": "hostpolicy.api.v1.views",
+            "function": "HostPolicyAtomList.post",
+            'name': 'Create Atom',
+        },
+        {
+            "module": "hostpolicy.api.v1.views",
+            "function": "HostPolicyRoleDetail.get",
+            'name': 'Get single Role',
+        },
+        {
+            "module": "hostpolicy.api.v1.views",
+            "function": "HostPolicyRoleDetail.delete",
+            'name': 'Delete a single Role',
+        },
+        {
+            "module": "hostpolicy.api.v1.views",
+            "function": "HostPolicyRoleList.get",
+            'name': 'Get Roles',
+        },
+        {
+            "module": "hostpolicy.api.v1.views",
+            "function": "HostPolicyRoleList.post",
+            'name': 'Create Role',
+        },
+        {
+            "module": "hostpolicy.api.v1.views",
+            "function": "HostPolicyRoleAtomsList.get",
+            'name': 'Get Role Atoms',
+        },
+        {
+            "module": "hostpolicy.api.v1.views",
+            "function": "HostPolicyRoleHostsList.get",
+            'name': 'Get Role Hosts',
+        },
+    ]
+    
+    SILKY_PYTHON_PROFILER = envvar("MREG_SILKY_PYTHON_PROFILER", True)
+    SILKY_PYTHON_PROFILER_BINARY = envvar("MREG_SILKY_PYTHON_PROFILER_BINARY", True)
+    SILKY_PYTHON_PROFILER_RESULT_PATH = envvar('MREG_SILKY_PYTHON_PROFILER_RESULT_PATH', 'silk/profiles')
+    SILKY_META = envvar("MREG_SILKY_META", False) # disable meta-profiling by default
+
+    INSTALLED_APPS.append("silk")
+    MIDDLEWARE.insert(0, "silk.middleware.SilkyMiddleware")
 
 # Import local settings that may override those in this file.
 try:

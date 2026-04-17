@@ -38,6 +38,7 @@ dev = [
     "pytest",
     "pytest-django",
     "uv>=0.9",
+    {include-group = "profile"},
 ]
 ci = [
     # Explictly include dev group for non-uv package managers
@@ -46,6 +47,8 @@ ci = [
     "tox-gh-actions", 
     "coveralls",
 ]
+profile = ["django-silk[formatting]>=5.5.0"]
+
 
 [tool.ruff]
 line-length = 140
