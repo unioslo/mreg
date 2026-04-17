@@ -582,10 +582,10 @@ if MREG_PROFILING_ENABLED:
             try:
                 p.mkdir(parents=True)
             except OSError as e:
-                print(f"Failed to create Silk profiler result directory {SILKY_PYTHON_PROFILER_RESULT_PATH}: {e}", file=sys.stderr)
+                logger.error(f"Failed to create Silk profiler result directory {SILKY_PYTHON_PROFILER_RESULT_PATH}: {e}")
                 sys.exit(1)
         elif not p.is_dir() or not os.access(p, os.W_OK):
-            print(f"Silk profiler result path {SILKY_PYTHON_PROFILER_RESULT_PATH} is not a writable directory.", file=sys.stderr)
+            logger.error(f"Silk profiler result path {SILKY_PYTHON_PROFILER_RESULT_PATH} is not a writable directory.")
             sys.exit(1)
 
     INSTALLED_APPS.append("silk")
