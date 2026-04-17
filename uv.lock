@@ -513,6 +513,7 @@ dependencies = [
 ci = [
     { name = "coverage", extra = ["toml"] },
     { name = "coveralls" },
+    { name = "django-silk", extra = ["formatting"] },
     { name = "pytest" },
     { name = "pytest-django" },
     { name = "tox-gh-actions" },
@@ -521,6 +522,7 @@ ci = [
 ]
 dev = [
     { name = "coverage", extra = ["toml"] },
+    { name = "django-silk", extra = ["formatting"] },
     { name = "pytest" },
     { name = "pytest-django" },
     { name = "tox-uv" },
@@ -557,6 +559,7 @@ requires-dist = [
 ci = [
     { name = "coverage", extras = ["toml"] },
     { name = "coveralls" },
+    { name = "django-silk", extras = ["formatting"], specifier = ">=5.5.0" },
     { name = "pytest" },
     { name = "pytest-django" },
     { name = "tox-gh-actions" },
@@ -565,6 +568,7 @@ ci = [
 ]
 dev = [
     { name = "coverage", extras = ["toml"] },
+    { name = "django-silk", extras = ["formatting"], specifier = ">=5.5.0" },
     { name = "pytest" },
     { name = "pytest-django" },
     { name = "tox-uv", specifier = ">=1.29" },
