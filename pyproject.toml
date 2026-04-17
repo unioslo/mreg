@@ -37,7 +37,7 @@ dev = [
     "coverage[toml]",
     "pytest",
     "pytest-django",
-    "uv>=0.9",
+    "uv>=0.11.6",
     {include-group = "profile"},
 ]
 ci = [
