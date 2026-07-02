@@ -35,6 +35,10 @@ class CommunitySerializer(serializers.ModelSerializer):
     # Members are all the hosts that have this community assigned.
     hosts = serializers.SerializerMethodField(read_only=True)
     global_name = serializers.SerializerMethodField(read_only=True)
+    network_address = serializers.SerializerMethodField(read_only=True)
+
+    def get_network_address(self, obj) -> str:
+        return str(obj.network.network)
 
     def get_hosts(self, obj):
         return list(obj.hosts.values_list("name", flat=True))
@@ -77,7 +81,7 @@ class CommunitySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Community
-        fields = ['id', 'name', 'description', 'network', 'hosts', 'global_name', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'description', 'network', 'network_address', 'hosts', 'global_name', 'created_at', 'updated_at']
         read_only_fields = ['network'] 
 
 
