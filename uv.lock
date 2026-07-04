@@ -1085,11 +1085,11 @@ wheels = [
 
 [[package]]
 name = "unittest-parametrize"
-version = "1.4.0"
+version = "1.8.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/f5/40/6311475f636738bc10726559cc42b271c11f5a7574f1c2c5aa75fac5d221/unittest_parametrize-1.4.0.tar.gz", hash = "sha256:f9dcaed821ad19724964a49e7f595311b9a2c5253c61cdb1fb2c01b899af67a2", size = 12546, upload-time = "2023-10-12T10:00:25.999Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d0/5a/32bb766239d938f6030dd3920387dedc30b1c89aca01cb5281c3075bdf87/unittest_parametrize-1.8.0.tar.gz", hash = "sha256:90818ddeb28648e795eb53983f42d44e273b26ab03a1db49c27f6830ed419236", size = 15060, upload-time = "2025-09-09T11:04:26.317Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/94/0e/64feadbd3ced20c1da29aac9dc32b9df2a730cd34618b204d22f5673ce7f/unittest_parametrize-1.4.0-py3-none-any.whl", hash = "sha256:8b9554fbcfd36bfef6c5c522b9146f13647eb4ec589c17af7f67f22793cecb82", size = 8118, upload-time = "2023-10-12T10:00:24.353Z" },
+    { url = "https://files.pythonhosted.org/packages/ab/62/193690ddc422c7af943b3f371ef34742dbb6a061e0b348e356399a52004d/unittest_parametrize-1.8.0-py3-none-any.whl", hash = "sha256:10a580aa04d13cf4f1c8e5e07be5694392b7ecef3b4d585bfc2bddce65bc3275", size = 9261, upload-time = "2025-09-09T11:04:25.025Z" },
 ]
 
 [[package]]
