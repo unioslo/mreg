@@ -29,6 +29,9 @@ class ForwardZonesTestCase(MregAPITestCase):
         self.post_data_two = {'name': 'example.net',
                               'primary_ns': ['ns1.example.org', 'ns2.example.org'],
                               'email': "hostmaster@example.org"}
+        self.post_data_three = {'name': 'example.co.uk',
+                              'primary_ns': 'ns3.example.org',
+                              'email': "hostmaster@example.org"}
         self.patch_data = {'refresh': '500', 'expire': '1000'}
         clean_and_save(self.host_one)
         clean_and_save(self.host_two)
@@ -60,6 +63,11 @@ class ForwardZonesTestCase(MregAPITestCase):
         """"Posting a new zone should return 201 and location"""
         response = self.assert_post('/zones/forward/', self.post_data_one)
         self.assertEqual(response['Location'], '/api/v1/zones/forward/%s' % self.post_data_one['name'])
+    
+    def test_zones_post_201_primary_ns_str(self):
+        """"Posting a new zone with primary_ns as a string should return 201 and location"""
+        response = self.assert_post('/zones/forward/', self.post_data_three)
+        self.assertEqual(response['Location'], '/api/v1/zones/forward/%s' % self.post_data_three['name'])
 
     def test_zones_post_serialno(self):
         """serialno should be based on the current date and a sequential number"""
@@ -157,6 +165,9 @@ class ReverseZonesTestCase(MregAPITestCase):
         self.post_data_two = {'name': '0.16.172.in-addr.arpa',
                               'primary_ns': ['ns1.example.org', 'ns2.example.org'],
                               'email': "hostmaster@example.org"}
+        self.post_data_three = {'name': '0.168.192.in-addr.arpa',
+                              'primary_ns': 'ns3.example.org', # primary_ns is a str
+                              'email': "hostmaster@example.org"}
         self.patch_data = {'refresh': '500', 'expire': '1000'}
         clean_and_save(self.host_one)
         clean_and_save(self.host_two)
@@ -188,6 +199,11 @@ class ReverseZonesTestCase(MregAPITestCase):
         """"Posting a new zone should return 201 and location"""
         response = self.assert_post(self.basepath, self.post_data_one)
         self.assertEqual(response['Location'], '/api/v1/zones/reverse/%s' % self.post_data_one['name'])
+
+    def test_zones_post_201_primary_ns_str(self):
+        """"Posting a new zone with primary_ns as a string should return 201 and location"""
+        response = self.assert_post(self.basepath, self.post_data_three)
+        self.assertEqual(response['Location'], '/api/v1/zones/reverse/%s' % self.post_data_three['name'])
 
     def test_zones_post_serialno(self):
         """serialno should be based on the current date and a sequential number"""
@@ -264,6 +280,15 @@ class ZonesForwardDelegationTestCase(MregAPITestCase):
         path = self.del_path('example.org')
         data = {'name': 'delegated.example.org',
                 'nameservers': ['ns1.example.org', 'ns1.delegated.example.org'],
+                'comment': 'delegated to Mr. Anderson'}
+        response = self.assert_post(path, data)
+        self.assertEqual(response['Location'], f"{path}delegated.example.org")
+    
+    def test_delegate_forward_nameservers_str_201_ok(self):
+        """Posting a new delegation with nameservers as a string should return 201 and location"""
+        path = self.del_path('example.org')
+        data = {'name': 'delegated.example.org',
+                'nameservers': 'ns1.example.org',
                 'comment': 'delegated to Mr. Anderson'}
         response = self.assert_post(path, data)
         self.assertEqual(response['Location'], f"{path}delegated.example.org")
@@ -444,6 +469,21 @@ class ZonesReverseDelegationTestCase(MregAPITestCase):
         response = self.assert_post(path, self.del_10101010)
         self.assertEqual(response['Location'], f"{path}10.10.10.10.in-addr.arpa")
         self.assert_get(response['Location'])
+    
+    def test_delegate_ipv4_nameservers_str_201_ok(self):
+        path = self.del_path('10.10.in-addr.arpa')
+
+        data = self.del_101010.copy()
+        data['nameservers'] = 'ns1.example.org'
+        response = self.assert_post(path, data)
+        self.assertEqual(response['Location'], f"{path}10.10.10.in-addr.arpa")
+        self.assert_get(response['Location'])
+
+        data = self.del_10101010.copy()
+        data['nameservers'] = 'ns1.example.org'
+        response = self.assert_post(path, data)
+        self.assertEqual(response['Location'], f"{path}10.10.10.10.in-addr.arpa")
+        self.assert_get(response['Location'])
 
     def test_delegate_ipv4_zonefiles_200_ok(self):
         self.test_delegate_ipv4_201_ok()
@@ -485,6 +525,15 @@ class ZonesReverseDelegationTestCase(MregAPITestCase):
         path = self.del_path('8.b.d.0.1.0.0.2.ip6.arpa')
         response = self.assert_post(path, self.del_2001db810)
         self.assertEqual(response['Location'], f"{path}{self.del_2001db810['name']}")
+        self.assert_get(response['Location'])
+    
+    def test_delegate_ipv6_nameservers_str_201_ok(self):
+        """Test IPv6 delegation with nameservers as a string."""
+        path = self.del_path('8.b.d.0.1.0.0.2.ip6.arpa')
+        data = self.del_2001db810.copy()
+        data['nameservers'] = 'ns1.example.org'
+        response = self.assert_post(path, data)
+        self.assertEqual(response['Location'], f"{path}{data['name']}")
         self.assert_get(response['Location'])
 
     def test_delegate_ipv6_zonefiles_200_ok(self):

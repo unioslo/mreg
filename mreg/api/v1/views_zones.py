@@ -60,8 +60,12 @@ def _validate_nameservers(names):
 def _get_request_nameservers(request: Request, field: str = "primary_ns") -> List[str]:
     """Extract nameservers from the request data."""
     if request.content_type == "application/json":
-        return request.data.get(field, [])
-    return request.data.getlist(field, [])
+        nameservers = request.data.get(field, [])
+    else:
+        nameservers = request.data.getlist(field, [])
+    if isinstance(nameservers, str):
+        nameservers = [nameservers]
+    return nameservers
 
 
 class ZoneList(generics.ListCreateAPIView):
