@@ -22,6 +22,7 @@ from mreg.models.resource_records import Cname, Loc, Naptr, Srv, Sshfp, Txt, Hin
 from mreg.models.network_policy import Community, HostCommunityMapping, NetworkPolicy
 from mreg.types import IPAllocationMethod
 
+from mreg.api.responses import error_response
 from mreg.api.permissions import (
     IsAuthenticatedAndReadOnly,
     IsGrantedNetGroupRegexPermission,
@@ -383,22 +384,17 @@ class HostList(HostPermissionsListCreateAPIView):
             community_id = request.data.pop("network_community")
             community = Community.objects.filter(id=community_id).first()
             if not community:
-                content = {"error": f"Community '{community_id}' not found"}
-                return Response(content, status=status.HTTP_404_NOT_FOUND)
+                return error_response(f"Community '{community_id}' not found", status.HTTP_404_NOT_FOUND)
 
         if "name" in request.data:
             if self.queryset.filter(name=request.data["name"]).exists():
-                content = {"error": "name already in use"}
-                return Response(content, status=status.HTTP_409_CONFLICT)
+                return error_response("name already in use", status.HTTP_409_CONFLICT)
 
         if "ipaddress" in request.data and "network" in request.data:
-            content = {"error": "'ipaddress' and 'network' is mutually exclusive"}
-            return Response(content, status=status.HTTP_400_BAD_REQUEST)
+            return error_response("'ipaddress' and 'network' is mutually exclusive", status.HTTP_400_BAD_REQUEST)
 
         if "allocation_method" in request.data and "network" not in request.data:
-            return Response(
-                {"error": "allocation_method is only allowed with 'network'"},
-                status=status.HTTP_400_BAD_REQUEST)
+            return error_response("allocation_method is only allowed with 'network'", status.HTTP_400_BAD_REQUEST)
 
         # request.data is immutable
         hostdata = request.data.copy()
@@ -414,13 +410,11 @@ class HostList(HostPermissionsListCreateAPIView):
             try:
                 ipaddress.ip_network(network_key)
             except ValueError as error:
-                content = {"error": str(error)}
-                return Response(content, status=status.HTTP_400_BAD_REQUEST)
+                return error_response(str(error), status.HTTP_400_BAD_REQUEST)
 
             network = Network.objects.filter(network=network_key).first()
             if not network:
-                content = {"error": "no such network"}
-                return Response(content, status=status.HTTP_404_NOT_FOUND)
+                return error_response("no such network", status.HTTP_404_NOT_FOUND)
 
             try:
                 allocation_key = hostdata.pop("allocation_method", IPAllocationMethod.FIRST.value)
@@ -429,8 +423,10 @@ class HostList(HostPermissionsListCreateAPIView):
                 request_ip_allocator = IPAllocationMethod(allocation_key.lower())
             except ValueError:
                 options = [method.value for method in IPAllocationMethod]
-                content = {"error": f"allocation_method must be one of {', '.join(options)}"}
-                return Response(content, status=status.HTTP_400_BAD_REQUEST)
+                return error_response(
+                    f"allocation_method must be one of {', '.join(options)}",
+                    status.HTTP_400_BAD_REQUEST,
+                )
 
             if request_ip_allocator == IPAllocationMethod.RANDOM:
                 ip = network.get_random_unused()
@@ -438,8 +434,7 @@ class HostList(HostPermissionsListCreateAPIView):
                 ip = network.get_first_unused()
 
             if not ip:
-                content = {"error": "no available IP in network"}
-                return Response(content, status=status.HTTP_409_CONFLICT)
+                return error_response("no available IP in network", status.HTTP_409_CONFLICT)
 
             hostdata["ipaddress"] = ip
 
@@ -472,8 +467,10 @@ class HostList(HostPermissionsListCreateAPIView):
                     )
         else:
             if community:
-                content = {"error": "Unable to assign community to host as it has no IP address"}
-                return Response(content, status=status.HTTP_406_NOT_ACCEPTABLE)
+                return error_response(
+                    "Unable to assign community to host as it has no IP address",
+                    status.HTTP_406_NOT_ACCEPTABLE,
+                )
 
             host = Host()
             hostserializer = HostSerializer(host, data=hostdata)
@@ -506,8 +503,7 @@ class HostDetail(HostPermissionsUpdateDestroy,
     def patch(self, request, *args, **kwargs):
         if "name" in request.data:
             if self.get_queryset().filter(name=request.data["name"]).exists():
-                content = {"error": "name already in use"}
-                return Response(content, status=status.HTTP_409_CONFLICT)
+                return error_response("name already in use", status.HTTP_409_CONFLICT)
 
         return super().patch(request, *args, **kwargs)
 
@@ -546,23 +542,17 @@ class HostContactsView(HostPermissionsUpdateDestroy, APIView):
         emails = request.data.get('emails', [])
         
         if not emails:
-            return Response(
-                {"error": "Must provide 'emails' list"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return error_response("Must provide 'emails' list", status.HTTP_400_BAD_REQUEST)
         
         if not isinstance(emails, list):
-            return Response(
-                {"error": "'emails' must be a list"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return error_response("'emails' must be a list", status.HTTP_400_BAD_REQUEST)
 
         result = host.add_contacts(emails)
         
         if result['invalid']:
-            return Response(
-                {"error": f"Invalid email address(es): {', '.join(result['invalid'])}"},
-                status=status.HTTP_400_BAD_REQUEST
+            return error_response(
+                f"Invalid email address(es): {', '.join(result['invalid'])}",
+                status.HTTP_400_BAD_REQUEST,
             )
 
         response_data = {
@@ -591,10 +581,7 @@ class HostContactsView(HostPermissionsUpdateDestroy, APIView):
             )
 
         if not isinstance(emails, list):
-            return Response(
-                {"error": "'emails' must be a list"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return error_response("'emails' must be a list", status.HTTP_400_BAD_REQUEST)
 
         removed = []
         not_found = []
@@ -666,9 +653,9 @@ class IpaddressDetail(HostPermissionsUpdateDestroy, MregRetrieveUpdateDestroyAPI
             try:
                 network = Network.objects.get(network__net_contains=new_ip)
             except Network.DoesNotExist:
-                return Response(
-                    {"error": "No network found for the new IP address, cannot update due to community membership"},
-                    status=status.HTTP_404_NOT_FOUND,
+                return error_response(
+                    "No network found for the new IP address, cannot update due to community membership",
+                    status.HTTP_404_NOT_FOUND,
                 )
             
             network_match = False
@@ -678,9 +665,9 @@ class IpaddressDetail(HostPermissionsUpdateDestroy, MregRetrieveUpdateDestroyAPI
                     break
 
             if not network_match:
-                return Response(
-                    {"error": "Cannot switch network membership for due to community membership."},
-                    status=status.HTTP_409_CONFLICT,
+                return error_response(
+                    "Cannot switch network membership for due to community membership.",
+                    status.HTTP_409_CONFLICT,
                 )
 
         return super().patch(request, *args, **kwargs)
@@ -909,10 +896,7 @@ def _overlap_check(range, exclude=None):
         overlap = overlap.exclude(id=exclude.id)
     if overlap:
         info = ", ".join(map(str, overlap))
-        return Response(
-            {"error": "Network overlaps with: {}".format(info)},
-            status=status.HTTP_409_CONFLICT,
-        )
+        return error_response("Network overlaps with: {}".format(info), status.HTTP_409_CONFLICT)
 
 
 class NetworkList(MregListCreateAPIView):
@@ -970,10 +954,7 @@ class NetworkDetail(MregRetrieveUpdateDestroyAPIView):
                 try:
                     policy = NetworkPolicy.objects.get(id=policy_id)
                 except NetworkPolicy.DoesNotExist:
-                    return Response(
-                        {"error": "No such policy"},
-                        status=status.HTTP_404_NOT_FOUND,
-                    )
+                    return error_response("No such policy", status.HTTP_404_NOT_FOUND)
                 policy.can_be_used_with_communities_or_raise()
                 network.policy = policy
                 
@@ -984,10 +965,7 @@ class NetworkDetail(MregRetrieveUpdateDestroyAPIView):
     def delete(self, request, *args, **kwargs):
         network = self.get_object()
         if network.used_addresses:
-            return Response(
-                {"error": "Network contains IP addresses that are in use"},
-                status=status.HTTP_409_CONFLICT,
-            )
+            return error_response("Network contains IP addresses that are in use", status.HTTP_409_CONFLICT)
 
         self.perform_destroy(network)
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -1075,8 +1053,7 @@ def network_first_unused(request, *args, **kwargs):
     if ip:
         return Response(ip, status=status.HTTP_200_OK)
     else:
-        content = {"error": "No available IPs"}
-        return Response(content, status=status.HTTP_404_NOT_FOUND)
+        return error_response("No available IPs", status.HTTP_404_NOT_FOUND)
 
 
 @extend_schema(
@@ -1093,8 +1070,7 @@ def network_random_unused(request, *args, **kwargs):
     if ip:
         return Response(ip, status=status.HTTP_200_OK)
     else:
-        content = {"error": "No available IPs"}
-        return Response(content, status=status.HTTP_404_NOT_FOUND)
+        return error_response("No available IPs", status.HTTP_404_NOT_FOUND)
 
 
 @extend_schema(

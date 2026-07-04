@@ -3,8 +3,8 @@ from django.contrib.auth.models import Group
 from django.db.models import Prefetch
 
 from rest_framework import status
-from rest_framework.response import Response
 
+from mreg.api.responses import error_response
 from mreg.api.permissions import (HostGroupPermission,
                                   IsSuperOrGroupAdminOrReadOnly)
 from mreg.models.host import Host, HostGroup
@@ -83,8 +83,7 @@ class HostGroupList(HostGroupLogMixin, LowerCaseLookupMixin, MregListCreateAPIVi
 
     def post(self, request, *args, **kwargs):
         if self.get_object_from_request(request):
-            content = {'error': 'hostgroup name already in use'}
-            return Response(content, status=status.HTTP_409_CONFLICT)
+            return error_response('hostgroup name already in use', status.HTTP_409_CONFLICT)
         return super().post(request, *args, **kwargs)
 
 

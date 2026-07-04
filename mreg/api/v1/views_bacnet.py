@@ -1,6 +1,7 @@
 from rest_framework import status
 from rest_framework.response import Response
 
+from mreg.api.responses import error_response
 from mreg.api.v1.views import (
     MregListCreateAPIView,
     MregRetrieveUpdateDestroyAPIView,
@@ -44,11 +45,9 @@ class BACnetIDList(MregListCreateAPIView):
             # if a host was supplied and that host already has a BACnet ID, return 409 conflict
             # instead of the default 400 bad request
             if host and hasattr(host, "bacnetid"):
-                content = {"error": "The host already has a BACnet ID."}
-                return Response(content, status=status.HTTP_409_CONFLICT)
+                return error_response("The host already has a BACnet ID.", status.HTTP_409_CONFLICT)
         except Host.DoesNotExist:
-            content = {"error": "The host does not exist."}
-            return Response(content, status=status.HTTP_400_BAD_REQUEST)
+            return error_response("The host does not exist.", status.HTTP_400_BAD_REQUEST)
 
         # validate the data
         obj = BACnetID()
