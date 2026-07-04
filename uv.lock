@@ -317,15 +317,17 @@ wheels = [
 
 [[package]]
 name = "django-netfields"
-version = "1.3.2"
+version = "1.4.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "django", version = "5.2.15", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "django", version = "6.0.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "netaddr" },
-    { name = "six" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/16/08/034a97f1f9bff7a5e8ae3180d7a33cba4154a75e444d167366aee78ea61a/django-netfields-1.3.2.tar.gz", hash = "sha256:e54943601bb88573b70f8843e7080f5d7327e41f5500ce30a198c384cc325a60", size = 36764, upload-time = "2023-12-13T17:41:36.256Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c7/4b/a34f990c67826a097c770fb6868a84e1b85c4e07e66a49727110c732bb84/django_netfields-1.4.1.tar.gz", hash = "sha256:a9bcde955fabb92a26663108bbf81992a979287561c938ce3d9cd79c7fcad7f6", size = 36894, upload-time = "2026-03-05T16:38:49.147Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4d/a0/f077987b26230ad27ef96729784272d4d41ea7a9fcfd6f95b174a6fec895/django_netfields-1.4.1-py3-none-any.whl", hash = "sha256:6c8edcd724da84ce1a9cf1eca9078919ca808c9c1ed5d26edc8c9ed0559f7edf", size = 15326, upload-time = "2026-03-05T16:38:47.637Z" },
+]
 
 [[package]]
 name = "django-silk"
