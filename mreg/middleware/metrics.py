@@ -228,7 +228,9 @@ class PrometheusRequestMiddleware:
 
             # Observe per-request DB query count
             try:
-                REQUEST_DB_QUERY_COUNT.labels(request.method, path_label, status).observe(float(getattr(request, "_db_query_count", 0) or 0))
+                REQUEST_DB_QUERY_COUNT.labels(request.method, path_label, status).observe(
+                    float(getattr(request, "_db_query_count", 0) or 0)
+                )
             except Exception:  # pragma: no cover - defensive
                 pass
 
