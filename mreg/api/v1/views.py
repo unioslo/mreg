@@ -94,7 +94,7 @@ STRING_LIST_MAP_SCHEMA = {
 IP_ADDRESS_STRING_SCHEMA = {
     "type": "string",
     "description": "IPv4 or IPv6 address.",
-    "examples": ["192.0.2.10", "2001:db8::10"],
+    "example": "192.0.2.10",
 }
 
 IP_ADDRESS_LIST_SCHEMA = {

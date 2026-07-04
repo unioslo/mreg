@@ -91,7 +91,7 @@ LDAP_CALL_FAILURES = Counter(
 PROMETHEUS_METRICS_TEXT_SCHEMA = {
     "type": "string",
     "description": "Prometheus exposition text format.",
-    "examples": ["# HELP mreg_http_requests_total Total HTTP requests.\n# TYPE mreg_http_requests_total counter\n"],
+    "example": "# HELP mreg_http_requests_total Total HTTP requests.\n# TYPE mreg_http_requests_total counter\n",
 }
 
 
