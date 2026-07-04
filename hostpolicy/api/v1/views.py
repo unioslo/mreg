@@ -199,7 +199,8 @@ class HostPolicyRoleAtomsDetail(HostPolicyM2MDetail):
 
     serializer_class = serializers.HostPolicyAtomSerializer
     m2m_field = 'atoms'
-    lookup_field = 'atom'
+    lookup_field = 'name'
+    lookup_url_kwarg = 'atom'
 
 
 class HostPolicyRoleHostsList(HostPolicyM2MList):
@@ -230,4 +231,5 @@ class HostPolicyRoleHostsDetail(HostPolicyM2MDetail):
 
     serializer_class = HostNameSerializer
     m2m_field = 'hosts'
-    lookup_field = 'host'
+    lookup_field = 'name'
+    lookup_url_kwarg = 'host'

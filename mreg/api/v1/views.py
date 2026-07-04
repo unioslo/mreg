@@ -14,9 +14,10 @@ from rest_framework.exceptions import MethodNotAllowed, ParseError, UnsupportedM
 from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from drf_spectacular.utils import OpenApiParameter, OpenApiTypes, extend_schema
 from mreg.models.base import NameServer, History
 from mreg.models.host import Host, Ipaddress, PtrOverride
-from mreg.models.network import Network, NetGroupRegexPermission
+from mreg.models.network import Network, NetGroupRegexPermission, NetworkExcludedRange
 from mreg.models.resource_records import Cname, Loc, Naptr, Srv, Sshfp, Txt, Hinfo, Mx
 from mreg.models.network_policy import Community, HostCommunityMapping, NetworkPolicy
 from mreg.types import IPAllocationMethod
@@ -50,8 +51,13 @@ from .filters import (
 from .history import HistoryLog
 from .serializers import (
     CnameSerializer,
+    DhcpHostSerializer,
+    DhcpV6HostByV4Serializer,
+    ErrorResponseSerializer,
     HinfoSerializer,
     HistorySerializer,
+    HostContactMutationResponseSerializer,
+    HostContactMutationSerializer,
     HostContactSerializer,
     HostSerializer,
     IpaddressSerializer,
@@ -69,6 +75,21 @@ from .serializers import (
 )
 
 from mreg.mixins import LowerCaseLookupMixin
+
+
+STRING_MAP_SCHEMA = {
+    "type": "object",
+    "additionalProperties": {"type": "string"},
+}
+
+STRING_LIST_MAP_SCHEMA = {
+    "type": "object",
+    "additionalProperties": {
+        "type": "array",
+        "items": {"type": "string"},
+    },
+}
+
 
 class JSONContentTypeMixin:
     """A view mixin that requires POST, PUT, PATCH and DELETE operations to this view have a JSON content type.
@@ -504,12 +525,21 @@ class HostContactsView(HostPermissionsUpdateDestroy, APIView):
         """Get the host object by name."""
         return get_object_or_404(Host, name=name.lower())
 
+    @extend_schema(
+        parameters=[OpenApiParameter("name", OpenApiTypes.STR, OpenApiParameter.PATH)],
+        responses={status.HTTP_200_OK: HostContactSerializer(many=True)},
+    )
     def get(self, request, name):
         """List all contacts for the host."""
         host = self.get_host(name)
         serializer = HostContactSerializer(host.contacts.all(), many=True)
         return Response(serializer.data)
 
+    @extend_schema(
+        parameters=[OpenApiParameter("name", OpenApiTypes.STR, OpenApiParameter.PATH)],
+        request=HostContactMutationSerializer,
+        responses={status.HTTP_200_OK: HostContactMutationResponseSerializer},
+    )
     def post(self, request, name):
         """Add one or more contacts to the host."""
         host = self.get_host(name)
@@ -541,6 +571,11 @@ class HostContactsView(HostPermissionsUpdateDestroy, APIView):
         }
         return Response(response_data, status=status.HTTP_200_OK)
 
+    @extend_schema(
+        parameters=[OpenApiParameter("name", OpenApiTypes.STR, OpenApiParameter.PATH)],
+        request=HostContactMutationSerializer,
+        responses={status.HTTP_200_OK: HostContactMutationResponseSerializer},
+    )
     def delete(self, request, name):
         """Remove one or more contacts from the host, or clear all if no emails provided."""
         host = self.get_host(name)
@@ -980,6 +1015,8 @@ class NetworkExcludedRangeList(MregListCreateAPIView):
         Applies filtering to the queryset
         :return: filtered list of network excludes
         """
+        if "network" not in self.kwargs:
+            return NetworkExcludedRange.objects.none()
         qs = get_object_or_404(
             Network, network=self.kwargs["network"]
         ).excluded_ranges.all()
@@ -1003,10 +1040,16 @@ class NetworkExcludedRangeDetail(MregRetrieveUpdateDestroyAPIView):
     lookup_field = "pk"
 
     def get_queryset(self):
+        if "network" not in self.kwargs:
+            return NetworkExcludedRange.objects.none()
         network = get_object_or_404(Network, network=self.kwargs["network"])
         return network.excluded_ranges.all()
 
 
+@extend_schema(
+    parameters=[OpenApiParameter("ip", OpenApiTypes.STR, OpenApiParameter.PATH)],
+    responses={status.HTTP_200_OK: NetworkSerializer},
+)
 @api_view()
 def network_by_ip(request, *args, **kwargs):
     try:
@@ -1018,6 +1061,13 @@ def network_by_ip(request, *args, **kwargs):
     return Response(serializer.data, status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    parameters=[OpenApiParameter("network", OpenApiTypes.STR, OpenApiParameter.PATH)],
+    responses={
+        status.HTTP_200_OK: OpenApiTypes.STR,
+        status.HTTP_404_NOT_FOUND: ErrorResponseSerializer,
+    },
+)
 @api_view()
 def network_first_unused(request, *args, **kwargs):
     network = get_object_or_404(Network, network=kwargs["network"])
@@ -1029,6 +1079,13 @@ def network_first_unused(request, *args, **kwargs):
         return Response(content, status=status.HTTP_404_NOT_FOUND)
 
 
+@extend_schema(
+    parameters=[OpenApiParameter("network", OpenApiTypes.STR, OpenApiParameter.PATH)],
+    responses={
+        status.HTTP_200_OK: OpenApiTypes.STR,
+        status.HTTP_404_NOT_FOUND: ErrorResponseSerializer,
+    },
+)
 @api_view()
 def network_random_unused(request, *args, **kwargs):
     network = get_object_or_404(Network, network=kwargs["network"])
@@ -1040,6 +1097,10 @@ def network_random_unused(request, *args, **kwargs):
         return Response(content, status=status.HTTP_404_NOT_FOUND)
 
 
+@extend_schema(
+    parameters=[OpenApiParameter("network", OpenApiTypes.STR, OpenApiParameter.PATH)],
+    responses={status.HTTP_200_OK: list[str]},
+)
 @api_view()
 def network_ptroverride_list(request, *args, **kwargs):
     network = get_object_or_404(Network, network=kwargs["network"])
@@ -1048,6 +1109,10 @@ def network_ptroverride_list(request, *args, **kwargs):
     return Response(ptr_list, status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    parameters=[OpenApiParameter("network", OpenApiTypes.STR, OpenApiParameter.PATH)],
+    responses={status.HTTP_200_OK: STRING_MAP_SCHEMA},
+)
 @api_view()
 def network_ptroverride_host_list(request, *args, **kwargs):
     network = get_object_or_404(Network, network=kwargs["network"])
@@ -1059,6 +1124,10 @@ def network_ptroverride_host_list(request, *args, **kwargs):
     return Response(ret, status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    parameters=[OpenApiParameter("network", OpenApiTypes.STR, OpenApiParameter.PATH)],
+    responses={status.HTTP_200_OK: list[str]},
+)
 @api_view()
 def network_reserved_list(request, *args, **kwargs):
     network = get_object_or_404(Network, network=kwargs["network"])
@@ -1066,12 +1135,20 @@ def network_reserved_list(request, *args, **kwargs):
     return Response(reserved, status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    parameters=[OpenApiParameter("network", OpenApiTypes.STR, OpenApiParameter.PATH)],
+    responses={status.HTTP_200_OK: OpenApiTypes.INT},
+)
 @api_view()
 def network_used_count(request, *args, **kwargs):
     network = get_object_or_404(Network, network=kwargs["network"])
     return Response(len(network.used_addresses), status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    parameters=[OpenApiParameter("network", OpenApiTypes.STR, OpenApiParameter.PATH)],
+    responses={status.HTTP_200_OK: list[str]},
+)
 @api_view()
 def network_used_list(request, *args, **kwargs):
     network = get_object_or_404(Network, network=kwargs["network"])
@@ -1079,6 +1156,10 @@ def network_used_list(request, *args, **kwargs):
     return Response(used_ipaddresses, status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    parameters=[OpenApiParameter("network", OpenApiTypes.STR, OpenApiParameter.PATH)],
+    responses={status.HTTP_200_OK: STRING_LIST_MAP_SCHEMA},
+)
 @api_view()
 def network_used_host_list(request, *args, **kwargs):
     network = get_object_or_404(Network, network=kwargs["network"])
@@ -1089,12 +1170,20 @@ def network_used_host_list(request, *args, **kwargs):
     return Response(ret, status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    parameters=[OpenApiParameter("network", OpenApiTypes.STR, OpenApiParameter.PATH)],
+    responses={status.HTTP_200_OK: OpenApiTypes.INT},
+)
 @api_view()
 def network_unused_count(request, *args, **kwargs):
     network = get_object_or_404(Network, network=kwargs["network"])
     return Response(network.unused_count, status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    parameters=[OpenApiParameter("network", OpenApiTypes.STR, OpenApiParameter.PATH)],
+    responses={status.HTTP_200_OK: list[str]},
+)
 @api_view()
 def network_unused_list(request, *args, **kwargs):
     network = get_object_or_404(Network, network=kwargs["network"])
@@ -1179,16 +1268,25 @@ def _dhcphosts_by_range(iprange):
     return Response(ips)
 
 
+@extend_schema(responses={status.HTTP_200_OK: DhcpHostSerializer(many=True)})
 @api_view()
 def dhcp_hosts_all_v4(request, *args, **kwargs):
     return _dhcphosts_by_range("0.0.0.0/0")
 
 
+@extend_schema(responses={status.HTTP_200_OK: DhcpHostSerializer(many=True)})
 @api_view()
 def dhcp_hosts_all_v6(request, *args, **kwargs):
     return _dhcphosts_by_range("::/0")
 
 
+@extend_schema(
+    parameters=[
+        OpenApiParameter("ip", OpenApiTypes.STR, OpenApiParameter.PATH),
+        OpenApiParameter("range", OpenApiTypes.INT, OpenApiParameter.PATH),
+    ],
+    responses={status.HTTP_200_OK: DhcpHostSerializer(many=True)},
+)
 @api_view()
 def dhcp_hosts_by_range(request, *args, **kwargs):
     return _dhcphosts_by_range(_get_iprange(kwargs))
@@ -1225,7 +1323,7 @@ def _dhcpv6_hosts_by_ipv4(iprange):
     return Response(ret)
 
 
-class DhcpHostsV4ByV6(APIView):
+class DhcpHostsV4ByV6Base(APIView):
     renderer_classes = (JSONRenderer,)
 
     def get(self, request, *args, **kwargs):
@@ -1234,3 +1332,25 @@ class DhcpHostsV4ByV6(APIView):
         else:
             iprange = "0.0.0.0/0"
         return _dhcpv6_hosts_by_ipv4(iprange)
+
+
+class DhcpHostsV4ByV6(DhcpHostsV4ByV6Base):
+    @extend_schema(
+        operation_id="api_v1_dhcphosts_ipv6byipv4_list",
+        responses={status.HTTP_200_OK: DhcpV6HostByV4Serializer(many=True)},
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+
+class DhcpHostsV4ByV6Range(DhcpHostsV4ByV6Base):
+    @extend_schema(
+        operation_id="api_v1_dhcphosts_ipv6byipv4_by_range_list",
+        parameters=[
+            OpenApiParameter("ip", OpenApiTypes.STR, OpenApiParameter.PATH),
+            OpenApiParameter("range", OpenApiTypes.INT, OpenApiParameter.PATH),
+        ],
+        responses={status.HTTP_200_OK: DhcpV6HostByV4Serializer(many=True)},
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)

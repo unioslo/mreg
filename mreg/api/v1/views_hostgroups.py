@@ -144,7 +144,8 @@ class HostGroupGroupsDetail(HostGroupM2MDetail):
 
     serializer_class = serializers.HostGroupSerializer
     m2m_field = 'groups'
-    lookup_field = 'group'
+    lookup_field = 'name'
+    lookup_url_kwarg = 'group'
 
 
 class HostGroupHostsList(HostGroupM2MList):
@@ -175,7 +176,8 @@ class HostGroupHostsDetail(HostGroupM2MDetail):
 
     serializer_class = serializers.GroupSerializer
     m2m_field = 'hosts'
-    lookup_field = 'host'
+    lookup_field = 'name'
+    lookup_url_kwarg = 'host'
 
 
 class HostGroupOwnersList(HostGroupM2MList):
@@ -207,4 +209,5 @@ class HostGroupOwnersDetail(HostGroupM2MDetail):
 
     serializer_class = serializers.GroupSerializer
     m2m_field = 'owners'
-    lookup_field = 'owner'
+    lookup_field = 'name'
+    lookup_url_kwarg = 'owner'
