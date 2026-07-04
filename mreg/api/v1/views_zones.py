@@ -32,9 +32,7 @@ from .filters import (ForwardZoneFilterSet, ReverseZoneFilterSet)
 ZONE_FILE_TEXT_SCHEMA = {
     "type": "string",
     "description": "DNS zone file in BIND-style text format.",
-    "examples": [
-        "$ORIGIN example.org.\n@ 3600 IN SOA ns1.example.org. hostmaster.example.org. 1 3600 900 604800 3600\n"
-    ],
+    "example": "$ORIGIN example.org.\n@ 3600 IN SOA ns1.example.org. hostmaster.example.org. 1 3600 900 604800 3600\n",
 }
 
 
