@@ -383,21 +383,21 @@ class HostList(HostPermissionsListCreateAPIView):
             community_id = request.data.pop("network_community")
             community = Community.objects.filter(id=community_id).first()
             if not community:
-                content = {"ERROR": f"Community '{community_id}' not found"}
+                content = {"error": f"Community '{community_id}' not found"}
                 return Response(content, status=status.HTTP_404_NOT_FOUND)
 
         if "name" in request.data:
             if self.queryset.filter(name=request.data["name"]).exists():
-                content = {"ERROR": "name already in use"}
+                content = {"error": "name already in use"}
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
         if "ipaddress" in request.data and "network" in request.data:
-            content = {"ERROR": "'ipaddress' and 'network' is mutually exclusive"}
+            content = {"error": "'ipaddress' and 'network' is mutually exclusive"}
             return Response(content, status=status.HTTP_400_BAD_REQUEST)
 
         if "allocation_method" in request.data and "network" not in request.data:
             return Response(
-                {"ERROR": "allocation_method is only allowed with 'network'"},
+                {"error": "allocation_method is only allowed with 'network'"},
                 status=status.HTTP_400_BAD_REQUEST)
 
         # request.data is immutable
@@ -414,12 +414,12 @@ class HostList(HostPermissionsListCreateAPIView):
             try:
                 ipaddress.ip_network(network_key)
             except ValueError as error:
-                content = {"ERROR": str(error)}
+                content = {"error": str(error)}
                 return Response(content, status=status.HTTP_400_BAD_REQUEST)
 
             network = Network.objects.filter(network=network_key).first()
             if not network:
-                content = {"ERROR": "no such network"}
+                content = {"error": "no such network"}
                 return Response(content, status=status.HTTP_404_NOT_FOUND)
 
             try:
@@ -429,7 +429,7 @@ class HostList(HostPermissionsListCreateAPIView):
                 request_ip_allocator = IPAllocationMethod(allocation_key.lower())
             except ValueError:
                 options = [method.value for method in IPAllocationMethod]
-                content = {"ERROR": f"allocation_method must be one of {', '.join(options)}"}
+                content = {"error": f"allocation_method must be one of {', '.join(options)}"}
                 return Response(content, status=status.HTTP_400_BAD_REQUEST)
 
             if request_ip_allocator == IPAllocationMethod.RANDOM:
@@ -438,7 +438,7 @@ class HostList(HostPermissionsListCreateAPIView):
                 ip = network.get_first_unused()
 
             if not ip:
-                content = {"ERROR": "no available IP in network"}
+                content = {"error": "no available IP in network"}
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
             hostdata["ipaddress"] = ip
@@ -472,7 +472,7 @@ class HostList(HostPermissionsListCreateAPIView):
                     )
         else:
             if community:
-                content = {"ERROR": "Unable to assign community to host as it has no IP address"}
+                content = {"error": "Unable to assign community to host as it has no IP address"}
                 return Response(content, status=status.HTTP_406_NOT_ACCEPTABLE)
 
             host = Host()
@@ -506,7 +506,7 @@ class HostDetail(HostPermissionsUpdateDestroy,
     def patch(self, request, *args, **kwargs):
         if "name" in request.data:
             if self.get_queryset().filter(name=request.data["name"]).exists():
-                content = {"ERROR": "name already in use"}
+                content = {"error": "name already in use"}
                 return Response(content, status=status.HTTP_409_CONFLICT)
 
         return super().patch(request, *args, **kwargs)
@@ -667,7 +667,7 @@ class IpaddressDetail(HostPermissionsUpdateDestroy, MregRetrieveUpdateDestroyAPI
                 network = Network.objects.get(network__net_contains=new_ip)
             except Network.DoesNotExist:
                 return Response(
-                    {"ERROR": "No network found for the new IP address, cannot update due to community membership"},
+                    {"error": "No network found for the new IP address, cannot update due to community membership"},
                     status=status.HTTP_404_NOT_FOUND,
                 )
             
@@ -679,7 +679,7 @@ class IpaddressDetail(HostPermissionsUpdateDestroy, MregRetrieveUpdateDestroyAPI
 
             if not network_match:
                 return Response(
-                    {"ERROR": "Cannot switch network membership for due to community membership."},
+                    {"error": "Cannot switch network membership for due to community membership."},
                     status=status.HTTP_409_CONFLICT,
                 )
 
@@ -910,7 +910,7 @@ def _overlap_check(range, exclude=None):
     if overlap:
         info = ", ".join(map(str, overlap))
         return Response(
-            {"ERROR": "Network overlaps with: {}".format(info)},
+            {"error": "Network overlaps with: {}".format(info)},
             status=status.HTTP_409_CONFLICT,
         )
 
@@ -971,7 +971,7 @@ class NetworkDetail(MregRetrieveUpdateDestroyAPIView):
                     policy = NetworkPolicy.objects.get(id=policy_id)
                 except NetworkPolicy.DoesNotExist:
                     return Response(
-                        {"ERROR": "No such policy"},
+                        {"error": "No such policy"},
                         status=status.HTTP_404_NOT_FOUND,
                     )
                 policy.can_be_used_with_communities_or_raise()
@@ -985,7 +985,7 @@ class NetworkDetail(MregRetrieveUpdateDestroyAPIView):
         network = self.get_object()
         if network.used_addresses:
             return Response(
-                {"ERROR": "Network contains IP addresses that are in use"},
+                {"error": "Network contains IP addresses that are in use"},
                 status=status.HTTP_409_CONFLICT,
             )
 
@@ -1075,7 +1075,7 @@ def network_first_unused(request, *args, **kwargs):
     if ip:
         return Response(ip, status=status.HTTP_200_OK)
     else:
-        content = {"ERROR": "No available IPs"}
+        content = {"error": "No available IPs"}
         return Response(content, status=status.HTTP_404_NOT_FOUND)
 
 
@@ -1093,7 +1093,7 @@ def network_random_unused(request, *args, **kwargs):
     if ip:
         return Response(ip, status=status.HTTP_200_OK)
     else:
-        content = {"ERROR": "No available IPs"}
+        content = {"error": "No available IPs"}
         return Response(content, status=status.HTTP_404_NOT_FOUND)
 
 

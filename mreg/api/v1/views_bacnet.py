@@ -44,10 +44,10 @@ class BACnetIDList(MregListCreateAPIView):
             # if a host was supplied and that host already has a BACnet ID, return 409 conflict
             # instead of the default 400 bad request
             if host and hasattr(host, "bacnetid"):
-                content = {"ERROR": "The host already has a BACnet ID."}
+                content = {"error": "The host already has a BACnet ID."}
                 return Response(content, status=status.HTTP_409_CONFLICT)
         except Host.DoesNotExist:
-            content = {"ERROR": "The host does not exist."}
+            content = {"error": "The host does not exist."}
             return Response(content, status=status.HTTP_400_BAD_REQUEST)
 
         # validate the data

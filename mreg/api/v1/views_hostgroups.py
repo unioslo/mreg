@@ -83,7 +83,7 @@ class HostGroupList(HostGroupLogMixin, LowerCaseLookupMixin, MregListCreateAPIVi
 
     def post(self, request, *args, **kwargs):
         if self.get_object_from_request(request):
-            content = {'ERROR': 'hostgroup name already in use'}
+            content = {'error': 'hostgroup name already in use'}
             return Response(content, status=status.HTTP_409_CONFLICT)
         return super().post(request, *args, **kwargs)
 

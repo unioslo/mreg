@@ -31,7 +31,6 @@ class ValidationMixin:
 
 
 class ErrorResponseSerializer(serializers.Serializer):
-    ERROR = serializers.CharField(required=False)
     error = serializers.CharField(required=False)
 
 
