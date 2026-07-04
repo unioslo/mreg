@@ -63,14 +63,16 @@ jobs:
         run: |
           export MREG_DB_NAME=mreg MREG_DB_USER=mreg MREG_DB_PASSWORD=postgres
           uv run manage.py makemigrations --check
-      # - name: Export OpenAPI schema
-      #   run: uv run manage.py generateschema > openapi.yml
-      # - name: Upload OpenAPI schema
-      #   if: matrix.python-version == '3.10'
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: openapi.yml
-      #     path: openapi.yml
+      - name: Validate OpenAPI schema
+        run: |
+          export MREG_DB_NAME=mreg MREG_DB_USER=mreg MREG_DB_PASSWORD=postgres
+          uv run manage.py spectacular --validate --file openapi.yml
+      - name: Upload OpenAPI schema
+        if: matrix.python-version == '3.10'
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi.yml
+          path: openapi.yml
       - name: Upload coverage
         uses: actions/upload-artifact@v4
         with:
