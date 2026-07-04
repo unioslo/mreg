@@ -372,7 +372,7 @@ class IsGrantedReservedAddressPermission(IsAuthenticated):
         else:
             if ipaddr in (network.network.broadcast_address, network.network.network_address):
                 raise exceptions.PermissionDenied(
-                    {"ERROR": "Setting a network or broadcast address on a host requires network admin privileges."}
+                    {"error": "Setting a network or broadcast address on a host requires network admin privileges."}
                 )
         return True
 

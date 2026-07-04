@@ -20,7 +20,7 @@ class LabelList(MregListCreateAPIView, LowerCaseLookupMixin):
 
     def post(self, request, *args, **kwargs):        
         if self.get_object_from_request(request):
-            content = {"ERROR": "Label name already in use"}
+            content = {"error": "Label name already in use"}
             return Response(content, status=status.HTTP_409_CONFLICT)
         return super().post(request, *args, **kwargs)
 

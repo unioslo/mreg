@@ -85,7 +85,7 @@ class ZoneList(generics.ListCreateAPIView):
     def post(self, request: Request, *args, **kwargs):
         qs = self.get_queryset()
         if qs.filter(name=request.data["name"]).exists():
-            content = {'ERROR': 'Zone name already in use'}
+            content = {'error': 'Zone name already in use'}
             return Response(content, status=status.HTTP_409_CONFLICT)
         # A copy is required since the original is immutable
         nameservers = _get_request_nameservers(request)
@@ -136,7 +136,7 @@ class ZoneDelegationList(generics.ListCreateAPIView):
     def post(self, request: Request, *args, **kwargs):
         qs = self.get_queryset()
         if qs.filter(name=request.data[self.lookup_field]).exists():
-            content = {'ERROR': 'Zone name already in use'}
+            content = {'error': 'Zone name already in use'}
             return Response(content, status=status.HTTP_409_CONFLICT)
         nameservers = _get_request_nameservers(request, "nameservers")
         _validate_nameservers(nameservers)
@@ -186,18 +186,18 @@ class ZoneDetail(LowerCaseLookupMixin, MregRetrieveUpdateDestroyAPIView):
         query = self.kwargs[self.lookup_field]
 
         if "name" in request.data:
-            content = {'ERROR': 'Not allowed to change name'}
+            content = {'error': 'Not allowed to change name'}
             return Response(content, status=status.HTTP_403_FORBIDDEN)
 
         if "nameservers" in request.data:
-            content = {'ERROR': 'Not allowed to patch nameservers, use /zones/{}/nameservers'.format(query)}
+            content = {'error': 'Not allowed to patch nameservers, use /zones/{}/nameservers'.format(query)}
             return Response(content, status=status.HTTP_403_FORBIDDEN)
 
         zone = self.get_object()
         # Check if primary_ns is in the zone's list of nameservers
         if "primary_ns" in request.data:
             if request.data['primary_ns'] not in [nameserver.name for nameserver in zone.nameservers.all()]:
-                content = {'ERROR': "%s is not one of %s's nameservers" % (request.data['primary_ns'], query)}
+                content = {'error': "%s is not one of %s's nameservers" % (request.data['primary_ns'], query)}
                 return Response(content, status=status.HTTP_403_FORBIDDEN)
         serializer = self.get_serializer(zone, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -210,7 +210,7 @@ class ZoneDetail(LowerCaseLookupMixin, MregRetrieveUpdateDestroyAPIView):
         if isinstance(zone, ForwardZone):
             qs = Host.objects.filter(zone=zone)
             if qs.exists():
-                content = {'ERROR': f'{zone.name} still in use by {qs.count()} hosts'}
+                content = {'error': f'{zone.name} still in use by {qs.count()} hosts'}
                 return Response(content, status=status.HTTP_403_FORBIDDEN)
         with transaction.atomic():
             zone.remove_nameservers()
@@ -261,7 +261,7 @@ class ZoneDelegationDetail(LowerCaseLookupMixin, MregRetrieveUpdateDestroyAPIVie
             self.parentzone.save()
             return super().patch(request, *args, **kwargs)
         else:
-            content = {'ERROR': 'Only allowed to change comment'}
+            content = {'error': 'Only allowed to change comment'}
             return Response(content, status=status.HTTP_403_FORBIDDEN)
 
     def delete(self, request, *args, **kwargs):
@@ -305,7 +305,7 @@ class ZoneNameServerDetail(MregRetrieveUpdateDestroyAPIView):
 
     def patch(self, request: Request, *args, **kwargs):
         if 'primary_ns' not in request.data:
-            return Response({'ERROR': 'No nameserver found in body'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'No nameserver found in body'}, status=status.HTTP_400_BAD_REQUEST)
         zone = self.get_object()
         nameservers = _get_request_nameservers(request)
         _validate_nameservers(nameservers)

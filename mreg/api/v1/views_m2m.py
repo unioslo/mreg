@@ -76,7 +76,7 @@ class M2MList:
         if "name" in request.data:
             name = request.data['name']
             if qs.filter(name=name).exists():
-                content = {'ERROR': f'{name} already in {self.m2m_field}'}
+                content = {'error': f'{name} already in {self.m2m_field}'}
                 return Response(content, status=status.HTTP_409_CONFLICT)
             if self.m2m_create_if_missing:
                 instance, created = self.m2m_object.objects.get_or_create(name=name)
@@ -84,11 +84,11 @@ class M2MList:
                 try:
                     instance = self.m2m_object.objects.get(name=name)
                 except self.m2m_object.DoesNotExist:
-                    content = {'ERROR': f'"{name}" does not exist'}
+                    content = {'error': f'"{name}" does not exist'}
                     return Response(content, status=status.HTTP_404_NOT_FOUND)
             self.perform_m2m_alteration(self.m2mrelation.add, instance)
             location = request.path + instance.name
             return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
         else:
-            content = {'ERROR': 'No name provided'}
+            content = {'error': 'No name provided'}
             return Response(content, status=status.HTTP_400_BAD_REQUEST)
