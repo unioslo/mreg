@@ -91,6 +91,16 @@ STRING_LIST_MAP_SCHEMA = {
     },
 }
 
+IP_ADDRESS_STRING_SCHEMA = {
+    "type": "string",
+    "description": "IPv4 or IPv6 address.",
+    "examples": ["192.0.2.10", "2001:db8::10"],
+}
+
+IP_ADDRESS_LIST_SCHEMA = {
+    "type": "array",
+    "items": IP_ADDRESS_STRING_SCHEMA,
+}
 
 class JSONContentTypeMixin:
     """A view mixin that requires POST, PUT, PATCH and DELETE operations to this view have a JSON content type.
@@ -1042,7 +1052,7 @@ def network_by_ip(request, *args, **kwargs):
 @extend_schema(
     parameters=[OpenApiParameter("network", OpenApiTypes.STR, OpenApiParameter.PATH)],
     responses={
-        status.HTTP_200_OK: OpenApiTypes.STR,
+        status.HTTP_200_OK: IP_ADDRESS_STRING_SCHEMA,
         status.HTTP_404_NOT_FOUND: ErrorResponseSerializer,
     },
 )
@@ -1059,7 +1069,7 @@ def network_first_unused(request, *args, **kwargs):
 @extend_schema(
     parameters=[OpenApiParameter("network", OpenApiTypes.STR, OpenApiParameter.PATH)],
     responses={
-        status.HTTP_200_OK: OpenApiTypes.STR,
+        status.HTTP_200_OK: IP_ADDRESS_STRING_SCHEMA,
         status.HTTP_404_NOT_FOUND: ErrorResponseSerializer,
     },
 )
@@ -1075,7 +1085,7 @@ def network_random_unused(request, *args, **kwargs):
 
 @extend_schema(
     parameters=[OpenApiParameter("network", OpenApiTypes.STR, OpenApiParameter.PATH)],
-    responses={status.HTTP_200_OK: list[str]},
+    responses={status.HTTP_200_OK: IP_ADDRESS_LIST_SCHEMA},
 )
 @api_view()
 def network_ptroverride_list(request, *args, **kwargs):
@@ -1102,7 +1112,7 @@ def network_ptroverride_host_list(request, *args, **kwargs):
 
 @extend_schema(
     parameters=[OpenApiParameter("network", OpenApiTypes.STR, OpenApiParameter.PATH)],
-    responses={status.HTTP_200_OK: list[str]},
+    responses={status.HTTP_200_OK: IP_ADDRESS_LIST_SCHEMA},
 )
 @api_view()
 def network_reserved_list(request, *args, **kwargs):
@@ -1123,7 +1133,7 @@ def network_used_count(request, *args, **kwargs):
 
 @extend_schema(
     parameters=[OpenApiParameter("network", OpenApiTypes.STR, OpenApiParameter.PATH)],
-    responses={status.HTTP_200_OK: list[str]},
+    responses={status.HTTP_200_OK: IP_ADDRESS_LIST_SCHEMA},
 )
 @api_view()
 def network_used_list(request, *args, **kwargs):
@@ -1158,7 +1168,7 @@ def network_unused_count(request, *args, **kwargs):
 
 @extend_schema(
     parameters=[OpenApiParameter("network", OpenApiTypes.STR, OpenApiParameter.PATH)],
-    responses={status.HTTP_200_OK: list[str]},
+    responses={status.HTTP_200_OK: IP_ADDRESS_LIST_SCHEMA},
 )
 @api_view()
 def network_unused_list(request, *args, **kwargs):

@@ -20,7 +20,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.http import HttpResponse
-from drf_spectacular.utils import OpenApiTypes, extend_schema
+from drf_spectacular.utils import extend_schema
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
 from mreg.__about__ import __version__ as mreg_version
@@ -102,6 +102,13 @@ LIBRARIES_TO_REPORT = [
     "rich",
     "psycopg",
 ]
+
+
+PROMETHEUS_METRICS_TEXT_SCHEMA = {
+    "type": "string",
+    "description": "Prometheus exposition text format.",
+    "examples": ["# HELP mreg_http_requests_total Total HTTP requests.\n# TYPE mreg_http_requests_total counter\n"],
+}
 
 
 class ObtainExpiringAuthToken(ObtainAuthToken):
@@ -339,6 +346,6 @@ class MetricsView(APIView):
 
     permission_classes = ()
 
-    @extend_schema(responses={status.HTTP_200_OK: OpenApiTypes.STR})
+    @extend_schema(responses={(status.HTTP_200_OK, "text/plain"): PROMETHEUS_METRICS_TEXT_SCHEMA})
     def get(self, request: Request):
         return HttpResponse(generate_latest(), content_type=CONTENT_TYPE_LATEST)

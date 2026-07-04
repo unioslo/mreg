@@ -29,6 +29,15 @@ from .zonefile import ZoneFile
 from .filters import (ForwardZoneFilterSet, ReverseZoneFilterSet)
 
 
+ZONE_FILE_TEXT_SCHEMA = {
+    "type": "string",
+    "description": "DNS zone file in BIND-style text format.",
+    "examples": [
+        "$ORIGIN example.org.\n@ 3600 IN SOA ns1.example.org. hostmaster.example.org. 1 3600 900 604800 3600\n"
+    ],
+}
+
+
 def _update_parent_zone(qs, zonename):
     """Try to figure if the zone name is a sub zone, and if so, set
        the parent zone's updated attribute to True to make sure it
@@ -372,7 +381,7 @@ class PlainTextRenderer(renderers.TemplateHTMLRenderer):
         OpenApiParameter("name", OpenApiTypes.STR, OpenApiParameter.PATH),
         OpenApiParameter("excludePrivate", OpenApiTypes.BOOL, OpenApiParameter.QUERY, required=False),
     ],
-    responses={(status.HTTP_200_OK, "text/plain"): OpenApiTypes.STR},
+    responses={(status.HTTP_200_OK, "text/plain"): ZONE_FILE_TEXT_SCHEMA},
 )
 @api_view()
 @renderer_classes([PlainTextRenderer])
