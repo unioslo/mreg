@@ -31,10 +31,13 @@ class M2MDetail:
 
     def get_object(self):
         queryset = self.filter_queryset(self.get_queryset())
-        obj = get_object_or_404(queryset, name=self.kwargs[self.lookup_field])
+        lookup_url_kwarg = getattr(self, "lookup_url_kwarg", None) or self.lookup_field
+        obj = get_object_or_404(queryset, name=self.kwargs[lookup_url_kwarg])
         return obj
 
     def get_queryset(self):
+        if 'name' not in self.kwargs:
+            return self.cls.objects.none()
         self.object = get_object_or_404(self.cls, name=self.kwargs['name'])
         self.m2mrelation = getattr(self.object, self.m2m_field)
         return self.m2mrelation.all()
@@ -60,8 +63,11 @@ class M2MList:
     m2m_create_if_missing = False
 
     def get_queryset(self):
+        lookup_url_kwarg = getattr(self, "lookup_url_kwarg", None) or self.lookup_field
+        if lookup_url_kwarg not in self.kwargs:
+            return self.cls.objects.none()
         self.object = get_object_or_404(self.cls,
-                                        name=self.kwargs[self.lookup_field])
+                                        name=self.kwargs[lookup_url_kwarg])
         self.m2mrelation = getattr(self.object, self.m2m_field)
         return self.m2mrelation.all().order_by('name')
 

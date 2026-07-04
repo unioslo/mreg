@@ -220,6 +220,8 @@ class NetworkCommunityHostList(HostInCommunityMixin, generics.ListCreateAPIView)
     permission_classes = (IsGrantedNetGroupRegexPermission | IsSuperOrNetworkAdminMember,)
 
     def get_queryset(self):
+        if "network" not in self.kwargs or "cpk" not in self.kwargs:
+            return Host.objects.none()
         _, community = self.get_policy_and_community()
         return HostFilterSet(
             data=self.request.GET, queryset=Host.objects.filter(communities__in=[community]).order_by("id")
@@ -261,6 +263,8 @@ class NetworkCommunityHostDetail(HostInCommunityMixin, generics.RetrieveDestroyA
     permission_classes = (IsGrantedNetGroupRegexPermission | IsSuperOrNetworkAdminMember,)
 
     def get_queryset(self):
+        if "network" not in self.kwargs or "cpk" not in self.kwargs:
+            return Host.objects.none()
         _, community = self.get_policy_and_community()
         return HostFilterSet(
             data=self.request.GET, queryset=Host.objects.filter(communities__in=[community]).order_by("id")

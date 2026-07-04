@@ -10,6 +10,7 @@ from rest_framework.decorators import (api_view, renderer_classes)
 from rest_framework.exceptions import ParseError
 from rest_framework.request import Request
 from rest_framework.response import Response
+from drf_spectacular.utils import OpenApiParameter, OpenApiTypes, extend_schema
 
 from mreg.models.base import NameServer
 from mreg.models.host import Host
@@ -19,7 +20,7 @@ from mreg.mixins import LowerCaseLookupMixin
 
 from mreg.api.permissions import (IsSuperGroupMember, IsAuthenticatedAndReadOnly)
 
-from .serializers import (ForwardZoneDelegationSerializer, ForwardZoneSerializer,
+from .serializers import (ForwardZoneByHostnameSerializer, ForwardZoneDelegationSerializer, ForwardZoneSerializer,
                           ReverseZoneDelegationSerializer, ReverseZoneSerializer)
 from .views import (MregRetrieveUpdateDestroyAPIView, )
 from .zonefile import ZoneFile
@@ -126,6 +127,8 @@ class ZoneDelegationList(generics.ListCreateAPIView):
     permission_classes = (IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
 
     def get_queryset(self):
+        if self.lookup_field not in self.kwargs:
+            return self.model.objects.none()
         self.parentzone = get_object_or_404(self.model, name=self.kwargs[self.lookup_field])
         self.queryset = self.parentzone.delegations.all().order_by('id')
         return self.filterset(data=self.request.GET, queryset=self.queryset).qs
@@ -323,6 +326,10 @@ class ReverseZoneNameServerDetail(ZoneNameServerDetail):
     serializer_class = ReverseZoneSerializer
 
 
+@extend_schema(
+    parameters=[OpenApiParameter("hostname", OpenApiTypes.STR, OpenApiParameter.PATH)],
+    responses={status.HTTP_200_OK: ForwardZoneByHostnameSerializer},
+)
 @api_view()
 def forward_zone_by_hostname(request, *args, **kwargs):
     """
@@ -360,6 +367,13 @@ class PlainTextRenderer(renderers.TemplateHTMLRenderer):
         return data.encode(self.charset)
 
 
+@extend_schema(
+    parameters=[
+        OpenApiParameter("name", OpenApiTypes.STR, OpenApiParameter.PATH),
+        OpenApiParameter("excludePrivate", OpenApiTypes.BOOL, OpenApiParameter.QUERY, required=False),
+    ],
+    responses={(status.HTTP_200_OK, "text/plain"): OpenApiTypes.STR},
+)
 @api_view()
 @renderer_classes([PlainTextRenderer])
 def zone_file_detail(request, *args, **kwargs):
