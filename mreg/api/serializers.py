@@ -1,6 +1,20 @@
 from rest_framework import serializers
 
 
+REPORTED_LIBRARY_VERSION_FIELDS = (
+    "djangorestframework",
+    "django-auth-ldap",
+    "django-filter",
+    "django-logging-json",
+    "django-netfields",
+    "gunicorn",
+    "sentry-sdk",
+    "structlog",
+    "rich",
+    "psycopg",
+)
+
+
 class TokenStateSerializer(serializers.Serializer):
     is_valid = serializers.BooleanField()
     created = serializers.DateTimeField()
@@ -49,8 +63,13 @@ class MregVersionSerializer(serializers.Serializer):
 class MetaVersionsSerializer(serializers.Serializer):
     python = serializers.CharField()
     django = serializers.CharField()
-    djangorestframework = serializers.CharField()
     libpq = serializers.CharField()
+
+    def get_fields(self):
+        fields = super().get_fields()
+        for library in REPORTED_LIBRARY_VERSION_FIELDS:
+            fields[library] = serializers.CharField()
+        return fields
 
 
 class HealthHeartbeatSerializer(serializers.Serializer):

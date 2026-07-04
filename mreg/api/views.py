@@ -29,6 +29,7 @@ from mreg.api.serializers import (
     HealthHeartbeatSerializer,
     MetaVersionsSerializer,
     MregVersionSerializer,
+    REPORTED_LIBRARY_VERSION_FIELDS,
     UserInfoSerializer,
 )
 from mreg.models.auth import User
@@ -86,23 +87,6 @@ LDAP_CALL_FAILURES = Counter(
     "LDAP call failures by operation and exception type",
     ["operation", "exception"],
 )
-
-# Note the order here. This order is preserved in the response.
-# Also, we add libpq-data to the end of this list so letting psycopg
-# be last makes the context of the libpq version more clear.
-LIBRARIES_TO_REPORT = [
-    "djangorestframework",
-    "django-auth-ldap",
-    "django-filter", 
-    "django-logging-json",
-    "django-netfields",
-    "gunicorn", 
-    "sentry-sdk",
-    "structlog",
-    "rich",
-    "psycopg",
-]
-
 
 PROMETHEUS_METRICS_TEXT_SCHEMA = {
     "type": "string",
@@ -269,7 +253,7 @@ class MetaVersions(APIView):
             "django": django.get_version(),
         }
 
-        for library in LIBRARIES_TO_REPORT:
+        for library in REPORTED_LIBRARY_VERSION_FIELDS:
             try:
                 data[library] = version(library)
             except Exception as e:
