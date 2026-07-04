@@ -4,6 +4,8 @@ from rest_framework import status
 from rest_framework.exceptions import MethodNotAllowed
 from rest_framework.response import Response
 
+from mreg.api.responses import error_response
+
 
 class M2MPermissions:
 
@@ -76,19 +78,16 @@ class M2MList:
         if "name" in request.data:
             name = request.data['name']
             if qs.filter(name=name).exists():
-                content = {'error': f'{name} already in {self.m2m_field}'}
-                return Response(content, status=status.HTTP_409_CONFLICT)
+                return error_response(f'{name} already in {self.m2m_field}', status.HTTP_409_CONFLICT)
             if self.m2m_create_if_missing:
                 instance, created = self.m2m_object.objects.get_or_create(name=name)
             else:
                 try:
                     instance = self.m2m_object.objects.get(name=name)
                 except self.m2m_object.DoesNotExist:
-                    content = {'error': f'"{name}" does not exist'}
-                    return Response(content, status=status.HTTP_404_NOT_FOUND)
+                    return error_response(f'"{name}" does not exist', status.HTTP_404_NOT_FOUND)
             self.perform_m2m_alteration(self.m2mrelation.add, instance)
             location = request.path + instance.name
             return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
         else:
-            content = {'error': 'No name provided'}
-            return Response(content, status=status.HTTP_400_BAD_REQUEST)
+            return error_response('No name provided', status.HTTP_400_BAD_REQUEST)
