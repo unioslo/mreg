@@ -205,7 +205,9 @@ def test_metrics_endpoint_not_instrumented() -> None:
     final_counts = _parse_prometheus_metric(final_raw, "mreg_http_requests_total")
     final_total = sum(final_counts.values()) if final_counts else 0.0
 
-    assert final_total == baseline_total, f"Metrics endpoint should not change request totals (baseline={baseline_total}, final={final_total})"
+    assert final_total == baseline_total, (
+        f"Metrics endpoint should not change request totals (baseline={baseline_total}, final={final_total})"
+    )
 
 
 @pytest.mark.django_db
@@ -237,7 +239,9 @@ def test_metrics_endpoint_trailing_slash_not_instrumented() -> None:
     final_counts = _parse_prometheus_metric(final_raw, "mreg_http_requests_total")
     final_total = sum(final_counts.values()) if final_counts else 0.0
 
-    assert final_total == baseline_total, f"Trailing slash metrics fetch should not change totals (baseline={baseline_total}, final={final_total})"
+    assert final_total == baseline_total, (
+        f"Trailing slash metrics fetch should not change totals (baseline={baseline_total}, final={final_total})"
+    )
 
 
 @pytest.mark.django_db
@@ -409,4 +413,3 @@ def test_ldap_metrics_failure_counter(mock_backend: Any) -> None:
         "operation=\"bind\"" in k and "exception=\"LDAPError\"" in k
         for k in failures.keys()
     ), f"Expected LDAPError bind failure metric: {failures}"
-
