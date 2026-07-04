@@ -274,16 +274,16 @@ wheels = [
 
 [[package]]
 name = "django-auth-ldap"
-version = "5.2.0"
+version = "5.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "django", version = "5.2.15", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "django", version = "6.0.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "python-ldap" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/88/70/6f6a89474667376080f8362f7c17c744d1c52720f0eb085cf74182149efe/django_auth_ldap-5.2.0.tar.gz", hash = "sha256:08ba6efc0340d9874725a962311b14991e29a33593eb150a8fb640709dbfa80f", size = 55287, upload-time = "2025-05-07T12:15:56.774Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a6/6d/d3ceb4b49e7153811a4b2d92bbe198a5ef2e2820469add3d6dc129ef2fab/django_auth_ldap-5.3.0.tar.gz", hash = "sha256:743d8107b146240b46f7e97207dc06cb11facc0cd70dce490b7ca09dd5643d19", size = 55272, upload-time = "2025-12-26T15:00:14.272Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a1/65/0d26a8b5c19039305d7ae0e8e702613a9a1fe1ef3ebbd6206b9e104b7c43/django_auth_ldap-5.2.0-py3-none-any.whl", hash = "sha256:7dc6eb576ba36051850b580e4bdf4464e04bbe7367c3827a3121b4d7c51fb175", size = 20913, upload-time = "2025-05-07T12:15:54.962Z" },
+    { url = "https://files.pythonhosted.org/packages/a9/91/38ba24b9d76925ce166b2eebe1b4ea460063b8ba8cf91d39d97ee3bad517/django_auth_ldap-5.3.0-py3-none-any.whl", hash = "sha256:aa880415983149b072f876d976ef8ec755a438090e176817998263a6ed9e1038", size = 20975, upload-time = "2025-12-26T15:00:12.52Z" },
 ]
 
 [[package]]
