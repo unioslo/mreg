@@ -810,6 +810,34 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         self.assertEqual(ret.status_code, 406)
 
     @override_settings(MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY=False)
+    def test_delete_host_from_community_unambiguous_without_ipaddress_204(self):
+        """Test that DELETE without ipaddress succeeds when only one IP is bound to the community,
+        even if multiple host IPs are on the same network."""
+        _, community, network, host, _ = self.create_policy_setup(
+            # Explictly define IP and network values so we know
+            # that test network and host IP are on the same
+            # network as the second IP.
+            ip_address="10.0.0.1",
+            network="10.0.0.0/24"
+        )
+        ip1 = host.ipaddresses.first()  # type: ignore
+        ip2 = Ipaddress.objects.create(host=host, ipaddress="10.0.0.2")
+        self.addCleanup(ip2.delete)
+
+        # Ensure both IPs are actually on the same network
+        self.assertEqual(
+            Network.objects.get(network__net_contains=ip1.ipaddress),
+            Network.objects.get(network__net_contains=ip2.ipaddress),
+        )
+
+        host.add_to_community(community, ip1)
+
+        url = f"{NETWORK_ENDPOINT}{network.network}/communities/{community.pk}/hosts/{host.pk}"
+        self.assert_delete_and_204(url)
+
+        self.assertEqual(HostCommunityMapping.objects.filter(host=host, community=community).count(), 0)
+
+    @override_settings(MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY=False)
     def test_change_ip_of_host_to_outside_of_community_gives_409(self):
         """Test changing the IP of a host to an IP outside the community."""
         _, community, _, host, ip = self.create_policy_setup()

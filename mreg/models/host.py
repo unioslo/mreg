@@ -306,14 +306,30 @@ class Host(ForwardZoneMember):
     ) -> None:
         """
         Removes this host's mapping to the specified community.
-        
+
         Accepts a Community instance or a community name (string). If an ipaddress is not provided,
-        the helper method attempts to resolve a unique matching IP address from the host's IPs.
-        
-        Raises NotAcceptable if no matching mapping is found.
+        resolution is based on actual HostCommunityMapping entries, not network membership. This
+        allows unambiguous removal when only one IP is bound to the community, even if multiple
+        IPs are on the community's network.
+
+        Raises NotAcceptable if no matching mapping is found or if the match is ambiguous.
         """
-        ipaddress = self._resolve_ip(ip)
-        resolved_ip, resolved_comm = self._resolve_community_mapping(community, ipaddress)
+        resolved_ip = self._resolve_ip(ip)
+
+        if resolved_ip is None:
+            if isinstance(community, Community):
+                mappings = HostCommunityMapping.objects.filter(host=self, community=community)
+            else:
+                mappings = HostCommunityMapping.objects.filter(host=self, community__name=community)
+            count = mappings.count()
+            if count == 0:
+                raise NotAcceptable("No community mapping exists for this host with the specified criteria.")
+            if count > 1:
+                raise NotAcceptable("Multiple IP addresses are mapped to this community; please specify one.")
+            mappings.delete()
+            return
+
+        resolved_ip, resolved_comm = self._resolve_community_mapping(community, resolved_ip)
         mapping = HostCommunityMapping.objects.filter(
             host=self,
             ipaddress=resolved_ip,
