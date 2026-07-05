@@ -67,6 +67,8 @@ A **Community** is a named (case insensitive) collection of **Hosts** (technical
 
 **Hosts** in this system can belong to one Community per IP it has. Adding a host to a community requires that at least one of the host’s IP addresses match the network. When adding a host, one can either specify the IP address to associate, or the system will automatically associate the host’s IP address that matches the network. If the host has multiple IPs on the network of the community, a 406 Not Acceptable error will be returned.
 
+A host with multiple IP addresses on the same network may be bound to the same community via each of those IPs simultaneously. In such cases the `ipaddress` field must be supplied on both POST (to add) and DELETE (to remove) to avoid ambiguity.
+
 Note: Administrators may set `MREG_CREATING_COMMUNITY_REQUIRES_POLICY_WITH_ATTRIBUTES` which will require that a network must have a policy with all the attributes in the list to be able to create a community. `MREG_MAX_COMMUNITES_PER_NETWORK` can be set to limit the number of communities per network. Setting this to 0 will allow an unlimited number of communities.
 
 ---
@@ -235,7 +237,17 @@ If you wish to specify the IP address to associate, either to be explicit or bec
 **`DELETE /api/v1/networks/<network>/communities/<cpk>/hosts/<hostpk>`**
 
 - **GET:** Retrieves details of a specific host in this community.
-- **DELETE:** Removes that host from the community.
+- **DELETE:** Removes that host from the community. If the host has multiple IPs bound to the same community (see [Host Membership](#host-membership)), supply `"ipaddress"` in the request body to specify which binding to remove.
+
+**Example (DELETE with ipaddress disambiguation):**
+
+```json
+{
+  "ipaddress": "10.0.0.1"
+}
+```
+
+If `"ipaddress"` is omitted and the host has only one IP bound to this community, the single binding is removed automatically. If multiple bindings exist and `"ipaddress"` is omitted, a 406 Not Acceptable error is returned. If `"ipaddress"` is provided but does not belong to the host, a 406 Not Acceptable error is returned.
 
 ## Usage Examples
 

@@ -245,6 +245,18 @@ class Host(ForwardZoneMember):
                     raise NotAcceptable(f"Community name '{community}' is ambiguous across multiple networks on this host.")
                 return matches[0]
 
+
+    def _resolve_ip(self, ip: Optional[Union['Ipaddress', str]] = None) -> Optional['Ipaddress']:
+        """
+        Helper method to resolve an IP address argument to an Ipaddress instance for the host.
+        """
+        if isinstance(ip, str):
+            try:
+                return Ipaddress.objects.get(host=self, ipaddress=ip)
+            except Ipaddress.DoesNotExist:
+                raise NotAcceptable("No IP address found on this host with the provided value.")
+        return ip
+    
     @transaction.atomic
     def add_to_community(
         self,
@@ -259,13 +271,7 @@ class Host(ForwardZoneMember):
         
         Raises NotAcceptable if any check fails.
         """
-        if isinstance(ip, str):
-            try:
-                ipaddress = Ipaddress.objects.get(host=self, ipaddress=ip)
-            except Ipaddress.DoesNotExist:
-                raise NotAcceptable("No IP address found on this host with the provided value.")
-        else:
-            ipaddress = ip
+        ipaddress = self._resolve_ip(ip)
 
         if not self.ipaddresses.exists(): # type: ignore
             raise NotAcceptable("Host has no IP addresses, cannot add to community.")
@@ -296,7 +302,7 @@ class Host(ForwardZoneMember):
     def remove_from_community(
         self,
         community: Union[Community, str],
-        ipaddress: Optional['Ipaddress'] = None
+        ip: Optional[Union['Ipaddress', str]] = None
     ) -> None:
         """
         Removes this host's mapping to the specified community.
@@ -306,6 +312,7 @@ class Host(ForwardZoneMember):
         
         Raises NotAcceptable if no matching mapping is found.
         """
+        ipaddress = self._resolve_ip(ip)
         resolved_ip, resolved_comm = self._resolve_community_mapping(community, ipaddress)
         mapping = HostCommunityMapping.objects.filter(
             host=self,
