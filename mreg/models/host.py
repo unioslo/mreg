@@ -321,12 +321,16 @@ class Host(ForwardZoneMember):
                 mappings = HostCommunityMapping.objects.filter(host=self, community=community)
             else:
                 mappings = HostCommunityMapping.objects.filter(host=self, community__name=community)
-            count = mappings.count()
-            if count == 0:
+    
+            # Consume queryset generator to ensure check and delete operations are
+            # performed on the same objects, avoiding read/write race conditions.
+            mappings = list(mappings[:2])
+            if not mappings:
                 raise NotAcceptable("No community mapping exists for this host with the specified criteria.")
-            if count > 1:
+            if len(mappings) > 1:
                 raise NotAcceptable("Multiple IP addresses are mapped to this community; please specify one.")
-            mappings.delete()
+
+            mappings[0].delete()
             return
 
         resolved_ip, resolved_comm = self._resolve_community_mapping(community, resolved_ip)
