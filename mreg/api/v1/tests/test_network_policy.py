@@ -311,6 +311,15 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         network.delete()
         self.assertFalse(Community.objects.filter(pk=community_id).exists())  # Cascade delete
 
+    def test_community_serializer_includes_cidr(self):
+        """Community response includes cidr matching the bound network's CIDR."""
+        network = Network.objects.create(network="10.0.0.0/24", description="test_network")
+        ret = self.assert_post_and_201(f"networks/{network.network}/communities/", data={"name": "comm1", "description": ""})
+        community_id = ret.json()["id"]
+
+        get_res = self.assert_get(f"networks/{network.network}/communities/{community_id}")
+        self.assertEqual(get_res.json()["network_cidr"], "10.0.0.0/24")
+
     def create_community_no_name_400(self):
         """Test creating a community without a name."""
         network = Network.objects.create(network="10.0.0.0/24", description="test_network")
