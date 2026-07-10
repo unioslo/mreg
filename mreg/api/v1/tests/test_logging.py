@@ -3,6 +3,7 @@
 
 import io
 import logging
+from types import SimpleNamespace
 from typing import List
 from unittest.mock import MagicMock, patch
 
@@ -63,6 +64,26 @@ class SensitiveDataProcessorTests(SimpleTestCase):
         processed = filter_sensitive_data(None, None, event)
 
         self.assertEqual(processed["content"], '{"token":"abc...xyz"}')
+
+
+class LoggingMiddlewareUnitTests(SimpleTestCase):
+    def test_response_exception_is_logged_and_reraised(self):
+        error = RuntimeError("response failed")
+        middleware = LoggingMiddleware(MagicMock(side_effect=error))
+        request = HttpRequest()
+        request.method = "GET"
+        request.path_info = "/example"
+        request._body = b""
+        request.user = SimpleNamespace(username="test-user")
+
+        with patch("mreg.middleware.logging_http.sentry_sdk.capture_exception") as capture_exception:
+            with capture_logs() as logs:
+                with self.assertRaisesRegex(RuntimeError, "response failed"):
+                    middleware(request)
+
+        self.assertEqual(logs[-1]["event"], "Unhandled exception occurred")
+        self.assertEqual(logs[-1]["exception_type"], "RuntimeError")
+        capture_exception.assert_called_once_with(error)
 
 
 class TestLoggingInternals(MregAPITestCase):
