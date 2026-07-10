@@ -2,17 +2,21 @@ from django.contrib import admin
 from django.urls import include, path
 from django.conf import settings
 
-from rest_framework.schemas import get_schema_view
+from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 
-# Schema view for swagger api documentation
-schema_view = get_schema_view(title='mreg API')
+
 
 urlpatterns = [
     path('api/', include('mreg.api.urls')),
     path('api/v1/', include('hostpolicy.api.v1.urls')),
     path('api/v1/', include('mreg.api.v1.urls')),
     path('admin/', admin.site.urls),
-    path('docs/', schema_view),
+    # Schema UIs
+    path('docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger'),
+    path('docs/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
+    # Download the schema as a file
+    path('docs/schema/', SpectacularAPIView.as_view(), name='schema'),
+
 ]
 
 if settings.MREG_PROFILING_ENABLED:

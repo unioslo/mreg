@@ -11,7 +11,7 @@ urlpatterns = [
      path('cnames/<name>', views.CnameDetail.as_view()),
      path('dhcphosts/ipv4/', views.dhcp_hosts_all_v4),
      path('dhcphosts/ipv6/', views.dhcp_hosts_all_v6),
-     path('dhcphosts/ipv6byipv4/<ip>/<range>', views.DhcpHostsV4ByV6.as_view()),
+     path('dhcphosts/ipv6byipv4/<ip>/<range>', views.DhcpHostsV4ByV6Range.as_view()),
      path('dhcphosts/ipv6byipv4/', views.DhcpHostsV4ByV6.as_view()),
      path('dhcphosts/<ip>/<range>', views.dhcp_hosts_by_range),
      path('hinfos/', views.HinfoList.as_view()),

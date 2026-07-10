@@ -19,6 +19,7 @@ from typing import Literal, TypeVar
 import structlog
 
 import mreg.log_processors
+import mreg.__about__
 
 
 DefaultT = TypeVar("DefaultT", str, int, float, bool)
@@ -205,6 +206,8 @@ INSTALLED_APPS = [
     'mreg',
     'hostpolicy',
     'drf_standardized_errors',
+    'drf_spectacular',
+    'drf_spectacular_sidecar',  # required for Django collectstatic discovery
 ]
 
 MIDDLEWARE = [
@@ -299,7 +302,7 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'mreg.api.permissions.IsAuthenticatedAndReadOnly',
     ),
-    'DEFAULT_SCHEMA_CLASS': 'rest_framework.schemas.openapi.AutoSchema',
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     
     # Other settings
     "EXCEPTION_HANDLER": "drf_standardized_errors.handler.exception_handler"
@@ -309,6 +312,18 @@ REST_FRAMEWORK_EXTENSIONS = {
     "DEFAULT_OBJECT_ETAG_FUNC": "rest_framework_extensions.utils.default_object_etag_func",
     "DEFAULT_LIST_ETAG_FUNC": "rest_framework_extensions.utils.default_list_etag_func",
 }
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'MREG API',
+    'DESCRIPTION': 'MREG API documentation',
+    'VERSION': mreg.__about__.__version__,
+    'SERVE_INCLUDE_SCHEMA': False,
+    # Sidecar (static swagger/redoc files) settings
+    'SWAGGER_UI_DIST': 'SIDECAR',  # shorthand to use the sidecar instead
+    'SWAGGER_UI_FAVICON_HREF': 'SIDECAR',
+    'REDOC_DIST': 'SIDECAR',
+}
+
 
 # TXT record(s) automatically added to a host when added to a ForwardZone.
 TXT_AUTO_RECORDS = {
