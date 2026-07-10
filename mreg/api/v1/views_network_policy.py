@@ -144,7 +144,7 @@ class NetworkCommunityList(JSONContentTypeMixin, CommunityLogMixin, generics.Lis
 
         try:
             network = Network.objects.get(network=network)
-        except Network.DoesNotExist:  # pragma: no cover
+        except Network.DoesNotExist:
             raise exceptions.NotFound("Network not found.")
 
         # The model's LowerCaseCharField handles case normalization in lookups.

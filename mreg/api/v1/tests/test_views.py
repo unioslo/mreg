@@ -1,5 +1,7 @@
 """Tests for API view edge cases and error responses."""
 
+from unittest.mock import patch
+
 from django.test import RequestFactory, SimpleTestCase
 from rest_framework.exceptions import MethodNotAllowed, PermissionDenied
 from rest_framework.response import Response
@@ -8,6 +10,13 @@ from rest_framework.views import APIView
 
 from mreg.api.v1.views import JSONContentTypeMixin, MregRetrieveUpdateDestroyAPIView
 from mreg.api.v1.views_m2m import M2MPermissions
+from mreg.api.views import (
+    LIBRARIES_TO_REPORT,
+    MetaVersions,
+    MetricsView,
+    ObtainExpiringAuthToken,
+    _observe_ldap_call,
+)
 from mreg.models.host import Host, Ipaddress
 from mreg.models.network import Network
 from mreg.models.network_policy import Community, NetworkPolicy
@@ -24,6 +33,18 @@ class ContentTypeProtectedView(JSONContentTypeMixin, APIView):
 
 
 class ContentTypeMixinUnitTests(SimpleTestCase):
+    def test_valid_content_type_reaches_view(self):
+        request = APIRequestFactory().generic(
+            "DELETE",
+            "/",
+            data=b"{}",
+            content_type="application/json",
+        )
+
+        response = ContentTypeProtectedView.as_view()(request)
+
+        self.assertEqual(response.status_code, 204)
+
     def test_exception_is_rendered_as_unsupported_media_type(self):
         request = APIRequestFactory().generic(
             "DELETE",
@@ -35,6 +56,60 @@ class ContentTypeMixinUnitTests(SimpleTestCase):
         response = ContentTypeProtectedView.as_view()(request)
 
         self.assertEqual(response.status_code, 415)
+
+
+class APIViewUnitTests(SimpleTestCase):
+    @patch("mreg.api.views.LDAP_CALL_FAILURES")
+    def test_ldap_call_failure_is_recorded_and_reraised(self, failures):
+        error = RuntimeError("bind failed")
+
+        def fail():
+            raise error
+
+        with self.assertRaisesRegex(RuntimeError, "bind failed"):
+            _observe_ldap_call("bind", fail)
+
+        failures.labels.assert_called_once_with("bind", "RuntimeError")
+        failures.labels.return_value.inc.assert_called_once_with()
+
+    @patch("mreg.api.views.LDAP_CALL_FAILURES")
+    def test_ldap_metric_failure_does_not_mask_original_error(self, failures):
+        error = RuntimeError("bind failed")
+        failures.labels.side_effect = ValueError("metrics failed")
+
+        def fail():
+            raise error
+
+        with self.assertRaisesRegex(RuntimeError, "bind failed"):
+            _observe_ldap_call("bind", fail)
+
+    def test_malformed_auth_serializer_output_is_rejected(self):
+        class MalformedSerializer:
+            validated_data = {}
+
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def is_valid(self, *, raise_exception=False):
+                return True
+
+        request = APIRequestFactory().post("/", data={}, format="json")
+
+        response = ObtainExpiringAuthToken.as_view(serializer_class=MalformedSerializer)(request)
+
+        self.assertEqual(response.status_code, 401)
+
+    @patch("mreg.api.views.version", side_effect=RuntimeError("version lookup failed"))
+    def test_meta_versions_handles_lookup_failure(self, _version):
+        response = MetaVersions().get(APIRequestFactory().get("/"))
+
+        self.assertTrue(all(response.data[library] == "<unknown>" for library in LIBRARIES_TO_REPORT))
+
+    def test_metrics_view_returns_prometheus_payload(self):
+        response = MetricsView().get(APIRequestFactory().get("/"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("text/plain", response["Content-Type"])
 
 
 class ContentTypeEnforcerTest(MregAPITestCase):

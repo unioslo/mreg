@@ -310,6 +310,24 @@ class ModelHostCommunitiesTestCase(TestCase):
         ).exists()
         self.assertFalse(mapping_exists)
 
+    def test_remove_from_community_without_ip_using_string(self):
+        """Test removing the only matching mapping by community name."""
+        self.host.add_to_community("community1", self.ip1)
+
+        self.host.remove_from_community("community1")
+
+        self.assertFalse(HostCommunityMapping.objects.filter(host=self.host).exists())
+
+    def test_remove_from_community_without_ip_not_found(self):
+        """Test an absent mapping is rejected when no IP is supplied."""
+        with self.assertRaises(NotAcceptable) as context:
+            self.host.remove_from_community(self.community1_net1)
+
+        self.assertIn(
+            "No community mapping exists for this host with the specified criteria",
+            str(context.exception),
+        )
+
     def test_add_to_community_instance_ip_not_in_network(self):
         """Test when IP is not in any network (Community instance case)."""
         # Create IP outside of any network
