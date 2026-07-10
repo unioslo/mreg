@@ -152,8 +152,12 @@ jobs:
 
   publish:
     name: Publish
-    # Run for version tags, commits to master branch, and pull requests
-    if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' || github.event_name == 'pull_request'
+    # Fork pull requests cannot write organization packages with GITHUB_TOKEN.
+    # Publish only version tags, master commits, and same-repository pull requests.
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') ||
+      github.ref == 'refs/heads/master' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
     needs: [test, test-with-curl]
     runs-on: ubuntu-latest
     permissions:
