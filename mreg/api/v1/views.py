@@ -111,7 +111,7 @@ class JSONContentTypeMixin:
     required_content_type = "application/json"
     methods_to_check = ["POST", "PUT", "PATCH", "DELETE"]
 
-    def dispatch(self, request, *args, **kwargs):
+    def initial(self, request, *args, **kwargs):
         if request.method in self.methods_to_check:
             has_body = self._has_request_body(request)
             if has_body:
@@ -121,9 +121,9 @@ class JSONContentTypeMixin:
                     detail_message = (
                         f"Content-Type for {request.method} request to {url} must be {self.required_content_type} (was {content_type})"
                     )
-                    raise UnsupportedMediaType(detail_message)
+                    raise UnsupportedMediaType(content_type, detail=detail_message)
 
-        return super().dispatch(request, *args, **kwargs)  # type: ignore
+        return super().initial(request, *args, **kwargs)  # type: ignore
 
     def _has_request_body(self, request):
         """

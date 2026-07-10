@@ -2,7 +2,9 @@
 
 from django.test import RequestFactory, SimpleTestCase
 from rest_framework.exceptions import MethodNotAllowed, PermissionDenied
+from rest_framework.response import Response
 from rest_framework.test import APIRequestFactory
+from rest_framework.views import APIView
 
 from mreg.api.v1.views import JSONContentTypeMixin, MregRetrieveUpdateDestroyAPIView
 from mreg.api.v1.views_m2m import M2MPermissions
@@ -11,6 +13,28 @@ from mreg.models.network import Network
 from mreg.models.network_policy import Community, NetworkPolicy
 
 from .tests import MregAPITestCase
+
+
+class ContentTypeProtectedView(JSONContentTypeMixin, APIView):
+    authentication_classes = ()
+    permission_classes = ()
+
+    def delete(self, request):
+        return Response(status=204)
+
+
+class ContentTypeMixinUnitTests(SimpleTestCase):
+    def test_exception_is_rendered_as_unsupported_media_type(self):
+        request = APIRequestFactory().generic(
+            "DELETE",
+            "/",
+            data=b"body",
+            content_type="text/plain",
+        )
+
+        response = ContentTypeProtectedView.as_view()(request)
+
+        self.assertEqual(response.status_code, 415)
 
 
 class ContentTypeEnforcerTest(MregAPITestCase):
