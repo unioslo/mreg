@@ -247,6 +247,18 @@ class Host(ForwardZoneMember):
                     raise NotAcceptable(f"Community name '{community}' is ambiguous across multiple networks on this host.")
                 return matches[0]
 
+
+    def _resolve_ip(self, ip: Optional[Union['Ipaddress', str]] = None) -> Optional['Ipaddress']:
+        """
+        Helper method to resolve an IP address argument to an Ipaddress instance for the host.
+        """
+        if isinstance(ip, str):
+            try:
+                return Ipaddress.objects.get(host=self, ipaddress=ip)
+            except Ipaddress.DoesNotExist:
+                raise NotAcceptable("No IP address found on this host with the provided value.")
+        return ip
+
     @transaction.atomic
     def add_to_community(
         self,
@@ -261,13 +273,7 @@ class Host(ForwardZoneMember):
         
         Raises NotAcceptable if any check fails.
         """
-        if isinstance(ip, str):
-            try:
-                ipaddress = Ipaddress.objects.get(host=self, ipaddress=ip)
-            except Ipaddress.DoesNotExist:
-                raise NotAcceptable("No IP address found on this host with the provided value.")
-        else:
-            ipaddress = ip
+        ipaddress = self._resolve_ip(ip)
 
         if not self.ipaddresses.exists(): # type: ignore
             raise NotAcceptable("Host has no IP addresses, cannot add to community.")
@@ -300,17 +306,38 @@ class Host(ForwardZoneMember):
     def remove_from_community(
         self,
         community: Union[Community, str],
-        ipaddress: Optional['Ipaddress'] = None
+        ip: Optional[Union['Ipaddress', str]] = None
     ) -> None:
         """
         Removes this host's mapping to the specified community.
-        
+
         Accepts a Community instance or a community name (string). If an ipaddress is not provided,
-        the helper method attempts to resolve a unique matching IP address from the host's IPs.
-        
-        Raises NotAcceptable if no matching mapping is found.
+        resolution is based on actual HostCommunityMapping entries, not network membership. This
+        allows unambiguous removal when only one IP is bound to the community, even if multiple
+        IPs are on the community's network.
+
+        Raises NotAcceptable if no matching mapping is found or if the match is ambiguous.
         """
-        resolved_ip, resolved_comm = self._resolve_community_mapping(community, ipaddress)
+        resolved_ip = self._resolve_ip(ip)
+
+        if resolved_ip is None:
+            if isinstance(community, Community):
+                mappings = HostCommunityMapping.objects.filter(host=self, community=community)
+            else:
+                mappings = HostCommunityMapping.objects.filter(host=self, community__name=community)
+
+            # Consume queryset generator to ensure check and delete operations are
+            # performed on the same objects, avoiding read/write race conditions.
+            mappings = list(mappings[:2])
+            if not mappings:
+                raise NotAcceptable("No community mapping exists for this host with the specified criteria.")
+            if len(mappings) > 1:
+                raise NotAcceptable("Multiple IP addresses are mapped to this community; please specify one.")
+
+            mappings[0].delete()
+            return
+
+        resolved_ip, resolved_comm = self._resolve_community_mapping(community, resolved_ip)
         mapping = HostCommunityMapping.objects.filter(
             host=self,
             ipaddress=resolved_ip,
