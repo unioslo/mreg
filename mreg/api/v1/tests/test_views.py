@@ -23,10 +23,9 @@ class ContentTypeEnforcerTest(MregAPITestCase):
 
     def test_post_with_wrong_content_type(self):
         """POST with a non-JSON content type is rejected."""
-        # Create a host entry endpoint that requires JSON
         response = self.client.post(
-            "/api/v1/hosts/",
-            data='{"name": "test.example.com"}',
+            "/api/v1/networkpolicies/",
+            data='{"name": "test-policy"}',
             content_type="text/plain",  # Wrong content type
         )
         self.assertEqual(response.status_code, 415)  # Unsupported Media Type
@@ -34,12 +33,11 @@ class ContentTypeEnforcerTest(MregAPITestCase):
 
     def test_patch_with_wrong_content_type(self):
         """PATCH with a non-JSON content type is rejected."""
-        # Create a host first
-        host = Host.objects.create(name="test.example.com")  # type: ignore[attr-defined]
-        
+        policy = NetworkPolicy.objects.create(name="test-policy")
+
         response = self.client.patch(
-            f"/api/v1/hosts/{host.name}",
-            data='{"comment": "test"}',
+            f"/api/v1/networkpolicies/{policy.pk}",
+            data='{"description": "test"}',
             content_type="application/xml",  # Wrong content type
         )
         self.assertEqual(response.status_code, 415)
@@ -47,11 +45,11 @@ class ContentTypeEnforcerTest(MregAPITestCase):
 
     def test_delete_with_wrong_content_type(self):
         """DELETE with a body and non-JSON content type is rejected."""
-        host = Host.objects.create(name="test.example.com")  # type: ignore[attr-defined]
-        
+        policy = NetworkPolicy.objects.create(name="test-policy")
+
         response = self.client.generic(
             "DELETE",
-            f"/api/v1/hosts/{host.name}",
+            f"/api/v1/networkpolicies/{policy.pk}",
             data=b"some body content",
             content_type="text/html",
         )
