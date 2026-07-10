@@ -125,3 +125,55 @@ class SettingsHelpersTests(SimpleTestCase):
             os.environ.clear()
             os.environ.update(env_backup)
             importlib.reload(app_settings)
+
+    def test_profiling_creates_missing_result_directory(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result_path = os.path.join(tmpdir, "profiles")
+            try:
+                with patch.dict(
+                    os.environ,
+                    {
+                        "MREG_PROFILING_ENABLED": "true",
+                        "MREG_SILKY_PYTHON_PROFILER_RESULT_PATH": result_path,
+                    },
+                ):
+                    with patch.dict(sys.modules, {"silk": ModuleType("silk")}):
+                        importlib.reload(app_settings)
+
+                self.assertTrue(os.path.isdir(result_path))
+            finally:
+                importlib.reload(app_settings)
+
+    def test_profiling_exits_when_result_directory_cannot_be_created(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result_path = os.path.join(tmpdir, "profiles")
+            try:
+                with patch.dict(
+                    os.environ,
+                    {
+                        "MREG_PROFILING_ENABLED": "true",
+                        "MREG_SILKY_PYTHON_PROFILER_RESULT_PATH": result_path,
+                    },
+                ):
+                    with patch.dict(sys.modules, {"silk": ModuleType("silk")}):
+                        with patch.object(app_settings.Path, "mkdir", side_effect=OSError("denied")):
+                            with self.assertRaises(SystemExit):
+                                importlib.reload(app_settings)
+            finally:
+                importlib.reload(app_settings)
+
+    def test_profiling_exits_when_result_path_is_file(self):
+        with tempfile.NamedTemporaryFile() as result_file:
+            try:
+                with patch.dict(
+                    os.environ,
+                    {
+                        "MREG_PROFILING_ENABLED": "true",
+                        "MREG_SILKY_PYTHON_PROFILER_RESULT_PATH": result_file.name,
+                    },
+                ):
+                    with patch.dict(sys.modules, {"silk": ModuleType("silk")}):
+                        with self.assertRaises(SystemExit):
+                            importlib.reload(app_settings)
+            finally:
+                importlib.reload(app_settings)
