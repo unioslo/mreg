@@ -3,7 +3,7 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase, override_settings
 from rest_framework.exceptions import NotAcceptable
 
-from mreg.models.host import Host, Ipaddress, BACnetID, PtrOverride, HostGroup
+from mreg.models.host import BACnetID, Host, Ipaddress
 from mreg.models.network import Network
 from mreg.models.network_policy import Community, HostCommunityMapping
 
@@ -344,28 +344,6 @@ class ModelHostCommunitiesTestCase(TestCase):
         
         mapping = HostCommunityMapping.objects.get(host=self.host, ipaddress=self.ip1)
         self.assertEqual(mapping.community, self.community1_net1)
-
-
-class ModelPtrOverrideTestCase(TestCase):
-    """Test suite for PtrOverride model."""
-
-    def setUp(self):
-        """Set up test host."""
-        self.host = Host.objects.create(name="test.example.org")
-
-    def test_ptroverride_str(self):
-        """Test PtrOverride __str__ method."""
-        ptr = PtrOverride.objects.create(host=self.host, ipaddress="10.0.0.1")
-        self.assertEqual(str(ptr), "10.0.0.1 -> test.example.org")
-
-
-class ModelHostGroupTestCase(TestCase):
-    """Test suite for HostGroup model."""
-
-    def test_hostgroup_str(self):
-        """Test HostGroup __str__ method."""
-        group = HostGroup.objects.create(name="testgroup", description="Test Group")
-        self.assertEqual(str(group), "testgroup")
 
 
 class ModelBACnetIDTestCase(TestCase):

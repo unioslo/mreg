@@ -1,11 +1,11 @@
-"""
-Tests for achieving 100% coverage of mreg/api/v1/views.py
+"""Tests for API view edge cases and error responses."""
 
-This file tests various edge cases and error conditions in API views
-that are not covered by the main functional tests.
-"""
-from unittest_parametrize import ParametrizedTestCase
+from django.test import RequestFactory, SimpleTestCase
+from rest_framework.exceptions import MethodNotAllowed, PermissionDenied
+from rest_framework.test import APIRequestFactory
 
+from mreg.api.v1.views import JSONContentTypeMixin, MregRetrieveUpdateDestroyAPIView
+from mreg.api.v1.views_m2m import M2MPermissions
 from mreg.models.host import Host, Ipaddress
 from mreg.models.network import Network
 from mreg.models.network_policy import Community, NetworkPolicy
@@ -22,7 +22,7 @@ class ContentTypeEnforcerTest(MregAPITestCase):
         self.set_client_format_json()
 
     def test_post_with_wrong_content_type(self):
-        """Test POST with non-JSON Content-Type raises UnsupportedMediaType (lines 89-94)."""
+        """POST with a non-JSON content type is rejected."""
         # Create a host entry endpoint that requires JSON
         response = self.client.post(
             "/api/v1/hosts/",
@@ -33,7 +33,7 @@ class ContentTypeEnforcerTest(MregAPITestCase):
         self.assertIn("unsupported_media_type", str(response.data))  # type: ignore[attr-defined]
 
     def test_patch_with_wrong_content_type(self):
-        """Test PATCH with non-JSON Content-Type raises UnsupportedMediaType (lines 89-94)."""
+        """PATCH with a non-JSON content type is rejected."""
         # Create a host first
         host = Host.objects.create(name="test.example.com")  # type: ignore[attr-defined]
         
@@ -46,66 +46,77 @@ class ContentTypeEnforcerTest(MregAPITestCase):
         self.assertIn("unsupported_media_type", str(response.data))  # type: ignore[attr-defined]
 
     def test_delete_with_wrong_content_type(self):
-        """Test DELETE with body and non-JSON Content-Type (lines 89-94)."""
+        """DELETE with a body and non-JSON content type is rejected."""
         host = Host.objects.create(name="test.example.com")  # type: ignore[attr-defined]
         
-        # DELETE with a body and wrong content type
-        # Note: DELETE requests in test client may not send body properly, 
-        # so this test may not hit the intended code path
         response = self.client.delete(
             f"/api/v1/hosts/{host.name}",
             data="some body content",
             content_type="text/html",
         )
-        # The delete may succeed (204) if the body isn't detected
-        # or fail with 415 if it is
-        self.assertIn(response.status_code, [204, 415])
+        self.assertEqual(response.status_code, 415)
 
 
-class RequestBodyDetectionTest(MregAPITestCase):
+class RequestBodyDetectionTest(SimpleTestCase):
     """Test _has_request_body edge cases."""
 
     def setUp(self):
-        """Set up test fixtures."""
-        super().setUp()
-        self.set_client_format_json()
+        self.factory = RequestFactory()
+        self.mixin = JSONContentTypeMixin()
 
     def test_chunked_transfer_encoding(self):
-        """Test _has_request_body with chunked transfer encoding (line 116)."""
-        # Simulate chunked encoding by setting HTTP_TRANSFER_ENCODING
-        response = self.client.post(
-            "/api/v1/hosts/",
-            data='{"name": "test.example.com"}',
-            content_type="application/json",
-            HTTP_TRANSFER_ENCODING="chunked",
-        )
-        # Should accept the chunked request
-        self.assertIn(response.status_code, [201, 400])  # Either success or validation error
+        request = self.factory.post("/", HTTP_TRANSFER_ENCODING="chunked")
+        request.META.pop("CONTENT_LENGTH", None)
+
+        self.assertTrue(self.mixin._has_request_body(request))
+
+    def test_invalid_content_length_is_not_a_body(self):
+        request = self.factory.post("/", HTTP_CONTENT_LENGTH="invalid")
+        request.META["CONTENT_LENGTH"] = "invalid"
+
+        self.assertFalse(self.mixin._has_request_body(request))
+
+    def test_body_read_failure_is_not_a_body(self):
+        class BrokenRequest:
+            META = {}
+
+            @property
+            def body(self):
+                raise OSError("broken request stream")
+
+        self.assertFalse(self.mixin._has_request_body(BrokenRequest()))
 
 
-class MregMixinTest(MregAPITestCase):
-    """Test MregMixin methods."""
+class M2MPermissionsTests(SimpleTestCase):
+    def test_permission_denied_when_check_fails(self):
+        class DenyPermission:
+            def has_m2m_change_permission(self, request, view):
+                return False
 
-    def setUp(self):
-        """Set up test fixtures."""
-        super().setUp()
-        self.set_client_format_json()
+        class DummyView(M2MPermissions):
+            def __init__(self):
+                self.request = RequestFactory().get("/")
 
+            def get_permissions(self):
+                return [DenyPermission()]
+
+            def permission_denied(self, request):
+                raise PermissionDenied()
+
+        view = DummyView()
+
+        with self.assertRaises(PermissionDenied):
+            view.check_m2m_update_permission(view.request)
+
+
+class MethodHandlingTests(SimpleTestCase):
     def test_put_method_not_allowed(self):
-        """Test that PUT method raises MethodNotAllowed (line 187)."""
-        host = Host.objects.create(name="test.example.com")  # type: ignore[attr-defined]
-        
-        # MethodNotAllowed() requires a method argument, so it will raise TypeError
-        # But we're checking if the PUT call itself is handled properly
-        # The actual code at line 187 is: raise MethodNotAllowed()
-        # which is a bug in the code - it should be MethodNotAllowed('PUT')
-        # We test that this line is reached by calling PUT
-        with self.assertRaises(TypeError):  # MethodNotAllowed needs 'method' argument
-            self.client.put(
-                f"/api/v1/hosts/{host.name}",
-                data={"name": "newname.example.com"},
-                content_type="application/json",
-            )
+        request = APIRequestFactory().put("/")
+
+        with self.assertRaises(MethodNotAllowed) as context:
+            MregRetrieveUpdateDestroyAPIView().put(request)
+
+        self.assertEqual(context.exception.status_code, 405)
 
 
 class HostListPostTest(MregAPITestCase):
@@ -123,7 +134,7 @@ class HostListPostTest(MregAPITestCase):
         )
 
     def test_create_host_with_nonexistent_community(self):
-        """Test creating host with non-existent community ID (lines 362-363)."""
+        """Creating a host with a nonexistent community returns 404."""
         response = self.client.post(
             "/api/v1/hosts/",
             data={
@@ -138,7 +149,7 @@ class HostListPostTest(MregAPITestCase):
         self.assertIn("not found", str(response.data))  # type: ignore[attr-defined]
 
     def test_create_host_allocation_method_without_network(self):
-        """Test allocation_method without network parameter (line 375)."""
+        """An allocation method requires a network."""
         response = self.client.post(
             "/api/v1/hosts/",
             data={
@@ -153,7 +164,30 @@ class HostListPostTest(MregAPITestCase):
         self.assertIn("network", str(response.data))  # type: ignore[attr-defined]
 
 
-class HostDetailPatchTest(ParametrizedTestCase, MregAPITestCase):
+class HostContactsViewTests(MregAPITestCase):
+    def setUp(self):
+        super().setUp()
+        self.set_client_format_json()
+        self.host = Host.objects.create(name="contacts.example")
+
+    def test_post_emails_not_list(self):
+        response = self.client.post(
+            f"/api/v1/hosts/{self.host.name}/contacts/",
+            data={"emails": "not-a-list"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_delete_emails_not_list(self):
+        response = self.client.delete(
+            f"/api/v1/hosts/{self.host.name}/contacts/",
+            data={"emails": "not-a-list"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+
+class HostDetailPatchTest(MregAPITestCase):
     """Test HostDetail.patch error conditions."""
 
     def setUp(self):
@@ -172,7 +206,7 @@ class HostDetailPatchTest(ParametrizedTestCase, MregAPITestCase):
         )
 
     def test_patch_host_ip_network_switch_with_community(self):
-        """Test changing IP to different network for host with community (lines 553-554)."""
+        """A community-bound IP cannot move to another network."""
         # Create a community (policy is created automatically)
         NetworkPolicy.objects.create(name="test-policy")  # type: ignore[attr-defined]
         community = Community.objects.create(  # type: ignore[attr-defined]
@@ -202,8 +236,7 @@ class HostDetailPatchTest(ParametrizedTestCase, MregAPITestCase):
         self.assertIn("network", str(response.data).lower())  # type: ignore[attr-defined]
 
     def test_patch_host_ip_same_network_with_community(self):
-        """Test changing IP within same network for host with community (lines 553-554)."""
-        # This test ensures we hit the network_match = True path (lines 553-554)
+        """A community-bound IP can change within its current network."""
         NetworkPolicy.objects.create(name="test-policy")  # type: ignore[attr-defined]
         community = Community.objects.create(  # type: ignore[attr-defined]
             name="test-community",
@@ -226,8 +259,7 @@ class HostDetailPatchTest(ParametrizedTestCase, MregAPITestCase):
             data={"ipaddress": "10.0.0.10"},  # Same network1
             content_type="application/json",
         )
-        # Should succeed because both IPs are in network1 which matches community.network
-        self.assertIn(response.status_code, [200, 201, 204])
+        self.assertEqual(response.status_code, 204)
 
 
 class NetworkDetailPatchTest(MregAPITestCase):
@@ -245,7 +277,7 @@ class NetworkDetailPatchTest(MregAPITestCase):
         )
 
     def test_patch_network_with_nonexistent_policy(self):
-        """Test setting non-existent policy on network (lines 848-849)."""
+        """Assigning a nonexistent policy returns 404."""
         response = self.client.patch(
             f"/api/v1/networks/{self.network.network}",
             data={"policy": 99999},  # Non-existent policy ID
