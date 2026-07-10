@@ -16,7 +16,7 @@ from mreg.models.auth import User
 # block because DRF does some dynamic import shenanigans on runtime using
 # the `DEFAULT_PERMISSION_CLASSES` we defined in `settings.py`, causing
 # an import cycle if we _actually_ import the generics module on runtime.
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from rest_framework.generics import GenericAPIView
     from rest_framework.serializers import Serializer
     from mreg.models.base import BaseModel
@@ -32,13 +32,19 @@ class CRUDPermissionsMixin:
 
     # Can be overridden in subclasses to provide custom permission logic
     # for different operations.
-    def has_create_permission(self, request: Request, view: GenericAPIView, validated_serializer: Serializer) -> bool:
+    def has_create_permission(
+        self, request: Request, view: GenericAPIView, validated_serializer: Serializer
+    ) -> bool:
         return False
 
-    def has_update_permission(self, request: Request, view: GenericAPIView, validated_serializer: Serializer) -> bool:
+    def has_update_permission(
+        self, request: Request, view: GenericAPIView, validated_serializer: Serializer
+    ) -> bool:
         return False
 
-    def has_destroy_permission(self, request: Request, view: GenericAPIView, validated_serializer: BaseModel) -> bool:
+    def has_destroy_permission(
+        self, request: Request, view: GenericAPIView, validated_serializer: BaseModel
+    ) -> bool:
         return False
 
 
@@ -121,7 +127,7 @@ def _deny_superuser_only_names(data=None, name=None, view=None, request=None):
             if 'host' in data:
                 name = data['host'].name
 
-    if not request: # pragma: no cover
+    if not request:
         return False
 
     user = User.from_request(request)
@@ -292,9 +298,7 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
                 if not self.has_obj_perm(user, data['host']):
                     return False
             return self.has_obj_perm(user, obj.host)
-        # Testing these kinds of should-never-happen codepaths is hard.
-        # We have to basically mock a complete API call and then break it.
-        raise exceptions.PermissionDenied(f"Unhandled view: {view}")  # pragma: no cover
+        raise exceptions.PermissionDenied(f"Unhandled view: {view}")
 
     def _get_hostname_and_ips(self, hostobject):
         ips = []
@@ -388,4 +392,3 @@ class IsGrantedReservedAddressPermission(IsAuthenticated):
         # in a `BaseModel` instance instead of a serializer when checking
         # destroy permissions, so we cannot access any sort of validated data.
         return self.has_permission(request, view)
-

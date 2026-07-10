@@ -2,6 +2,9 @@ import pytest
 import ldap
 from unittest.mock import Mock, patch
 
+from django.http import HttpResponse
+from django.test import RequestFactory
+from prometheus_client import generate_latest
 from rest_framework.test import APIClient
 from django.contrib.auth import get_user_model
 import re
@@ -79,7 +82,6 @@ def test_db_metrics_recorded_with_values() -> None:
 
     host = Host.objects.create(
         name="db_metric_test.example.com",
-        contact="test@example.com",
         ttl=3600,
         comment="test",
     )
@@ -109,7 +111,6 @@ def test_db_query_count_metrics() -> None:
 
     host = Host.objects.create(
         name="db_count_test.example.com",
-        contact="test@example.com",
         ttl=3600,
         comment="test",
     )
@@ -155,17 +156,19 @@ def test_request_latency_recorded() -> None:
 @pytest.mark.django_db
 def test_request_and_response_size_histograms() -> None:
     """Test request and response size histograms are recorded."""
-    client = APIClient()
-    User = get_user_model()
-    user = User.objects.create_user(username="size_metrics_user", password="x")
-    client.force_authenticate(user=user)
+    request = RequestFactory().post(
+        "/metrics-size-test",
+        data=b"payload",
+        content_type="application/octet-stream",
+    )
+    response = HttpResponse("ok")
+    response["Content-Length"] = "2"
+    middleware = PrometheusRequestMiddleware(lambda _: response)
+    middleware._normalize_path = lambda _: "metrics-size-test"  # type: ignore[assignment]
 
-    # Simple GET with no body (request size ~0), small response
-    r: Any = client.get("/api/meta/health/heartbeat")
-    assert r.status_code == 200
+    middleware(request)
 
-    metrics_resp: Any = client.get("/api/meta/metrics")
-    raw = metrics_resp.content.decode("utf-8")
+    raw = generate_latest().decode("utf-8")
 
     req_size_count = _parse_prometheus_metric(raw, "mreg_http_request_size_bytes_count")
     assert len(req_size_count) > 0, "Expected request size histogram count series"

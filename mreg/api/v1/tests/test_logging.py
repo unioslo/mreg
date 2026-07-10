@@ -3,11 +3,13 @@
 
 import io
 import logging
+from types import SimpleNamespace
 from typing import List
 from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
 from django.http import HttpRequest, HttpResponse
+from django.test import SimpleTestCase
 from structlog import get_logger
 from structlog.testing import capture_logs
 
@@ -35,6 +37,53 @@ class CustomLogHandler(logging.Handler):
         :param record: The log record to capture.
         """
         self.logs.append(self.format(record))
+
+
+class SensitiveDataProcessorTests(SimpleTestCase):
+    def test_redacts_password_from_json_string(self):
+        event = {
+            "path": "/api/token-auth/",
+            "method": "POST",
+            "event": "request",
+            "content": '{"username":"alice","password":"secret"}',
+        }
+
+        processed = filter_sensitive_data(None, None, event)
+
+        self.assertEqual(processed["content"], '{"username":"alice","password":"..."}')
+
+    def test_shortens_token_in_json_response(self):
+        token = "abcdefghijklmnopqrstuvwxyz"
+        event = {
+            "path": "/api/token-auth/",
+            "method": "POST",
+            "event": "response",
+            "content": f'{{"token":"{token}"}}',
+        }
+
+        processed = filter_sensitive_data(None, None, event)
+
+        self.assertEqual(processed["content"], '{"token":"abc...xyz"}')
+
+
+class LoggingMiddlewareUnitTests(SimpleTestCase):
+    def test_response_exception_is_logged_and_reraised(self):
+        error = RuntimeError("response failed")
+        middleware = LoggingMiddleware(MagicMock(side_effect=error))
+        request = HttpRequest()
+        request.method = "GET"
+        request.path_info = "/example"
+        request._body = b""
+        request.user = SimpleNamespace(username="test-user")
+
+        with patch("mreg.middleware.logging_http.sentry_sdk.capture_exception") as capture_exception:
+            with capture_logs() as logs:
+                with self.assertRaisesRegex(RuntimeError, "response failed"):
+                    middleware(request)
+
+        self.assertEqual(logs[-1]["event"], "Unhandled exception occurred")
+        self.assertEqual(logs[-1]["exception_type"], "RuntimeError")
+        capture_exception.assert_called_once_with(error)
 
 
 class TestLoggingInternals(MregAPITestCase):
@@ -275,3 +324,91 @@ class TestLoggingMiddleware(MregAPITestCase):
 
         finally:
             logger.removeHandler(handler)
+
+    def test_no_correlation_id_in_request(self) -> None:
+        """Test middleware behavior when no correlation_id is provided."""
+        middleware = LoggingMiddleware(MagicMock())
+
+        def mock_get_response(_):
+            return HttpResponse(status=200)
+
+        middleware.get_response = mock_get_response
+
+        with capture_logs() as cap_logs:
+            get_logger().bind()
+            request = HttpRequest()
+            request._read_started = False
+            request._stream = io.BytesIO(b"request body")
+            request.user = get_user_model().objects.get(username="superuser")
+            # Don't set x-correlation-id header
+            response = middleware(request)
+            
+            # Verify that correlation_id is not in request log
+            self.assertNotIn("correlation_id", cap_logs[0])
+            # Verify that X-Correlation-ID header is not in response
+            self.assertNotIn("X-Correlation-ID", response)
+
+    def test_request_without_headers_attribute(self) -> None:
+        """Test _get_request_header when request has no headers attribute."""
+        middleware = LoggingMiddleware(MagicMock())
+
+        # Create a mock request without the headers attribute
+        request = MagicMock(spec=['META', 'user', 'method', 'path_info', 'body', '_read_started', '_stream'])
+        request.META = {
+            'HTTP_USER_AGENT': 'TestAgent/1.0',
+            'HTTP_X_REQUEST_ID': 'test-request-id',
+        }
+        request.user = get_user_model().objects.get(username="superuser")
+        request.method = 'GET'
+        request.path_info = '/test/'
+        request.body = b'test body'
+
+        # Call _get_request_header - should use META fallback
+        user_agent = middleware._get_request_header(request, "user-agent", "HTTP_USER_AGENT")
+        self.assertEqual(user_agent, "TestAgent/1.0")
+        
+        request_id = middleware._get_request_header(request, "x-request-id", "HTTP_X_REQUEST_ID")
+        self.assertEqual(request_id, "test-request-id")
+
+    def test_with_correlation_id_in_request(self) -> None:
+        """Test middleware behavior when correlation_id is provided."""
+        middleware = LoggingMiddleware(MagicMock())
+
+        def mock_get_response(_):
+            return HttpResponse(status=200)
+
+        middleware.get_response = mock_get_response
+
+        request = HttpRequest()
+        request._read_started = False
+        request._stream = io.BytesIO(b"request body")
+        request.user = get_user_model().objects.get(username="superuser")
+        # Set x-correlation-id header via META (before Django creates headers attribute)
+        request.META["HTTP_X_CORRELATION_ID"] = "test-correlation-id"
+        # Ensure request has headers attribute pointing to META
+        from django.http.request import HttpHeaders
+        request.headers = HttpHeaders(request.META)
+        
+        response = middleware(request)
+        
+            # Verify that X-Correlation-ID header is in the response.
+        self.assertEqual(response["X-Correlation-ID"], "test-correlation-id")
+
+    def test_return_400_error(self) -> None:
+        """Test middleware returning 400 client error."""
+        middleware = LoggingMiddleware(MagicMock())
+
+        def mock_get_response(_):
+            return HttpResponse(status=400)
+
+        middleware.get_response = mock_get_response
+
+        with capture_logs() as cap_logs:
+            get_logger().bind()
+            request = HttpRequest()
+            request._read_started = False
+            request._stream = io.BytesIO(b"request body")
+            request.user = get_user_model().objects.get(username="superuser")
+            middleware(request)
+            # Response log should have warning level for 4xx errors
+            self.assertEqual(cap_logs[1]["log_level"], "warning")

@@ -1,5 +1,5 @@
-from typing import List, Tuple, Union
 from itertools import chain
+from typing import List, Tuple, Union
 
 from unittest_parametrize import ParametrizedTestCase, param, parametrize
 
@@ -50,7 +50,7 @@ def create_ipaddresses(hosts: List[Host]) -> List[Ipaddress]:
     ipaddresses: List[Ipaddress] = []
     for i, host in enumerate(hosts):
         ipaddresses.append(
-            Ipaddress.objects.create(
+            Ipaddress.objects.create(  # type: ignore[attr-defined]
                 host=host,
                 ipaddress=f"10.0.0.{i}",
             )
@@ -94,13 +94,13 @@ def create_roles(
 ) -> Tuple[List[HostPolicyRole], List[HostPolicyAtom], List[Label]]:
     """Create roles."""
 
-    if not atoms: # pragma: no cover
+    if not atoms:  # pragma: no cover
         atoms = create_atoms(f"{name}atom", len(hosts))
 
-    if not labels: # pragma: no cover
+    if not labels:  # pragma: no cover
         labels = create_labels(f"{name}label", len(hosts))
 
-    if len(hosts) != len(atoms) or len(hosts) != len(labels): # pragma: no cover
+    if len(hosts) != len(atoms) or len(hosts) != len(labels):  # pragma: no cover
         raise ValueError("Hosts, Atoms, and Labels must be the same length.")
 
     roles: List[HostPolicyRole] = []
@@ -113,12 +113,14 @@ def create_roles(
         roles.append(policy)
     return (roles, atoms, labels)
 
+
 def resolve_target(target: Union[str, List[str]]) -> List[int]:
-    if isinstance(target, str):
+    if isinstance(target, str): # pragma: no cover
         return [int(target)]
     else:
         return [int(t) for t in target]
-    
+
+
 class FilterTestCase(ParametrizedTestCase, MregAPITestCase):
     """Test filtering."""
 
@@ -163,7 +165,7 @@ class FilterTestCase(ParametrizedTestCase, MregAPITestCase):
     def test_filtering_for_host(self, endpoint: str, query_key: str, target: str, expected_hits: str) -> None:
         """Test filtering on host."""
 
-        generate_count = 3     
+        generate_count = 3
         hosts = create_hosts(f"{endpoint}{query_key}", generate_count)
         cnames = create_cnames(hosts)
         ipadresses = create_ipaddresses(hosts)
@@ -171,13 +173,13 @@ class FilterTestCase(ParametrizedTestCase, MregAPITestCase):
         if query_key.startswith("id"):
             targets = target.split(",") if query_key.endswith("__in") else [target]
             resolved_targets = resolve_target(targets)
-            target = ",".join(str(hosts[t].id) for t in resolved_targets) # type: ignore
+            target = ",".join(str(hosts[t].id) for t in resolved_targets)  # type: ignore
 
         msg_prefix = f"{endpoint} : {query_key} -> {target} => "
 
         response = self.client.get(f"/api/v1/{endpoint}/?{query_key}={target}")
-        self.assertEqual(response.status_code, 200, msg=f"{msg_prefix} {response.content}")
-        data = response.json()
+        self.assertEqual(response.status_code, 200, msg=f"{msg_prefix} {response.content}")  # type: ignore[attr-defined]
+        data = response.json()  # type: ignore[attr-defined]
         self.assertEqual(data["count"], expected_hits, msg=f"{msg_prefix} {data}")
 
         for obj in chain(ipadresses, cnames, hosts):
@@ -227,25 +229,25 @@ class FilterTestCase(ParametrizedTestCase, MregAPITestCase):
         roles, atoms, labels = create_roles(endpoint, hosts, atoms, labels)
 
         response = self.client.get(f"/api/v1/hostpolicy/{endpoint}/?{query_key}={target}")
-        self.assertEqual(response.status_code, 200, msg=f"{msg_prefix} {response.content}")
-        data = response.json()
+        self.assertEqual(response.status_code, 200, msg=f"{msg_prefix} {response.content}")  # type: ignore[attr-defined]
+        data = response.json()  # type: ignore[attr-defined]
         self.assertEqual(data["count"], expected_hits, msg=f"{msg_prefix} {data}")
 
         for obj in chain(roles, atoms, labels, hosts):
             obj.delete()
 
-    @parametrize(("cidr", "exists"), [                 
-                param("10.0.0.0/24", True, id="cidr_0_true"),
-                param("10.0.1.0/24", True, id="cidr_1_true"),
-                param("10.0.2.0/24", True, id="cidr_2_true"),
-                param("10.0.3.0/24", False, id="cidr_3_false"),
-
-                param("10.0.0.1", True, id="ip_0_1_true"),
-                param("10.0.0.2", True, id="ip_0_2_true"),
-                param("10.0.1.1", True, id="ip_1_1_true"),
-                param("10.0.2.1", True, id="ip_2_1_true"),
-
-                param("10.0.3.1", False, id="ip_3_1_false"),
+    @parametrize(
+        ("cidr", "exists"),
+        [
+            param("10.0.0.0/24", True, id="cidr_0_true"),
+            param("10.0.1.0/24", True, id="cidr_1_true"),
+            param("10.0.2.0/24", True, id="cidr_2_true"),
+            param("10.0.3.0/24", False, id="cidr_3_false"),
+            param("10.0.0.1", True, id="ip_0_1_true"),
+            param("10.0.0.2", True, id="ip_0_2_true"),
+            param("10.0.1.1", True, id="ip_1_1_true"),
+            param("10.0.2.1", True, id="ip_2_1_true"),
+            param("10.0.3.1", False, id="ip_3_1_false"),
         ],
     )
     def test_filter_netgroup_regex_permission(self, cidr: str, exists: bool) -> None:
@@ -254,12 +256,70 @@ class FilterTestCase(ParametrizedTestCase, MregAPITestCase):
         generate_count = 3
 
         for i in range(generate_count):
-            NetGroupRegexPermission.objects.create(
-                regex=".*",
-                range=f"10.0.{i}.0/24"
-            )
+            NetGroupRegexPermission.objects.create(regex=".*", range=f"10.0.{i}.0/24")
 
         response = self.client.get(f"/api/v1/permissions/netgroupregex/?range={cidr}")
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
+        self.assertEqual(response.status_code, 200)  # type: ignore[attr-defined]
+        data = response.json()  # type: ignore[attr-defined]
         self.assertEqual(data["count"], 1 if exists else 0)
+
+    def test_filter_netgroup_regex_permission_invalid_cidr(self) -> None:
+        """Test that invalid CIDR raises ValidationError."""
+        NetGroupRegexPermission.objects.create(regex=".*", range="10.0.0.0/24")
+        response = self.client.get("/api/v1/permissions/netgroupregex/?range=invalid_cidr")
+        self.assertEqual(response.status_code, 400)  # type: ignore[attr-defined]
+        self.assertIn("Invalid CIDR", str(response.content))  # type: ignore[attr-defined]
+
+    def test_filter_network_invalid_regex(self) -> None:
+        """Test that invalid regex raises ValidationError."""
+        from mreg.models.network import Network
+
+        Network.objects.create(network="10.0.0.0/24")
+        response = self.client.get("/api/v1/networks/?network__regex=[invalid")
+        self.assertEqual(response.status_code, 400)  # type: ignore[attr-defined]
+        self.assertIn("Invalid regex pattern", str(response.content))  # type: ignore[attr-defined]
+
+    def test_filter_history_json_data(self) -> None:
+        """Test JSON filtering on History model."""
+        from mreg.models.base import History
+
+        # Create history entries with different data
+        History.objects.create(  # type: ignore[attr-defined]
+            user="testuser1",
+            resource="host",
+            name="host1.example.com",
+            model_id=1,
+            model="Host",
+            action="create",
+            data={"ipaddress": "10.0.0.1", "zone": "example.com"},
+        )
+        History.objects.create(  # type: ignore[attr-defined]
+            user="testuser2",
+            resource="host",
+            name="host2.example.com",
+            model_id=2,
+            model="Host",
+            action="update",
+            data={"ipaddress": "10.0.0.2", "zone": "test.com"},
+        )
+        History.objects.create(  # type: ignore[attr-defined]
+            user="testuser3",
+            resource="host",
+            name="host3.example.com",
+            model_id=3,
+            model="Host",
+            action="create",
+            data={"ipaddress": "10.0.0.3", "zone": "example.com"},
+        )
+
+        # Test filtering by JSON field exact match
+        response = self.client.get("/api/v1/history/?data__zone=example.com")
+        self.assertEqual(response.status_code, 200)  # type: ignore[attr-defined]
+        data = response.json()  # type: ignore[attr-defined]
+        self.assertEqual(data["count"], 2)
+
+        # Test filtering by JSON field __in
+        response = self.client.get("/api/v1/history/?data__ipaddress__in=10.0.0.1,10.0.0.2")
+        self.assertEqual(response.status_code, 200)  # type: ignore[attr-defined]
+        data = response.json()  # type: ignore[attr-defined]
+        self.assertEqual(data["count"], 2)
