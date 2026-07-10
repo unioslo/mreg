@@ -49,9 +49,10 @@ class ContentTypeEnforcerTest(MregAPITestCase):
         """DELETE with a body and non-JSON content type is rejected."""
         host = Host.objects.create(name="test.example.com")  # type: ignore[attr-defined]
         
-        response = self.client.delete(
+        response = self.client.generic(
+            "DELETE",
             f"/api/v1/hosts/{host.name}",
-            data="some body content",
+            data=b"some body content",
             content_type="text/html",
         )
         self.assertEqual(response.status_code, 415)
