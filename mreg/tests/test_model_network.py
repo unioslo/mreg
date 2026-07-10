@@ -1,7 +1,9 @@
 import ipaddress
 import signal
+from unittest.mock import patch
 
 from django.test import TestCase
+from mreg.models.host import Host, Ipaddress
 from mreg.models.network import MAX_UNUSED_LIST, Network, NetworkExcludedRange
 
 from .base import clean_and_save
@@ -115,6 +117,23 @@ class ModelNetworkTestCase(TestCase):
         self.assertNotEqual(n.get_first_unused(), None)
         self.assertNotEqual(n.get_random_unused(), None)
         signal.alarm(0)  # Cancel the timer if no exception happened
+
+    def test_ipv6_random_unused_retries_used_address(self):
+        network = Network(network="2001:db8::/64", description="a description")
+        clean_and_save(network)
+        host = Host.objects.create(name="used.example.org")
+        Ipaddress.objects.create(host=host, ipaddress="2001:db8::100")
+
+        with patch(
+            "mreg.models.network.random.randint",
+            side_effect=[
+                int(ipaddress.ip_address("2001:db8::100")),
+                int(ipaddress.ip_address("2001:db8::101")),
+            ],
+        ):
+            result = network.get_random_unused()
+
+        self.assertEqual(result, "2001:db8::101")
 
     def test_excluded_ranges(self):
         """Test that exclusion of IP address ranges work"""

@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
 from django.http import HttpRequest, HttpResponse
+from django.test import SimpleTestCase
 from structlog import get_logger
 from structlog.testing import capture_logs
 
@@ -35,6 +36,33 @@ class CustomLogHandler(logging.Handler):
         :param record: The log record to capture.
         """
         self.logs.append(self.format(record))
+
+
+class SensitiveDataProcessorTests(SimpleTestCase):
+    def test_redacts_password_from_json_string(self):
+        event = {
+            "path": "/api/token-auth/",
+            "method": "POST",
+            "event": "request",
+            "content": '{"username":"alice","password":"secret"}',
+        }
+
+        processed = filter_sensitive_data(None, None, event)
+
+        self.assertEqual(processed["content"], '{"username":"alice","password":"..."}')
+
+    def test_shortens_token_in_json_response(self):
+        token = "abcdefghijklmnopqrstuvwxyz"
+        event = {
+            "path": "/api/token-auth/",
+            "method": "POST",
+            "event": "response",
+            "content": f'{{"token":"{token}"}}',
+        }
+
+        processed = filter_sensitive_data(None, None, event)
+
+        self.assertEqual(processed["content"], '{"token":"abc...xyz"}')
 
 
 class TestLoggingInternals(MregAPITestCase):
@@ -342,7 +370,7 @@ class TestLoggingMiddleware(MregAPITestCase):
         
         response = middleware(request)
         
-        # Verify that X-Correlation-ID header is in response (tests line 177)
+            # Verify that X-Correlation-ID header is in the response.
         self.assertEqual(response["X-Correlation-ID"], "test-correlation-id")
 
     def test_return_400_error(self) -> None:
