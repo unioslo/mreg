@@ -42,7 +42,7 @@ def _observe_ldap_call(operation: str, func: Callable[[], Any]) -> Any:
     outcome = "success"
     try:
         return func()
-    except Exception as e:  # pragma: no cover - defensive metrics recording
+    except Exception as e:
         outcome = "failure"
         try:
             LDAP_CALL_FAILURES.labels(operation, e.__class__.__name__).inc()
@@ -108,12 +108,7 @@ class ObtainExpiringAuthToken(ObtainAuthToken):
             else:
                 raise err
 
-        if (  # pragma: no cover
-            # Not covered: Defensive check for malformed serializer output.
-            # Django REST Framework's AuthTokenSerializer guarantees validated_data
-            # is a dict with 'user' key when validation succeeds.
-            not isinstance(serializer.validated_data, dict) or "user" not in serializer.validated_data
-        ):
+        if not isinstance(serializer.validated_data, dict) or "user" not in serializer.validated_data:
             raise AuthenticationFailed()
 
         user = cast(str, serializer.validated_data["user"])
@@ -248,9 +243,7 @@ class MetaVersions(APIView):
         for library in LIBRARIES_TO_REPORT:
             try:
                 data[library] = version(library)
-            except Exception as e:  # pragma: no cover
-                # Not covered: Requires a library to be installed but fail version lookup.
-                # importlib.metadata.version is reliable for properly installed packages.
+            except Exception as e:
                 logger.warning(event="library", reason=f"Failed to get version for {library}: {e}")
                 data[library] = "<unknown>"
         

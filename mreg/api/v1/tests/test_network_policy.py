@@ -391,7 +391,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
             "name": "community",
             "description": "community desc",
         }
-        self.assert_post_and_404("{NETWORK_ENDPOINT}10.1.0.0/24/communities/", data=data)
+        self.assert_post_and_404(f"{NETWORK_ENDPOINT}10.1.0.0/24/communities/", data=data)
         self.assertEqual(Community.objects.count(), 0)
 
     def test_create_host_with_community_no_network_406(self):
@@ -407,7 +407,7 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
 
     def test_get_host_in_community_with_nonexistant_network_404(self):
         """Test getting a host in a community with a nonexistant network."""
-        self.assert_get_and_404("{NETWORK_ENDPOINT}192.168.0.0/24/communities/1/hosts/1")
+        self.assert_get_and_404(f"{NETWORK_ENDPOINT}192.168.0.0/24/communities/1/hosts/1")
 
     def test_get_host_in_community_with_nonexistant_community_404(self):
         """Test getting a host in a community with a nonexistant community."""

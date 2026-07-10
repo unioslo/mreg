@@ -3,17 +3,37 @@ from unittest import mock
 
 from django.conf import settings
 from django.contrib.auth.models import Group
-from django.test import RequestFactory
+from django.test import RequestFactory, SimpleTestCase
 from django.core.handlers.wsgi import WSGIRequest
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.test import APIClient, force_authenticate
-from mreg.api.permissions import IsGrantedNetGroupRegexPermission, IsGrantedReservedAddressPermission
+from mreg.api.permissions import (
+    CRUDPermissionsMixin,
+    IsGrantedNetGroupRegexPermission,
+    IsGrantedReservedAddressPermission,
+    _deny_superuser_only_names,
+)
 from mreg.models.auth import User
 from mreg.models.host import Host, Ipaddress
 from mreg.models.network import Network, NetGroupRegexPermission
 from mreg.api.v1 import views as v1_views
 
 from .tests import MregAPITestCase
+
+
+class TestCRUDPermissionsMixin(SimpleTestCase):
+    def test_default_operation_permissions_are_denied(self):
+        permission = CRUDPermissionsMixin()
+        request = mock.Mock()
+        view = mock.Mock()
+        serializer_or_model = mock.Mock()
+
+        self.assertFalse(permission.has_create_permission(request, view, serializer_or_model))
+        self.assertFalse(permission.has_update_permission(request, view, serializer_or_model))
+        self.assertFalse(permission.has_destroy_permission(request, view, serializer_or_model))
+
+    def test_missing_request_does_not_trigger_name_restrictions(self):
+        self.assertFalse(_deny_superuser_only_names(name="*.example.org", request=None))
 
 
 def get_mock_user(
