@@ -224,7 +224,7 @@ class NetworkCommunityHostList(HostInCommunityMixin, generics.ListCreateAPIView)
             return Host.objects.none()
         _, community = self.get_policy_and_community()
         return HostFilterSet(
-            data=self.request.GET, queryset=Host.objects.filter(communities__in=[community]).order_by("id")
+            data=self.request.GET, queryset=Host.objects.filter(communities__in=[community]).order_by("id").distinct()
         ).qs
 
     def create(self, request, *args, **kwargs):
@@ -267,7 +267,7 @@ class NetworkCommunityHostDetail(HostInCommunityMixin, generics.RetrieveDestroyA
             return Host.objects.none()
         _, community = self.get_policy_and_community()
         return HostFilterSet(
-            data=self.request.GET, queryset=Host.objects.filter(communities__in=[community]).order_by("id")
+            data=self.request.GET, queryset=Host.objects.filter(communities__in=[community]).order_by("id").distinct()
         ).qs
 
     def get_object(self):
@@ -279,6 +279,7 @@ class NetworkCommunityHostDetail(HostInCommunityMixin, generics.RetrieveDestroyA
     def delete(self, request, *args, **kwargs):
         host = self.get_object()
         _, community = self.get_policy_and_community()
-        host.remove_from_community(community)
+        ipaddress = request.data.get("ipaddress")
+        host.remove_from_community(community, ipaddress)
         host.save()
         return response.Response(status=status.HTTP_204_NO_CONTENT)
