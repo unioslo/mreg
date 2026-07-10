@@ -177,6 +177,7 @@ class ReverseZone(BaseZone):
         to_ip = str(network.broadcast_address)
         ipaddresses = dict()
         override_ips = dict()
+        ipaddress_counts = defaultdict(int)
         excluded_ranges = self._get_excluded_ranges()
         for model, data in (
             (Ipaddress, ipaddresses),
@@ -187,12 +188,10 @@ class ReverseZone(BaseZone):
                 qs = qs.exclude(ipaddress__range=(exclude.from_ip, exclude.to_ip))
             for ip, ttl, hostname in qs.values_list("ipaddress", "host__ttl", "host__name"):
                 data[ip] = (ttl, hostname)
+                if model is Ipaddress:
+                    ipaddress_counts[ip] += 1
         # XXX: send signal/mail to hostmaster(?) about issues with multiple_ip_no_ptr
-        count = defaultdict(int)
-        for i in ipaddresses:
-            if i not in override_ips:
-                count[i] += 1
-        multiple_ip_no_ptr = {i: count[i] for i in count if count[i] > 1}
+        multiple_ip_no_ptr = {ip for ip, count in ipaddress_counts.items() if count > 1 and ip not in override_ips}
         ptr_done = set()
         result = []
 
@@ -206,10 +205,7 @@ class ReverseZone(BaseZone):
         # Use PtrOverrides when found, but only once. Also skip IPaddresses
         # which have been used multiple times, but lacks a PtrOverride.
         for ip, data in ipaddresses.items():
-            # Defensive: skip IPs without PtrOverride that appear multiple times.
-            # In normal operation, signals automatically create PtrOverride for duplicate IPs,
-            # so this branch is only hit if signals are disabled or fail.
-            if ip in multiple_ip_no_ptr:  # pragma: no cover
+            if ip in multiple_ip_no_ptr:
                 continue
             if ip in override_ips:
                 if ip not in ptr_done:

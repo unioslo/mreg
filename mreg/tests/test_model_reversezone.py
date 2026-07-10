@@ -112,7 +112,7 @@ class ModelReverseZoneTestCase(TestCase):
         # Get PTR records from the reverse zone
         result = reverse_zone.get_ipaddresses()
 
-        # The wildcard host should not appear in the results (line 222 hit)
+        # The wildcard host should not appear in the results.
         hostnames = [r[2] for r in result]
         self.assertNotIn("*.example.org", hostnames)
 
@@ -144,7 +144,26 @@ class ModelReverseZoneTestCase(TestCase):
         # Get PTR records from the reverse zone
         result = reverse_zone.get_ipaddresses()
 
-        # The standalone PtrOverride should appear in the results (line 242 hit)
+        # The standalone PtrOverride should appear in the results.
         ips_and_hosts = [(str(r[0]), r[2]) for r in result]
         self.assertIn(("10.0.3.1", "external.example.org"), ips_and_hosts)
-        self.assertIn(("10.0.3.1", "external.example.org"), ips_and_hosts)
+
+    def test_get_ipaddresses_skips_ambiguous_ip_without_ptr_override(self):
+        """Duplicate IPs must not produce an arbitrary PTR when no override exists."""
+        clean_and_save(self.zone_v4)
+        first_host = Host.objects.create(name="first.example.org")
+        second_host = Host.objects.create(name="second.example.org")
+
+        # bulk_create intentionally bypasses the signal that normally creates a
+        # PtrOverride, exercising the defensive zone-export behavior.
+        Ipaddress.objects.bulk_create(
+            [
+                Ipaddress(host=first_host, ipaddress="10.0.4.1"),
+                Ipaddress(host=second_host, ipaddress="10.0.4.1"),
+            ]
+        )
+        self.assertFalse(PtrOverride.objects.filter(ipaddress="10.0.4.1").exists())
+
+        exported_ips = {str(ip) for ip, _, _ in self.zone_v4.get_ipaddresses()}
+
+        self.assertNotIn("10.0.4.1", exported_ips)
