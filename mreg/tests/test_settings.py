@@ -1,14 +1,16 @@
 import importlib
 import os
+import sys
 import tempfile
+from types import ModuleType
 from unittest.mock import patch
 
-from django.test import TestCase
+from django.test import SimpleTestCase
 
 import mregsite.settings as app_settings
 
 
-class SettingsTestCase(TestCase):
+class SettingsTestCase(SimpleTestCase):
     """This class defines the test suite for settings.py."""
 
     def test_get_pool_settings_enabled(self):
@@ -23,7 +25,7 @@ class SettingsTestCase(TestCase):
         assert result is False
 
 
-class SettingsHelpersTests(TestCase):
+class SettingsHelpersTests(SimpleTestCase):
     def test_envvar_bool_and_casting(self):
         os.environ["MREG_TEST_BOOL"] = "original"
         original = os.environ.get("MREG_TEST_BOOL")
@@ -99,14 +101,27 @@ class SettingsHelpersTests(TestCase):
                 os.environ["MREG_PROFILING_ENABLED"] = "true"
                 os.environ["MREG_SILKY_PYTHON_PROFILER_RESULT_PATH"] = tmpdir
 
-                reloaded = importlib.reload(app_settings)
+                with patch.dict(sys.modules, {"silk": ModuleType("silk")}):
+                    reloaded = importlib.reload(app_settings)
 
-                self.assertIn("silk", reloaded.INSTALLED_APPS)
-                self.assertEqual(reloaded.MIDDLEWARE[0], "silk.middleware.SilkyMiddleware")
-                self.assertTrue(reloaded.SILKY_DYNAMIC_PROFILING)
+                    self.assertIn("silk", reloaded.INSTALLED_APPS)
+                    self.assertEqual(reloaded.MIDDLEWARE[0], "silk.middleware.SilkyMiddleware")
+                    self.assertTrue(reloaded.SILKY_DYNAMIC_PROFILING)
         finally:
             os.environ.clear()
             os.environ.update(env_backup)
             app_settings.INSTALLED_APPS = original_installed_apps
             app_settings.MIDDLEWARE = original_middleware
+            importlib.reload(app_settings)
+
+    def test_profiling_enabled_requires_silk(self):
+        env_backup = dict(os.environ)
+        try:
+            os.environ["MREG_PROFILING_ENABLED"] = "true"
+            with patch.dict(sys.modules, {"silk": None}):
+                with self.assertRaises(SystemExit):
+                    importlib.reload(app_settings)
+        finally:
+            os.environ.clear()
+            os.environ.update(env_backup)
             importlib.reload(app_settings)
