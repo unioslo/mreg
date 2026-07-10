@@ -496,8 +496,8 @@ if MREG_PROFILING_ENABLED:
     logger = structlog.get_logger(__name__)
     if not _silk_installed:
         logger.error(
-            "MREG_PROFILING_ENABLED is set to True, but silk is not installed.",
-            "Install silk with `uv sync --(only-)group profile` or disable profiling.",
+            "MREG_PROFILING_ENABLED is set to True, but silk is not installed. "
+            "Install silk with `uv sync --(only-)group profile` or disable profiling."
         )
         sys.exit(1)
     
