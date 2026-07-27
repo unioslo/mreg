@@ -3,8 +3,10 @@ from django.urls import path, re_path
 from . import views, views_hostgroups, views_zones, views_labels, views_bacnet, views_network_policy
 
 from .endpoints import URL
+from .snapshot import SnapshotView
 
 urlpatterns = [
+     path('snapshot', SnapshotView.as_view(), name='snapshot'),
      path('bacnet/ids/', views_bacnet.BACnetIDList.as_view()),
      path('bacnet/ids/<id>', views_bacnet.BACnetIDDetail.as_view()),
      path('cnames/', views.CnameList.as_view()),
