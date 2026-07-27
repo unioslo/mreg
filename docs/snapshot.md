@@ -16,10 +16,17 @@ Accept: application/vnd.uio.mreg-snapshot+tar
 Accept-Encoding: gzip
 ```
 
-The response is a gzip-compressed tar archive containing `manifest.json` and
-`items.ndjson`. Each NDJSON line is a dependency-ordered snapshot item. The
-manifest records the source, consistent database timestamp, item count, and
-checksum.
+The response is a gzip-compressed tar archive containing `manifest.json`,
+`items.ndjson`, and `deferred-records.ndjson`. Each line in `items.ndjson`
+is a dependency-ordered import item. The manifest records the source,
+consistent database timestamp, item counts, and checksums.
+
+Wildcard HINFO, LOC, and SSHFP records are valid source data, but cannot be
+represented by the version 1 import contract because those record types require
+hostname owners. They are preserved, with their source references and data, in
+`deferred-records.ndjson`. Each entry includes a `deferred` reason and must be
+handled manually by a consumer. The manifest's
+`semantics.fully_importable` value is false when this file contains records.
 
 Set `include_permissions=true` to add a separately checksummed
 `permissions.ndjson` member. It contains the legacy netgroup-regex authorization
@@ -32,9 +39,11 @@ consumers can translate or inspect the legacy authorization model explicitly.
 ```
 
 For compatibility with the current import endpoint, request
-`format=mreg-import-json-v1` with `Accept: application/json`. This returns the
-same items as a gzip-compressed `{ "requested_by": ..., "items": [...] }`
-document. `include_permissions=true` is not supported for this compatibility
+`format=mreg-import-json-v1` with `Accept: application/json`. This returns a
+gzip-compressed document containing `{ "requested_by": ..., "items": [...],
+"deferred_records": [...] }`. The import endpoint consumes `items`;
+consumers must inspect `deferred_records` separately.
+`include_permissions=true` is not supported for this compatibility
 representation.
 
 Version 1 only accepts these option values:

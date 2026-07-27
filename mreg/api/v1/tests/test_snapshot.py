@@ -19,7 +19,9 @@ from mreg.api.v1.snapshot import (
     SnapshotView,
     _parse_loc,
     _parse_request,
+    _split_dns_character_strings,
     create_snapshot_artifact,
+    iter_deferred_record_items,
     iter_import_items,
     iter_permission_items,
 )
@@ -72,6 +74,23 @@ PERMISSIONS = [
     }
 ]
 
+DEFERRED_RECORDS = [
+    {
+        "ref": "record_hinfo:9",
+        "kind": "record",
+        "operation": "create",
+        "attributes": {
+            "type_name": "HINFO",
+            "owner_name": "*.example.org",
+            "data": {"cpu": "x86_64", "os": "Linux"},
+        },
+        "deferred": {
+            "reason": "wildcard_owner_not_supported_by_import_contract",
+            "requires_manual_handling": True,
+        },
+    }
+]
+
 
 def write_values(path, values):
     digest = hashlib.sha256()
@@ -83,8 +102,12 @@ def write_values(path, values):
     return len(values), digest.hexdigest()
 
 
-def fake_write_snapshot_data(items_path, permissions_path, chunk_size):
+def fake_write_snapshot_data(items_path, deferred_records_path, permissions_path, chunk_size):
     item_count, item_sha256 = write_values(items_path, ITEMS)
+    deferred_count, deferred_sha256 = write_values(
+        deferred_records_path,
+        DEFERRED_RECORDS,
+    )
     if permissions_path is None:
         permission_count, permission_sha256 = None, None
     else:
@@ -92,6 +115,8 @@ def fake_write_snapshot_data(items_path, permissions_path, chunk_size):
     return (
         item_count,
         item_sha256,
+        deferred_count,
+        deferred_sha256,
         permission_count,
         permission_sha256,
         datetime(2026, 7, 12, 10, 14, 58, tzinfo=timezone.utc),
@@ -107,15 +132,29 @@ class SnapshotArtifactTests(SimpleTestCase):
             compressed = artifact.path.read_bytes()
             self.assertEqual(hashlib.sha256(compressed).hexdigest(), artifact.digest_hex)
             with tarfile.open(fileobj=io.BytesIO(compressed), mode="r:gz") as archive:
-                self.assertEqual(archive.getnames(), ["manifest.json", "items.ndjson"])
+                self.assertEqual(
+                    archive.getnames(),
+                    ["manifest.json", "items.ndjson", "deferred-records.ndjson"],
+                )
                 manifest = json.load(archive.extractfile("manifest.json"))
                 item_bytes = archive.extractfile("items.ndjson").read()
+                deferred_bytes = archive.extractfile("deferred-records.ndjson").read()
             self.assertEqual(manifest["format"], "no.uio.mreg.snapshot")
             self.assertEqual(manifest["format_version"], 1)
             self.assertTrue(manifest["snapshot"]["consistent"])
             self.assertEqual(manifest["items"]["count"], 2)
             self.assertEqual(manifest["items"]["sha256"], hashlib.sha256(item_bytes).hexdigest())
+            self.assertFalse(manifest["semantics"]["fully_importable"])
+            self.assertEqual(manifest["deferred_records"]["count"], 1)
+            self.assertEqual(
+                manifest["deferred_records"]["sha256"],
+                hashlib.sha256(deferred_bytes).hexdigest(),
+            )
             self.assertEqual([json.loads(line) for line in item_bytes.splitlines()], ITEMS)
+            self.assertEqual(
+                [json.loads(line) for line in deferred_bytes.splitlines()],
+                DEFERRED_RECORDS,
+            )
         finally:
             artifact.temporary_directory.cleanup()
 
@@ -125,7 +164,14 @@ class SnapshotArtifactTests(SimpleTestCase):
         try:
             with gzip.open(artifact.path, "rt", encoding="utf-8") as source:
                 document = json.load(source)
-            self.assertEqual(document, {"requested_by": "snapshotter", "items": ITEMS})
+            self.assertEqual(
+                document,
+                {
+                    "requested_by": "snapshotter",
+                    "items": ITEMS,
+                    "deferred_records": DEFERRED_RECORDS,
+                },
+            )
         finally:
             artifact.temporary_directory.cleanup()
 
@@ -141,7 +187,12 @@ class SnapshotArtifactTests(SimpleTestCase):
             with tarfile.open(artifact.path, mode="r:gz") as archive:
                 self.assertEqual(
                     archive.getnames(),
-                    ["manifest.json", "items.ndjson", "permissions.ndjson"],
+                    [
+                        "manifest.json",
+                        "items.ndjson",
+                        "deferred-records.ndjson",
+                        "permissions.ndjson",
+                    ],
                 )
                 manifest = json.load(archive.extractfile("manifest.json"))
                 permission_bytes = archive.extractfile("permissions.ndjson").read()
@@ -164,6 +215,11 @@ class SnapshotArtifactTests(SimpleTestCase):
         self.assertAlmostEqual(value["longitude"], -71.105)
         self.assertEqual(value["altitude_m"], -24)
         self.assertEqual(value["size_m"], 30)
+
+    def test_txt_values_are_split_by_encoded_octets(self):
+        chunks = _split_dns_character_strings("a" * 510 + "ø" * 128)
+        self.assertEqual("".join(chunks), "a" * 510 + "ø" * 128)
+        self.assertTrue(all(len(chunk.encode("utf-8")) <= 255 for chunk in chunks))
 
 
 class SnapshotRequestTests(SimpleTestCase):
@@ -189,9 +245,7 @@ class SnapshotRequestTests(SimpleTestCase):
         self.assertFalse(options.include_permissions)
 
     def test_accepts_permissions_for_archive(self):
-        options = _parse_request(
-            self.request("/api/v1/snapshot?include_permissions=true")
-        )
+        options = _parse_request(self.request("/api/v1/snapshot?include_permissions=true"))
         self.assertTrue(options.include_permissions)
 
     def test_rejects_non_default_options(self):
@@ -199,18 +253,22 @@ class SnapshotRequestTests(SimpleTestCase):
             _parse_request(self.request("/api/v1/snapshot?include_audit=true"))
 
     def test_rejects_explicitly_disabled_gzip(self):
+        for header in ("br, gzip;q=0", "gzip;q=0, *;q=1"):
+            with self.subTest(header=header), self.assertRaises(SnapshotRequestError):
+                _parse_request(self.request("/api/v1/snapshot", HTTP_ACCEPT_ENCODING=header))
+
+    def test_rejects_explicitly_disabled_media_type(self):
         with self.assertRaises(SnapshotRequestError):
             _parse_request(
-                self.request("/api/v1/snapshot", HTTP_ACCEPT_ENCODING="br, gzip;q=0")
+                self.request(
+                    "/api/v1/snapshot",
+                    HTTP_ACCEPT="application/vnd.uio.mreg-snapshot+tar;q=0, */*;q=1",
+                )
             )
 
     def test_rejects_permissions_for_compatibility_json(self):
         with self.assertRaises(SnapshotRequestError):
-            _parse_request(
-                self.request(
-                    "/api/v1/snapshot?format=mreg-import-json-v1&include_permissions=true"
-                )
-            )
+            _parse_request(self.request("/api/v1/snapshot?format=mreg-import-json-v1&include_permissions=true"))
 
     def test_rejects_duplicate_and_unknown_parameters(self):
         for path in (
@@ -226,8 +284,8 @@ class SnapshotViewTests(SimpleTestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
 
-    def request(self, *, allowed):
-        request = self.factory.get("/api/v1/snapshot")
+    def request(self, *, allowed, path="/api/v1/snapshot", **headers):
+        request = self.factory.get(path, **headers)
         user = SimpleNamespace(
             is_authenticated=True,
             is_mreg_snapshotter=allowed,
@@ -243,17 +301,38 @@ class SnapshotViewTests(SimpleTestCase):
 
     @mock.patch("mreg.api.v1.snapshot._write_snapshot_data", side_effect=fake_write_snapshot_data)
     def test_response_headers_and_cleanup(self, _write_snapshot_data):
-        response = SnapshotView.as_view()(self.request(allowed=True))
+        response = SnapshotView.as_view()(
+            self.request(
+                allowed=True,
+                HTTP_ACCEPT="application/vnd.uio.mreg-snapshot+tar",
+                HTTP_ACCEPT_ENCODING="gzip",
+            )
+        )
         artifact_path = response.artifact.path
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Encoding"], "gzip")
-        self.assertTrue(response["Digest"].startswith("sha-256=:"))
+        self.assertTrue(response["Content-Digest"].startswith("sha-256=:"))
+        self.assertNotIn("Digest", response)
         self.assertTrue(response["ETag"].startswith('"snapshot-'))
         self.assertEqual(response["Cache-Control"], "private, no-store")
         self.assertTrue(artifact_path.exists())
         b"".join(response.streaming_content)
         response.close()
         self.assertFalse(artifact_path.exists())
+
+    @mock.patch("mreg.api.v1.snapshot._write_snapshot_data", side_effect=fake_write_snapshot_data)
+    def test_compatibility_media_type_is_negotiated(self, _write_snapshot_data):
+        response = SnapshotView.as_view()(
+            self.request(
+                allowed=True,
+                path="/api/v1/snapshot?format=mreg-import-json-v1",
+                HTTP_ACCEPT="application/json",
+                HTTP_ACCEPT_ENCODING="gzip",
+            )
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/json")
+        response.close()
 
 
 class SnapshotItemTranslationTests(TestCase):
@@ -270,10 +349,8 @@ class SnapshotItemTranslationTests(TestCase):
         )
         permission.labels.add(cls.label)
 
-        cls.attribute = NetworkPolicyAttribute.objects.create(name="isolated", description="Isolation")
-        cls.policy = NetworkPolicy.objects.create(
-            name="campus", description="Campus policy", community_template_pattern="community"
-        )
+        cls.attribute = NetworkPolicyAttribute.objects.get(name="isolated")
+        cls.policy = NetworkPolicy.objects.create(name="campus", description="Campus policy", community_template_pattern="community")
         NetworkPolicyAttributeValue.objects.create(policy=cls.policy, attribute=cls.attribute, value=True)
         cls.network = Network.objects.create(
             network="192.0.2.0/24",
@@ -301,9 +378,7 @@ class SnapshotItemTranslationTests(TestCase):
             email="hostmaster@example.org",
         )
         cls.reverse_zone.nameservers.add(cls.nameserver)
-        forward_delegation = ForwardZoneDelegation.objects.create(
-            zone=cls.forward_zone, name="delegated.example.org", comment="Delegated"
-        )
+        forward_delegation = ForwardZoneDelegation.objects.create(zone=cls.forward_zone, name="delegated.example.org", comment="Delegated")
         forward_delegation.nameservers.add(cls.nameserver)
         reverse_delegation = ReverseZoneDelegation.objects.create(
             zone=cls.reverse_zone, name="128-25.2.0.192.in-addr.arpa", comment="Delegated"
@@ -315,7 +390,8 @@ class SnapshotItemTranslationTests(TestCase):
         Hinfo.objects.create(host=cls.host, cpu="x86_64", os="Linux")
         Loc.objects.create(host=cls.host, loc="59 54 0 N 10 42 0 E 50m 1m 2m 3m")
         Mx.objects.create(host=cls.host, priority=10, mx="mail.example.org")
-        Txt.objects.create(host=cls.host, txt="v=spf1 -all")
+        Txt.objects.get_or_create(host=cls.host, txt="v=spf1 -all")
+        cls.long_txt = Txt.objects.create(host=cls.host, txt="k" * 600)
         Naptr.objects.create(
             host=cls.host,
             order=100,
@@ -364,6 +440,14 @@ class SnapshotItemTranslationTests(TestCase):
         wildcard = Host.objects.create(name="*.wild.example.org", zone=cls.forward_zone, ttl=120)
         Ipaddress.objects.create(host=wildcard, ipaddress="192.0.2.99")
         Txt.objects.create(host=wildcard, txt="wildcard")
+        Hinfo.objects.create(host=wildcard, cpu="x86_64", os="Linux")
+        Loc.objects.create(host=wildcard, loc="59 54 0 N 10 42 0 E 50m")
+        Sshfp.objects.create(
+            host=wildcard,
+            algorithm=4,
+            hash_type=2,
+            fingerprint="b" * 64,
+        )
 
     def test_dependency_ordered_translation_covers_supported_legacy_models(self):
         items = list(iter_import_items(10))
@@ -405,10 +489,24 @@ class SnapshotItemTranslationTests(TestCase):
         address = next(item for item in items if item["kind"] == "ip_address")
         self.assertLess(positions[attachment["ref"]], positions[address["ref"]])
         self.assertEqual(address["attributes"]["attachment_id_ref"], attachment["ref"])
-        wildcard_records = [
-            item for item in items if item["kind"] == "record" and item["attributes"]["owner_name"] == "*.wild.example.org"
-        ]
+        wildcard_records = [item for item in items if item["kind"] == "record" and item["attributes"]["owner_name"] == "*.wild.example.org"]
         self.assertEqual({item["attributes"]["type_name"] for item in wildcard_records}, {"A", "TXT"})
+        wildcard_txt_values = {
+            tuple(item["attributes"]["data"]["value"]) for item in wildcard_records if item["attributes"]["type_name"] == "TXT"
+        }
+        self.assertIn(("wildcard",), wildcard_txt_values)
+        long_txt_record = next(item for item in items if item["ref"] == f"record_txt:{self.long_txt.pk}")
+        self.assertEqual(
+            [len(chunk.encode("utf-8")) for chunk in long_txt_record["attributes"]["data"]["value"]],
+            [255, 255, 90],
+        )
+
+        deferred_records = list(iter_deferred_record_items(10))
+        self.assertEqual(
+            {item["attributes"]["type_name"] for item in deferred_records},
+            {"HINFO", "LOC", "SSHFP"},
+        )
+        self.assertTrue(all(item["deferred"]["requires_manual_handling"] for item in deferred_records))
 
         permissions = list(iter_permission_items(10))
         self.assertEqual(

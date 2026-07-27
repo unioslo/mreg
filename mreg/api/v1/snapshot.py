@@ -18,6 +18,7 @@ from django.conf import settings
 from django.db import DatabaseError, connection, transaction
 from django.db.models import Count
 from django.http import FileResponse
+from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -53,6 +54,20 @@ SUPPORTED_OPTIONS = {
     "validate": "true",
     "redact": "false",
 }
+DEFERRED_WILDCARD_RECORD_TYPES = frozenset({"HINFO", "LOC", "SSHFP"})
+
+
+class SnapshotArchiveRenderer(JSONRenderer):
+    """Register the archive representation for DRF content negotiation."""
+
+    media_type = ARCHIVE_MEDIA_TYPE
+    format = ARCHIVE_FORMAT
+
+
+class SnapshotJSONRenderer(JSONRenderer):
+    """Register the compatibility representation's query format."""
+
+    format = JSON_FORMAT
 
 
 class SnapshotError(Exception):
@@ -94,7 +109,7 @@ def _normalized_mac(value: str) -> str | None:
     compact = "".join(character for character in value.lower() if character.isalnum())
     if len(compact) != 12:
         raise SnapshotError(f"Invalid MAC address {value!r}")
-    return ":".join(compact[index:index + 2] for index in range(0, 12, 2))
+    return ":".join(compact[index : index + 2] for index in range(0, 12, 2))
 
 
 class NetworkIndex:
@@ -192,9 +207,7 @@ def _network_zone_items(chunk_size: int) -> Iterator[dict[str, Any]]:
     communities = Community.objects.select_related("network__policy").order_by("pk")
     for obj in communities.iterator(chunk_size=chunk_size):
         if obj.network.policy_id is None:
-            raise SnapshotError(
-                "Community references a network without a policy", model="Community", object_id=obj.pk
-            )
+            raise SnapshotError("Community references a network without a policy", model="Community", object_id=obj.pk)
         yield _item(
             _ref("community", obj.pk),
             "community",
@@ -309,9 +322,7 @@ def _attachment_items(index: NetworkIndex, wildcards: set[int], chunk_size: int)
 
 
 def _ip_items(index: NetworkIndex, wildcards: set[int], chunk_size: int) -> Iterator[dict[str, Any]]:
-    duplicate = (
-        Ipaddress.objects.values("ipaddress").annotate(count=Count("pk")).filter(count__gt=1).order_by("ipaddress").first()
-    )
+    duplicate = Ipaddress.objects.values("ipaddress").annotate(count=Count("pk")).filter(count__gt=1).order_by("ipaddress").first()
     if duplicate:
         raise SnapshotError(f"IP address {duplicate['ipaddress']} is assigned more than once", model="Ipaddress")
     for obj in _ip_rows(chunk_size):
@@ -366,7 +377,7 @@ def _parse_loc(value: str, *, pk: Any) -> dict[str, float]:
                 result += numbers[2] / 3600
             return -result if direction in {"S", "W"} else result
 
-        remaining = [float(token.removesuffix("m")) for token in tokens[lon_end + 1:]]
+        remaining = [float(token.removesuffix("m")) for token in tokens[lon_end + 1 :]]
         if not remaining:
             raise ValueError("missing altitude")
         result = {
@@ -374,30 +385,51 @@ def _parse_loc(value: str, *, pk: Any) -> dict[str, float]:
             "longitude": coordinate(tokens[lon_start:lon_end], tokens[lon_end]),
             "altitude_m": remaining[0],
         }
-        for key, number in zip(
-            ("size_m", "horizontal_precision_m", "vertical_precision_m"), remaining[1:], strict=False
-        ):
+        for key, number in zip(("size_m", "horizontal_precision_m", "vertical_precision_m"), remaining[1:], strict=False):
             result[key] = number
         return result
     except (ValueError, IndexError) as error:
         raise SnapshotError("LOC value cannot be translated", model="Loc", object_id=pk) from error
 
 
-def _dns_record_items(wildcards: set[int], chunk_size: int) -> Iterator[dict[str, Any]]:
+def _split_dns_character_strings(value: str) -> list[str]:
+    """Split text into RFC 1035 character-strings of at most 255 octets."""
+    chunks: list[str] = []
+    current: list[str] = []
+    current_size = 0
+    for character in value:
+        character_size = len(character.encode("utf-8"))
+        if current and current_size + character_size > 255:
+            chunks.append("".join(current))
+            current = []
+            current_size = 0
+        current.append(character)
+        current_size += character_size
+    chunks.append("".join(current))
+    return chunks
+
+
+def _dns_record_items(
+    wildcards: set[int],
+    chunk_size: int,
+    *,
+    only_deferred: bool = False,
+) -> Iterator[dict[str, Any]]:
     wildcard_hosts = {pk: (name, ttl) for pk, name, ttl in Host.objects.filter(pk__in=wildcards).values_list("pk", "name", "ttl")}
-    for obj in Ipaddress.objects.filter(host_id__in=wildcards).select_related("host").order_by("pk").iterator(chunk_size=chunk_size):
-        address = ipaddress.ip_address(obj.ipaddress)
-        yield _item(
-            _ref("record_ip_address", obj.pk),
-            "record",
-            _record_attributes("A" if address.version == 4 else "AAAA", obj.host.name, {"address": obj.ipaddress}, ttl=obj.host.ttl),
-        )
+    if not only_deferred:
+        for obj in Ipaddress.objects.filter(host_id__in=wildcards).select_related("host").order_by("pk").iterator(chunk_size=chunk_size):
+            address = ipaddress.ip_address(obj.ipaddress)
+            yield _item(
+                _ref("record_ip_address", obj.pk),
+                "record",
+                _record_attributes("A" if address.version == 4 else "AAAA", obj.host.name, {"address": obj.ipaddress}, ttl=obj.host.ttl),
+            )
 
     specifications = (
         (Hinfo, "HINFO", lambda o: {"cpu": o.cpu, "os": o.os}, lambda o: o.host.ttl),
         (Loc, "LOC", lambda o: _parse_loc(o.loc, pk=o.pk), lambda o: o.host.ttl),
         (Mx, "MX", lambda o: {"preference": o.priority, "exchange": o.mx}, lambda o: o.host.ttl),
-        (Txt, "TXT", lambda o: {"value": o.txt}, lambda o: o.host.ttl),
+        (Txt, "TXT", lambda o: {"value": _split_dns_character_strings(o.txt)}, lambda o: o.host.ttl),
         (
             Naptr,
             "NAPTR",
@@ -422,6 +454,9 @@ def _dns_record_items(wildcards: set[int], chunk_size: int) -> Iterator[dict[str
         queryset = model.objects.select_related("host").order_by("pk")
         for obj in queryset.iterator(chunk_size=chunk_size):
             wildcard = obj.host_id in wildcards
+            deferred = wildcard and type_name in DEFERRED_WILDCARD_RECORD_TYPES
+            if deferred != only_deferred:
+                continue
             if type_name == "MX" and not wildcard:
                 owner_kind = "forward_zone"
                 anchor_ref = _ref("forward_zone", obj.host.zone_id) if obj.host.zone_id else None
@@ -430,7 +465,7 @@ def _dns_record_items(wildcards: set[int], chunk_size: int) -> Iterator[dict[str
             else:
                 owner_kind = None if wildcard else "host"
                 anchor_ref = None if wildcard else _ref("host", obj.host_id)
-            yield _item(
+            item = _item(
                 _ref(f"record_{model._meta.model_name}", obj.pk),
                 "record",
                 _record_attributes(
@@ -442,6 +477,15 @@ def _dns_record_items(wildcards: set[int], chunk_size: int) -> Iterator[dict[str
                     anchor_ref=anchor_ref,
                 ),
             )
+            if deferred:
+                item["deferred"] = {
+                    "reason": "wildcard_owner_not_supported_by_import_contract",
+                    "requires_manual_handling": True,
+                }
+            yield item
+    if only_deferred:
+        return
+
     for model, type_name, data_factory in (
         (Cname, "CNAME", lambda o: {"target": o.host.name}),
         (Srv, "SRV", lambda o: {"priority": o.priority, "weight": o.weight, "port": o.port, "target": o.host.name}),
@@ -507,9 +551,7 @@ def _relationship_items(index: NetworkIndex, wildcards: set[int], chunk_size: in
             raise SnapshotError("Community does not match the IP network", model="HostCommunityMapping", object_id=obj.pk)
         previous = seen.get(attachment)
         if previous is not None and previous != obj.community_id:
-            raise SnapshotError(
-                "One attachment maps to conflicting legacy communities", model="HostCommunityMapping", object_id=obj.pk
-            )
+            raise SnapshotError("One attachment maps to conflicting legacy communities", model="HostCommunityMapping", object_id=obj.pk)
         if previous is not None:
             continue
         seen[attachment] = obj.community_id
@@ -593,6 +635,11 @@ def iter_import_items(chunk_size: int) -> Iterator[dict[str, Any]]:
     yield from _host_policy_items(wildcards, chunk_size)
 
 
+def iter_deferred_record_items(chunk_size: int) -> Iterator[dict[str, Any]]:
+    """Yield valid source records whose automatic import must be deferred."""
+    yield from _dns_record_items(_wildcard_ids(), chunk_size, only_deferred=True)
+
+
 @dataclass
 class SnapshotArtifact:
     path: Path
@@ -643,9 +690,10 @@ def _write_ndjson(path: Path, values: Iterable[dict[str, Any]]) -> tuple[int, st
 
 def _write_snapshot_data(
     items_path: Path,
+    deferred_records_path: Path,
     permissions_path: Path | None,
     chunk_size: int,
-) -> tuple[int, str, int | None, str | None, datetime]:
+) -> tuple[int, str, int, str, int | None, str | None, datetime]:
     try:
         with transaction.atomic(), connection.cursor() as cursor:
             if connection.vendor != "postgresql":
@@ -654,48 +702,70 @@ def _write_snapshot_data(
             cursor.execute("SELECT transaction_timestamp()")
             database_timestamp = cursor.fetchone()[0]
             item_count, item_sha256 = _write_ndjson(items_path, iter_import_items(chunk_size))
+            deferred_count, deferred_sha256 = _write_ndjson(
+                deferred_records_path,
+                iter_deferred_record_items(chunk_size),
+            )
             if permissions_path is None:
                 permission_count = None
                 permission_sha256 = None
             else:
-                permission_count, permission_sha256 = _write_ndjson(
-                    permissions_path, iter_permission_items(chunk_size)
-                )
+                permission_count, permission_sha256 = _write_ndjson(permissions_path, iter_permission_items(chunk_size))
     except SnapshotError:
         raise
     except DatabaseError as error:
         raise SnapshotUnavailable("A consistent database snapshot could not be read") from error
-    return item_count, item_sha256, permission_count, permission_sha256, database_timestamp
+    return (
+        item_count,
+        item_sha256,
+        deferred_count,
+        deferred_sha256,
+        permission_count,
+        permission_sha256,
+        database_timestamp,
+    )
 
 
-def _build_json_artifact(items_path: Path, artifact_path: Path, requested_by: str, created_at: datetime) -> None:
-    with artifact_path.open("wb") as raw, gzip.GzipFile(
-        filename="", fileobj=raw, mode="wb", mtime=int(created_at.timestamp())
-    ) as output:
+def _write_json_array(output, path: Path) -> None:
+    first = True
+    with path.open("rb") as values:
+        for line in values:
+            if not first:
+                output.write(b",")
+            output.write(line.rstrip(b"\n"))
+            first = False
+
+
+def _build_json_artifact(
+    items_path: Path,
+    deferred_records_path: Path,
+    artifact_path: Path,
+    requested_by: str,
+    created_at: datetime,
+) -> None:
+    with artifact_path.open("wb") as raw, gzip.GzipFile(filename="", fileobj=raw, mode="wb", mtime=int(created_at.timestamp())) as output:
         output.write(b'{"requested_by":')
         output.write(_json_bytes(requested_by))
         output.write(b',"items":[')
-        first = True
-        with items_path.open("rb") as items:
-            for line in items:
-                if not first:
-                    output.write(b",")
-                output.write(line.rstrip(b"\n"))
-                first = False
+        _write_json_array(output, items_path)
+        output.write(b'],"deferred_records":[')
+        _write_json_array(output, deferred_records_path)
         output.write(b"]}\n")
 
 
 def _build_archive(
     items_path: Path,
+    deferred_records_path: Path,
     permissions_path: Path | None,
     artifact_path: Path,
     manifest: dict[str, Any],
     created_at: datetime,
 ) -> None:
     manifest_bytes = _json_bytes(manifest) + b"\n"
-    with artifact_path.open("wb") as raw, gzip.GzipFile(
-        filename="", fileobj=raw, mode="wb", mtime=int(created_at.timestamp())
-    ) as compressed:
+    with (
+        artifact_path.open("wb") as raw,
+        gzip.GzipFile(filename="", fileobj=raw, mode="wb", mtime=int(created_at.timestamp())) as compressed,
+    ):
         with tarfile.open(fileobj=compressed, mode="w", format=tarfile.USTAR_FORMAT) as archive:
             info = tarfile.TarInfo("manifest.json")
             info.size = len(manifest_bytes)
@@ -710,6 +780,12 @@ def _build_archive(
             info.mode = 0o644
             with items_path.open("rb") as items:
                 archive.addfile(info, items)
+            info = tarfile.TarInfo("deferred-records.ndjson")
+            info.size = deferred_records_path.stat().st_size
+            info.mtime = int(created_at.timestamp())
+            info.mode = 0o644
+            with deferred_records_path.open("rb") as deferred_records:
+                archive.addfile(info, deferred_records)
             if permissions_path is not None:
                 info = tarfile.TarInfo("permissions.ndjson")
                 info.size = permissions_path.stat().st_size
@@ -730,10 +806,20 @@ def create_snapshot_artifact(
     directory = Path(temporary_directory.name)
     created_at = datetime.now(timezone.utc).replace(microsecond=0)
     items_path = directory / "items.ndjson"
+    deferred_records_path = directory / "deferred-records.ndjson"
     permissions_path = directory / "permissions.ndjson" if include_permissions else None
     try:
-        count, items_sha256, permission_count, permission_sha256, database_timestamp = _write_snapshot_data(
+        (
+            count,
+            items_sha256,
+            deferred_count,
+            deferred_sha256,
+            permission_count,
+            permission_sha256,
+            database_timestamp,
+        ) = _write_snapshot_data(
             items_path,
+            deferred_records_path,
             permissions_path,
             settings.MREG_SNAPSHOT_CHUNK_SIZE,
         )
@@ -752,6 +838,11 @@ def create_snapshot_artifact(
                     "database_timestamp": database_timestamp.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
                 },
                 "items": {"path": "items.ndjson", "count": count, "sha256": items_sha256},
+                "deferred_records": {
+                    "path": "deferred-records.ndjson",
+                    "count": deferred_count,
+                    "sha256": deferred_sha256,
+                },
                 "permissions": (
                     {
                         "path": "permissions.ndjson",
@@ -772,13 +863,27 @@ def create_snapshot_artifact(
                     "audit_included": False,
                     "permissions_included": include_permissions,
                     "redacted": False,
+                    "fully_importable": deferred_count == 0,
                 },
             }
-            _build_archive(items_path, permissions_path, artifact_path, manifest, created_at)
+            _build_archive(
+                items_path,
+                deferred_records_path,
+                permissions_path,
+                artifact_path,
+                manifest,
+                created_at,
+            )
             content_type = ARCHIVE_MEDIA_TYPE
         else:
             artifact_path = directory / f"mreg-import-{timestamp}-v1.json.gz"
-            _build_json_artifact(items_path, artifact_path, requested_by, created_at)
+            _build_json_artifact(
+                items_path,
+                deferred_records_path,
+                artifact_path,
+                requested_by,
+                created_at,
+            )
             content_type = JSON_MEDIA_TYPE
         digest = hashlib.sha256()
         with artifact_path.open("rb") as artifact:
@@ -814,12 +919,13 @@ def _error_response(code: str, message: str, status_code: int, error: SnapshotEr
     body: dict[str, Any] = {"error": code, "message": message}
     if error and error.model is not None:
         body["source"] = {"model": error.model, "id": error.object_id}
-    return Response(body, status=status_code)
+    return Response(body, status=status_code, content_type=JSON_MEDIA_TYPE)
 
 
 def _header_allows(header: str, value: str) -> bool:
-    """Return whether a simple weighted HTTP capability header permits value."""
+    """Return whether the most specific HTTP capability range permits value."""
     value_type = value.split("/", 1)[0] if "/" in value else None
+    matches: list[tuple[int, float]] = []
     for entry in header.lower().split(","):
         parts = [part.strip() for part in entry.split(";")]
         candidate = parts[0]
@@ -830,13 +936,18 @@ def _header_allows(header: str, value: str) -> bool:
                     quality = float(parameter[2:])
                 except ValueError:
                     quality = 0
-        if quality <= 0:
-            continue
-        if candidate in {"*", "*/*", value.lower()}:
-            return True
-        if value_type and candidate == f"{value_type}/*":
-            return True
-    return False
+        if not 0 <= quality <= 1:
+            quality = 0
+        if candidate == value.lower():
+            matches.append((2, quality))
+        elif value_type and candidate == f"{value_type}/*":
+            matches.append((1, quality))
+        elif candidate in {"*", "*/*"}:
+            matches.append((0, quality))
+    if not matches:
+        return False
+    specificity = max(match[0] for match in matches)
+    return max(quality for match_specificity, quality in matches if match_specificity == specificity) > 0
 
 
 def _parse_request(request) -> SnapshotOptions:
@@ -855,9 +966,7 @@ def _parse_request(request) -> SnapshotOptions:
         raise SnapshotRequestError("Option 'include_permissions' must be 'true' or 'false'")
     include_permissions = include_permissions_value == "true"
     if include_permissions and snapshot_format != ARCHIVE_FORMAT:
-        raise SnapshotRequestError(
-            "Option 'include_permissions=true' is only supported by mreg-snapshot-v1"
-        )
+        raise SnapshotRequestError("Option 'include_permissions=true' is only supported by mreg-snapshot-v1")
     for key, expected in SUPPORTED_OPTIONS.items():
         actual = request.query_params.get(key, expected)
         if actual != expected:
@@ -874,6 +983,7 @@ def _parse_request(request) -> SnapshotOptions:
 
 class SnapshotView(APIView):
     permission_classes = (IsAuthenticated,)
+    renderer_classes = (SnapshotArchiveRenderer, SnapshotJSONRenderer)
 
     def get(self, request):
         if not User.from_request(request).is_mreg_snapshotter:
@@ -903,7 +1013,7 @@ class SnapshotView(APIView):
 
         response = SnapshotFileResponse(artifact)
         response["Content-Encoding"] = "gzip"
-        response["Digest"] = f"sha-256=:{artifact.digest_base64}:"
+        response["Content-Digest"] = f"sha-256=:{artifact.digest_base64}:"
         response["ETag"] = f'"snapshot-{artifact.digest_hex}"'
         response["Cache-Control"] = "private, no-store"
         response["X-Content-Type-Options"] = "nosniff"
