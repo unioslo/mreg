@@ -66,7 +66,7 @@ class SnapshotArchiveRenderer(JSONRenderer):
 
 
 class SnapshotJSONRenderer(JSONRenderer):
-    """Register the compatibility representation's query format."""
+    """Register the JSON import representation's query format."""
 
     format = JSON_FORMAT
 
