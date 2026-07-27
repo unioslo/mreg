@@ -3,25 +3,44 @@ import hashlib
 import io
 import json
 import tarfile
+import tempfile
+from contextlib import nullcontext
 from datetime import datetime, timezone
+from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
 from django.contrib.auth.models import Group
+from django.db import DatabaseError
 from django.test import SimpleTestCase, TestCase, override_settings
 from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory, force_authenticate
+from unittest_parametrize import ParametrizedTestCase, param, parametrize
 
 from mreg.api.v1.snapshot import (
     ARCHIVE_FORMAT,
     JSON_FORMAT,
+    NetworkIndex,
+    SnapshotArtifact,
     SnapshotData,
     SnapshotDataFile,
+    SnapshotError,
+    SnapshotFileResponse,
+    SnapshotNotAcceptable,
     SnapshotRequestError,
+    SnapshotUnavailable,
     SnapshotView,
+    _attachment_items,
+    _header_allows,
+    _host_dns_record_items,
+    _host_group_items,
+    _ip_items,
+    _normalized_mac,
     _parse_loc,
     _parse_request,
     _split_dns_character_strings,
+    _validate_wildcard_hosts,
+    _write_snapshot_data,
     create_snapshot_artifact,
     iter_deferred_record_items,
     iter_import_items,
@@ -120,7 +139,7 @@ def fake_write_snapshot_data(directory, chunk_size, *, include_permissions):
 
 
 @override_settings(MREG_SNAPSHOT_TMPDIR=None, MREG_SNAPSHOT_CHUNK_SIZE=10)
-class SnapshotArtifactTests(SimpleTestCase):
+class SnapshotArtifactTests(ParametrizedTestCase, SimpleTestCase):
     @mock.patch("mreg.api.v1.snapshot._write_snapshot_data", side_effect=fake_write_snapshot_data)
     def test_archive_contract(self, _write_snapshot_data):
         artifact = create_snapshot_artifact(ARCHIVE_FORMAT, "snapshotter", "mreg.example.org")
@@ -205,20 +224,51 @@ class SnapshotArtifactTests(SimpleTestCase):
         finally:
             artifact.cleanup()
 
-    def test_rejects_invalid_direct_options(self):
-        invalid_options = (
-            ("unsupported", False),
-            (JSON_FORMAT, True),
+    @parametrize(
+        ("snapshot_format", "include_permissions"),
+        [
+            param("unsupported", False, id="unsupported_format"),
+            param(JSON_FORMAT, True, id="json_with_permissions"),
+        ],
+    )
+    def test_rejects_invalid_direct_options(self, snapshot_format, include_permissions):
+        with self.assertRaises(SnapshotRequestError):
+            create_snapshot_artifact(
+                snapshot_format,
+                "snapshotter",
+                "mreg.example.org",
+                include_permissions=include_permissions,
+            )
+
+    @mock.patch("mreg.api.v1.snapshot._write_snapshot_data")
+    def test_rejects_empty_snapshot_data(self, write_snapshot_data):
+        empty_file = SnapshotDataFile(path=Path("items.ndjson"), count=0, sha256=hashlib.sha256().hexdigest())
+        write_snapshot_data.return_value = SnapshotData(
+            items=empty_file,
+            deferred_records=empty_file,
+            permissions=None,
+            database_timestamp=datetime(2026, 7, 12, 10, 14, 58, tzinfo=timezone.utc),
         )
-        for snapshot_format, include_permissions in invalid_options:
-            with self.subTest(snapshot_format=snapshot_format, include_permissions=include_permissions):
-                with self.assertRaises(SnapshotRequestError):
-                    create_snapshot_artifact(
-                        snapshot_format,
-                        "snapshotter",
-                        "mreg.example.org",
-                        include_permissions=include_permissions,
-                    )
+
+        with self.assertRaisesMessage(SnapshotError, "contains no snapshot items"):
+            create_snapshot_artifact(ARCHIVE_FORMAT, "snapshotter", "mreg.example.org")
+
+    def test_file_response_cleans_up_if_initialization_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            artifact_path = Path(directory) / "snapshot.tar.gz"
+            artifact_path.write_bytes(b"snapshot")
+            artifact = mock.Mock(spec=SnapshotArtifact)
+            artifact.path = artifact_path
+            artifact.filename = artifact_path.name
+            artifact.content_type = "application/octet-stream"
+
+            with (
+                mock.patch("mreg.api.v1.snapshot.FileResponse.__init__", side_effect=RuntimeError("response failed")),
+                self.assertRaisesMessage(RuntimeError, "response failed"),
+            ):
+                SnapshotFileResponse(artifact)
+
+            artifact.cleanup.assert_called_once_with()
 
     def test_loc_conversion(self):
         value = _parse_loc("42 21 54 N 71 06 18 W -24m 30m", pk=1)
@@ -227,13 +277,201 @@ class SnapshotArtifactTests(SimpleTestCase):
         self.assertEqual(value["altitude_m"], -24)
         self.assertEqual(value["size_m"], 30)
 
+    def test_loc_conversion_rejects_incomplete_values(self):
+        with self.assertRaisesMessage(SnapshotError, "LOC value cannot be translated"):
+            _parse_loc("42 N 71 W", pk=7)
+
+    def test_mac_normalization_handles_empty_and_invalid_values(self):
+        self.assertIsNone(_normalized_mac(""))
+        with self.assertRaisesMessage(SnapshotError, "Invalid MAC address"):
+            _normalized_mac("not-a-mac")
+
     def test_txt_values_are_split_by_encoded_octets(self):
         chunks = _split_dns_character_strings("a" * 510 + "ø" * 128)
         self.assertEqual("".join(chunks), "a" * 510 + "ø" * 128)
         self.assertTrue(all(len(chunk.encode("utf-8")) <= 255 for chunk in chunks))
 
 
-class SnapshotRequestTests(SimpleTestCase):
+class SnapshotDataWritingTests(SimpleTestCase):
+    def fake_connection(self, *, vendor="postgresql", execute_error=None):
+        cursor = mock.MagicMock()
+        cursor.fetchone.return_value = (datetime(2026, 7, 12, 10, 14, 58, tzinfo=timezone.utc),)
+        if execute_error is not None:
+            cursor.execute.side_effect = execute_error
+        cursor_manager = mock.MagicMock()
+        cursor_manager.__enter__.return_value = cursor
+        connection = SimpleNamespace(vendor=vendor, cursor=mock.Mock(return_value=cursor_manager))
+        return connection, cursor
+
+    def test_writes_snapshot_data_and_metadata(self):
+        connection, cursor = self.fake_connection()
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            mock.patch("mreg.api.v1.snapshot.connection", connection),
+            mock.patch("mreg.api.v1.snapshot.transaction.atomic", return_value=nullcontext()),
+            mock.patch("mreg.api.v1.snapshot.iter_import_items", return_value=ITEMS),
+            mock.patch("mreg.api.v1.snapshot.iter_deferred_record_items", return_value=DEFERRED_RECORDS),
+            mock.patch("mreg.api.v1.snapshot.iter_permission_items", return_value=PERMISSIONS),
+        ):
+            data = _write_snapshot_data(Path(directory), 10, include_permissions=True)
+
+        self.assertEqual(data.items.count, len(ITEMS))
+        self.assertEqual(data.deferred_records.count, len(DEFERRED_RECORDS))
+        self.assertEqual(data.permissions.count, len(PERMISSIONS))
+        self.assertEqual(
+            [call.args[0] for call in cursor.execute.call_args_list],
+            [
+                "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY",
+                "SELECT transaction_timestamp()",
+            ],
+        )
+
+    def test_rejects_non_postgresql_connections(self):
+        connection, _cursor = self.fake_connection(vendor="sqlite")
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            mock.patch("mreg.api.v1.snapshot.connection", connection),
+            mock.patch("mreg.api.v1.snapshot.transaction.atomic", return_value=nullcontext()),
+            self.assertRaisesMessage(SnapshotUnavailable, "consistent PostgreSQL snapshot"),
+        ):
+            _write_snapshot_data(Path(directory), 10, include_permissions=False)
+
+    def test_translates_database_errors(self):
+        connection, _cursor = self.fake_connection(execute_error=DatabaseError("database unavailable"))
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            mock.patch("mreg.api.v1.snapshot.connection", connection),
+            mock.patch("mreg.api.v1.snapshot.transaction.atomic", return_value=nullcontext()),
+            self.assertRaisesMessage(SnapshotUnavailable, "consistent database snapshot could not be read"),
+        ):
+            _write_snapshot_data(Path(directory), 10, include_permissions=False)
+
+
+class SnapshotTranslationValidationTests(ParametrizedTestCase, SimpleTestCase):
+    def ip_row(self, *, pk=1, host_id=1, ipaddress="192.0.2.10", macaddress=None):
+        return SimpleNamespace(
+            pk=pk,
+            host_id=host_id,
+            ipaddress=ipaddress,
+            macaddress=macaddress,
+        )
+
+    def test_wildcard_ip_assignment_rejects_mac_address(self):
+        row = self.ip_row(macaddress="aa:bb:cc:dd:ee:ff")
+        with (
+            mock.patch("mreg.api.v1.snapshot._ip_rows", return_value=[row]),
+            self.assertRaisesMessage(SnapshotError, "Wildcard IP assignment has a MAC address"),
+        ):
+            list(_attachment_items(mock.Mock(), {row.host_id}, 10))
+
+    def test_attachment_requires_a_matching_network(self):
+        row = self.ip_row()
+        index = mock.Mock()
+        index.match.return_value = None
+        with (
+            mock.patch("mreg.api.v1.snapshot._ip_rows", return_value=[row]),
+            self.assertRaisesMessage(SnapshotError, "IP address is not contained in a network"),
+        ):
+            list(_attachment_items(index, set(), 10))
+
+    def test_duplicate_attachment_is_emitted_once(self):
+        rows = [
+            self.ip_row(pk=1, ipaddress="192.0.2.10"),
+            self.ip_row(pk=2, ipaddress="192.0.2.11"),
+        ]
+        index = mock.Mock()
+        index.match.return_value = (7, "192.0.2.0/24")
+        with mock.patch("mreg.api.v1.snapshot._ip_rows", return_value=rows):
+            attachments = list(_attachment_items(index, set(), 10))
+
+        self.assertEqual(len(attachments), 1)
+
+    def ipaddress_model(self, *, duplicate=None, exists=False):
+        manager = mock.MagicMock()
+        duplicate_query = manager.values.return_value.annotate.return_value.filter.return_value.order_by.return_value
+        duplicate_query.first.return_value = duplicate
+        manager.filter.return_value.exists.return_value = exists
+        return SimpleNamespace(objects=manager)
+
+    def test_duplicate_ip_address_is_rejected(self):
+        ipaddress_model = self.ipaddress_model(duplicate={"ipaddress": "192.0.2.10"})
+        with (
+            mock.patch("mreg.api.v1.snapshot.Ipaddress", ipaddress_model),
+            self.assertRaisesMessage(SnapshotError, "assigned more than once"),
+        ):
+            list(_ip_items(mock.Mock(), set(), 10))
+
+    def test_ip_address_requires_a_matching_network(self):
+        row = self.ip_row()
+        index = mock.Mock()
+        index.match.return_value = None
+        with (
+            mock.patch("mreg.api.v1.snapshot.Ipaddress", self.ipaddress_model()),
+            mock.patch("mreg.api.v1.snapshot._ip_rows", return_value=[row]),
+            self.assertRaisesMessage(SnapshotError, "IP address is not contained in a network"),
+        ):
+            list(_ip_items(index, set(), 10))
+
+    def model_with_manager(self, *, hosts=(), exists=False):
+        manager = mock.MagicMock()
+        manager.filter.return_value.exists.return_value = exists
+        manager.filter.return_value.order_by.return_value.iterator.return_value = hosts
+        return SimpleNamespace(objects=manager)
+
+    def wildcard_host(self, *, comment=""):
+        relation = mock.Mock()
+        relation.exists.return_value = False
+        return SimpleNamespace(
+            pk=1,
+            comment=comment,
+            contacts=relation,
+            hostgroups=relation,
+            hostpolicyroles=relation,
+        )
+
+    def test_wildcard_host_requires_dns_data(self):
+        host_model = self.model_with_manager(hosts=[self.wildcard_host()])
+        empty_model = self.model_with_manager()
+        specifications = ((empty_model, "TEST", mock.Mock(), mock.Mock()),)
+        with (
+            mock.patch("mreg.api.v1.snapshot.Host", host_model),
+            mock.patch("mreg.api.v1.snapshot.Ipaddress", empty_model),
+            mock.patch("mreg.api.v1.snapshot._HOST_RECORD_SPECIFICATIONS", specifications),
+            self.assertRaisesMessage(SnapshotError, "has no translatable DNS data"),
+        ):
+            _validate_wildcard_hosts({1}, 10)
+
+    @parametrize(
+        ("comment", "has_bacnet_id"),
+        [
+            param("documented", False, id="comment"),
+            param("", True, id="bacnet_id"),
+        ],
+    )
+    def test_wildcard_host_rejects_non_dns_relationships(self, comment, has_bacnet_id):
+        host = self.wildcard_host(comment=comment)
+        with (
+            mock.patch("mreg.api.v1.snapshot.Host", self.model_with_manager(hosts=[host])),
+            mock.patch("mreg.api.v1.snapshot.Ipaddress", self.model_with_manager(exists=True)),
+            mock.patch("mreg.api.v1.snapshot.BACnetID", self.model_with_manager(exists=has_bacnet_id)),
+            mock.patch("mreg.api.v1.snapshot.HostCommunityMapping", self.model_with_manager()),
+            self.assertRaisesMessage(SnapshotError, "has non-DNS relationships"),
+        ):
+            _validate_wildcard_hosts({1}, 10)
+
+    def test_host_group_cycles_are_rejected(self):
+        group = mock.Mock(pk=1)
+        group.parent.all.return_value = [group]
+        manager = mock.MagicMock()
+        manager.prefetch_related.return_value.order_by.return_value = [group]
+        with (
+            mock.patch("mreg.api.v1.snapshot.HostGroup", SimpleNamespace(objects=manager)),
+            self.assertRaisesMessage(SnapshotError, "contain a cycle"),
+        ):
+            list(_host_group_items(set()))
+
+
+class SnapshotRequestTests(ParametrizedTestCase, SimpleTestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
 
@@ -263,10 +501,16 @@ class SnapshotRequestTests(SimpleTestCase):
         with self.assertRaises(SnapshotRequestError):
             _parse_request(self.request("/api/v1/snapshot?include_audit=true"))
 
-    def test_rejects_explicitly_disabled_gzip(self):
-        for header in ("br, gzip;q=0", "gzip;q=0, *;q=1"):
-            with self.subTest(header=header), self.assertRaises(SnapshotRequestError):
-                _parse_request(self.request("/api/v1/snapshot", HTTP_ACCEPT_ENCODING=header))
+    @parametrize(
+        "header",
+        [
+            param("br, gzip;q=0", id="explicit_gzip"),
+            param("gzip;q=0, *;q=1", id="gzip_overrides_wildcard"),
+        ],
+    )
+    def test_rejects_explicitly_disabled_gzip(self, header):
+        with self.assertRaises(SnapshotRequestError):
+            _parse_request(self.request("/api/v1/snapshot", HTTP_ACCEPT_ENCODING=header))
 
     def test_rejects_explicitly_disabled_media_type(self):
         with self.assertRaises(SnapshotRequestError):
@@ -281,17 +525,33 @@ class SnapshotRequestTests(SimpleTestCase):
         with self.assertRaises(SnapshotRequestError):
             _parse_request(self.request("/api/v1/snapshot?format=mreg-import-json-v1&include_permissions=true"))
 
-    def test_rejects_duplicate_and_unknown_parameters(self):
-        for path in (
-            "/api/v1/snapshot?format=mreg-snapshot-v1&format=mreg-import-json-v1",
-            "/api/v1/snapshot?surprise=true",
-        ):
-            with self.subTest(path=path), self.assertRaises(SnapshotRequestError):
-                _parse_request(self.request(path))
+    def test_rejects_invalid_permissions_value(self):
+        with self.assertRaisesMessage(SnapshotRequestError, "must be 'true' or 'false'"):
+            _parse_request(self.request("/api/v1/snapshot?include_permissions=yes"))
+
+    @parametrize(
+        "path",
+        [
+            param(
+                "/api/v1/snapshot?format=mreg-snapshot-v1&format=mreg-import-json-v1",
+                id="duplicate",
+            ),
+            param("/api/v1/snapshot?surprise=true", id="unknown"),
+        ],
+    )
+    def test_rejects_duplicate_and_unknown_parameters(self, path):
+        with self.assertRaises(SnapshotRequestError):
+            _parse_request(self.request(path))
+
+    def test_header_matching_handles_ranges_and_invalid_values(self):
+        self.assertTrue(_header_allows("application/*", "application/json"))
+        self.assertFalse(_header_allows("gzip;q=invalid", "gzip"))
+        self.assertFalse(_header_allows("gzip;q=2", "gzip"))
+        self.assertFalse(_header_allows("br", "gzip"))
 
 
 @override_settings(MREG_SNAPSHOT_TMPDIR=None, MREG_SNAPSHOT_CHUNK_SIZE=10)
-class SnapshotViewTests(SimpleTestCase):
+class SnapshotViewTests(ParametrizedTestCase, SimpleTestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
 
@@ -360,6 +620,53 @@ class SnapshotViewTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "application/json")
         response.close()
+
+    @parametrize(
+        ("error", "status_code", "error_code"),
+        [
+            param(
+                SnapshotNotAcceptable("not acceptable"),
+                406,
+                "snapshot_not_acceptable",
+                id="not_acceptable",
+            ),
+            param(
+                SnapshotRequestError("invalid request"),
+                400,
+                "invalid_snapshot_request",
+                id="invalid_request",
+            ),
+            param(
+                SnapshotUnavailable("unavailable"),
+                503,
+                "snapshot_unavailable",
+                id="unavailable",
+            ),
+            param(
+                SnapshotError("invalid source", model="Host", object_id=7),
+                409,
+                "snapshot_failed",
+                id="snapshot_error",
+            ),
+            param(
+                OSError("disk unavailable"),
+                503,
+                "snapshot_unavailable",
+                id="os_error",
+            ),
+        ],
+    )
+    def test_snapshot_errors_are_mapped_to_responses(self, error, status_code, error_code):
+        with mock.patch("mreg.api.v1.snapshot.create_snapshot_artifact", side_effect=error):
+            response = SnapshotView.as_view()(self.request(allowed=True))
+        self.assertEqual(response.status_code, status_code)
+        self.assertEqual(response.data["error"], error_code)
+        if isinstance(error, SnapshotError) and error.model is not None:
+            self.assertEqual(response.data["source"], {"model": "Host", "id": 7})
+
+    def test_unsupported_media_type_uses_standard_drf_error_handling(self):
+        response = SnapshotView.as_view()(self.request(allowed=True, HTTP_ACCEPT="text/plain"))
+        self.assertEqual(response.status_code, 406)
 
 
 class SnapshotItemTranslationTests(TestCase):
@@ -552,3 +859,13 @@ class SnapshotItemTranslationTests(TestCase):
                 }
             ],
         )
+
+    def test_network_index_returns_none_when_no_network_matches(self):
+        self.assertIsNone(NetworkIndex().match("203.0.113.1"))
+
+    def test_mx_record_requires_a_forward_zone(self):
+        host = Host.objects.create(name="orphan.example.org")
+        Mx.objects.create(host=host, priority=10, mx="mail.example.org")
+
+        with self.assertRaisesMessage(SnapshotError, "MX owner has no forward zone"):
+            list(_host_dns_record_items(set(), 10, deferred=False))
