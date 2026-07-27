@@ -143,6 +143,12 @@ MREG_DB_POOL_MAX_LIFETIME = envvar("MREG_DB_POOL_MAX_LIFETIME", 3600)
 MREG_DB_PSYCOPG_CONNECT_TIMEOUT = envvar("MREG_DB_PSYCOPG_CONNECT_TIMEOUT", 5)
 MREG_DB_PSYCOPG_OPTIONS = envvar("MREG_DB_PSYCOPG_OPTIONS", "-c statement_timeout=30000")
 
+# Portable snapshots contain the full domain dataset and therefore use
+# a separate, narrowly assigned authorization group.
+SNAPSHOT_GROUP = envvar("MREG_SNAPSHOT_GROUP", "mreg-snapshot")
+MREG_SNAPSHOT_TMPDIR = os.environ.get("MREG_SNAPSHOT_TMPDIR") or None
+MREG_SNAPSHOT_CHUNK_SIZE = envvar("MREG_SNAPSHOT_CHUNK_SIZE", 2000)
+
 # If the log directory doesn't exist, create it.
 log_dir = os.path.dirname(LOG_FILE_NAME)
 if not os.path.exists(log_dir): # pragma: no cover
@@ -455,6 +461,7 @@ if TESTING or "CI" in os.environ:
     HOSTPOLICYADMIN_GROUP = "default-hostpolicyadmin-group"
     DNS_WILDCARD_GROUP = "default-dns-wildcard-group"
     DNS_UNDERSCORE_GROUP = "default-dns-underscore-group"
+    SNAPSHOT_GROUP = "default-snapshot-group"
 
 
 def get_pool_settings() -> dict[str, int] | Literal[False]:

@@ -35,6 +35,7 @@ class MregAdminGroup(enum.Enum):
     DNS_WILDCARD = "DNS_WILDCARD_GROUP"
     DNS_UNDERSCORE = "DNS_UNDERSCORE_GROUP"
     HOSTPOLICY_ADMIN = "HOSTPOLICYADMIN_GROUP"
+    SNAPSHOT = "SNAPSHOT_GROUP"
 
     def settings_groups_or_raise(self) -> list[str]:
         """Get the group names from the settings, or raise an exception if unset.
@@ -129,6 +130,11 @@ class User(AbstractUser):
         A user with this permission can create, delete, and modify hostpolicy roles / atoms.
         """
         return self.is_member_of_any(MregAdminGroup.HOSTPOLICY_ADMIN.settings_groups_or_raise())
+
+    @cached_property
+    def is_mreg_snapshotter(self) -> bool:
+        """Check whether the user may create and download portable snapshots."""
+        return self.is_member_of_any(MregAdminGroup.SNAPSHOT.settings_groups_or_raise())
 
     @cached_property
     def is_mreg_superuser_or_admin(self) -> bool:

@@ -67,6 +67,15 @@ class IsSuperGroupMember(IsAuthenticated):
         return User.from_request(request).is_mreg_superuser
 
 
+class IsSnapshotGroupMember(IsAuthenticated):
+    """Allow portable snapshots to members of the dedicated group only."""
+
+    def has_permission(self, request, view):
+        if not super().has_permission(request, view):
+            return False
+        return User.from_request(request).is_mreg_snapshotter
+
+
 class IsSuperOrAdminOrReadOnly(IsAuthenticated):
     """
     Permit user if in super or admin group, else read only.
@@ -388,4 +397,3 @@ class IsGrantedReservedAddressPermission(IsAuthenticated):
         # in a `BaseModel` instance instead of a serializer when checking
         # destroy permissions, so we cannot access any sort of validated data.
         return self.has_permission(request, view)
-
