@@ -26,7 +26,7 @@ from rest_framework.views import APIView
 
 from hostpolicy.models import HostPolicyAtom, HostPolicyRole
 from mreg import __version__
-from mreg.api.permissions import IsSnapshotGroupMember
+from mreg.api.permissions import IsSnapshotterOrAdmin
 from mreg.models.base import Label, NameServer
 from mreg.models.host import BACnetID, Host, HostContact, HostGroup, Ipaddress, PtrOverride
 from mreg.models.network import NetGroupRegexPermission, Network, NetworkExcludedRange
@@ -1014,7 +1014,7 @@ def _parse_request(request) -> SnapshotOptions:
 
 
 class SnapshotView(APIView):
-    permission_classes = (IsSnapshotGroupMember,)
+    permission_classes = (IsSnapshotterOrAdmin,)
     renderer_classes = (SnapshotArchiveRenderer, SnapshotJSONRenderer)
 
     def handle_exception(self, exc: Exception) -> Response:

@@ -4,9 +4,8 @@
 snapshot for backup, transfer, and recovery workflows. The endpoint is
 synchronous and intended for rare, operator-driven work.
 
-The caller must authenticate with an MREG token and belong to the group named
-by `MREG_SNAPSHOT_GROUP`. MREG administrators and superusers do not get
-this permission implicitly.
+The caller must authenticate with an MREG token and either belong to the group
+named by `MREG_SNAPSHOT_GROUP` or be an MREG administrator or superuser.
 
 ## Archive format
 

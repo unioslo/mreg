@@ -295,11 +295,12 @@ class SnapshotViewTests(SimpleTestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
 
-    def request(self, *, allowed, path="/api/v1/snapshot", **headers):
+    def request(self, *, allowed, admin=False, path="/api/v1/snapshot", **headers):
         request = self.factory.get(path, **headers)
         user = SimpleNamespace(
             is_authenticated=True,
             is_mreg_snapshotter=allowed,
+            is_mreg_superuser_or_admin=admin,
             username="snapshotter",
         )
         force_authenticate(request, user=user)
@@ -311,6 +312,19 @@ class SnapshotViewTests(SimpleTestCase):
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response["Content-Type"], "application/json")
         self.assertEqual(response.data["error"], "snapshot_forbidden")
+
+    @mock.patch("mreg.api.v1.snapshot._write_snapshot_data", side_effect=fake_write_snapshot_data)
+    def test_mreg_admin_can_create_snapshot(self, _write_snapshot_data):
+        response = SnapshotView.as_view()(
+            self.request(
+                allowed=False,
+                admin=True,
+                HTTP_ACCEPT="application/vnd.uio.mreg-snapshot+tar",
+                HTTP_ACCEPT_ENCODING="gzip",
+            )
+        )
+        self.assertEqual(response.status_code, 200)
+        response.close()
 
     @mock.patch("mreg.api.v1.snapshot._write_snapshot_data", side_effect=fake_write_snapshot_data)
     def test_response_headers_and_cleanup(self, _write_snapshot_data):
