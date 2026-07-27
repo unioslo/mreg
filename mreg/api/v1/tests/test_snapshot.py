@@ -155,7 +155,7 @@ class SnapshotArtifactTests(SimpleTestCase):
             artifact.cleanup()
 
     @mock.patch("mreg.api.v1.snapshot._write_snapshot_data", side_effect=fake_write_snapshot_data)
-    def test_compatibility_json_contract(self, _write_snapshot_data):
+    def test_json_import_contract(self, _write_snapshot_data):
         artifact = create_snapshot_artifact(JSON_FORMAT, "snapshotter", "mreg.example.org")
         try:
             with gzip.open(artifact.path, "rt", encoding="utf-8") as source:
@@ -245,7 +245,7 @@ class SnapshotRequestTests(SimpleTestCase):
         self.assertEqual(options.snapshot_format, ARCHIVE_FORMAT)
         self.assertFalse(options.include_permissions)
 
-    def test_accepts_compatibility_json(self):
+    def test_accepts_json_import(self):
         request = self.request(
             "/api/v1/snapshot?format=mreg-import-json-v1",
             HTTP_ACCEPT="application/json",
@@ -277,7 +277,7 @@ class SnapshotRequestTests(SimpleTestCase):
                 )
             )
 
-    def test_rejects_permissions_for_compatibility_json(self):
+    def test_rejects_permissions_for_json_import(self):
         with self.assertRaises(SnapshotRequestError):
             _parse_request(self.request("/api/v1/snapshot?format=mreg-import-json-v1&include_permissions=true"))
 
@@ -334,7 +334,7 @@ class SnapshotViewTests(SimpleTestCase):
         self.assertFalse(artifact_path.exists())
 
     @mock.patch("mreg.api.v1.snapshot._write_snapshot_data", side_effect=fake_write_snapshot_data)
-    def test_compatibility_media_type_is_negotiated(self, _write_snapshot_data):
+    def test_json_import_media_type_is_negotiated(self, _write_snapshot_data):
         response = SnapshotView.as_view()(
             self.request(
                 allowed=True,
