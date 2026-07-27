@@ -6,6 +6,7 @@ import base64
 import gzip
 import hashlib
 import ipaddress
+import io
 import json
 import tarfile
 import tempfile
@@ -18,16 +19,16 @@ from django.conf import settings
 from django.db import DatabaseError, connection, transaction
 from django.db.models import Count
 from django.http import FileResponse
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from hostpolicy.models import HostPolicyAtom, HostPolicyRole
 from mreg import __version__
-from mreg.api.permissions import IsAuthenticated
+from mreg.api.permissions import IsSnapshotGroupMember
 from mreg.models.base import Label, NameServer
 from mreg.models.host import BACnetID, Host, HostContact, HostGroup, Ipaddress, PtrOverride
-from mreg.models.auth import User
 from mreg.models.network import NetGroupRegexPermission, Network, NetworkExcludedRange
 from mreg.models.network_policy import (
     Community,
@@ -89,6 +90,13 @@ class SnapshotUnavailable(SnapshotError):
 
 class SnapshotNotAcceptable(SnapshotRequestError):
     pass
+
+
+def _validate_snapshot_options(snapshot_format: str, include_permissions: bool) -> None:
+    if snapshot_format not in {ARCHIVE_FORMAT, JSON_FORMAT}:
+        raise SnapshotRequestError(f"Unsupported snapshot format: {snapshot_format}")
+    if include_permissions and snapshot_format != ARCHIVE_FORMAT:
+        raise SnapshotRequestError("Option 'include_permissions=true' is only supported by mreg-snapshot-v1")
 
 
 def _ref(kind: str, pk: Any) -> str:
@@ -409,53 +417,65 @@ def _split_dns_character_strings(value: str) -> list[str]:
     return chunks
 
 
-def _dns_record_items(
+_HOST_RECORD_SPECIFICATIONS = (
+    (Hinfo, "HINFO", lambda obj: {"cpu": obj.cpu, "os": obj.os}, lambda obj: obj.host.ttl),
+    (Loc, "LOC", lambda obj: _parse_loc(obj.loc, pk=obj.pk), lambda obj: obj.host.ttl),
+    (Mx, "MX", lambda obj: {"preference": obj.priority, "exchange": obj.mx}, lambda obj: obj.host.ttl),
+    (Txt, "TXT", lambda obj: {"value": _split_dns_character_strings(obj.txt)}, lambda obj: obj.host.ttl),
+    (
+        Naptr,
+        "NAPTR",
+        lambda obj: {
+            "order": obj.order,
+            "preference": obj.preference,
+            "flags": obj.flag,
+            "services": obj.service,
+            "regexp": obj.regex,
+            "replacement": obj.replacement,
+        },
+        lambda obj: obj.host.ttl,
+    ),
+    (
+        Sshfp,
+        "SSHFP",
+        lambda obj: {
+            "algorithm": obj.algorithm,
+            "fp_type": obj.hash_type,
+            "fingerprint": obj.fingerprint,
+        },
+        lambda obj: obj.ttl if obj.ttl is not None else obj.host.ttl,
+    ),
+)
+
+
+def _wildcard_address_record_items(wildcards: set[int], chunk_size: int) -> Iterator[dict[str, Any]]:
+    queryset = Ipaddress.objects.filter(host_id__in=wildcards).select_related("host").order_by("pk")
+    for obj in queryset.iterator(chunk_size=chunk_size):
+        address = ipaddress.ip_address(obj.ipaddress)
+        yield _item(
+            _ref("record_ip_address", obj.pk),
+            "record",
+            _record_attributes(
+                "A" if address.version == 4 else "AAAA",
+                obj.host.name,
+                {"address": obj.ipaddress},
+                ttl=obj.host.ttl,
+            ),
+        )
+
+
+def _host_dns_record_items(
     wildcards: set[int],
     chunk_size: int,
     *,
-    only_deferred: bool = False,
+    deferred: bool,
 ) -> Iterator[dict[str, Any]]:
-    wildcard_hosts = {pk: (name, ttl) for pk, name, ttl in Host.objects.filter(pk__in=wildcards).values_list("pk", "name", "ttl")}
-    if not only_deferred:
-        for obj in Ipaddress.objects.filter(host_id__in=wildcards).select_related("host").order_by("pk").iterator(chunk_size=chunk_size):
-            address = ipaddress.ip_address(obj.ipaddress)
-            yield _item(
-                _ref("record_ip_address", obj.pk),
-                "record",
-                _record_attributes("A" if address.version == 4 else "AAAA", obj.host.name, {"address": obj.ipaddress}, ttl=obj.host.ttl),
-            )
-
-    specifications = (
-        (Hinfo, "HINFO", lambda o: {"cpu": o.cpu, "os": o.os}, lambda o: o.host.ttl),
-        (Loc, "LOC", lambda o: _parse_loc(o.loc, pk=o.pk), lambda o: o.host.ttl),
-        (Mx, "MX", lambda o: {"preference": o.priority, "exchange": o.mx}, lambda o: o.host.ttl),
-        (Txt, "TXT", lambda o: {"value": _split_dns_character_strings(o.txt)}, lambda o: o.host.ttl),
-        (
-            Naptr,
-            "NAPTR",
-            lambda o: {
-                "order": o.order,
-                "preference": o.preference,
-                "flags": o.flag,
-                "services": o.service,
-                "regexp": o.regex,
-                "replacement": o.replacement,
-            },
-            lambda o: o.host.ttl,
-        ),
-        (
-            Sshfp,
-            "SSHFP",
-            lambda o: {"algorithm": o.algorithm, "fp_type": o.hash_type, "fingerprint": o.fingerprint},
-            lambda o: o.ttl if o.ttl is not None else o.host.ttl,
-        ),
-    )
-    for model, type_name, data_factory, ttl_factory in specifications:
+    for model, type_name, data_factory, ttl_factory in _HOST_RECORD_SPECIFICATIONS:
         queryset = model.objects.select_related("host").order_by("pk")
         for obj in queryset.iterator(chunk_size=chunk_size):
             wildcard = obj.host_id in wildcards
-            deferred = wildcard and type_name in DEFERRED_WILDCARD_RECORD_TYPES
-            if deferred != only_deferred:
+            is_deferred = wildcard and type_name in DEFERRED_WILDCARD_RECORD_TYPES
+            if is_deferred != deferred:
                 continue
             if type_name == "MX" and not wildcard:
                 owner_kind = "forward_zone"
@@ -477,18 +497,27 @@ def _dns_record_items(
                     anchor_ref=anchor_ref,
                 ),
             )
-            if deferred:
+            if is_deferred:
                 item["deferred"] = {
                     "reason": "wildcard_owner_not_supported_by_import_contract",
                     "requires_manual_handling": True,
                 }
             yield item
-    if only_deferred:
-        return
 
+
+def _standalone_dns_record_items(chunk_size: int) -> Iterator[dict[str, Any]]:
     for model, type_name, data_factory in (
-        (Cname, "CNAME", lambda o: {"target": o.host.name}),
-        (Srv, "SRV", lambda o: {"priority": o.priority, "weight": o.weight, "port": o.port, "target": o.host.name}),
+        (Cname, "CNAME", lambda obj: {"target": obj.host.name}),
+        (
+            Srv,
+            "SRV",
+            lambda obj: {
+                "priority": obj.priority,
+                "weight": obj.weight,
+                "port": obj.port,
+                "target": obj.host.name,
+            },
+        ),
     ):
         queryset = model.objects.select_related("host").order_by("pk")
         for obj in queryset.iterator(chunk_size=chunk_size):
@@ -498,17 +527,29 @@ def _dns_record_items(
                 _record_attributes(type_name, obj.name, data_factory(obj), ttl=obj.ttl),
             )
 
-    for host_id, (name, _ttl) in wildcard_hosts.items():
-        has_dns = Ipaddress.objects.filter(host_id=host_id).exists() or any(
-            model.objects.filter(host_id=host_id).exists() for model, *_ in specifications
+
+def _validate_wildcard_hosts(wildcards: set[int], chunk_size: int) -> None:
+    for host in Host.objects.filter(pk__in=wildcards).order_by("pk").iterator(chunk_size=chunk_size):
+        has_dns = Ipaddress.objects.filter(host_id=host.pk).exists() or any(
+            model.objects.filter(host_id=host.pk).exists() for model, *_ in _HOST_RECORD_SPECIFICATIONS
         )
         if not has_dns:
-            raise SnapshotError("Wildcard host has no translatable DNS data", model="Host", object_id=host_id)
-        host = Host.objects.get(pk=host_id)
+            raise SnapshotError("Wildcard host has no translatable DNS data", model="Host", object_id=host.pk)
         if host.comment or host.contacts.exists() or host.hostgroups.exists() or host.hostpolicyroles.exists():
-            raise SnapshotError("Wildcard host has non-DNS relationships", model="Host", object_id=host_id)
-        if BACnetID.objects.filter(host_id=host_id).exists() or HostCommunityMapping.objects.filter(host_id=host_id).exists():
-            raise SnapshotError("Wildcard host has non-DNS relationships", model="Host", object_id=host_id)
+            raise SnapshotError("Wildcard host has non-DNS relationships", model="Host", object_id=host.pk)
+        if BACnetID.objects.filter(host_id=host.pk).exists() or HostCommunityMapping.objects.filter(host_id=host.pk).exists():
+            raise SnapshotError("Wildcard host has non-DNS relationships", model="Host", object_id=host.pk)
+
+
+def _dns_record_items(wildcards: set[int], chunk_size: int) -> Iterator[dict[str, Any]]:
+    yield from _wildcard_address_record_items(wildcards, chunk_size)
+    yield from _host_dns_record_items(wildcards, chunk_size, deferred=False)
+    yield from _standalone_dns_record_items(chunk_size)
+    _validate_wildcard_hosts(wildcards, chunk_size)
+
+
+def _deferred_dns_record_items(wildcards: set[int], chunk_size: int) -> Iterator[dict[str, Any]]:
+    yield from _host_dns_record_items(wildcards, chunk_size, deferred=True)
 
 
 def _relationship_items(index: NetworkIndex, wildcards: set[int], chunk_size: int) -> Iterator[dict[str, Any]]:
@@ -637,23 +678,48 @@ def iter_import_items(chunk_size: int) -> Iterator[dict[str, Any]]:
 
 def iter_deferred_record_items(chunk_size: int) -> Iterator[dict[str, Any]]:
     """Yield valid source records whose automatic import must be deferred."""
-    yield from _dns_record_items(_wildcard_ids(), chunk_size, only_deferred=True)
+    yield from _deferred_dns_record_items(_wildcard_ids(), chunk_size)
 
 
-@dataclass
+@dataclass(frozen=True)
 class SnapshotArtifact:
     path: Path
-    temporary_directory: tempfile.TemporaryDirectory
+    temporary_directory: tempfile.TemporaryDirectory[str]
     digest_hex: str
     digest_base64: str
     filename: str
     content_type: str
+
+    def cleanup(self) -> None:
+        self.temporary_directory.cleanup()
 
 
 @dataclass(frozen=True)
 class SnapshotOptions:
     snapshot_format: str
     include_permissions: bool
+
+
+@dataclass(frozen=True)
+class SnapshotDataFile:
+    path: Path
+    count: int
+    sha256: str
+
+    def manifest_entry(self) -> dict[str, str | int]:
+        return {
+            "path": self.path.name,
+            "count": self.count,
+            "sha256": self.sha256,
+        }
+
+
+@dataclass(frozen=True)
+class SnapshotData:
+    items: SnapshotDataFile
+    deferred_records: SnapshotDataFile
+    permissions: SnapshotDataFile | None
+    database_timestamp: datetime
 
 
 def _json_bytes(value: Any) -> bytes:
@@ -676,7 +742,7 @@ def iter_permission_items(chunk_size: int) -> Iterator[dict[str, Any]]:
         )
 
 
-def _write_ndjson(path: Path, values: Iterable[dict[str, Any]]) -> tuple[int, str]:
+def _write_ndjson(path: Path, values: Iterable[dict[str, Any]]) -> SnapshotDataFile:
     digest = hashlib.sha256()
     count = 0
     with path.open("wb") as output:
@@ -685,15 +751,15 @@ def _write_ndjson(path: Path, values: Iterable[dict[str, Any]]) -> tuple[int, st
             output.write(encoded)
             digest.update(encoded)
             count += 1
-    return count, digest.hexdigest()
+    return SnapshotDataFile(path=path, count=count, sha256=digest.hexdigest())
 
 
 def _write_snapshot_data(
-    items_path: Path,
-    deferred_records_path: Path,
-    permissions_path: Path | None,
+    directory: Path,
     chunk_size: int,
-) -> tuple[int, str, int, str, int | None, str | None, datetime]:
+    *,
+    include_permissions: bool,
+) -> SnapshotData:
     try:
         with transaction.atomic(), connection.cursor() as cursor:
             if connection.vendor != "postgresql":
@@ -701,28 +767,23 @@ def _write_snapshot_data(
             cursor.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
             cursor.execute("SELECT transaction_timestamp()")
             database_timestamp = cursor.fetchone()[0]
-            item_count, item_sha256 = _write_ndjson(items_path, iter_import_items(chunk_size))
-            deferred_count, deferred_sha256 = _write_ndjson(
-                deferred_records_path,
+            items = _write_ndjson(directory / "items.ndjson", iter_import_items(chunk_size))
+            deferred_records = _write_ndjson(
+                directory / "deferred-records.ndjson",
                 iter_deferred_record_items(chunk_size),
             )
-            if permissions_path is None:
-                permission_count = None
-                permission_sha256 = None
-            else:
-                permission_count, permission_sha256 = _write_ndjson(permissions_path, iter_permission_items(chunk_size))
+            permissions = (
+                _write_ndjson(directory / "permissions.ndjson", iter_permission_items(chunk_size)) if include_permissions else None
+            )
     except SnapshotError:
         raise
     except DatabaseError as error:
         raise SnapshotUnavailable("A consistent database snapshot could not be read") from error
-    return (
-        item_count,
-        item_sha256,
-        deferred_count,
-        deferred_sha256,
-        permission_count,
-        permission_sha256,
-        database_timestamp,
+    return SnapshotData(
+        items=items,
+        deferred_records=deferred_records,
+        permissions=permissions,
+        database_timestamp=database_timestamp,
     )
 
 
@@ -737,8 +798,7 @@ def _write_json_array(output, path: Path) -> None:
 
 
 def _build_json_artifact(
-    items_path: Path,
-    deferred_records_path: Path,
+    data: SnapshotData,
     artifact_path: Path,
     requested_by: str,
     created_at: datetime,
@@ -747,16 +807,31 @@ def _build_json_artifact(
         output.write(b'{"requested_by":')
         output.write(_json_bytes(requested_by))
         output.write(b',"items":[')
-        _write_json_array(output, items_path)
+        _write_json_array(output, data.items.path)
         output.write(b'],"deferred_records":[')
-        _write_json_array(output, deferred_records_path)
+        _write_json_array(output, data.deferred_records.path)
         output.write(b"]}\n")
 
 
+def _tar_info(name: str, size: int, created_at: datetime) -> tarfile.TarInfo:
+    info = tarfile.TarInfo(name)
+    info.size = size
+    info.mtime = int(created_at.timestamp())
+    info.mode = 0o644
+    return info
+
+
+def _add_bytes_to_archive(archive: tarfile.TarFile, name: str, content: bytes, created_at: datetime) -> None:
+    archive.addfile(_tar_info(name, len(content), created_at), io.BytesIO(content))
+
+
+def _add_data_file_to_archive(archive: tarfile.TarFile, data_file: SnapshotDataFile, created_at: datetime) -> None:
+    with data_file.path.open("rb") as source:
+        archive.addfile(_tar_info(data_file.path.name, data_file.path.stat().st_size, created_at), source)
+
+
 def _build_archive(
-    items_path: Path,
-    deferred_records_path: Path,
-    permissions_path: Path | None,
+    data: SnapshotData,
     artifact_path: Path,
     manifest: dict[str, Any],
     created_at: datetime,
@@ -767,32 +842,49 @@ def _build_archive(
         gzip.GzipFile(filename="", fileobj=raw, mode="wb", mtime=int(created_at.timestamp())) as compressed,
     ):
         with tarfile.open(fileobj=compressed, mode="w", format=tarfile.USTAR_FORMAT) as archive:
-            info = tarfile.TarInfo("manifest.json")
-            info.size = len(manifest_bytes)
-            info.mtime = int(created_at.timestamp())
-            info.mode = 0o644
-            import io
+            _add_bytes_to_archive(archive, "manifest.json", manifest_bytes, created_at)
+            _add_data_file_to_archive(archive, data.items, created_at)
+            _add_data_file_to_archive(archive, data.deferred_records, created_at)
+            if data.permissions is not None:
+                _add_data_file_to_archive(archive, data.permissions, created_at)
 
-            archive.addfile(info, io.BytesIO(manifest_bytes))
-            info = tarfile.TarInfo("items.ndjson")
-            info.size = items_path.stat().st_size
-            info.mtime = int(created_at.timestamp())
-            info.mode = 0o644
-            with items_path.open("rb") as items:
-                archive.addfile(info, items)
-            info = tarfile.TarInfo("deferred-records.ndjson")
-            info.size = deferred_records_path.stat().st_size
-            info.mtime = int(created_at.timestamp())
-            info.mode = 0o644
-            with deferred_records_path.open("rb") as deferred_records:
-                archive.addfile(info, deferred_records)
-            if permissions_path is not None:
-                info = tarfile.TarInfo("permissions.ndjson")
-                info.size = permissions_path.stat().st_size
-                info.mtime = int(created_at.timestamp())
-                info.mode = 0o644
-                with permissions_path.open("rb") as permissions:
-                    archive.addfile(info, permissions)
+
+def _build_manifest(data: SnapshotData, created_at: datetime, instance: str) -> dict[str, Any]:
+    permissions_included = data.permissions is not None
+    return {
+        "format": "no.uio.mreg.snapshot",
+        "format_version": 1,
+        "created_at": created_at.isoformat().replace("+00:00", "Z"),
+        "source": {"product": "django-mreg", "version": __version__, "instance": instance},
+        "snapshot": {
+            "consistent": True,
+            "database_timestamp": data.database_timestamp.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+        },
+        "items": data.items.manifest_entry(),
+        "deferred_records": data.deferred_records.manifest_entry(),
+        "permissions": data.permissions.manifest_entry() if data.permissions is not None else None,
+        "semantics": {
+            "dependency_ordered": True,
+            "generated_records_omitted": [
+                "A_from_ip_assignment",
+                "AAAA_from_ip_assignment",
+                "PTR_from_ip_assignment",
+                "NS_from_zone",
+            ],
+            "audit_included": False,
+            "permissions_included": permissions_included,
+            "redacted": False,
+            "fully_importable": data.deferred_records.count == 0,
+        },
+    }
+
+
+def _artifact_digest(path: Path) -> tuple[str, str]:
+    digest = hashlib.sha256()
+    with path.open("rb") as artifact:
+        while chunk := artifact.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest(), base64.b64encode(digest.digest()).decode("ascii")
 
 
 def create_snapshot_artifact(
@@ -802,99 +894,34 @@ def create_snapshot_artifact(
     *,
     include_permissions: bool = False,
 ) -> SnapshotArtifact:
+    _validate_snapshot_options(snapshot_format, include_permissions)
     temporary_directory = tempfile.TemporaryDirectory(dir=settings.MREG_SNAPSHOT_TMPDIR)
     directory = Path(temporary_directory.name)
     created_at = datetime.now(timezone.utc).replace(microsecond=0)
-    items_path = directory / "items.ndjson"
-    deferred_records_path = directory / "deferred-records.ndjson"
-    permissions_path = directory / "permissions.ndjson" if include_permissions else None
     try:
-        (
-            count,
-            items_sha256,
-            deferred_count,
-            deferred_sha256,
-            permission_count,
-            permission_sha256,
-            database_timestamp,
-        ) = _write_snapshot_data(
-            items_path,
-            deferred_records_path,
-            permissions_path,
+        data = _write_snapshot_data(
+            directory,
             settings.MREG_SNAPSHOT_CHUNK_SIZE,
+            include_permissions=include_permissions,
         )
-        if count == 0:
+        if data.items.count == 0:
             raise SnapshotError("The source contains no snapshot items")
         timestamp = created_at.strftime("%Y%m%dT%H%M%SZ")
         if snapshot_format == ARCHIVE_FORMAT:
             artifact_path = directory / f"mreg-snapshot-{timestamp}-v1.tar.gz"
-            manifest = {
-                "format": "no.uio.mreg.snapshot",
-                "format_version": 1,
-                "created_at": created_at.isoformat().replace("+00:00", "Z"),
-                "source": {"product": "django-mreg", "version": __version__, "instance": instance},
-                "snapshot": {
-                    "consistent": True,
-                    "database_timestamp": database_timestamp.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
-                },
-                "items": {"path": "items.ndjson", "count": count, "sha256": items_sha256},
-                "deferred_records": {
-                    "path": "deferred-records.ndjson",
-                    "count": deferred_count,
-                    "sha256": deferred_sha256,
-                },
-                "permissions": (
-                    {
-                        "path": "permissions.ndjson",
-                        "count": permission_count,
-                        "sha256": permission_sha256,
-                    }
-                    if include_permissions
-                    else None
-                ),
-                "semantics": {
-                    "dependency_ordered": True,
-                    "generated_records_omitted": [
-                        "A_from_ip_assignment",
-                        "AAAA_from_ip_assignment",
-                        "PTR_from_ip_assignment",
-                        "NS_from_zone",
-                    ],
-                    "audit_included": False,
-                    "permissions_included": include_permissions,
-                    "redacted": False,
-                    "fully_importable": deferred_count == 0,
-                },
-            }
-            _build_archive(
-                items_path,
-                deferred_records_path,
-                permissions_path,
-                artifact_path,
-                manifest,
-                created_at,
-            )
+            manifest = _build_manifest(data, created_at, instance)
+            _build_archive(data, artifact_path, manifest, created_at)
             content_type = ARCHIVE_MEDIA_TYPE
         else:
             artifact_path = directory / f"mreg-import-{timestamp}-v1.json.gz"
-            _build_json_artifact(
-                items_path,
-                deferred_records_path,
-                artifact_path,
-                requested_by,
-                created_at,
-            )
+            _build_json_artifact(data, artifact_path, requested_by, created_at)
             content_type = JSON_MEDIA_TYPE
-        digest = hashlib.sha256()
-        with artifact_path.open("rb") as artifact:
-            while chunk := artifact.read(1024 * 1024):
-                digest.update(chunk)
-        digest_bytes = digest.digest()
+        digest_hex, digest_base64 = _artifact_digest(artifact_path)
         return SnapshotArtifact(
             path=artifact_path,
             temporary_directory=temporary_directory,
-            digest_hex=digest.hexdigest(),
-            digest_base64=base64.b64encode(digest_bytes).decode("ascii"),
+            digest_hex=digest_hex,
+            digest_base64=digest_base64,
             filename=artifact_path.name,
             content_type=content_type,
         )
@@ -906,13 +933,21 @@ def create_snapshot_artifact(
 class SnapshotFileResponse(FileResponse):
     def __init__(self, artifact: SnapshotArtifact):
         self.artifact = artifact
-        super().__init__(artifact.path.open("rb"), as_attachment=True, filename=artifact.filename, content_type=artifact.content_type)
+        source = None
+        try:
+            source = artifact.path.open("rb")
+            super().__init__(source, as_attachment=True, filename=artifact.filename, content_type=artifact.content_type)
+        except Exception:
+            if source is not None:
+                source.close()
+            artifact.cleanup()
+            raise
 
-    def close(self):
+    def close(self) -> None:
         try:
             super().close()
         finally:
-            self.artifact.temporary_directory.cleanup()
+            self.artifact.cleanup()
 
 
 def _error_response(code: str, message: str, status_code: int, error: SnapshotError | None = None) -> Response:
@@ -959,14 +994,11 @@ def _parse_request(request) -> SnapshotOptions:
         if len(request.query_params.getlist(key)) > 1:
             raise SnapshotRequestError(f"Query parameter {key!r} may only be supplied once")
     snapshot_format = request.query_params.get("format", ARCHIVE_FORMAT)
-    if snapshot_format not in {ARCHIVE_FORMAT, JSON_FORMAT}:
-        raise SnapshotRequestError(f"Unsupported snapshot format: {snapshot_format}")
     include_permissions_value = request.query_params.get("include_permissions", "false")
     if include_permissions_value not in {"false", "true"}:
         raise SnapshotRequestError("Option 'include_permissions' must be 'true' or 'false'")
     include_permissions = include_permissions_value == "true"
-    if include_permissions and snapshot_format != ARCHIVE_FORMAT:
-        raise SnapshotRequestError("Option 'include_permissions=true' is only supported by mreg-snapshot-v1")
+    _validate_snapshot_options(snapshot_format, include_permissions)
     for key, expected in SUPPORTED_OPTIONS.items():
         actual = request.query_params.get(key, expected)
         if actual != expected:
@@ -982,16 +1014,19 @@ def _parse_request(request) -> SnapshotOptions:
 
 
 class SnapshotView(APIView):
-    permission_classes = (IsAuthenticated,)
+    permission_classes = (IsSnapshotGroupMember,)
     renderer_classes = (SnapshotArchiveRenderer, SnapshotJSONRenderer)
 
-    def get(self, request):
-        if not User.from_request(request).is_mreg_snapshotter:
+    def handle_exception(self, exc: Exception) -> Response:
+        if isinstance(exc, PermissionDenied):
             return _error_response(
                 "snapshot_forbidden",
                 "The principal does not have snapshot permission",
                 403,
             )
+        return super().handle_exception(exc)
+
+    def get(self, request):
         try:
             options = _parse_request(request)
             artifact = create_snapshot_artifact(
