@@ -38,13 +38,12 @@ consumers can translate or inspect the legacy authorization model explicitly.
 {"ref":"netgroup_regex_permission:17","kind":"netgroup_regex_permission","operation":"create","attributes":{"group":"dns-admins","range":"192.0.2.0/24","regex":".*\\.example\\.org","labels":["production"]}}
 ```
 
-For compatibility with the current import endpoint, request
-`format=mreg-import-json-v1` with `Accept: application/json`. This returns a
-gzip-compressed document containing `{ "requested_by": ..., "items": [...],
-"deferred_records": [...] }`. The import endpoint consumes `items`;
-consumers must inspect `deferred_records` separately.
-`include_permissions=true` is not supported for this compatibility
-representation.
+To produce a single JSON import file rather than a tar archive, request
+`format=mreg-import-json-v1` with `Accept: application/json`. The response is a
+gzip-compressed JSON document containing `{ "requested_by": ..., "items": [...],
+"deferred_records": [...] }`. The `items` array contains the dependency-ordered
+import payload; consumers must inspect `deferred_records` separately.
+`include_permissions=true` is not supported for this JSON representation.
 
 Version 1 only accepts these option values:
 
