@@ -15,6 +15,8 @@ from rest_framework.test import APIRequestFactory, force_authenticate
 from mreg.api.v1.snapshot import (
     ARCHIVE_FORMAT,
     JSON_FORMAT,
+    SnapshotData,
+    SnapshotDataFile,
     SnapshotRequestError,
     SnapshotView,
     _parse_loc,
@@ -99,27 +101,21 @@ def write_values(path, values):
             line = json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode() + b"\n"
             output.write(line)
             digest.update(line)
-    return len(values), digest.hexdigest()
+    return SnapshotDataFile(path=path, count=len(values), sha256=digest.hexdigest())
 
 
-def fake_write_snapshot_data(items_path, deferred_records_path, permissions_path, chunk_size):
-    item_count, item_sha256 = write_values(items_path, ITEMS)
-    deferred_count, deferred_sha256 = write_values(
-        deferred_records_path,
+def fake_write_snapshot_data(directory, chunk_size, *, include_permissions):
+    items = write_values(directory / "items.ndjson", ITEMS)
+    deferred_records = write_values(
+        directory / "deferred-records.ndjson",
         DEFERRED_RECORDS,
     )
-    if permissions_path is None:
-        permission_count, permission_sha256 = None, None
-    else:
-        permission_count, permission_sha256 = write_values(permissions_path, PERMISSIONS)
-    return (
-        item_count,
-        item_sha256,
-        deferred_count,
-        deferred_sha256,
-        permission_count,
-        permission_sha256,
-        datetime(2026, 7, 12, 10, 14, 58, tzinfo=timezone.utc),
+    permissions = write_values(directory / "permissions.ndjson", PERMISSIONS) if include_permissions else None
+    return SnapshotData(
+        items=items,
+        deferred_records=deferred_records,
+        permissions=permissions,
+        database_timestamp=datetime(2026, 7, 12, 10, 14, 58, tzinfo=timezone.utc),
     )
 
 
@@ -156,7 +152,7 @@ class SnapshotArtifactTests(SimpleTestCase):
                 DEFERRED_RECORDS,
             )
         finally:
-            artifact.temporary_directory.cleanup()
+            artifact.cleanup()
 
     @mock.patch("mreg.api.v1.snapshot._write_snapshot_data", side_effect=fake_write_snapshot_data)
     def test_compatibility_json_contract(self, _write_snapshot_data):
@@ -173,7 +169,7 @@ class SnapshotArtifactTests(SimpleTestCase):
                 },
             )
         finally:
-            artifact.temporary_directory.cleanup()
+            artifact.cleanup()
 
     @mock.patch("mreg.api.v1.snapshot._write_snapshot_data", side_effect=fake_write_snapshot_data)
     def test_archive_can_include_permissions(self, _write_snapshot_data):
@@ -207,7 +203,22 @@ class SnapshotArtifactTests(SimpleTestCase):
                 PERMISSIONS,
             )
         finally:
-            artifact.temporary_directory.cleanup()
+            artifact.cleanup()
+
+    def test_rejects_invalid_direct_options(self):
+        invalid_options = (
+            ("unsupported", False),
+            (JSON_FORMAT, True),
+        )
+        for snapshot_format, include_permissions in invalid_options:
+            with self.subTest(snapshot_format=snapshot_format, include_permissions=include_permissions):
+                with self.assertRaises(SnapshotRequestError):
+                    create_snapshot_artifact(
+                        snapshot_format,
+                        "snapshotter",
+                        "mreg.example.org",
+                        include_permissions=include_permissions,
+                    )
 
     def test_loc_conversion(self):
         value = _parse_loc("42 21 54 N 71 06 18 W -24m 30m", pk=1)
@@ -296,7 +307,9 @@ class SnapshotViewTests(SimpleTestCase):
 
     def test_dedicated_permission_is_required(self):
         response = SnapshotView.as_view()(self.request(allowed=False))
+        response.render()
         self.assertEqual(response.status_code, 403)
+        self.assertEqual(response["Content-Type"], "application/json")
         self.assertEqual(response.data["error"], "snapshot_forbidden")
 
     @mock.patch("mreg.api.v1.snapshot._write_snapshot_data", side_effect=fake_write_snapshot_data)

@@ -6,7 +6,7 @@ from .endpoints import URL
 from .snapshot import SnapshotView
 
 urlpatterns = [
-     path('snapshot', SnapshotView.as_view(), name='snapshot'),
+    path("snapshot", SnapshotView.as_view(), name="snapshot"),
      path('bacnet/ids/', views_bacnet.BACnetIDList.as_view()),
      path('bacnet/ids/<id>', views_bacnet.BACnetIDDetail.as_view()),
      path('cnames/', views.CnameList.as_view()),
