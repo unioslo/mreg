@@ -616,7 +616,15 @@ class NetGroupRegexPermissionSerializer(ValidationMixin, serializers.ModelSerial
 
     class Meta:
         model = NetGroupRegexPermission
-        fields = '__all__'
+        fields = (
+            'id',
+            'created_at',
+            'updated_at',
+            'group',
+            'range',
+            'regex',
+            'labels',
+        )
 
 
 class BaseZoneSerializer(ValidationMixin, serializers.ModelSerializer):

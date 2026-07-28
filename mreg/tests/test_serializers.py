@@ -7,6 +7,7 @@ from mreg.api.errors import ValidationError409
 from mreg.api.v1.serializers import (
     CommunitySerializer,
     HostSerializer,
+    NetGroupRegexPermissionSerializer,
     NetworkSerializer,
     NetworkPolicyAttributeValueSerializer,
     NetworkPolicySerializer,
@@ -111,6 +112,22 @@ class NetworkSerializerTests(SimpleTestCase):
                 "frozen",
                 "reserved",
                 "max_communities",
+            ],
+        )
+
+
+class NetGroupRegexPermissionSerializerTests(SimpleTestCase):
+    def test_fields_preserve_api_order(self):
+        self.assertEqual(
+            list(NetGroupRegexPermissionSerializer().fields),
+            [
+                "id",
+                "created_at",
+                "updated_at",
+                "group",
+                "range",
+                "regex",
+                "labels",
             ],
         )
 
