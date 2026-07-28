@@ -75,7 +75,7 @@ jobs:
     - name: Tag container image
       # There's a docker-compose.yml file in the mreg-cli repo that wants the image from ghcr.io,
       # but we want to use the newly built custom image
-      run: docker tag mreg ghcr.io/unioslo/mreg:latest
+      run: docker tag mreg ghcr.io/unioslo/mreg:master
     - name: Checkout
       uses: actions/checkout@v4
     - name: Download mreg-cli

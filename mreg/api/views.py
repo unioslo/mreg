@@ -38,6 +38,9 @@ from mreg.models.network import NetGroupRegexPermission
 
 logger = structlog.getLogger(__name__)
 
+# Keep the pre-#628 import path working for in-flight pull requests.
+LIBRARIES_TO_REPORT = REPORTED_LIBRARY_VERSION_FIELDS
+
 start_time = int(time.time())
 
 
