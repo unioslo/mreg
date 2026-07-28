@@ -20,6 +20,7 @@ urlpatterns = [
      path('history/<pk>', views.HistoryDetail.as_view()),
      path('hosts/', views.HostList.as_view()),
      path('hosts/<name>', views.HostDetail.as_view()),
+     path('hosts/<name>/contacts/', views.HostContactsView.as_view()),
      path('hostgroups/', views_hostgroups.HostGroupList.as_view()),
      path('hostgroups/<name>', views_hostgroups.HostGroupDetail.as_view()),
      path('hostgroups/<name>/groups/', views_hostgroups.HostGroupGroupsList.as_view()),

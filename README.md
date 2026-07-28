@@ -48,7 +48,7 @@ For a full example, see `docker-compose.yml`.
 
 #### Manually
 
-> [!TIP] 
+> [!TIP]
 > Depending on your operating system, you may need to install additional packages to get the necessary dependencies for the project. At the very least you will probably require development packages for Python 3.
 
 ##### A step by step
@@ -114,23 +114,152 @@ To run the tests for the system, simply run
 uv run manage.py test
 ```
 
+For **faster test execution**, you can run tests in parallel:
+
+```bash
+# Auto-detect number of CPUs
+uv run manage.py test --parallel
+
+# Or specify the number of processes
+uv run manage.py test --parallel=4
+```
+
+This will significantly reduce test execution time (from 10-12 minutes to 2-4 minutes typically). Django creates separate test databases for each parallel process, and tests still use transaction rollback for isolation.
+
+**Running with coverage:**
+
+```bash
+# Run tests with coverage
+coverage run --concurrency=multiprocessing manage.py test --parallel
+coverage combine
+coverage report -m
+```
+
+The `coverage combine` step is required to merge coverage data from all parallel processes.
+
+## Environment Variables
+
+mreg supports configuration via environment variables with the `MREG_` prefix. These can be used to override default settings without modifying `settings.py` or creating a `local_settings.py` file. This is especially useful when running mreg in containers or deployment environments.
+
+### Database Configuration
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `MREG_DB_ENGINE` | `django.db.backends.postgresql` | Django database backend |
+| `MREG_DB_NAME` | `mreg` | Database name |
+| `MREG_DB_USER` | `mreg` | Database username |
+| `MREG_DB_PASSWORD` | `""` | Database password |
+| `MREG_DB_HOST` | `localhost` | Database host |
+| `MREG_DB_PORT` | `5432` | Database port |
+
+### Database Connection Pooling (psycopg3)
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `MREG_DB_POOL_ENABLED` | `True` | Enable or disable database connection pooling |
+| `MREG_DB_POOL_MIN_SIZE` | `5` | Minimum idle connections in pool |
+| `MREG_DB_POOL_MAX_SIZE` | `25` | Maximum connections in pool |
+| `MREG_DB_POOL_MAX_IDLE` | `300` | Max idle time before closing (seconds) |
+| `MREG_DB_POOL_MAX_LIFETIME` | `3600` | Max connection lifetime (seconds) |
+| `MREG_DB_PSYCOPG_CONNECT_TIMEOUT` | `5` | Connection timeout (seconds) |
+| `MREG_DB_PSYCOPG_OPTIONS` | `-c statement_timeout=30000` | PostgreSQL connection options |
+
+### Logging Configuration
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `MREG_LOG_LEVEL` | `CRITICAL` | Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL) |
+| `MREG_LOG_FILE_NAME` | `logs/app.log` | Log file path |
+| `MREG_LOG_FILE_SIZE` | `52428800` | Max log file size in bytes (50 MB) |
+| `MREG_LOG_FILE_COUNT` | `10` | Number of log files to keep |
+| `MREG_LOGGING_MAX_BODY_LENGTH` | `3000` | Max request/response body length to log |
+| `MREG_REQUESTS_THRESHOLD_SLOW` | `1000` | Slow request threshold (ms) |
+| `MREG_REQUESTS_LOG_LEVEL_SLOW` | `WARNING` | Log level for slow requests |
+| `MREG_REQUESTS_THRESHOLD_VERY_SLOW` | `5000` | Very slow request threshold (ms) |
+| `MREG_REQUESTS_LOG_LEVEL_VERY_SLOW` | `CRITICAL` | Log level for very slow requests |
+
+### Network Policy Configuration
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `MREG_NO_PROTECTED_POLICY_ATTRIBUTES` | `False` | Disable all protected policy attributes |
+| `MREG_PROTECTED_POLICY_ATTRIBUTES` | `""` | key=value comma separated list of protected policy attributes, overrides defaults |
+| `MREG_REQUIRED_POLICY_ATTRIBUTES` | `""` | comma separated list of required policy attributes |
+| `MREG_MAX_COMMUNITES_PER_NETWORK` | `20` | Maximum communities per network |
+| `MREG_MAP_GLOBAL_COMMUNITY_NAMES` | `False` | Enable global community name mapping |
+| `MREG_GLOBAL_COMMUNITY_TEMPLATE_PATTERN` | `community` | Template pattern for community names |
+| `MREG_COMMUNITY_TEMPLATE_PATTERN_ALLOWED_REGEX` | `^[a-zA-Z0-9_]+$` | Allowed regex for community patterns |
+| `MREG_COMMUNITY_TEMPLATE_PATTERN_MAX_LENGTH` | `100` | Max length for community patterns |
+| `MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY` | `True` | Require MAC address for an IP to be added to a community |
+| `MREG_REQUIRE_VLAN_FOR_NETWORK_TO_HAVE_COMMUNITY` | `False` | Require VLAN to be set for a network for it to have communities |
+
+### Example Usage
+
+```bash
+# Using environment variables with Docker
+docker run --network host \
+  -e MREG_DB_HOST=my_postgres_host \
+  -e MREG_DB_NAME=mreg \
+  -e MREG_DB_USER=mreg \
+  -e MREG_DB_PASSWORD=secretpassword \
+  -e MREG_LOG_LEVEL=INFO \
+  -e MREG_DB_POOL_MAX_SIZE=50 \
+  ghcr.io/unioslo/mreg:latest
+```
+
 ## Local Settings
 
 To override entries in `mregsite/settings.py`, create a file `mregsite/local_settings.py` and add the entries there.
-For example, the default database setup in `settings.py` uses sqlite3, but if you set up your postgres database
-you'll want to override this when testing. To to this, just add the following to your `local_settings.py` file:
 
 ```python
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'mreg_sample',
-        'USER': 'mreg_user',
-        'PASSWORD': 'mregdbpass',
-        'HOST': 'localhost',
-    }
-}
+MREG_DB_NAME = "mreg_sample"
+MREG_DB_USER = "mreg_user"
+MREG_DB_PASSWORD = "mregdbpass"
+MREG_DB_HOST = "localhost"
+MREG_DB_PORT = "5432"
 ```
+
+The default database setup in `settings.py` uses Django's postgres connection pool, but if you want to disable pooling for local development, you can set `MREG_DB_USE_POOL` to `False` in `local_settings.py`:
+
+```python
+MREG_DB_USE_POOL = False
+```
+
+or via environment variable:
+
+```bash
+export MREG_DB_USE_POOL=False
+```
+
+## Profiling
+
+mreg supports request and query profiling via [django-silk](https://github.com/jazzband/django-silk). Silk is an optional dependency in the `profile` dependency group (and also a part of the `dev` dependency group, thus is installed automatically in development environments). When enabled, Silk provides detailed insights into request performance, including SQL query analysis and optionally cProfile-based profiling of Python code.
+
+When enabled, Silk results are accessible in the web interface at http://127.0.0.1:8000/silk/ by default.
+
+### Enabling profiling
+
+Silk is included in the `dev` dependency group and is available automatically after `uv sync`. For deployments that need it without the full dev group (e.g. a profiling-enabled container image), use `uv sync --only-group profile`.
+
+Set `MREG_PROFILING_ENABLED=True` to activate Silk instrumentation. When enabled, Silk records every request and its associated SQL queries, which are viewable at `/silk/`.
+
+> [!WARNING]
+> Profiling adds overhead to every request. Only enable it in development or controlled environments, never in production.
+
+### Profiling configuration
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `MREG_PROFILING_ENABLED` | `False` | Enable Silk request/query instrumentation |
+| `MREG_SILKY_PYTHON_PROFILER` | `True` | Use cProfile for detailed per-request profiling (requires `MREG_PROFILING_ENABLED`) |
+| `MREG_SILKY_PYTHON_PROFILER_BINARY` | `True` | Save cProfile results to disk as `.prof` files for offline analysis |
+| `MREG_SILKY_PYTHON_PROFILER_RESULT_PATH` | `silk/profiles` | Directory to write `.prof` files into |
+| `MREG_SILKY_META` | `False` | Enable Silk meta-profiling (measures Silk's own overhead) |
+
+When `MREG_SILKY_PYTHON_PROFILER` is disabled, Silk still collects request/response data and timings, but not the detailed call-level profiling information.
+
+The `.prof` files written to `MREG_SILKY_PYTHON_PROFILER_RESULT_PATH` are standard cProfile format and can be opened with tools like `snakeviz` or Python's `pstats` module, in addition to the Silk UI.
+
 
 ## Contributing
 

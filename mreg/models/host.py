@@ -17,9 +17,44 @@ from structlog import get_logger
 
 logger = get_logger()
 
+
+class HostContact(BaseModel):
+    """
+    Model to store contact email addresses for hosts.
+    
+    Orphaned contacts (not associated with any hosts) are automatically
+    cleaned up via signals when hosts are deleted or contacts are removed.
+    """
+    email = models.EmailField(unique=True)
+    
+    class Meta:
+        db_table = "host_contact"
+        
+    def __str__(self):
+        return self.email
+    
+    def save(self, *args, **kwargs):
+        """Override save to always validate the email field."""
+        self.full_clean()
+        super().save(*args, **kwargs)
+    
+    @classmethod
+    def cleanup_orphaned_contacts(cls):
+        """Remove HostContact instances that are not associated with any hosts."""
+        orphaned = cls.objects.filter(hosts__isnull=True)
+        count = orphaned.count()
+        orphaned.delete()
+        return count
+
+
 class Host(ForwardZoneMember):
     name = LowerCaseDNSNameField(unique=True)
-    contact = models.EmailField(blank=True)
+    contacts = models.ManyToManyField(
+        HostContact,
+        blank=True,
+        related_name='hosts',
+        help_text="Contact email addresses for this host."
+    )
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
     comment = models.TextField(blank=True)
 
@@ -38,6 +73,96 @@ class Host(ForwardZoneMember):
 
     def __str__(self):
         return str(self.name)
+
+    def _add_contact(self, email: str) -> tuple['HostContact', bool]:
+        """
+        Internal method to add a single contact email to this host.
+        
+        Note: Use add_contacts() for the public API which handles validation.
+        
+        Args:
+            email: Email address to add
+            
+        Returns:
+            Tuple of (HostContact instance, created) where created is True if this is a new association
+            
+        Raises:
+            django.core.exceptions.ValidationError: If the email address is invalid
+        """
+        contact, _ = HostContact.objects.get_or_create(email=email)
+        # Check if this contact is already associated with this host
+        if contact in self.contacts.all():
+            return (contact, False)
+        self.contacts.add(contact)
+        return (contact, True)
+    
+    def add_contacts(self, emails: list[str]) -> dict[str, list[str]]:
+        """
+        Add multiple contact emails to this host.
+        
+        Args:
+            emails: List of email addresses to add
+            
+        Returns:
+            dict: Result dictionary with keys:
+                - added: List of successfully added emails
+                - already_exists: List of emails that already existed
+                - invalid: List of invalid email addresses
+        """
+        from django.core.exceptions import ValidationError
+        
+        added = []
+        already_exists = []
+        invalid_emails = []
+        
+        for email in emails:
+            try:
+                contact, created = self._add_contact(email)
+                if created:
+                    added.append(email)
+                else:
+                    already_exists.append(email)
+            except ValidationError as e:
+                # Extract email validation errors from Django ValidationError
+                # Check if error_dict exists and contains 'email' key
+                if hasattr(e, 'error_dict') and e.error_dict and 'email' in e.error_dict:
+                    invalid_emails.append(email)
+                else:
+                    raise
+        
+        return {
+            'added': added,
+            'already_exists': already_exists,
+            'invalid': invalid_emails,
+        }
+
+    def remove_contact(self, email: str) -> bool:
+        """
+        Remove a contact email from this host.
+        
+        Args:
+            email: Email address to remove
+            
+        Returns:
+            True if the contact was removed, False if it wasn't associated with this host
+        """
+        try:
+            contact = HostContact.objects.get(email=email)
+            if contact in self.contacts.all():
+                self.contacts.remove(contact)
+                return True
+            return False
+        except HostContact.DoesNotExist:
+            return False
+
+    def get_contact_emails(self) -> list[str]:
+        """
+        Get all contact emails for this host.
+        
+        Returns:
+            List of email addresses
+        """
+        return [c.email for c in self.contacts.all()]
 
     def _resolve_community_mapping(
         self,
@@ -120,6 +245,18 @@ class Host(ForwardZoneMember):
                     raise NotAcceptable(f"Community name '{community}' is ambiguous across multiple networks on this host.")
                 return matches[0]
 
+
+    def _resolve_ip(self, ip: Optional[Union['Ipaddress', str]] = None) -> Optional['Ipaddress']:
+        """
+        Helper method to resolve an IP address argument to an Ipaddress instance for the host.
+        """
+        if isinstance(ip, str):
+            try:
+                return Ipaddress.objects.get(host=self, ipaddress=ip)
+            except Ipaddress.DoesNotExist:
+                raise NotAcceptable("No IP address found on this host with the provided value.")
+        return ip
+    
     @transaction.atomic
     def add_to_community(
         self,
@@ -134,13 +271,7 @@ class Host(ForwardZoneMember):
         
         Raises NotAcceptable if any check fails.
         """
-        if isinstance(ip, str):
-            try:
-                ipaddress = Ipaddress.objects.get(host=self, ipaddress=ip)
-            except Ipaddress.DoesNotExist:
-                raise NotAcceptable("No IP address found on this host with the provided value.")
-        else:
-            ipaddress = ip
+        ipaddress = self._resolve_ip(ip)
 
         if not self.ipaddresses.exists(): # type: ignore
             raise NotAcceptable("Host has no IP addresses, cannot add to community.")
@@ -171,17 +302,38 @@ class Host(ForwardZoneMember):
     def remove_from_community(
         self,
         community: Union[Community, str],
-        ipaddress: Optional['Ipaddress'] = None
+        ip: Optional[Union['Ipaddress', str]] = None
     ) -> None:
         """
         Removes this host's mapping to the specified community.
-        
+
         Accepts a Community instance or a community name (string). If an ipaddress is not provided,
-        the helper method attempts to resolve a unique matching IP address from the host's IPs.
-        
-        Raises NotAcceptable if no matching mapping is found.
+        resolution is based on actual HostCommunityMapping entries, not network membership. This
+        allows unambiguous removal when only one IP is bound to the community, even if multiple
+        IPs are on the community's network.
+
+        Raises NotAcceptable if no matching mapping is found or if the match is ambiguous.
         """
-        resolved_ip, resolved_comm = self._resolve_community_mapping(community, ipaddress)
+        resolved_ip = self._resolve_ip(ip)
+
+        if resolved_ip is None:
+            if isinstance(community, Community):
+                mappings = HostCommunityMapping.objects.filter(host=self, community=community)
+            else:
+                mappings = HostCommunityMapping.objects.filter(host=self, community__name=community)
+    
+            # Consume queryset generator to ensure check and delete operations are
+            # performed on the same objects, avoiding read/write race conditions.
+            mappings = list(mappings[:2])
+            if not mappings:
+                raise NotAcceptable("No community mapping exists for this host with the specified criteria.")
+            if len(mappings) > 1:
+                raise NotAcceptable("Multiple IP addresses are mapped to this community; please specify one.")
+
+            mappings[0].delete()
+            return
+
+        resolved_ip, resolved_comm = self._resolve_community_mapping(community, resolved_ip)
         mapping = HostCommunityMapping.objects.filter(
             host=self,
             ipaddress=resolved_ip,

@@ -8,8 +8,8 @@ on:
     types: [opened, reopened, synchronize]
   workflow_dispatch:
 
-env:
-  UV_FROZEN: 1
+#env:
+#  UV_FROZEN: 1
 
 name: CI
 jobs:
@@ -38,6 +38,8 @@ jobs:
           - "3.10"
           - "3.11"
           - "3.12"
+          - "3.13"
+          - "3.14"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -55,6 +57,8 @@ jobs:
         run: uv run tox -r
         env:
           MREG_DB_PASSWORD: postgres
+      - name: Show coverage report for debugging
+        run: uv run coverage report
       - name: Check migrations
         run: |
           export MREG_DB_NAME=mreg MREG_DB_USER=mreg MREG_DB_PASSWORD=postgres
@@ -87,6 +91,8 @@ jobs:
           - "3.10"
           - "3.11"
           - "3.12"
+          - "3.13"
+          - "3.14"
     steps:
       - name: Checkout
         uses: actions/checkout@v4

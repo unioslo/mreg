@@ -2,7 +2,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import connection
 from sys import stdout
 from django.conf import settings
-from psycopg2 import connect
+from psycopg import connect
 
 
 class Command(BaseCommand):
@@ -28,7 +28,7 @@ class Command(BaseCommand):
                         host=settings.DATABASES['default']['HOST'],
                         user=settings.DATABASES['default']['USER'],
                         password=settings.DATABASES['default']['PASSWORD'],
-                        database=options['database']
+                        dbname=options['database']
                 )
             with con.cursor() as cursor:
                 cursor.execute("CREATE EXTENSION IF NOT EXISTS citext")

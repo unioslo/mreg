@@ -8,7 +8,7 @@ from mreg.models.network import Network
 from rest_framework import exceptions
 
 from mreg.utils import is_protected_policy_attribute
-from mreg.validators import validate_community_prefix_mapping_name
+from mreg.validators import validate_community_template_pattern
 
 class NetworkPolicyAttribute(BaseModel):
     """
@@ -53,10 +53,11 @@ class NetworkPolicy(BaseModel):
         related_name="policies",
         help_text="Attributes associated with this policy.",
     )
-    community_mapping_prefix = models.CharField(
+    community_template_pattern = models.CharField(
         blank=True,
         null=True,
-        validators=[validate_community_prefix_mapping_name],
+        unique=True,
+        validators=[validate_community_template_pattern],
         help_text="Prefix for mapped community names. If not set, the default will be used. This only applies if communities are mapped.",
     )
 
@@ -143,7 +144,7 @@ class Community(BaseModel):
                 )
 
         # Enforce maximum communities per network.
-        max_communities = getattr(settings, "MREG_MAX_COMMUNITES_PER_NETWORK", None)
+        max_communities = self.network.get_max_communities()
         if max_communities is not None:
             qs = Community.objects.filter(network=self.network)
             # Exclude self when updating an existing record.

@@ -17,10 +17,10 @@ class BACnetIDTest(MregAPITestCase):
     def setUp(self):
         """Define the test client and other test variables."""
         super().setUp()
-        self.host_one = Host(name='host1.example.org', contact='mail1@example.org')
+        self.host_one = Host(name='host1.example.org')
         self.host_one.save()
         self.id_one = BACnetID.objects.create(id=BACnetID.first_unused_id(), host=self.host_one)
-        self.host_two = Host(name='host2.example.org', contact='mail1@example.org')
+        self.host_two = Host(name='host2.example.org')
         self.host_two.save()
 
     def test_get_200_ok(self):

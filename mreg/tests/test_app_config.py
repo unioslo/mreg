@@ -75,19 +75,19 @@ class MregAppConfigTests(TestCase):
             self.app_config.create_protected_attributes(sender=self.app_config, app_config=self.app_config)
         self.assertIn("MREG_MAP_GLOBAL_COMMUNITY_NAMES must be a boolean", str(cm.exception))
 
-    @override_settings(MREG_GLOBAL_COMMUNITY_PREFIX=123)
+    @override_settings(MREG_GLOBAL_COMMUNITY_TEMPLATE_PATTERN=123)
     def test_invalid_global_prefix_type(self):
         with self.assertRaises(ValueError) as cm:
             self.app_config.create_protected_attributes(sender=self.app_config, app_config=self.app_config)
-        self.assertIn("MREG_GLOBAL_COMMUNITY_PREFIX must be a string", str(cm.exception))
+        self.assertIn("MREG_GLOBAL_COMMUNITY_TEMPLATE_PATTERN must be a string", str(cm.exception))
 
-    @override_settings(MREG_GLOBAL_COMMUNITY_PREFIX="invalid*prefix")
+    @override_settings(MREG_GLOBAL_COMMUNITY_TEMPLATE_PATTERN="invalid*prefix")
     def test_invalid_global_prefix_regex(self):
         with self.assertRaises(ValueError) as cm:
             self.app_config.create_protected_attributes(sender=self.app_config, app_config=self.app_config)
         self.assertIn("must be a string containing only A-Za-z0-9-_", str(cm.exception))
 
-    @override_settings(MREG_GLOBAL_COMMUNITY_PREFIX="a" * 61)
+    @override_settings(MREG_GLOBAL_COMMUNITY_TEMPLATE_PATTERN="a" * 61)
     def test_global_prefix_too_long(self):
         with self.assertRaises(ValueError) as cm:
             self.app_config.create_protected_attributes(sender=self.app_config, app_config=self.app_config)
@@ -98,7 +98,7 @@ class MregAppConfigTests(TestCase):
         MREG_CREATING_COMMUNITY_REQUIRES_POLICY_WITH_ATTRIBUTES=["some_attribute"],
         MREG_MAX_COMMUNITES_PER_NETWORK=20,
         MREG_MAP_GLOBAL_COMMUNITY_NAMES=True,
-        MREG_GLOBAL_COMMUNITY_PREFIX="community"
+        MREG_GLOBAL_COMMUNITY_TEMPLATE_PATTERN="community"
     )
     def test_valid_settings_creates_protected_attribute(self):
         # Remove any preexisting instance.

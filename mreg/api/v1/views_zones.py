@@ -58,10 +58,14 @@ def _validate_nameservers(names):
 
 
 def _get_request_nameservers(request: Request, field: str = "primary_ns") -> List[str]:
-    """Extract nameservers from the request data."""
+    """Extract nameservers as a list, accepting a JSON string or array."""
     if request.content_type == "application/json":
-        return request.data.get(field, [])
-    return request.data.getlist(field, [])
+        nameservers = request.data.get(field, [])
+    else:
+        nameservers = request.data.getlist(field, [])
+    if isinstance(nameservers, str):
+        nameservers = [nameservers]
+    return nameservers
 
 
 class ZoneList(generics.ListCreateAPIView):
@@ -70,7 +74,8 @@ class ZoneList(generics.ListCreateAPIView):
     Returns a list of all zones.
 
     post:
-    Create a zone. The primary_ns field is a list where the first element will be the primary nameserver.
+    Create a zone. The primary_ns field accepts a nameserver string or a list;
+    the first list element becomes the primary nameserver.
 
     """
 
@@ -119,7 +124,8 @@ class ZoneDelegationList(generics.ListCreateAPIView):
     Returns a list of all the zone's delegations.
 
     post:
-    Create a delegation for the zone.
+    Create a delegation for the zone. The nameservers field accepts a
+    nameserver string or a list.
     """
 
     lookup_field = 'name'
@@ -290,7 +296,8 @@ class ZoneNameServerDetail(MregRetrieveUpdateDestroyAPIView):
 
     patch:
     Set the nameserver list of a zone. Requires all the nameservers of the zone
-    and removes the ones not mentioned.
+    and removes the ones not mentioned. The primary_ns field accepts a
+    nameserver string or a list.
     """
 
     lookup_field = 'name'

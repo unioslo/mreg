@@ -314,7 +314,7 @@ class ReservedAddressPermissionsTestCase(MregAPITestCase):
         """Test reserved address restrictions on /ipaddresses/ endpoint."""
         # Create a host first
         host = Host.objects.create(name='test.example.org')
-        ip = Ipaddress.objects.create(host=host, ipaddress=self.ipv4_regular_addr)
+        Ipaddress.objects.create(host=host, ipaddress=self.ipv4_regular_addr)
         
         for address in self.reserved_addresses:
             data = {'host': host.id, 'ipaddress': address.value}
@@ -328,7 +328,7 @@ class ReservedAddressPermissionsTestCase(MregAPITestCase):
     def test_post_ptroverride_reserved_addresses(self):
         """Test reserved address restrictions on POST /ptroverrides/ endpoint."""
         host = Host.objects.create(name='test.example.org')
-        ip = Ipaddress.objects.create(host=host, ipaddress=self.ipv4_regular_addr)
+        Ipaddress.objects.create(host=host, ipaddress=self.ipv4_regular_addr)
         
         for address in self.reserved_addresses:
             data = {'host': host.id, 'ipaddress': address.value}
@@ -342,7 +342,7 @@ class ReservedAddressPermissionsTestCase(MregAPITestCase):
     def test_patch_hosts_reserved_addresses(self):
         """Test that updating an IP to a reserved address is restricted."""
         host = Host.objects.create(name='test.example.org')
-        ip = Ipaddress.objects.create(host=host, ipaddress=self.ipv4_regular_addr)
+        Ipaddress.objects.create(host=host, ipaddress=self.ipv4_regular_addr)
 
         for address in self.reserved_addresses:
             data = {'ipaddresses': address.value}

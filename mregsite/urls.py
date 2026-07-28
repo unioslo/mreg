@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.urls import include, path
+from django.conf import settings
 
 from rest_framework.schemas import get_schema_view
 
@@ -13,3 +14,6 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('docs/', schema_view),
 ]
+
+if settings.MREG_PROFILING_ENABLED:
+    urlpatterns.append(path('silk/', include('silk.urls', namespace='silk')))

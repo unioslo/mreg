@@ -21,7 +21,7 @@ from rest_framework.exceptions import PermissionDenied
 
 from mreg.models.base import History, NameServer, ForwardZoneMember
 from mreg.models.resource_records import Cname, Loc, Naptr, Srv, Sshfp, Txt, Hinfo, Mx
-from mreg.models.host import Host, HostGroup, Ipaddress, PtrOverride
+from mreg.models.host import Host, HostGroup, Ipaddress, PtrOverride, HostContact
 from mreg.models.network import NetGroupRegexPermission, Network
 from mreg.models.zone import ForwardZone, ReverseZone
 
@@ -430,6 +430,46 @@ def send_event_host_removed(sender, instance, **kwargs):
         "action": "host_removed",
     }
     MQSender().send_event(obj, "host")
+
+
+@receiver(m2m_changed, sender=Host.contacts.through)
+def cleanup_orphaned_contacts(sender, instance, action, pk_set, **kwargs):
+    """
+    Clean up HostContact instances that are no longer associated with any hosts.
+    This runs when contacts are removed from a host or when a host is deleted.
+    """
+    if action in ("post_remove", "post_clear"):
+        # Clean up any contacts that are now orphaned
+        HostContact.objects.filter(hosts__isnull=True).delete()
+
+
+@receiver(pre_delete, sender=Host)
+def cleanup_contacts_before_host_delete(sender, instance, **kwargs):
+    """
+    Clean up orphaned contacts before a host is deleted.
+    The m2m_changed signal doesn't fire on cascade delete, so we need this.
+    """
+    # Store contact IDs before deletion
+    contact_ids = list(instance.contacts.values_list('id', flat=True))
+    # Django will handle the m2m deletion via CASCADE, but we need to check
+    # after that for orphans. We'll use a post_delete signal for the actual cleanup.
+    instance._contact_ids_to_check = contact_ids
+
+
+@receiver(post_delete, sender=Host)
+def cleanup_contacts_after_host_delete(sender, instance, **kwargs):
+    """
+    Clean up orphaned contacts after a host is deleted.
+    """
+    # Check if any of the contacts from this host are now orphaned
+    if hasattr(instance, '_contact_ids_to_check'):
+        for contact_id in instance._contact_ids_to_check:
+            try:
+                contact = HostContact.objects.get(id=contact_id)
+                if not contact.hosts.exists():
+                    contact.delete()
+            except HostContact.DoesNotExist:
+                pass
 
 
 def _log_object_event(event, model, instance, level="info"):

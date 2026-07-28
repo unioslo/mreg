@@ -5,6 +5,8 @@ from functools import reduce
 from django.db import models
 from django.db.models import Q
 from netfields import CidrAddressField, NetManager
+from django.conf import settings
+
 
 from mreg.models.base import MAX_UNUSED_LIST, BaseModel, Label
 from mreg.validators import validate_regex
@@ -19,6 +21,7 @@ class Network(BaseModel):
     location = models.TextField(blank=True)
     frozen = models.BooleanField(default=False)
     reserved = models.PositiveIntegerField(default=3)
+    max_communities = models.PositiveIntegerField(null=True, blank=True)
 
     policy = models.ForeignKey(
         "NetworkPolicy",
@@ -46,7 +49,20 @@ class Network(BaseModel):
 
         if self.reserved > network.num_addresses:
             self.reserved = network.num_addresses
+
+        # Ensure that max_communities is None if no policy is set
+        if not self.policy:
+            self.max_communities = None
+
         super().save(*args, **kwargs)
+
+    def get_max_communities(self) -> int | None:
+        """Returns the maximum number of communities allowed on the network.
+        
+        This is either defined on the network itself, of from the global setting.
+        """
+        return self.max_communities or getattr(settings, "MREG_MAX_COMMUNITES_PER_NETWORK", None)
+            
 
     def get_reserved_ipaddresses(self):
         """Returns a set with the reserved ip addresses for the network."""
