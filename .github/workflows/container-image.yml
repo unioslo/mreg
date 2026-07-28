@@ -18,13 +18,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
     - name: Docker build
       run: docker build -t mreg .
     - name: Save image
       run: docker save mreg | gzip > mreg.tgz
     - name: Upload artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: mreg
         path: mreg.tgz
@@ -50,7 +50,7 @@ jobs:
           - 5432:5432
     steps:
     - name: Download artifact
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: mreg
     - name: Load image
@@ -67,7 +67,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Download artifact
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: mreg
     - name: Load container image
@@ -77,7 +77,7 @@ jobs:
       # but we want to use the newly built custom image
       run: docker tag mreg ghcr.io/unioslo/mreg:latest
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
     - name: Download mreg-cli
       run: git clone https://github.com/unioslo/mreg-cli.git
     - name: Check out a previous version of mreg-cli
@@ -122,7 +122,7 @@ jobs:
           - 5432:5432
     steps:
     - name: Download artifact
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: mreg
     - name: Load container image
@@ -167,7 +167,7 @@ jobs:
       contents: read
     steps:
     - name: Download artifact
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: mreg
     - name: Load image
