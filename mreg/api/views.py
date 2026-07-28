@@ -20,7 +20,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.http import HttpResponse
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiParameter, OpenApiTypes, extend_schema
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
 from mreg.__about__ import __version__ as mreg_version
@@ -97,6 +97,7 @@ PROMETHEUS_METRICS_TEXT_SCHEMA = {
 
 class ObtainExpiringAuthToken(ObtainAuthToken):
 
+    @extend_schema(auth=[])
     def post(self, request: Request, *args: Any, **kwargs: Any):
         serializer = self.serializer_class(data=request.data, context={"request": request})
         try:
@@ -162,7 +163,18 @@ class UserInfo(APIView):
 
     permission_classes = (IsAuthenticated,)
 
-    @extend_schema(responses={status.HTTP_200_OK: UserInfoSerializer})
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                "username",
+                OpenApiTypes.STR,
+                OpenApiParameter.QUERY,
+                required=False,
+                description="Username to inspect. Requires administrative privileges when querying another user.",
+            )
+        ],
+        responses={status.HTTP_200_OK: UserInfoSerializer},
+    )
     def get(self, request: Request):
         # Identify the requesting user
         req_user = User.from_request(request)
@@ -330,6 +342,9 @@ class MetricsView(APIView):
 
     permission_classes = ()
 
-    @extend_schema(responses={(status.HTTP_200_OK, "text/plain"): PROMETHEUS_METRICS_TEXT_SCHEMA})
+    @extend_schema(
+        auth=[],
+        responses={(status.HTTP_200_OK, "text/plain"): PROMETHEUS_METRICS_TEXT_SCHEMA},
+    )
     def get(self, request: Request):
         return HttpResponse(generate_latest(), content_type=CONTENT_TYPE_LATEST)
