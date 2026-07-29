@@ -29,6 +29,9 @@ WORKDIR /app
 # Don't allow uv to download anything
 ENV UV_OFFLINE=1
 
+# Use the copied virtual environment for direct Python commands too
+ENV PATH="/app/.venv/bin:$PATH"
+
 # Copy over venv with all installed dependencies
 COPY --from=builder /app/.venv /app/.venv
 
