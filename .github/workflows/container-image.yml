@@ -75,7 +75,7 @@ jobs:
     - name: Tag container image
       # There's a docker-compose.yml file in the mreg-cli repo that wants the image from ghcr.io,
       # but we want to use the newly built custom image
-      run: docker tag mreg ghcr.io/unioslo/mreg:master
+      run: docker tag mreg ghcr.io/unioslo/mreg:latest
     - name: Checkout
       uses: actions/checkout@v4
     - name: Download mreg-cli
@@ -89,6 +89,8 @@ jobs:
         git -c advice.detachedHead=false checkout $C
         cp --no-clobber /tmp/ci/* ci/
     - name: Run the tests
+      env:
+        MREG_IMAGE: ghcr.io/unioslo/mreg:latest
       run: mreg-cli/ci/run_testsuite_and_record_V2.sh
     - name: Comment on the commit that the tests worked
       run: |
