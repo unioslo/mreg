@@ -66,7 +66,8 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     env:
-      # This image exists only in the runner's local Docker image store.
+      # These vars are sourced by mreg-cli's `run_testsuite_and_record_V2.sh`
+      # Ensures we use local image (with unique CI tag), not image pulled from registry.
       MREG_IMAGE: mreg:ci
       MREG_IMAGE_PULL_POLICY: never
     steps:
