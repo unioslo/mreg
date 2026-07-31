@@ -1,5 +1,6 @@
 from mreg.models.host import Host, Ipaddress
-from mreg.models.zone import ForwardZone, ReverseZone
+from mreg.models.zone import ForwardZone, ForwardZoneDelegation, ReverseZone
+from mreg.api.v1.zonefile import ForwardFile
 
 from .tests import MregAPITestCase
 
@@ -132,8 +133,27 @@ class APIZonefileTestCase(MregAPITestCase):
                 'host': host.id}
         self.assert_post("/txts/", data)
         ret = self._get_zone(self.forward)
-        # make sure the 260 chars are splitted in 255 chars with a space and then the rest
+        # make sure the 260 chars are split in 255 chars with a space and then the rest
         self.assertIn(f'{"o"*255} ooooo', ret)
+
+    def test_get_glue_missing_ipaddress(self):
+        host = Host.objects.create(name="ns-noip.example.org")
+        forward_file = ForwardFile(self.forward)
+
+        result = forward_file.get_glue(host.name)
+
+        self.assertEqual(result, f"OPS: no ipaddress for name server {host.name}\n")
+
+    def test_get_ns_data_without_nameservers(self):
+        delegation = ForwardZoneDelegation.objects.create(
+            zone=self.forward,
+            name="sub-no-ns.example.org",
+        )
+        forward_file = ForwardFile(self.forward)
+
+        result = forward_file.get_ns_data(ForwardZoneDelegation.objects.filter(id=delegation.id))
+
+        self.assertEqual(result, f"OPS: NO NS FOR {delegation.name}\n")
 
     def test_get_reverse_zones(self):
         rev_v4 = self.create_reverse_zone('10.10.in-addr.arpa')
