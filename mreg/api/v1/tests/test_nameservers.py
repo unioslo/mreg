@@ -5,8 +5,12 @@ class NameserversTestCase(MregAPITestCase):
     """Test API for Nameservers"""
 
     def test_create_and_get_nameservers(self):
+        # Create a nameserver
         data = {'name': 'ns.example.org'}
-        self.assert_post('/nameservers/', data)
+        resp = self.assert_post('/nameservers/', data)
+        self.assertEqual(resp.headers["Location"], f"/api/v1/nameservers/{data['name']}")
+        
+        # Retrieve it
         ret = self.assert_get('/nameservers/').data
         self.assertEqual(ret['count'], 1)
         ns = ret['results'][0]

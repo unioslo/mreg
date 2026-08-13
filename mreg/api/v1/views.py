@@ -205,13 +205,18 @@ class MregRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
             # forcibly invalidate the prefetch cache on the instance.
             instance._prefetched_objects_cache = {}
 
-        if self.lookup_field in serializer.validated_data:
-            # Remove the value of self.lookup_field from end of path
-            location = request.path[: -len(kwargs[self.lookup_field])]
-            # and replace with updated one
-            location += str(serializer.validated_data[self.lookup_field])
-        else:
-            location = request.path
+        # The detail path ends with the current lookup value (no trailing slash).
+        # Replace that trailing segment with the value read off the saved instance
+        # so a PATCH that renames the resource points Location at its new URL. We
+        # use serializer.instance rather than validated_data because save() may
+        # normalize the value (lower-casing, IDNA encoding); the Location must
+        # match what the detail view will resolve. lookup_field is not always a
+        # model attribute (e.g. zone delegations use it purely as a URL kwarg), so
+        # fall back to the current value when it can't be read off the instance;
+        # if the value is unchanged the path is likewise left untouched.
+        old_value = str(self.kwargs[self.lookup_url_kwarg or self.lookup_field])
+        new_value = str(getattr(serializer.instance, self.lookup_field, old_value))
+        location = request.path.removesuffix(old_value) + new_value
         return Response(
             status=status.HTTP_204_NO_CONTENT, headers={"Location": location}
         )
@@ -225,16 +230,38 @@ class MregListCreateAPIView(MregMixin, generics.ListCreateAPIView):
     # 1) We shouldn't use request.path but instead reverse on an api.vX.endpoint enum value
     # 2) We should let each view set a POST location root, and then append the lookup_field
     # This is the root cause of https://github.com/unioslo/mreg/issues/528
-    def _get_location(self, request, serializer):
-        return request.path + str(serializer.validated_data[self.lookup_field])
 
-    def post(self, request, *args, **kwargs):
-        # Add a location header for all POSTs
+    # Field on the created instance used to build the Location header. Defaults to
+    # lookup_field, but a view whose detail endpoint keys on a different field can
+    # override it (e.g. LabelList uses lookup_field='name' for its duplicate check
+    # while its detail endpoint is keyed on 'pk').
+    location_lookup_field = None
+
+    def _get_location(self, request, serializer):
+        # request.path is the list URL (POST target); the detail URL is that path
+        # plus the created object's lookup value. We read the value off the saved
+        # instance (not validated_data) so it works even when the field is 'pk' or
+        # otherwise absent from the request payload. This must match the Detail
+        # view, which resolves objects by this field. The field is not guaranteed
+        # to be a model attribute (e.g. views that use lookup_field purely as a URL
+        # kwarg), so fall back to the pk as a best-effort identifier.
+        field = self.location_lookup_field or self.lookup_field
+        value = getattr(serializer.instance, field, serializer.instance.pk)
+        return request.path + str(value)
+
+    def create(self, request, *args, **kwargs):
+        """Re-implementation of CreateModelMixin.create that sets a Location header.
+
+        Identical to the DRF default except it adds a Location header pointing at
+        the created resource. perform_create() is still the hook subclasses
+        override (e.g. for permission checks); the created object is read back off
+        serializer.instance, which serializer.save() populates.
+        """
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
-        location = self._get_location(request, serializer)
-        return Response(status=status.HTTP_201_CREATED, headers={"Location": location})
+        headers = {"Location": self._get_location(request, serializer)}
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
 
 class MregPermissionsUpdateDestroy:
@@ -265,7 +292,7 @@ class MregPermissionsUpdateDestroy:
                 self.permission_denied(request)
 
 
-class MregPermissionsListCreateAPIView(MregMixin, generics.ListCreateAPIView):
+class MregPermissionsListCreateAPIView(MregListCreateAPIView):
     def perform_create(self, serializer):
         # Custom check create permissions
         self.check_create_permissions(self.request, serializer)
@@ -992,11 +1019,6 @@ class NetworkExcludedRangeList(MregListCreateAPIView):
 
     serializer_class = NetworkExcludedRangeSerializer
     permission_classes = (IsSuperOrNetworkAdminMember | IsAuthenticatedAndReadOnly,)
-
-    def _get_location(self, request, serializer):
-        # Can not get Location if the attribute is not set in the serializer
-        obj = self.get_queryset().get(**serializer.validated_data)
-        return request.path + str(obj.pk)
 
     def get_queryset(self):
         """
