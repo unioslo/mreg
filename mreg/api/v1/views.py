@@ -50,6 +50,7 @@ from .filters import (
     TxtFilterSet,
 )
 from .history import HistoryLog
+from .locations import location_for
 from .serializers import (
     CnameSerializer,
     DhcpHostSerializer,
@@ -190,6 +191,8 @@ class MregRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
     Makes sure patch returns empty body, 204 - No Content, and location of object.
     """
 
+    location_lookup_safe = ""
+
     def perform_update(self, serializer, **kwargs):
         super().perform_update(serializer)
         serializer.save(**kwargs)
@@ -216,7 +219,10 @@ class MregRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
         # if the value is unchanged the path is likewise left untouched.
         old_value = str(self.kwargs[self.lookup_url_kwarg or self.lookup_field])
         new_value = str(getattr(serializer.instance, self.lookup_field, old_value))
-        location = request.path.removesuffix(old_value) + new_value
+        location_root = request.path.removesuffix(old_value)
+        location = location_for(
+            location_root, new_value, safe=self.location_lookup_safe
+        )
         return Response(
             status=status.HTTP_204_NO_CONTENT, headers={"Location": location}
         )
@@ -236,6 +242,7 @@ class MregListCreateAPIView(MregMixin, generics.ListCreateAPIView):
     # override it (e.g. LabelList uses lookup_field='name' for its duplicate check
     # while its detail endpoint is keyed on 'pk').
     location_lookup_field = None
+    location_lookup_safe = ""
 
     def _get_location(self, request, serializer):
         # request.path is the list URL (POST target); the detail URL is that path
@@ -247,7 +254,7 @@ class MregListCreateAPIView(MregMixin, generics.ListCreateAPIView):
         # kwarg), so fall back to the pk as a best-effort identifier.
         field = self.location_lookup_field or self.lookup_field
         value = getattr(serializer.instance, field, serializer.instance.pk)
-        return request.path + str(value)
+        return location_for(request.path, value, safe=self.location_lookup_safe)
 
     def create(self, request, *args, **kwargs):
         """Re-implementation of CreateModelMixin.create that sets a Location header.
@@ -497,8 +504,9 @@ class HostList(HostPermissionsListCreateAPIView):
                     if community:
                         host.add_to_community(community)
 
-                    location = request.path + host.name
+                    location = location_for(request.path, host.name)
                     return Response(
+                        self.get_serializer(host).data,
                         status=status.HTTP_201_CREATED,
                         headers={"Location": location},
                     )
@@ -513,9 +521,11 @@ class HostList(HostPermissionsListCreateAPIView):
             hostserializer = HostSerializer(host, data=hostdata)
             if hostserializer.is_valid(raise_exception=True):
                 self.perform_create(hostserializer)
-                location = request.path + host.name
+                location = location_for(request.path, host.name)
                 return Response(
-                    status=status.HTTP_201_CREATED, headers={"Location": location}
+                    self.get_serializer(host).data,
+                    status=status.HTTP_201_CREATED,
+                    headers={"Location": location},
                 )
 
 
@@ -949,6 +959,7 @@ class NetworkList(MregListCreateAPIView):
     serializer_class = NetworkSerializer
     permission_classes = (IsSuperOrNetworkAdminMember | IsAuthenticatedAndReadOnly,)
     lookup_field = "network"
+    location_lookup_safe = "/:"
     filterset_class = NetworkFilterSet
 
     def post(self, request, *args, **kwargs):
@@ -975,6 +986,7 @@ class NetworkDetail(MregRetrieveUpdateDestroyAPIView):
     permission_classes = (IsSuperOrNetworkAdminMember | IsAuthenticatedAndReadOnly,)
 
     lookup_field = "network"
+    location_lookup_safe = "/:"
 
     def patch(self, request, *args, **kwargs):
         network = self.get_object()
@@ -1229,7 +1241,7 @@ class TxtDetail(HostPermissionsUpdateDestroy, MregRetrieveUpdateDestroyAPIView):
     serializer_class = TxtSerializer
 
 
-class NetGroupRegexPermissionList(MregMixin, generics.ListCreateAPIView):
+class NetGroupRegexPermissionList(MregListCreateAPIView):
     """ """
 
     queryset = NetGroupRegexPermission.objects.all().order_by('id')

@@ -9,7 +9,7 @@ class NameserversTestCase(MregAPITestCase):
         data = {'name': 'ns.example.org'}
         resp = self.assert_post('/nameservers/', data)
         self.assertEqual(resp.headers["Location"], f"/api/v1/nameservers/{data['name']}")
-        
+
         # Retrieve it
         ret = self.assert_get('/nameservers/').data
         self.assertEqual(ret['count'], 1)

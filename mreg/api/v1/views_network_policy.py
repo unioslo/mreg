@@ -228,7 +228,7 @@ class NetworkCommunityHostList(HostInCommunityMixin, generics.ListCreateAPIView)
         ).qs
 
     def create(self, request, *args, **kwargs):
-        _, community = self.get_policy_and_community()
+        network, community = self.get_policy_and_community()
         host_id = request.data.get("id")
         ipaddress = request.data.get("ipaddress")
         host = None
@@ -254,7 +254,23 @@ class NetworkCommunityHostList(HostInCommunityMixin, generics.ListCreateAPIView)
             
         host.add_to_community(community, ipaddress)
 
-        return response.Response(HostSerializer(host).data, status=status.HTTP_201_CREATED)
+        headers = {
+            "Location": request.build_absolute_uri(
+                reverse(
+                    URL.NetworkPolicy.COMMUNITY_HOST_DETAIL,
+                    kwargs={
+                        "network": str(network.network),
+                        "cpk": community.pk,
+                        "hostpk": host.pk,
+                    },
+                )
+            )
+        }
+        return response.Response(
+            HostSerializer(host).data,
+            status=status.HTTP_201_CREATED,
+            headers=headers,
+        )
 
 
 # Retrieve or delete a specific host in a specific community

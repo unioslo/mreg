@@ -23,6 +23,7 @@ from mreg.api.permissions import (IsSuperGroupMember, IsAuthenticatedAndReadOnly
 
 from .serializers import (ForwardZoneByHostnameSerializer, ForwardZoneDelegationSerializer, ForwardZoneSerializer,
                           ReverseZoneDelegationSerializer, ReverseZoneSerializer)
+from .locations import encode_location_path, location_for
 from .views import (MregRetrieveUpdateDestroyAPIView, )
 from .zonefile import ZoneFile
 
@@ -110,8 +111,12 @@ class ZoneList(generics.ListCreateAPIView):
         self.perform_create(zone)
         zone.update_nameservers(nameservers)
         _update_parent_zone(qs, zone.name)
-        location = request.path + zone.name
-        return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
+        location = location_for(request.path, zone.name, safe="/:")
+        return Response(
+            self.get_serializer(zone).data,
+            status=status.HTTP_201_CREATED,
+            headers={'Location': location},
+        )
 
 
 class ForwardZoneList(ZoneList):
@@ -161,8 +166,12 @@ class ZoneDelegationList(generics.ListCreateAPIView):
         delegation.update_nameservers(nameservers)
         self.parentzone.updated = True
         self.parentzone.save()
-        location = request.path + delegation.name
-        return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
+        location = location_for(request.path, delegation.name, safe="/:")
+        return Response(
+            self.get_serializer(delegation).data,
+            status=status.HTTP_201_CREATED,
+            headers={'Location': location},
+        )
 
 
 class ForwardZoneDelegationList(ZoneDelegationList):
@@ -217,7 +226,7 @@ class ZoneDetail(LowerCaseLookupMixin, MregRetrieveUpdateDestroyAPIView):
         serializer = self.get_serializer(zone, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer, updated=True)
-        location = request.path + zone.name
+        location = encode_location_path(request.path)
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
     def delete(self, request, *args, **kwargs):
@@ -230,7 +239,7 @@ class ZoneDetail(LowerCaseLookupMixin, MregRetrieveUpdateDestroyAPIView):
             zone.remove_nameservers()
             zone.delete()
         _update_parent_zone(self.get_queryset(), zone.name)
-        location = request.path + zone.name
+        location = encode_location_path(request.path)
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
@@ -284,7 +293,8 @@ class ZoneDelegationDetail(LowerCaseLookupMixin, MregRetrieveUpdateDestroyAPIVie
         # Also update the parent zone's updated attribute
         self.parentzone.updated = True
         self.parentzone.save()
-        return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': request.path})
+        location = encode_location_path(request.path)
+        return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
 class ForwardZoneDelegationDetail(ZoneDelegationDetail):
@@ -327,7 +337,8 @@ class ZoneNameServerDetail(MregRetrieveUpdateDestroyAPIView):
         zone.primary_ns = nameservers[0]
         zone.updated = True
         self.perform_update(zone)
-        return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': request.path})
+        location = encode_location_path(request.path)
+        return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
 class ForwardZoneNameServerDetail(ZoneNameServerDetail):
