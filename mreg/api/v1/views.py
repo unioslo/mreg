@@ -50,7 +50,7 @@ from .filters import (
     TxtFilterSet,
 )
 from .history import HistoryLog
-from .locations import location_for
+from .location import location_for
 from .serializers import (
     CnameSerializer,
     DhcpHostSerializer,

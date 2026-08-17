@@ -3,7 +3,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.serializers import BaseSerializer
 
-from mreg.api.v1.locations import location_for
+from mreg.api.v1.location import location_for
 
 
 def created_response_at_url(serializer: BaseSerializer, url: str) -> Response:

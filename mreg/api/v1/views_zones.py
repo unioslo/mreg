@@ -23,7 +23,7 @@ from mreg.api.permissions import (IsSuperGroupMember, IsAuthenticatedAndReadOnly
 
 from .serializers import (ForwardZoneByHostnameSerializer, ForwardZoneDelegationSerializer, ForwardZoneSerializer,
                           ReverseZoneDelegationSerializer, ReverseZoneSerializer)
-from .locations import encode_location_path
+from .location import encode_location_path
 from .views import (MregRetrieveUpdateDestroyAPIView, )
 from .zonefile import ZoneFile
 
