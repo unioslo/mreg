@@ -6,7 +6,6 @@ from mreg.api.v1.views import (
     MregListCreateAPIView,
     MregRetrieveUpdateDestroyAPIView,
 )
-from mreg.api.v1.locations import location_for
 from mreg.api.permissions import IsGrantedNetGroupRegexPermission
 from mreg.models.host import Host, BACnetID
 from . import serializers
@@ -56,10 +55,10 @@ class BACnetIDList(MregListCreateAPIView):
         if ser.is_valid(raise_exception=True):
             # create a new object
             self.perform_create(ser)
-            location = location_for(request.path, obj.id)
             return created_response(
-                ser.data,
-                location=location,
+                request,
+                ser,
+                obj.id,
             )
 
 

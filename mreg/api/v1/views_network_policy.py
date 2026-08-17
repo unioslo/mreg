@@ -20,7 +20,7 @@ from mreg.api.v1.filters import (
 )
 
 from mreg.api.errors import ValidationError409
-from mreg.api.responses import created_response
+from mreg.api.responses import created_response_at_url
 
 from mreg.api.v1.views import JSONContentTypeMixin, HistoryLog
 from mreg.api.permissions import IsGrantedNetGroupRegexPermission, IsSuperOrNetworkAdminMember
@@ -75,7 +75,7 @@ class NetworkPolicyList(JSONContentTypeMixin, generics.ListCreateAPIView):
         location = request.build_absolute_uri(
             reverse(URL.NetworkPolicy.DETAIL, kwargs={"pk": network_policy.id})
         )
-        return created_response(serializer.data, location=location)
+        return created_response_at_url(serializer, location)
 
 
 class NetworkPolicyDetail(JSONContentTypeMixin, generics.RetrieveUpdateDestroyAPIView):
@@ -121,7 +121,7 @@ class NetworkPolicyAttributeList(JSONContentTypeMixin, generics.ListCreateAPIVie
             reverse(URL.NetworkPolicy.ATTRIBUTE_DETAIL, kwargs={"pk": network_policy_attribute.id})
         )
 
-        return created_response(serializer.data, location=location)
+        return created_response_at_url(serializer, location)
 
 class NetworkPolicyAttributeDetail(JSONContentTypeMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = NetworkPolicyAttribute.objects.all().order_by("id")
@@ -169,7 +169,7 @@ class NetworkCommunityList(JSONContentTypeMixin, CommunityLogMixin, generics.Lis
         location = request.build_absolute_uri(
             reverse(URL.NetworkPolicy.COMMUNITY_DETAIL, kwargs={"network": str(network.network), "cpk": community.id})
         )
-        return created_response(serializer.data, location=location)
+        return created_response_at_url(serializer, location)
 
 
 
@@ -260,9 +260,9 @@ class NetworkCommunityHostList(HostInCommunityMixin, generics.ListCreateAPIView)
                 },
             )
         )
-        return created_response(
-            HostSerializer(host).data,
-            location=location,
+        return created_response_at_url(
+            HostSerializer(host),
+            location,
         )
 
 

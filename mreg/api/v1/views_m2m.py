@@ -5,7 +5,6 @@ from rest_framework.exceptions import MethodNotAllowed
 from rest_framework.response import Response
 
 from mreg.api.responses import created_response, error_response
-from mreg.api.v1.locations import location_for
 
 
 class M2MPermissions:
@@ -88,10 +87,10 @@ class M2MList:
                 except self.m2m_object.DoesNotExist:
                     return error_response(f'"{name}" does not exist', status.HTTP_404_NOT_FOUND)
             self.perform_m2m_alteration(self.m2mrelation.add, instance)
-            location = location_for(request.path, instance.name)
             return created_response(
-                self.get_serializer(instance).data,
-                location=location,
+                request,
+                self.get_serializer(instance),
+                instance.name,
             )
         else:
             return error_response('No name provided', status.HTTP_400_BAD_REQUEST)

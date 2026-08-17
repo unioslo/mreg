@@ -244,18 +244,6 @@ class MregListCreateAPIView(MregMixin, generics.ListCreateAPIView):
     location_lookup_field = None
     location_lookup_safe = ""
 
-    def _get_location(self, request, serializer):
-        # request.path is the list URL (POST target); the detail URL is that path
-        # plus the created object's lookup value. We read the value off the saved
-        # instance (not validated_data) so it works even when the field is 'pk' or
-        # otherwise absent from the request payload. This must match the Detail
-        # view, which resolves objects by this field. The field is not guaranteed
-        # to be a model attribute (e.g. views that use lookup_field purely as a URL
-        # kwarg), so fall back to the pk as a best-effort identifier.
-        field = self.location_lookup_field or self.lookup_field
-        value = getattr(serializer.instance, field, serializer.instance.pk)
-        return location_for(request.path, value, safe=self.location_lookup_safe)
-
     def create(self, request, *args, **kwargs):
         """Re-implementation of CreateModelMixin.create that sets a Location header.
 
@@ -267,9 +255,13 @@ class MregListCreateAPIView(MregMixin, generics.ListCreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
+        field = self.location_lookup_field or self.lookup_field
+        value = getattr(serializer.instance, field, serializer.instance.pk)
         return created_response(
-            serializer.data,
-            location=self._get_location(request, serializer),
+            request,
+            serializer,
+            value,
+            safe=self.location_lookup_safe,
         )
 
 
@@ -506,10 +498,10 @@ class HostList(HostPermissionsListCreateAPIView):
                     if community:
                         host.add_to_community(community)
 
-                    location = location_for(request.path, host.name)
                     return created_response(
-                        self.get_serializer(host).data,
-                        location=location,
+                        request,
+                        self.get_serializer(host),
+                        host.name,
                     )
         else:
             if community:
@@ -522,10 +514,10 @@ class HostList(HostPermissionsListCreateAPIView):
             hostserializer = HostSerializer(host, data=hostdata)
             if hostserializer.is_valid(raise_exception=True):
                 self.perform_create(hostserializer)
-                location = location_for(request.path, host.name)
                 return created_response(
-                    self.get_serializer(host).data,
-                    location=location,
+                    request,
+                    self.get_serializer(host),
+                    host.name,
                 )
 
 

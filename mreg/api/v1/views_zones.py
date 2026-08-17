@@ -23,7 +23,7 @@ from mreg.api.permissions import (IsSuperGroupMember, IsAuthenticatedAndReadOnly
 
 from .serializers import (ForwardZoneByHostnameSerializer, ForwardZoneDelegationSerializer, ForwardZoneSerializer,
                           ReverseZoneDelegationSerializer, ReverseZoneSerializer)
-from .locations import encode_location_path, location_for
+from .locations import encode_location_path
 from .views import (MregRetrieveUpdateDestroyAPIView, )
 from .zonefile import ZoneFile
 
@@ -111,10 +111,11 @@ class ZoneList(generics.ListCreateAPIView):
         self.perform_create(zone)
         zone.update_nameservers(nameservers)
         _update_parent_zone(qs, zone.name)
-        location = location_for(request.path, zone.name, safe="/:")
         return created_response(
-            self.get_serializer(zone).data,
-            location=location,
+            request,
+            self.get_serializer(zone),
+            zone.name,
+            safe="/:",
         )
 
 
@@ -165,10 +166,11 @@ class ZoneDelegationList(generics.ListCreateAPIView):
         delegation.update_nameservers(nameservers)
         self.parentzone.updated = True
         self.parentzone.save()
-        location = location_for(request.path, delegation.name, safe="/:")
         return created_response(
-            self.get_serializer(delegation).data,
-            location=location,
+            request,
+            self.get_serializer(delegation),
+            delegation.name,
+            safe="/:",
         )
 
 
