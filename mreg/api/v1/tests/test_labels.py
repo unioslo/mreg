@@ -9,7 +9,12 @@ class LabelTestCase(MregAPITestCase):
 
     def test_create_label(self):
         # Create a normal label
-        self.assert_post('/api/v1/labels/', {'name': 'normal_label', 'description': 'A normal label'})
+        resp = self.assert_post('/api/v1/labels/', {'name': 'normal_label', 'description': 'A normal label'})
+        # Check that the Location header points to the new label
+        self.assertEqual(resp.headers["Location"], f"/api/v1/labels/{resp.json()['id']}")
+        response = self.assert_get(resp.headers["Location"])
+        self.assertEqual(response.json()['name'], 'normal_label')
+
         # Creating a label with the same name should fail
         self.assert_post_and_409('/api/v1/labels/', {'name': 'normal_label', 'description': 'A normal label redone'})
         # Verify that a description is required

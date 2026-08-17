@@ -17,8 +17,10 @@ class LabelList(MregListCreateAPIView, LowerCaseLookupMixin):
     permission_classes = (IsSuperOrAdminOrReadOnly,)
     filterset_class = LabelFilterSet
     lookup_field = "name"
+    # The detail endpoint (labels/<pk>) keys on pk, not name, so Location must too.
+    location_lookup_field = "pk"
 
-    def post(self, request, *args, **kwargs):        
+    def post(self, request, *args, **kwargs):
         if self.get_object_from_request(request):
             return error_response("Label name already in use", status.HTTP_409_CONFLICT)
         return super().post(request, *args, **kwargs)
