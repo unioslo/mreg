@@ -22,7 +22,7 @@ from mreg.models.resource_records import Cname, Loc, Naptr, Srv, Sshfp, Txt, Hin
 from mreg.models.network_policy import Community, HostCommunityMapping, NetworkPolicy
 from mreg.types import IPAllocationMethod
 
-from mreg.api.responses import error_response
+from mreg.api.responses import created_response, error_response
 from mreg.api.permissions import (
     IsAuthenticatedAndReadOnly,
     IsGrantedNetGroupRegexPermission,
@@ -267,8 +267,10 @@ class MregListCreateAPIView(MregMixin, generics.ListCreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
-        headers = {"Location": self._get_location(request, serializer)}
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        return created_response(
+            serializer.data,
+            location=self._get_location(request, serializer),
+        )
 
 
 class MregPermissionsUpdateDestroy:
@@ -505,10 +507,9 @@ class HostList(HostPermissionsListCreateAPIView):
                         host.add_to_community(community)
 
                     location = location_for(request.path, host.name)
-                    return Response(
+                    return created_response(
                         self.get_serializer(host).data,
-                        status=status.HTTP_201_CREATED,
-                        headers={"Location": location},
+                        location=location,
                     )
         else:
             if community:
@@ -522,10 +523,9 @@ class HostList(HostPermissionsListCreateAPIView):
             if hostserializer.is_valid(raise_exception=True):
                 self.perform_create(hostserializer)
                 location = location_for(request.path, host.name)
-                return Response(
+                return created_response(
                     self.get_serializer(host).data,
-                    status=status.HTTP_201_CREATED,
-                    headers={"Location": location},
+                    location=location,
                 )
 
 

@@ -1,7 +1,7 @@
 from rest_framework import status
 from rest_framework.response import Response
 
-from mreg.api.responses import error_response
+from mreg.api.responses import created_response, error_response
 from mreg.api.v1.views import (
     MregListCreateAPIView,
     MregRetrieveUpdateDestroyAPIView,
@@ -57,10 +57,9 @@ class BACnetIDList(MregListCreateAPIView):
             # create a new object
             self.perform_create(ser)
             location = location_for(request.path, obj.id)
-            return Response(
+            return created_response(
                 ser.data,
-                status=status.HTTP_201_CREATED,
-                headers={"Location": location},
+                location=location,
             )
 
 

@@ -20,6 +20,7 @@ from mreg.api.v1.filters import (
 )
 
 from mreg.api.errors import ValidationError409
+from mreg.api.responses import created_response
 
 from mreg.api.v1.views import JSONContentTypeMixin, HistoryLog
 from mreg.api.permissions import IsGrantedNetGroupRegexPermission, IsSuperOrNetworkAdminMember
@@ -70,13 +71,11 @@ class NetworkPolicyList(JSONContentTypeMixin, generics.ListCreateAPIView):
         serializer.is_valid(raise_exception=True)
         with transaction.atomic():
             network_policy = serializer.save()
-        headers = self.get_success_headers(serializer.data)
-
         # Dynamically generate the Location URL
-        headers["Location"] = request.build_absolute_uri(
+        location = request.build_absolute_uri(
             reverse(URL.NetworkPolicy.DETAIL, kwargs={"pk": network_policy.id})
         )
-        return response.Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        return created_response(serializer.data, location=location)
 
 
 class NetworkPolicyDetail(JSONContentTypeMixin, generics.RetrieveUpdateDestroyAPIView):
@@ -118,12 +117,11 @@ class NetworkPolicyAttributeList(JSONContentTypeMixin, generics.ListCreateAPIVie
         with transaction.atomic():
             network_policy_attribute = serializer.save()
 
-        headers = self.get_success_headers(serializer.data)
-        headers["Location"] = request.build_absolute_uri(
+        location = request.build_absolute_uri(
             reverse(URL.NetworkPolicy.ATTRIBUTE_DETAIL, kwargs={"pk": network_policy_attribute.id})
         )
 
-        return response.Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        return created_response(serializer.data, location=location)
 
 class NetworkPolicyAttributeDetail(JSONContentTypeMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = NetworkPolicyAttribute.objects.all().order_by("id")
@@ -167,13 +165,11 @@ class NetworkCommunityList(JSONContentTypeMixin, CommunityLogMixin, generics.Lis
         with transaction.atomic():
             community = serializer.save(network=network)
             self.save_log_create(serializer)
-        headers = self.get_success_headers(serializer.data)
-
         # Dynamically generate the Location URL
-        headers["Location"] = request.build_absolute_uri(
+        location = request.build_absolute_uri(
             reverse(URL.NetworkPolicy.COMMUNITY_DETAIL, kwargs={"network": str(network.network), "cpk": community.id})
         )
-        return response.Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)        
+        return created_response(serializer.data, location=location)
 
 
 
@@ -254,22 +250,19 @@ class NetworkCommunityHostList(HostInCommunityMixin, generics.ListCreateAPIView)
             
         host.add_to_community(community, ipaddress)
 
-        headers = {
-            "Location": request.build_absolute_uri(
-                reverse(
-                    URL.NetworkPolicy.COMMUNITY_HOST_DETAIL,
-                    kwargs={
-                        "network": str(network.network),
-                        "cpk": community.pk,
-                        "hostpk": host.pk,
-                    },
-                )
+        location = request.build_absolute_uri(
+            reverse(
+                URL.NetworkPolicy.COMMUNITY_HOST_DETAIL,
+                kwargs={
+                    "network": str(network.network),
+                    "cpk": community.pk,
+                    "hostpk": host.pk,
+                },
             )
-        }
-        return response.Response(
+        )
+        return created_response(
             HostSerializer(host).data,
-            status=status.HTTP_201_CREATED,
-            headers=headers,
+            location=location,
         )
 
 

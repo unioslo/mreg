@@ -18,7 +18,7 @@ from mreg.models.zone import ForwardZone, ForwardZoneDelegation, ReverseZone, Re
 
 from mreg.mixins import LowerCaseLookupMixin
 
-from mreg.api.responses import error_response
+from mreg.api.responses import created_response, error_response
 from mreg.api.permissions import (IsSuperGroupMember, IsAuthenticatedAndReadOnly)
 
 from .serializers import (ForwardZoneByHostnameSerializer, ForwardZoneDelegationSerializer, ForwardZoneSerializer,
@@ -112,10 +112,9 @@ class ZoneList(generics.ListCreateAPIView):
         zone.update_nameservers(nameservers)
         _update_parent_zone(qs, zone.name)
         location = location_for(request.path, zone.name, safe="/:")
-        return Response(
+        return created_response(
             self.get_serializer(zone).data,
-            status=status.HTTP_201_CREATED,
-            headers={'Location': location},
+            location=location,
         )
 
 
@@ -167,10 +166,9 @@ class ZoneDelegationList(generics.ListCreateAPIView):
         self.parentzone.updated = True
         self.parentzone.save()
         location = location_for(request.path, delegation.name, safe="/:")
-        return Response(
+        return created_response(
             self.get_serializer(delegation).data,
-            status=status.HTTP_201_CREATED,
-            headers={'Location': location},
+            location=location,
         )
 
 
