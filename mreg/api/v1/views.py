@@ -14,13 +14,15 @@ from rest_framework.exceptions import MethodNotAllowed, ParseError, UnsupportedM
 from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from drf_spectacular.utils import OpenApiParameter, OpenApiTypes, extend_schema
 from mreg.models.base import NameServer, History
 from mreg.models.host import Host, Ipaddress, PtrOverride
-from mreg.models.network import Network, NetGroupRegexPermission
+from mreg.models.network import Network, NetGroupRegexPermission, NetworkExcludedRange
 from mreg.models.resource_records import Cname, Loc, Naptr, Srv, Sshfp, Txt, Hinfo, Mx
-from mreg.models.network_policy import Community, NetworkPolicy
+from mreg.models.network_policy import Community, HostCommunityMapping, NetworkPolicy
 from mreg.types import IPAllocationMethod
 
+from mreg.api.responses import created_response, error_response
 from mreg.api.permissions import (
     IsAuthenticatedAndReadOnly,
     IsGrantedNetGroupRegexPermission,
@@ -48,10 +50,16 @@ from .filters import (
     TxtFilterSet,
 )
 from .history import HistoryLog
+from .location import location_for
 from .serializers import (
     CnameSerializer,
+    DhcpHostSerializer,
+    DhcpV6HostByV4Serializer,
+    ErrorResponseSerializer,
     HinfoSerializer,
     HistorySerializer,
+    HostContactMutationResponseSerializer,
+    HostContactMutationSerializer,
     HostContactSerializer,
     HostSerializer,
     IpaddressSerializer,
@@ -69,6 +77,31 @@ from .serializers import (
 )
 
 from mreg.mixins import LowerCaseLookupMixin
+
+
+STRING_MAP_SCHEMA = {
+    "type": "object",
+    "additionalProperties": {"type": "string"},
+}
+
+STRING_LIST_MAP_SCHEMA = {
+    "type": "object",
+    "additionalProperties": {
+        "type": "array",
+        "items": {"type": "string"},
+    },
+}
+
+IP_ADDRESS_STRING_SCHEMA = {
+    "type": "string",
+    "description": "IPv4 or IPv6 address.",
+    "example": "192.0.2.10",
+}
+
+IP_ADDRESS_LIST_SCHEMA = {
+    "type": "array",
+    "items": IP_ADDRESS_STRING_SCHEMA,
+}
 
 class JSONContentTypeMixin:
     """A view mixin that requires POST, PUT, PATCH and DELETE operations to this view have a JSON content type.
@@ -158,6 +191,8 @@ class MregRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
     Makes sure patch returns empty body, 204 - No Content, and location of object.
     """
 
+    location_lookup_safe = ""
+
     def perform_update(self, serializer, **kwargs):
         super().perform_update(serializer)
         serializer.save(**kwargs)
@@ -173,13 +208,21 @@ class MregRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
             # forcibly invalidate the prefetch cache on the instance.
             instance._prefetched_objects_cache = {}
 
-        if self.lookup_field in serializer.validated_data:
-            # Remove the value of self.lookup_field from end of path
-            location = request.path[: -len(kwargs[self.lookup_field])]
-            # and replace with updated one
-            location += str(serializer.validated_data[self.lookup_field])
-        else:
-            location = request.path
+        # The detail path ends with the current lookup value (no trailing slash).
+        # Replace that trailing segment with the value read off the saved instance
+        # so a PATCH that renames the resource points Location at its new URL. We
+        # use serializer.instance rather than validated_data because save() may
+        # normalize the value (lower-casing, IDNA encoding); the Location must
+        # match what the detail view will resolve. lookup_field is not always a
+        # model attribute (e.g. zone delegations use it purely as a URL kwarg), so
+        # fall back to the current value when it can't be read off the instance;
+        # if the value is unchanged the path is likewise left untouched.
+        old_value = str(self.kwargs[self.lookup_url_kwarg or self.lookup_field])
+        new_value = str(getattr(serializer.instance, self.lookup_field, old_value))
+        location_root = request.path.removesuffix(old_value)
+        location = location_for(
+            location_root, new_value, safe=self.location_lookup_safe
+        )
         return Response(
             status=status.HTTP_204_NO_CONTENT, headers={"Location": location}
         )
@@ -193,16 +236,33 @@ class MregListCreateAPIView(MregMixin, generics.ListCreateAPIView):
     # 1) We shouldn't use request.path but instead reverse on an api.vX.endpoint enum value
     # 2) We should let each view set a POST location root, and then append the lookup_field
     # This is the root cause of https://github.com/unioslo/mreg/issues/528
-    def _get_location(self, request, serializer):
-        return request.path + str(serializer.validated_data[self.lookup_field])
 
-    def post(self, request, *args, **kwargs):
-        # Add a location header for all POSTs
+    # Field on the created instance used to build the Location header. Defaults to
+    # lookup_field, but a view whose detail endpoint keys on a different field can
+    # override it (e.g. LabelList uses lookup_field='name' for its duplicate check
+    # while its detail endpoint is keyed on 'pk').
+    location_lookup_field = None
+    location_lookup_safe = ""
+
+    def create(self, request, *args, **kwargs):
+        """Re-implementation of CreateModelMixin.create that sets a Location header.
+
+        Identical to the DRF default except it adds a Location header pointing at
+        the created resource. perform_create() is still the hook subclasses
+        override (e.g. for permission checks); the created object is read back off
+        serializer.instance, which serializer.save() populates.
+        """
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
-        location = self._get_location(request, serializer)
-        return Response(status=status.HTTP_201_CREATED, headers={"Location": location})
+        field = self.location_lookup_field or self.lookup_field
+        value = getattr(serializer.instance, field, serializer.instance.pk)
+        return created_response(
+            request,
+            serializer,
+            value,
+            safe=self.location_lookup_safe,
+        )
 
 
 class MregPermissionsUpdateDestroy:
@@ -233,7 +293,7 @@ class MregPermissionsUpdateDestroy:
                 self.permission_denied(request)
 
 
-class MregPermissionsListCreateAPIView(MregMixin, generics.ListCreateAPIView):
+class MregPermissionsListCreateAPIView(MregListCreateAPIView):
     def perform_create(self, serializer):
         # Custom check create permissions
         self.check_create_permissions(self.request, serializer)
@@ -327,9 +387,11 @@ class HinfoDetail(HostPermissionsUpdateDestroy,
 
 def _host_prefetcher(qs):
     return qs.prefetch_related(
-        "bacnetid", "cnames", "hinfo", "loc", "mxs", "ptr_overrides", "txts"
+        "bacnetid", "cnames", "hinfo", "loc", "mxs", "ptr_overrides", "txts",
+        "srvs", "naptrs", "sshfp_set", "hostgroups", "hostpolicyroles", "contacts",
     ).prefetch_related(
-        Prefetch("ipaddresses", queryset=Ipaddress.objects.order_by("ipaddress"))
+        Prefetch("ipaddresses", queryset=Ipaddress.objects.order_by("ipaddress")),
+        Prefetch("hostcommunitymapping_set", queryset=HostCommunityMapping.objects.select_related("community")),
     )
 
 
@@ -360,22 +422,17 @@ class HostList(HostPermissionsListCreateAPIView):
             community_id = request.data.pop("network_community")
             community = Community.objects.filter(id=community_id).first()
             if not community:
-                content = {"ERROR": f"Community '{community_id}' not found"}
-                return Response(content, status=status.HTTP_404_NOT_FOUND)
+                return error_response(f"Community '{community_id}' not found", status.HTTP_404_NOT_FOUND)
 
         if "name" in request.data:
             if self.queryset.filter(name=request.data["name"]).exists():
-                content = {"ERROR": "name already in use"}
-                return Response(content, status=status.HTTP_409_CONFLICT)
+                return error_response("name already in use", status.HTTP_409_CONFLICT)
 
         if "ipaddress" in request.data and "network" in request.data:
-            content = {"ERROR": "'ipaddress' and 'network' is mutually exclusive"}
-            return Response(content, status=status.HTTP_400_BAD_REQUEST)
+            return error_response("'ipaddress' and 'network' is mutually exclusive", status.HTTP_400_BAD_REQUEST)
 
         if "allocation_method" in request.data and "network" not in request.data:
-            return Response(
-                {"ERROR": "allocation_method is only allowed with 'network'"},
-                status=status.HTTP_400_BAD_REQUEST)
+            return error_response("allocation_method is only allowed with 'network'", status.HTTP_400_BAD_REQUEST)
 
         # request.data is immutable
         hostdata = request.data.copy()
@@ -391,13 +448,11 @@ class HostList(HostPermissionsListCreateAPIView):
             try:
                 ipaddress.ip_network(network_key)
             except ValueError as error:
-                content = {"ERROR": str(error)}
-                return Response(content, status=status.HTTP_400_BAD_REQUEST)
+                return error_response(str(error), status.HTTP_400_BAD_REQUEST)
 
             network = Network.objects.filter(network=network_key).first()
             if not network:
-                content = {"ERROR": "no such network"}
-                return Response(content, status=status.HTTP_404_NOT_FOUND)
+                return error_response("no such network", status.HTTP_404_NOT_FOUND)
 
             try:
                 allocation_key = hostdata.pop("allocation_method", IPAllocationMethod.FIRST.value)
@@ -406,8 +461,10 @@ class HostList(HostPermissionsListCreateAPIView):
                 request_ip_allocator = IPAllocationMethod(allocation_key.lower())
             except ValueError:
                 options = [method.value for method in IPAllocationMethod]
-                content = {"ERROR": f"allocation_method must be one of {', '.join(options)}"}
-                return Response(content, status=status.HTTP_400_BAD_REQUEST)
+                return error_response(
+                    f"allocation_method must be one of {', '.join(options)}",
+                    status.HTTP_400_BAD_REQUEST,
+                )
 
             if request_ip_allocator == IPAllocationMethod.RANDOM:
                 ip = network.get_random_unused()
@@ -415,8 +472,7 @@ class HostList(HostPermissionsListCreateAPIView):
                 ip = network.get_first_unused()
 
             if not ip:
-                content = {"ERROR": "no available IP in network"}
-                return Response(content, status=status.HTTP_409_CONFLICT)
+                return error_response("no available IP in network", status.HTTP_409_CONFLICT)
 
             hostdata["ipaddress"] = ip
 
@@ -442,23 +498,26 @@ class HostList(HostPermissionsListCreateAPIView):
                     if community:
                         host.add_to_community(community)
 
-                    location = request.path + host.name
-                    return Response(
-                        status=status.HTTP_201_CREATED,
-                        headers={"Location": location},
+                    return created_response(
+                        request,
+                        self.get_serializer(host),
+                        host.name,
                     )
         else:
             if community:
-                content = {"ERROR": "Unable to assign community to host as it has no IP address"}
-                return Response(content, status=status.HTTP_406_NOT_ACCEPTABLE)
+                return error_response(
+                    "Unable to assign community to host as it has no IP address",
+                    status.HTTP_406_NOT_ACCEPTABLE,
+                )
 
             host = Host()
             hostserializer = HostSerializer(host, data=hostdata)
             if hostserializer.is_valid(raise_exception=True):
                 self.perform_create(hostserializer)
-                location = request.path + host.name
-                return Response(
-                    status=status.HTTP_201_CREATED, headers={"Location": location}
+                return created_response(
+                    request,
+                    self.get_serializer(host),
+                    host.name,
                 )
 
 
@@ -483,8 +542,7 @@ class HostDetail(HostPermissionsUpdateDestroy,
     def patch(self, request, *args, **kwargs):
         if "name" in request.data:
             if self.get_queryset().filter(name=request.data["name"]).exists():
-                content = {"ERROR": "name already in use"}
-                return Response(content, status=status.HTTP_409_CONFLICT)
+                return error_response("name already in use", status.HTTP_409_CONFLICT)
 
         return super().patch(request, *args, **kwargs)
 
@@ -498,39 +556,45 @@ class HostContactsView(HostPermissionsUpdateDestroy, APIView):
     DELETE: Remove one or more contacts (expects {"emails": ["email1@example.com", ...]})
     """
 
+    policy_resource_kind = "Host"
+    policy_actions = {"read": "host_contacts_read"}
+
     def get_host(self, name):
         """Get the host object by name."""
         return get_object_or_404(Host, name=name.lower())
 
+    @extend_schema(
+        parameters=[OpenApiParameter("name", OpenApiTypes.STR, OpenApiParameter.PATH)],
+        responses={status.HTTP_200_OK: HostContactSerializer(many=True)},
+    )
     def get(self, request, name):
         """List all contacts for the host."""
         host = self.get_host(name)
         serializer = HostContactSerializer(host.contacts.all(), many=True)
         return Response(serializer.data)
 
+    @extend_schema(
+        parameters=[OpenApiParameter("name", OpenApiTypes.STR, OpenApiParameter.PATH)],
+        request=HostContactMutationSerializer,
+        responses={status.HTTP_200_OK: HostContactMutationResponseSerializer},
+    )
     def post(self, request, name):
         """Add one or more contacts to the host."""
         host = self.get_host(name)
         emails = request.data.get('emails', [])
         
         if not emails:
-            return Response(
-                {"error": "Must provide 'emails' list"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return error_response("Must provide 'emails' list", status.HTTP_400_BAD_REQUEST)
         
         if not isinstance(emails, list):
-            return Response(
-                {"error": "'emails' must be a list"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return error_response("'emails' must be a list", status.HTTP_400_BAD_REQUEST)
 
         result = host.add_contacts(emails)
         
         if result['invalid']:
-            return Response(
-                {"error": f"Invalid email address(es): {', '.join(result['invalid'])}"},
-                status=status.HTTP_400_BAD_REQUEST
+            return error_response(
+                f"Invalid email address(es): {', '.join(result['invalid'])}",
+                status.HTTP_400_BAD_REQUEST,
             )
 
         response_data = {
@@ -539,6 +603,11 @@ class HostContactsView(HostPermissionsUpdateDestroy, APIView):
         }
         return Response(response_data, status=status.HTTP_200_OK)
 
+    @extend_schema(
+        parameters=[OpenApiParameter("name", OpenApiTypes.STR, OpenApiParameter.PATH)],
+        request=HostContactMutationSerializer,
+        responses={status.HTTP_200_OK: HostContactMutationResponseSerializer},
+    )
     def delete(self, request, name):
         """Remove one or more contacts from the host, or clear all if no emails provided."""
         host = self.get_host(name)
@@ -554,10 +623,7 @@ class HostContactsView(HostPermissionsUpdateDestroy, APIView):
             )
 
         if not isinstance(emails, list):
-            return Response(
-                {"error": "'emails' must be a list"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return error_response("'emails' must be a list", status.HTTP_400_BAD_REQUEST)
 
         removed = []
         not_found = []
@@ -629,9 +695,9 @@ class IpaddressDetail(HostPermissionsUpdateDestroy, MregRetrieveUpdateDestroyAPI
             try:
                 network = Network.objects.get(network__net_contains=new_ip)
             except Network.DoesNotExist:
-                return Response(
-                    {"ERROR": "No network found for the new IP address, cannot update due to community membership"},
-                    status=status.HTTP_404_NOT_FOUND,
+                return error_response(
+                    "No network found for the new IP address, cannot update due to community membership",
+                    status.HTTP_404_NOT_FOUND,
                 )
             
             network_match = False
@@ -641,9 +707,9 @@ class IpaddressDetail(HostPermissionsUpdateDestroy, MregRetrieveUpdateDestroyAPI
                     break
 
             if not network_match:
-                return Response(
-                    {"ERROR": "Cannot switch network membership for due to community membership."},
-                    status=status.HTTP_409_CONFLICT,
+                return error_response(
+                    "Cannot switch network membership for due to community membership.",
+                    status.HTTP_409_CONFLICT,
                 )
 
         return super().patch(request, *args, **kwargs)
@@ -872,10 +938,7 @@ def _overlap_check(range, exclude=None):
         overlap = overlap.exclude(id=exclude.id)
     if overlap:
         info = ", ".join(map(str, overlap))
-        return Response(
-            {"ERROR": "Network overlaps with: {}".format(info)},
-            status=status.HTTP_409_CONFLICT,
-        )
+        return error_response("Network overlaps with: {}".format(info), status.HTTP_409_CONFLICT)
 
 
 class NetworkList(MregListCreateAPIView):
@@ -891,6 +954,7 @@ class NetworkList(MregListCreateAPIView):
     serializer_class = NetworkSerializer
     permission_classes = (IsSuperOrNetworkAdminMember | IsAuthenticatedAndReadOnly,)
     lookup_field = "network"
+    location_lookup_safe = "/:"
     filterset_class = NetworkFilterSet
 
     def post(self, request, *args, **kwargs):
@@ -917,6 +981,7 @@ class NetworkDetail(MregRetrieveUpdateDestroyAPIView):
     permission_classes = (IsSuperOrNetworkAdminMember | IsAuthenticatedAndReadOnly,)
 
     lookup_field = "network"
+    location_lookup_safe = "/:"
 
     def patch(self, request, *args, **kwargs):
         network = self.get_object()
@@ -933,10 +998,7 @@ class NetworkDetail(MregRetrieveUpdateDestroyAPIView):
                 try:
                     policy = NetworkPolicy.objects.get(id=policy_id)
                 except NetworkPolicy.DoesNotExist:
-                    return Response(
-                        {"ERROR": "No such policy"},
-                        status=status.HTTP_404_NOT_FOUND,
-                    )
+                    return error_response("No such policy", status.HTTP_404_NOT_FOUND)
                 policy.can_be_used_with_communities_or_raise()
                 network.policy = policy
                 
@@ -947,10 +1009,7 @@ class NetworkDetail(MregRetrieveUpdateDestroyAPIView):
     def delete(self, request, *args, **kwargs):
         network = self.get_object()
         if network.used_addresses:
-            return Response(
-                {"ERROR": "Network contains IP addresses that are in use"},
-                status=status.HTTP_409_CONFLICT,
-            )
+            return error_response("Network contains IP addresses that are in use", status.HTTP_409_CONFLICT)
 
         self.perform_destroy(network)
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -968,16 +1027,13 @@ class NetworkExcludedRangeList(MregListCreateAPIView):
     serializer_class = NetworkExcludedRangeSerializer
     permission_classes = (IsSuperOrNetworkAdminMember | IsAuthenticatedAndReadOnly,)
 
-    def _get_location(self, request, serializer):
-        # Can not get Location if the attribute is not set in the serializer
-        obj = self.get_queryset().get(**serializer.validated_data)
-        return request.path + str(obj.pk)
-
     def get_queryset(self):
         """
         Applies filtering to the queryset
         :return: filtered list of network excludes
         """
+        if "network" not in self.kwargs:
+            return NetworkExcludedRange.objects.none()
         qs = get_object_or_404(
             Network, network=self.kwargs["network"]
         ).excluded_ranges.all()
@@ -1001,10 +1057,16 @@ class NetworkExcludedRangeDetail(MregRetrieveUpdateDestroyAPIView):
     lookup_field = "pk"
 
     def get_queryset(self):
+        if "network" not in self.kwargs:
+            return NetworkExcludedRange.objects.none()
         network = get_object_or_404(Network, network=self.kwargs["network"])
         return network.excluded_ranges.all()
 
 
+@extend_schema(
+    parameters=[OpenApiParameter("ip", OpenApiTypes.STR, OpenApiParameter.PATH)],
+    responses={status.HTTP_200_OK: NetworkSerializer},
+)
 @api_view()
 def network_by_ip(request, *args, **kwargs):
     try:
@@ -1016,6 +1078,13 @@ def network_by_ip(request, *args, **kwargs):
     return Response(serializer.data, status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    parameters=[OpenApiParameter("network", OpenApiTypes.STR, OpenApiParameter.PATH)],
+    responses={
+        status.HTTP_200_OK: IP_ADDRESS_STRING_SCHEMA,
+        status.HTTP_404_NOT_FOUND: ErrorResponseSerializer,
+    },
+)
 @api_view()
 def network_first_unused(request, *args, **kwargs):
     network = get_object_or_404(Network, network=kwargs["network"])
@@ -1023,10 +1092,16 @@ def network_first_unused(request, *args, **kwargs):
     if ip:
         return Response(ip, status=status.HTTP_200_OK)
     else:
-        content = {"ERROR": "No available IPs"}
-        return Response(content, status=status.HTTP_404_NOT_FOUND)
+        return error_response("No available IPs", status.HTTP_404_NOT_FOUND)
 
 
+@extend_schema(
+    parameters=[OpenApiParameter("network", OpenApiTypes.STR, OpenApiParameter.PATH)],
+    responses={
+        status.HTTP_200_OK: IP_ADDRESS_STRING_SCHEMA,
+        status.HTTP_404_NOT_FOUND: ErrorResponseSerializer,
+    },
+)
 @api_view()
 def network_random_unused(request, *args, **kwargs):
     network = get_object_or_404(Network, network=kwargs["network"])
@@ -1034,10 +1109,13 @@ def network_random_unused(request, *args, **kwargs):
     if ip:
         return Response(ip, status=status.HTTP_200_OK)
     else:
-        content = {"ERROR": "No available IPs"}
-        return Response(content, status=status.HTTP_404_NOT_FOUND)
+        return error_response("No available IPs", status.HTTP_404_NOT_FOUND)
 
 
+@extend_schema(
+    parameters=[OpenApiParameter("network", OpenApiTypes.STR, OpenApiParameter.PATH)],
+    responses={status.HTTP_200_OK: IP_ADDRESS_LIST_SCHEMA},
+)
 @api_view()
 def network_ptroverride_list(request, *args, **kwargs):
     network = get_object_or_404(Network, network=kwargs["network"])
@@ -1046,6 +1124,10 @@ def network_ptroverride_list(request, *args, **kwargs):
     return Response(ptr_list, status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    parameters=[OpenApiParameter("network", OpenApiTypes.STR, OpenApiParameter.PATH)],
+    responses={status.HTTP_200_OK: STRING_MAP_SCHEMA},
+)
 @api_view()
 def network_ptroverride_host_list(request, *args, **kwargs):
     network = get_object_or_404(Network, network=kwargs["network"])
@@ -1057,6 +1139,10 @@ def network_ptroverride_host_list(request, *args, **kwargs):
     return Response(ret, status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    parameters=[OpenApiParameter("network", OpenApiTypes.STR, OpenApiParameter.PATH)],
+    responses={status.HTTP_200_OK: IP_ADDRESS_LIST_SCHEMA},
+)
 @api_view()
 def network_reserved_list(request, *args, **kwargs):
     network = get_object_or_404(Network, network=kwargs["network"])
@@ -1064,12 +1150,20 @@ def network_reserved_list(request, *args, **kwargs):
     return Response(reserved, status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    parameters=[OpenApiParameter("network", OpenApiTypes.STR, OpenApiParameter.PATH)],
+    responses={status.HTTP_200_OK: OpenApiTypes.INT},
+)
 @api_view()
 def network_used_count(request, *args, **kwargs):
     network = get_object_or_404(Network, network=kwargs["network"])
     return Response(len(network.used_addresses), status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    parameters=[OpenApiParameter("network", OpenApiTypes.STR, OpenApiParameter.PATH)],
+    responses={status.HTTP_200_OK: IP_ADDRESS_LIST_SCHEMA},
+)
 @api_view()
 def network_used_list(request, *args, **kwargs):
     network = get_object_or_404(Network, network=kwargs["network"])
@@ -1077,6 +1171,10 @@ def network_used_list(request, *args, **kwargs):
     return Response(used_ipaddresses, status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    parameters=[OpenApiParameter("network", OpenApiTypes.STR, OpenApiParameter.PATH)],
+    responses={status.HTTP_200_OK: STRING_LIST_MAP_SCHEMA},
+)
 @api_view()
 def network_used_host_list(request, *args, **kwargs):
     network = get_object_or_404(Network, network=kwargs["network"])
@@ -1087,12 +1185,20 @@ def network_used_host_list(request, *args, **kwargs):
     return Response(ret, status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    parameters=[OpenApiParameter("network", OpenApiTypes.STR, OpenApiParameter.PATH)],
+    responses={status.HTTP_200_OK: OpenApiTypes.INT},
+)
 @api_view()
 def network_unused_count(request, *args, **kwargs):
     network = get_object_or_404(Network, network=kwargs["network"])
     return Response(network.unused_count, status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    parameters=[OpenApiParameter("network", OpenApiTypes.STR, OpenApiParameter.PATH)],
+    responses={status.HTTP_200_OK: IP_ADDRESS_LIST_SCHEMA},
+)
 @api_view()
 def network_unused_list(request, *args, **kwargs):
     network = get_object_or_404(Network, network=kwargs["network"])
@@ -1130,7 +1236,7 @@ class TxtDetail(HostPermissionsUpdateDestroy, MregRetrieveUpdateDestroyAPIView):
     serializer_class = TxtSerializer
 
 
-class NetGroupRegexPermissionList(MregMixin, generics.ListCreateAPIView):
+class NetGroupRegexPermissionList(MregListCreateAPIView):
     """ """
 
     queryset = NetGroupRegexPermission.objects.all().order_by('id')
@@ -1177,16 +1283,25 @@ def _dhcphosts_by_range(iprange):
     return Response(ips)
 
 
+@extend_schema(responses={status.HTTP_200_OK: DhcpHostSerializer(many=True)})
 @api_view()
 def dhcp_hosts_all_v4(request, *args, **kwargs):
     return _dhcphosts_by_range("0.0.0.0/0")
 
 
+@extend_schema(responses={status.HTTP_200_OK: DhcpHostSerializer(many=True)})
 @api_view()
 def dhcp_hosts_all_v6(request, *args, **kwargs):
     return _dhcphosts_by_range("::/0")
 
 
+@extend_schema(
+    parameters=[
+        OpenApiParameter("ip", OpenApiTypes.STR, OpenApiParameter.PATH),
+        OpenApiParameter("range", OpenApiTypes.INT, OpenApiParameter.PATH),
+    ],
+    responses={status.HTTP_200_OK: DhcpHostSerializer(many=True)},
+)
 @api_view()
 def dhcp_hosts_by_range(request, *args, **kwargs):
     return _dhcphosts_by_range(_get_iprange(kwargs))
@@ -1223,7 +1338,7 @@ def _dhcpv6_hosts_by_ipv4(iprange):
     return Response(ret)
 
 
-class DhcpHostsV4ByV6(APIView):
+class DhcpHostsV4ByV6Base(APIView):
     renderer_classes = (JSONRenderer,)
 
     def get(self, request, *args, **kwargs):
@@ -1232,3 +1347,25 @@ class DhcpHostsV4ByV6(APIView):
         else:
             iprange = "0.0.0.0/0"
         return _dhcpv6_hosts_by_ipv4(iprange)
+
+
+class DhcpHostsV4ByV6(DhcpHostsV4ByV6Base):
+    @extend_schema(
+        operation_id="api_v1_dhcphosts_ipv6byipv4_list",
+        responses={status.HTTP_200_OK: DhcpV6HostByV4Serializer(many=True)},
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+
+class DhcpHostsV4ByV6Range(DhcpHostsV4ByV6Base):
+    @extend_schema(
+        operation_id="api_v1_dhcphosts_ipv6byipv4_by_range_list",
+        parameters=[
+            OpenApiParameter("ip", OpenApiTypes.STR, OpenApiParameter.PATH),
+            OpenApiParameter("range", OpenApiTypes.INT, OpenApiParameter.PATH),
+        ],
+        responses={status.HTTP_200_OK: DhcpV6HostByV4Serializer(many=True)},
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)

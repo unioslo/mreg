@@ -12,8 +12,8 @@ Related documentation:
 - Bundle manifest: `treetop/data/treetop-bundle.toml`
 - Policy module: `treetop/data/treetop-mreg-module.toml`
 - Global policy module: `treetop/data/treetop-global-module.toml`
-- Label module: `treetop/data/treetop-host-labels-module.toml`
 - Policy definitions: `treetop/data/mreg.cedar` and `treetop/data/global.cedar`
+- Cedar schema: `treetop/data/mreg.cedarschema`
 - Derived labels: `treetop/data/labels.json`
 - Generated bundle: `treetop/data/mreg-bundle.tar.gz`
 - Action generation in code: `mreg/api/permissions.py` (`ParityMixin._crud_action`)
@@ -28,16 +28,17 @@ pinned REST server. Then validate and build the bundle from the repository
 root:
 
 ```console
-$ treetop-bundle check bundle treetop/data/treetop-bundle.toml
 $ treetop-bundle build \
     --manifest treetop/data/treetop-bundle.toml \
-    --output /tmp/mreg-bundle.tar.gz
-$ mv /tmp/mreg-bundle.tar.gz treetop/data/mreg-bundle.tar.gz
+    --output treetop/data/mreg-bundle.tar.gz
+$ TREETOP_BUNDLE_BIN=treetop-bundle scripts/check-treetop-bundle.sh
 ```
 
 Bundle output is deterministic. Commit the regenerated archive whenever a
 module manifest, Cedar policy, schema, or label definition changes. The local
-TreeTop stack loads the archive atomically through `TREETOP_BUNDLE_URL`.
+TreeTop stack loads the archive atomically through `TREETOP_BUNDLE_URL`. MREG
+currently uses unsigned bundles, verified with the explicit `allow-unsigned`
+signature policy.
 
 ## Adding a New Protected Resource
 
@@ -45,9 +46,11 @@ When introducing a new resource that should be parity-checked, use this checklis
 
 1. Ensure the permission path reaches `ParityMixin.pp()` or `pp_generic_action()`.
 2. Confirm CRUD action dispatch is used (`<resource>_<create|read|update|delete>`).
-3. Verify resource kind resolution works for the endpoint:
-   - Prefer serializer `Meta.model`.
-   - Fallbacks should remain stable for non-model views.
+3. Define the resource kind contract for the endpoint:
+   - Use serializer `Meta.model` for model-backed views.
+   - Set `policy_resource_kind` explicitly on non-model views.
+   - Set a `policy_actions` operation mapping when an endpoint action is not
+     the model's conventional CRUD action.
 4. Verify resource ID resolution produces stable IDs for list/detail/custom views.
 5. Add or update Cedar actions/rules in `treetop/data/mreg.cedar`.
 6. If policy conditions depend on derived labels, update `treetop/data/labels.json`.
@@ -58,15 +61,23 @@ When introducing a new resource that should be parity-checked, use this checklis
 
 ## Resource Kind and ID Resolution
 
-`ParityMixin` resolves resource kind and ID using deterministic fallbacks.
+`ParityMixin` resolves resource kind and ID using deterministic contracts.
 
 Resource kind fallback order (`_resource_kind_from_view`):
 
 1. `obj.__class__.__name__` when object is available
 2. `validated_serializer.Meta.model.__name__`
-3. `view.get_serializer_class().Meta.model.__name__`
-4. `validated_serializer.instance.__class__.__name__`
-5. View class name with suffixes (`List`, `Detail`, `View`) stripped
+3. `validated_serializer.instance.__class__.__name__`
+4. Explicit `view.policy_resource_kind`
+5. `view.get_serializer_class().Meta.model.__name__`
+
+There is no view-class-name fallback. Renaming a view must not silently change
+authorization behavior. Resource and principal entity types are qualified in
+wire requests and the schema, for example `MREG::Host` and `MREG::User`.
+
+Custom actions are declared explicitly on views. For example, the host contacts
+endpoint uses `policy_resource_kind = "Host"` with
+`policy_actions = {"read": "host_contacts_read"}`.
 
 Resource ID fallback order (`_resource_id_from_view`):
 
@@ -145,10 +156,13 @@ Common attribute payloads in current checks:
 
 ## Wildcard Action Rules
 
-These rules do not enumerate action names and therefore match any action:
+These global-module rules do not enumerate action names and therefore match any
+action:
 
-- `MREG.superadmin`: principal in `default-super-group` may perform any action.
-- `global.super_admin_allow_all_policy`: principal `User::"super"` may perform any action.
+- `global.mreg_superadmin`: principal in `MREG::Group::"default-super-group"`
+  may perform any action.
+- `global.super_admin_allow_all_policy`: principal `MREG::User::"super"` may
+  perform any action.
 
 ## Code-Emitted Parity Actions
 

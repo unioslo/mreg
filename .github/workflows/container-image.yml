@@ -18,13 +18,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
     - name: Docker build
       run: docker build -t mreg .
     - name: Save image
       run: docker save mreg | gzip > mreg.tgz
     - name: Upload artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: mreg
         path: mreg.tgz
@@ -50,7 +50,7 @@ jobs:
           - 5432:5432
     steps:
     - name: Download artifact
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: mreg
     - name: Load image
@@ -65,19 +65,22 @@ jobs:
     name: Test with mreg-cli
     needs: build
     runs-on: ubuntu-latest
+    env:
+      # These vars are sourced by mreg-cli's `run_testsuite_and_record_V2.sh`
+      # Ensures we use local image (with unique CI tag), not image pulled from registry.
+      MREG_IMAGE: mreg:ci
+      MREG_IMAGE_PULL_POLICY: never
     steps:
     - name: Download artifact
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: mreg
     - name: Load container image
       run: docker load --input mreg.tgz
-    - name: Tag container image
-      # There's a docker-compose.yml file in the mreg-cli repo that wants the image from ghcr.io,
-      # but we want to use the newly built custom image
-      run: docker tag mreg ghcr.io/unioslo/mreg:latest
+    - name: Tag local image for mreg-cli
+      run: docker tag mreg:latest "$MREG_IMAGE"
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
     - name: Download mreg-cli
       run: git clone https://github.com/unioslo/mreg-cli.git
     - name: Check out a previous version of mreg-cli
@@ -120,20 +123,33 @@ jobs:
           - 5432:5432
     steps:
     - name: Download artifact
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: mreg
     - name: Load container image
       run: docker load --input mreg.tgz
     - name: Start mreg
       run: |
-        docker run --rm -t --network host --detach --name mreg \
+        docker run -t --network host --detach --name mreg \
         -e MREG_DB_HOST=localhost -e MREG_DB_PASSWORD=mreg -e MREG_DB_USER=mreg \
         mreg
-    - name: Wait for mreg to create the database schema and start up
-      run: sleep 10s
+    - name: Wait for mreg to become ready
+      run: |
+        for attempt in {1..30}; do
+          if curl --silent --show-error \
+            http://127.0.0.1:8000/api/meta/health/heartbeat >/dev/null; then
+            exit 0
+          fi
+          if [ "$(docker inspect --format '{{.State.Running}}' mreg)" != "true" ]; then
+            docker logs mreg
+            exit 1
+          fi
+          sleep 2
+        done
+        docker logs mreg
+        exit 1
     - name: Create a user
-      run: docker exec -t mreg uv run /app/manage.py create_mreg_superuser --username test --password test123
+      run: docker exec -t mreg python /app/manage.py create_mreg_superuser --username test --password test123
     - name: Authenticate using curl
       shell: bash
       run: |
@@ -145,15 +161,25 @@ jobs:
           --write-out %{http_code} \
           > /tmp/http_status_code.txt 2> /tmp/curl_errors.txt
         STATUS=$(cat /tmp/http_status_code.txt)
-        if [ $STATUS -ge 400 ]; then
+        if [ "$STATUS" != "200" ]; then
           cat /tmp/curl_output.txt
           exit 1
         fi
+    - name: Show mreg logs
+      if: always()
+      run: docker logs mreg
+    - name: Stop mreg
+      if: always()
+      run: docker rm --force mreg
 
   publish:
     name: Publish
-    # Run for version tags, commits to master branch, and pull requests
-    if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' || github.event_name == 'pull_request'
+    # Fork pull requests cannot write organization packages with GITHUB_TOKEN.
+    # Publish only version tags, master commits, and same-repository pull requests.
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') ||
+      github.ref == 'refs/heads/master' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
     needs: [test, test-with-curl]
     runs-on: ubuntu-latest
     permissions:
@@ -161,7 +187,7 @@ jobs:
       contents: read
     steps:
     - name: Download artifact
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: mreg
     - name: Load image

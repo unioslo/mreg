@@ -131,6 +131,20 @@ Metrics are exposed at the following endpoint: `/api/meta/metrics`.
   - Description: Calls made to the policy `authorize` endpoint.
   - Label values: `success`, `exception`
 
+- Name: mreg_policy_parity_batches_total
+  - Type: Counter
+  - Labels: status
+  - Unit: batches
+  - Description: Batches submitted to or dropped by the bounded background worker.
+  - Label values: `submitted`, `dropped`
+
+- Name: mreg_policy_parity_failures_total
+  - Type: Counter
+  - Labels: stage
+  - Unit: failures
+  - Description: Fail-open parity instrumentation failures by processing stage.
+  - Typical label values: `build`, `submit`, `request_exit`, `worker`, `result_logging`
+
 - Name: mreg_policy_authorize_duration_seconds
   - Type: Histogram
   - Labels: status
@@ -150,12 +164,15 @@ Metrics are exposed at the following endpoint: `/api/meta/metrics`.
 - Name: mreg_policy_queries_per_request
   - Type: Histogram
   - Labels: none
-  - Unit: authorize queries
-  - Description: Number of policy `authorize` queries made per HTTP request.
+  - Unit: submitted batches
+  - Description: Number of policy batches submitted by each HTTP request.
   - Buckets/ranges: `0`, `1`, `2`, `3`, `4-5`, `6-8`, `9+`
     - Prometheus boundaries: [0, 1, 2, 3, 5, 8, +Inf]
 
-When request batching is enabled (default), `mreg_policy_queries_per_request` should usually be `0` (no parity checks queued) or `1` (one batched authorize call).
+When request batching is enabled (default), `mreg_policy_queries_per_request`
+should usually be `0` (no parity checks queued) or `1` (one batch submitted).
+The background worker performs the corresponding authorize call after request
+handling.
 
 ## Labeling Strategy
 

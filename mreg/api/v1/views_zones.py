@@ -10,6 +10,7 @@ from rest_framework.decorators import (api_view, renderer_classes)
 from rest_framework.exceptions import ParseError
 from rest_framework.request import Request
 from rest_framework.response import Response
+from drf_spectacular.utils import OpenApiParameter, OpenApiTypes, extend_schema
 
 from mreg.models.base import NameServer
 from mreg.models.host import Host
@@ -17,14 +18,23 @@ from mreg.models.zone import ForwardZone, ForwardZoneDelegation, ReverseZone, Re
 
 from mreg.mixins import LowerCaseLookupMixin
 
+from mreg.api.responses import created_response, error_response
 from mreg.api.permissions import (IsSuperGroupMember, IsAuthenticatedAndReadOnly)
 
-from .serializers import (ForwardZoneDelegationSerializer, ForwardZoneSerializer,
+from .serializers import (ForwardZoneByHostnameSerializer, ForwardZoneDelegationSerializer, ForwardZoneSerializer,
                           ReverseZoneDelegationSerializer, ReverseZoneSerializer)
+from .location import encode_location_path
 from .views import (MregRetrieveUpdateDestroyAPIView, )
 from .zonefile import ZoneFile
 
 from .filters import (ForwardZoneFilterSet, ReverseZoneFilterSet)
+
+
+ZONE_FILE_TEXT_SCHEMA = {
+    "type": "string",
+    "description": "DNS zone file in BIND-style text format.",
+    "example": "$ORIGIN example.org.\n@ 3600 IN SOA ns1.example.org. hostmaster.example.org. 1 3600 900 604800 3600\n",
+}
 
 
 def _update_parent_zone(qs, zonename):
@@ -58,10 +68,14 @@ def _validate_nameservers(names):
 
 
 def _get_request_nameservers(request: Request, field: str = "primary_ns") -> List[str]:
-    """Extract nameservers from the request data."""
+    """Extract nameservers as a list, accepting a JSON string or array."""
     if request.content_type == "application/json":
-        return request.data.get(field, [])
-    return request.data.getlist(field, [])
+        nameservers = request.data.get(field, [])
+    else:
+        nameservers = request.data.getlist(field, [])
+    if isinstance(nameservers, str):
+        nameservers = [nameservers]
+    return nameservers
 
 
 class ZoneList(generics.ListCreateAPIView):
@@ -70,7 +84,8 @@ class ZoneList(generics.ListCreateAPIView):
     Returns a list of all zones.
 
     post:
-    Create a zone. The primary_ns field is a list where the first element will be the primary nameserver.
+    Create a zone. The primary_ns field accepts a nameserver string or a list;
+    the first list element becomes the primary nameserver.
 
     """
 
@@ -84,8 +99,7 @@ class ZoneList(generics.ListCreateAPIView):
     def post(self, request: Request, *args, **kwargs):
         qs = self.get_queryset()
         if qs.filter(name=request.data["name"]).exists():
-            content = {'ERROR': 'Zone name already in use'}
-            return Response(content, status=status.HTTP_409_CONFLICT)
+            return error_response('Zone name already in use', status.HTTP_409_CONFLICT)
         # A copy is required since the original is immutable
         nameservers = _get_request_nameservers(request)
         _validate_nameservers(nameservers)
@@ -97,8 +111,12 @@ class ZoneList(generics.ListCreateAPIView):
         self.perform_create(zone)
         zone.update_nameservers(nameservers)
         _update_parent_zone(qs, zone.name)
-        location = request.path + zone.name
-        return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
+        return created_response(
+            request,
+            self.get_serializer(zone),
+            zone.name,
+            safe="/:",
+        )
 
 
 class ForwardZoneList(ZoneList):
@@ -119,13 +137,16 @@ class ZoneDelegationList(generics.ListCreateAPIView):
     Returns a list of all the zone's delegations.
 
     post:
-    Create a delegation for the zone.
+    Create a delegation for the zone. The nameservers field accepts a
+    nameserver string or a list.
     """
 
     lookup_field = 'name'
     permission_classes = (IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
 
     def get_queryset(self):
+        if self.lookup_field not in self.kwargs:
+            return self.model.objects.none()
         self.parentzone = get_object_or_404(self.model, name=self.kwargs[self.lookup_field])
         self.queryset = self.parentzone.delegations.all().order_by('id')
         return self.filterset(data=self.request.GET, queryset=self.queryset).qs
@@ -133,8 +154,7 @@ class ZoneDelegationList(generics.ListCreateAPIView):
     def post(self, request: Request, *args, **kwargs):
         qs = self.get_queryset()
         if qs.filter(name=request.data[self.lookup_field]).exists():
-            content = {'ERROR': 'Zone name already in use'}
-            return Response(content, status=status.HTTP_409_CONFLICT)
+            return error_response('Zone name already in use', status.HTTP_409_CONFLICT)
         nameservers = _get_request_nameservers(request, "nameservers")
         _validate_nameservers(nameservers)
         data = request.data.copy()
@@ -146,8 +166,12 @@ class ZoneDelegationList(generics.ListCreateAPIView):
         delegation.update_nameservers(nameservers)
         self.parentzone.updated = True
         self.parentzone.save()
-        location = request.path + delegation.name
-        return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
+        return created_response(
+            request,
+            self.get_serializer(delegation),
+            delegation.name,
+            safe="/:",
+        )
 
 
 class ForwardZoneDelegationList(ZoneDelegationList):
@@ -183,23 +207,26 @@ class ZoneDetail(LowerCaseLookupMixin, MregRetrieveUpdateDestroyAPIView):
         query = self.kwargs[self.lookup_field]
 
         if "name" in request.data:
-            content = {'ERROR': 'Not allowed to change name'}
-            return Response(content, status=status.HTTP_403_FORBIDDEN)
+            return error_response('Not allowed to change name', status.HTTP_403_FORBIDDEN)
 
         if "nameservers" in request.data:
-            content = {'ERROR': 'Not allowed to patch nameservers, use /zones/{}/nameservers'.format(query)}
-            return Response(content, status=status.HTTP_403_FORBIDDEN)
+            return error_response(
+                'Not allowed to patch nameservers, use /zones/{}/nameservers'.format(query),
+                status.HTTP_403_FORBIDDEN,
+            )
 
         zone = self.get_object()
         # Check if primary_ns is in the zone's list of nameservers
         if "primary_ns" in request.data:
             if request.data['primary_ns'] not in [nameserver.name for nameserver in zone.nameservers.all()]:
-                content = {'ERROR': "%s is not one of %s's nameservers" % (request.data['primary_ns'], query)}
-                return Response(content, status=status.HTTP_403_FORBIDDEN)
+                return error_response(
+                    "%s is not one of %s's nameservers" % (request.data['primary_ns'], query),
+                    status.HTTP_403_FORBIDDEN,
+                )
         serializer = self.get_serializer(zone, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer, updated=True)
-        location = request.path + zone.name
+        location = encode_location_path(request.path)
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
     def delete(self, request, *args, **kwargs):
@@ -207,13 +234,12 @@ class ZoneDetail(LowerCaseLookupMixin, MregRetrieveUpdateDestroyAPIView):
         if isinstance(zone, ForwardZone):
             qs = Host.objects.filter(zone=zone)
             if qs.exists():
-                content = {'ERROR': f'{zone.name} still in use by {qs.count()} hosts'}
-                return Response(content, status=status.HTTP_403_FORBIDDEN)
+                return error_response(f'{zone.name} still in use by {qs.count()} hosts', status.HTTP_403_FORBIDDEN)
         with transaction.atomic():
             zone.remove_nameservers()
             zone.delete()
         _update_parent_zone(self.get_queryset(), zone.name)
-        location = request.path + zone.name
+        location = encode_location_path(request.path)
         return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
@@ -258,8 +284,7 @@ class ZoneDelegationDetail(LowerCaseLookupMixin, MregRetrieveUpdateDestroyAPIVie
             self.parentzone.save()
             return super().patch(request, *args, **kwargs)
         else:
-            content = {'ERROR': 'Only allowed to change comment'}
-            return Response(content, status=status.HTTP_403_FORBIDDEN)
+            return error_response('Only allowed to change comment', status.HTTP_403_FORBIDDEN)
 
     def delete(self, request, *args, **kwargs):
         zone = self.get_object()
@@ -268,7 +293,8 @@ class ZoneDelegationDetail(LowerCaseLookupMixin, MregRetrieveUpdateDestroyAPIVie
         # Also update the parent zone's updated attribute
         self.parentzone.updated = True
         self.parentzone.save()
-        return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': request.path})
+        location = encode_location_path(request.path)
+        return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
 class ForwardZoneDelegationDetail(ZoneDelegationDetail):
@@ -290,7 +316,8 @@ class ZoneNameServerDetail(MregRetrieveUpdateDestroyAPIView):
 
     patch:
     Set the nameserver list of a zone. Requires all the nameservers of the zone
-    and removes the ones not mentioned.
+    and removes the ones not mentioned. The primary_ns field accepts a
+    nameserver string or a list.
     """
 
     lookup_field = 'name'
@@ -302,7 +329,7 @@ class ZoneNameServerDetail(MregRetrieveUpdateDestroyAPIView):
 
     def patch(self, request: Request, *args, **kwargs):
         if 'primary_ns' not in request.data:
-            return Response({'ERROR': 'No nameserver found in body'}, status=status.HTTP_400_BAD_REQUEST)
+            return error_response('No nameserver found in body', status.HTTP_400_BAD_REQUEST)
         zone = self.get_object()
         nameservers = _get_request_nameservers(request)
         _validate_nameservers(nameservers)
@@ -310,7 +337,8 @@ class ZoneNameServerDetail(MregRetrieveUpdateDestroyAPIView):
         zone.primary_ns = nameservers[0]
         zone.updated = True
         self.perform_update(zone)
-        return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': request.path})
+        location = encode_location_path(request.path)
+        return Response(status=status.HTTP_204_NO_CONTENT, headers={'Location': location})
 
 
 class ForwardZoneNameServerDetail(ZoneNameServerDetail):
@@ -323,6 +351,10 @@ class ReverseZoneNameServerDetail(ZoneNameServerDetail):
     serializer_class = ReverseZoneSerializer
 
 
+@extend_schema(
+    parameters=[OpenApiParameter("hostname", OpenApiTypes.STR, OpenApiParameter.PATH)],
+    responses={status.HTTP_200_OK: ForwardZoneByHostnameSerializer},
+)
 @api_view()
 def forward_zone_by_hostname(request, *args, **kwargs):
     """
@@ -360,6 +392,13 @@ class PlainTextRenderer(renderers.TemplateHTMLRenderer):
         return data.encode(self.charset)
 
 
+@extend_schema(
+    parameters=[
+        OpenApiParameter("name", OpenApiTypes.STR, OpenApiParameter.PATH),
+        OpenApiParameter("excludePrivate", OpenApiTypes.BOOL, OpenApiParameter.QUERY, required=False),
+    ],
+    responses={(status.HTTP_200_OK, "text/plain"): ZONE_FILE_TEXT_SCHEMA},
+)
 @api_view()
 @renderer_classes([PlainTextRenderer])
 def zone_file_detail(request, *args, **kwargs):

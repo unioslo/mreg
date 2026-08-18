@@ -1,18 +1,9 @@
 #!/bin/sh
-set -e
+set -eu
+
 cd /app
-uv run ./manage.py create_citext_extension
-uv run ./manage.py migrate
-#uv run ./manage.py runserver 0.0.0.0:8000
+python manage.py create_citext_extension
+python manage.py migrate
 
-# pass signals on to the gunicorn process
-function sigterm()
-{
-	echo "Received SIGTERM"
-	kill -term `cat /var/run/gunicorn.pid`
-}
-trap sigterm SIGTERM
-
-# doing it this way to be able to forward signals
-uv run gunicorn --workers=3 --bind=0.0.0.0 mregsite.wsgi --pid /var/run/gunicorn.pid &
-wait $!
+# Let gunicorn become PID 1 so container stop signals are delivered directly.
+exec gunicorn --workers 3 --bind 0.0.0.0:8000 mregsite.wsgi

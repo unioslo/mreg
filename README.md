@@ -156,6 +156,7 @@ mreg supports configuration via environment variables with the `MREG_` prefix. T
 
 | Variable | Default | Description |
 | -------- | ------- | ----------- |
+| `MREG_DB_POOL_ENABLED` | `True` | Enable or disable database connection pooling |
 | `MREG_DB_POOL_MIN_SIZE` | `5` | Minimum idle connections in pool |
 | `MREG_DB_POOL_MAX_SIZE` | `25` | Maximum connections in pool |
 | `MREG_DB_POOL_MAX_IDLE` | `300` | Max idle time before closing (seconds) |
@@ -176,6 +177,19 @@ mreg supports configuration via environment variables with the `MREG_` prefix. T
 | `MREG_REQUESTS_LOG_LEVEL_SLOW` | `WARNING` | Log level for slow requests |
 | `MREG_REQUESTS_THRESHOLD_VERY_SLOW` | `5000` | Very slow request threshold (ms) |
 | `MREG_REQUESTS_LOG_LEVEL_VERY_SLOW` | `CRITICAL` | Log level for very slow requests |
+
+### TreeTop Policy Parity
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `MREG_POLICY_PARITY_ENABLED` | `True` | Enable parity checks when a policy base URL is configured |
+| `MREG_POLICY_BASE_URL` | `""` | TreeTop REST base URL; an empty value disables calls |
+| `MREG_POLICY_NAMESPACE` | `MREG` | Cedar namespace used for principals, actions, and resources |
+| `MREG_POLICY_PARITY_BATCH_ENABLED` | `True` | Submit one background parity batch per HTTP request |
+| `MREG_POLICY_PARITY_QUEUE_SIZE` | `100` | Maximum queued parity batches per process |
+| `MREG_POLICY_TIMEOUT_SECONDS` | `5.0` | TreeTop client timeout in seconds |
+| `MREG_POLICY_PARITY_LOG_LEVEL` | `WARNING` | Dedicated parity logger level |
+| `MREG_POLICY_PARITY_LOG_DETAILS` | `False` | Include sensitive principal/resource details in parity logs |
 
 ### Network Policy Configuration
 
@@ -209,20 +223,56 @@ docker run --network host \
 ## Local Settings
 
 To override entries in `mregsite/settings.py`, create a file `mregsite/local_settings.py` and add the entries there.
-For example, the default database setup in `settings.py` uses sqlite3, but if you set up your postgres database
-you'll want to override this when testing. To to this, just add the following to your `local_settings.py` file:
 
 ```python
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'mreg_sample',
-        'USER': 'mreg_user',
-        'PASSWORD': 'mregdbpass',
-        'HOST': 'localhost',
-    }
-}
+MREG_DB_NAME = "mreg_sample"
+MREG_DB_USER = "mreg_user"
+MREG_DB_PASSWORD = "mregdbpass"
+MREG_DB_HOST = "localhost"
+MREG_DB_PORT = "5432"
 ```
+
+The default database setup in `settings.py` uses Django's postgres connection pool, but if you want to disable pooling for local development, you can set `MREG_DB_USE_POOL` to `False` in `local_settings.py`:
+
+```python
+MREG_DB_USE_POOL = False
+```
+
+or via environment variable:
+
+```bash
+export MREG_DB_USE_POOL=False
+```
+
+## Profiling
+
+mreg supports request and query profiling via [django-silk](https://github.com/jazzband/django-silk). Silk is an optional dependency in the `profile` dependency group (and also a part of the `dev` dependency group, thus is installed automatically in development environments). When enabled, Silk provides detailed insights into request performance, including SQL query analysis and optionally cProfile-based profiling of Python code.
+
+When enabled, Silk results are accessible in the web interface at http://127.0.0.1:8000/silk/ by default.
+
+### Enabling profiling
+
+Silk is included in the `dev` dependency group and is available automatically after `uv sync`. For deployments that need it without the full dev group (e.g. a profiling-enabled container image), use `uv sync --only-group profile`.
+
+Set `MREG_PROFILING_ENABLED=True` to activate Silk instrumentation. When enabled, Silk records every request and its associated SQL queries, which are viewable at `/silk/`.
+
+> [!WARNING]
+> Profiling adds overhead to every request. Only enable it in development or controlled environments, never in production.
+
+### Profiling configuration
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `MREG_PROFILING_ENABLED` | `False` | Enable Silk request/query instrumentation |
+| `MREG_SILKY_PYTHON_PROFILER` | `True` | Use cProfile for detailed per-request profiling (requires `MREG_PROFILING_ENABLED`) |
+| `MREG_SILKY_PYTHON_PROFILER_BINARY` | `True` | Save cProfile results to disk as `.prof` files for offline analysis |
+| `MREG_SILKY_PYTHON_PROFILER_RESULT_PATH` | `silk/profiles` | Directory to write `.prof` files into |
+| `MREG_SILKY_META` | `False` | Enable Silk meta-profiling (measures Silk's own overhead) |
+
+When `MREG_SILKY_PYTHON_PROFILER` is disabled, Silk still collects request/response data and timings, but not the detailed call-level profiling information.
+
+The `.prof` files written to `MREG_SILKY_PYTHON_PROFILER_RESULT_PATH` are standard cProfile format and can be opened with tools like `snakeviz` or Python's `pstats` module, in addition to the Silk UI.
+
 
 ## Contributing
 

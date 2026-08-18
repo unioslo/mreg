@@ -2,7 +2,14 @@
 // across every namespace and action.
 @id("global.super_admin_allow_all_policy")
 permit (
-    principal == User::"super",
+    principal == MREG::User::"super",
+    action,
+    resource
+);
+
+@id("global.mreg_superadmin")
+permit (
+    principal in MREG::Group::"default-super-group",
     action,
     resource
 );

@@ -21,16 +21,16 @@ class TestPermissions(MregAPITestCase):
     def test_permission_change(self):
         # Normal parity checking is active here
         self.client.get('/api/v1/hosts/')
-        
+
         # Disable parity checking for permission modifications
         with disable_policy_parity():
             # Add user to a group
             user.groups.add(some_group)
-            
+
             # Make API calls - parity checking is skipped
             response = self.client.post('/api/v1/hosts/', data)
             self.assertEqual(response.status_code, 201)
-        
+
         # Parity checking resumes after the context exits
 ```
 
@@ -43,42 +43,18 @@ from mreg.api.test_utils import PermissionModifyingTestCase
 
 class TestGroupPermissions(PermissionModifyingTestCase, MregAPITestCase):
     """All tests in this class have parity checking disabled."""
-    
+
     def test_add_group(self):
         # Parity checking is disabled for all tests in this class
         user.groups.add(admin_group)
         response = self.client.post('/api/v1/hosts/', data)
         self.assertEqual(response.status_code, 201)
-    
+
     def test_remove_group(self):
         # Still disabled here
         user.groups.remove(admin_group)
         response = self.client.post('/api/v1/hosts/', data)
         self.assertEqual(response.status_code, 403)
-```
-
-### Option 3: Pytest Fixture (For pytest-style tests)
-
-Use the `no_parity_check` fixture:
-
-```python
-def test_permission_modifications(no_parity_check):
-    """This test has parity checking disabled."""
-    user.groups.add(some_group)
-    # Make API calls without parity checking
-```
-
-### Option 4: Pytest Marker (Documentation only)
-
-Mark tests that modify permissions for documentation purposes:
-
-```python
-@pytest.mark.modifies_permissions
-def test_permission_changes():
-    """This marker documents that this test modifies permissions."""
-    with disable_policy_parity():
-        user.groups.add(some_group)
-        # Test code
 ```
 
 ## When to Use
@@ -109,9 +85,12 @@ Keep parity disable scope as narrow as possible:
 
 ## Implementation Details
 
-The `disable_policy_parity()` context manager uses thread-local storage to safely disable parity checking for the current thread only, ensuring test isolation in parallel test execution.
+The `disable_policy_parity()` context manager uses `ContextVar` state. Nested
+contexts and concurrently handled requests are isolated from one another.
 
-`policy_parity.log` truncation now runs once in the main process only. Parallel test workers append without re-truncating, so a full `tox -e coverage` run keeps one consistent parity log.
+Parity HTTP calls run on a bounded process-local background worker. Client,
+serialization, queue, logging, and TreeTop failures are fail-open: they are
+recorded, but never replace the legacy permission decision.
 
 ## Parity Runbook
 
@@ -123,27 +102,33 @@ Use this sequence when validating parity changes:
 source .env; .venv/bin/tox -e coverage
 ```
 
-2. Count parity mismatches.
+2. Query the mismatch metric in Prometheus.
 
-```bash
-jq -s '[.[] | select(.parity == false)] | length' policy_parity.log
+```promql
+mreg_policy_parity_results_total{result="mismatch"}
 ```
 
-3. List mismatch lines for triage.
+3. List mismatch events in the configured application log.
 
 ```bash
-rg -n '"parity": false' policy_parity.log
+rg -n '"event": "policy_parity_mismatch"' logs/app.log
 ```
 
-4. Optional: inspect actions seen in the run.
+4. Optional: inspect actions seen in mismatch events.
 
 ```bash
-jq -r '.context.action // empty' policy_parity.log | sort | uniq -c | sort -nr
+jq -r 'select(.event == "policy_parity_mismatch") | .context.action // empty' logs/app.log \
+  | sort | uniq -c | sort -nr
 ```
+
+Set `MREG_POLICY_PARITY_LOG_DETAILS=True` temporarily in a suitably protected
+environment only when principal, group, resource ID, or attribute details are
+required for triage.
 
 ## Mismatch Triage Guide
 
-Use the payload fields `legacy_decision`, `policy_decision`, `context.action`, and `context.resource_attrs`.
+Use `legacy_decision`, `policy_decision`, and `context.action`. Detailed resource
+attributes are available only when `MREG_POLICY_PARITY_LOG_DETAILS` is enabled.
 
 - `legacy_decision=true`, `policy_decision=false`:
   - Missing/too-narrow Cedar allow rule.
@@ -154,7 +139,8 @@ Use the payload fields `legacy_decision`, `policy_decision`, `context.action`, a
   - Resource kind fallback produced a more permissive policy path than intended.
 - `error` present:
   - Policy client/server failure. Resolve connectivity/config first before triaging semantics.
-- Unexpected `context.resource_kind` (for example view name fallback):
-  - Fix serializer `Meta.model` usage or explicit resource kind dispatch in permission code.
+- Unexpected `context.resource_kind`:
+  - Fix serializer `Meta.model` or declare `policy_resource_kind` explicitly on
+    the non-model view. View-name inference is intentionally unsupported.
 
 When fixing mismatches, update code and Cedar together, then rerun the tests until mismatch count is zero.

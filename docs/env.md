@@ -52,23 +52,36 @@ Use Cedar-style `::` separators (commas are also accepted).
 
 Example: `MREG` or `org::MREG`
 
-## `MREG_POLICY_EXTRA_LOG_FILE_NAME`
+## `MREG_POLICY_PARITY_LOG_DETAILS`
 
-File path for the parity JSONL log file (one JSON object per line). Default:
-`policy_parity.log`
+Boolean flag controlling whether parity logs include principal names, groups,
+resource IDs, and resource attributes. Default: `False`
 
-## `MREG_POLICY_TRUNCATE_LOG_FILE`
+Keep this disabled unless detailed parity investigation is necessary. These
+fields may contain operationally sensitive data. Parity events use the normal
+console and rotating `MREG_LOG_FILE_NAME` handlers.
 
-Boolean flag controlling whether `MREG_POLICY_EXTRA_LOG_FILE_NAME` is
-truncated once at startup (main process only). Default: `True`
+## `MREG_POLICY_PARITY_QUEUE_SIZE`
+
+Maximum number of parity batches waiting for the process-local background
+worker. Default: `100`
+
+When the queue is full, the batch is dropped, the legacy decision is preserved,
+and a metric/log event is emitted.
+
+## `MREG_POLICY_TIMEOUT_SECONDS`
+
+Timeout in seconds for calls from the background parity worker to TreeTop.
+Default: `5.0`
 
 ## `MREG_POLICY_PARITY_BATCH_ENABLED`
 
 Boolean flag controlling request-scoped batching of parity authorize checks.
 Default: `True`
 
-When enabled, parity checks are queued during request handling and flushed as a
-single batch call to the policy `authorize` endpoint.
+When enabled, parity checks are collected during request handling and submitted
+to a bounded background worker as one batch. Requests never wait for TreeTop.
+When disabled, each check is submitted as its own background batch.
 
 ## `MREG_LOG_FILE_SIZE`
 

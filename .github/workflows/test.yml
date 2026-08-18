@@ -13,6 +13,30 @@ on:
 
 name: CI
 jobs:
+  treetop-bundle:
+    name: TreeTop bundle
+    runs-on: ubuntu-latest
+    env:
+      TREETOP_BUNDLE_VERSION: 0.0.4
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Install treetop-bundle
+        run: |
+          curl --fail --silent --show-error --location \
+            --output treetop-bundle-x86_64-linux-musl.tar.gz \
+            "https://github.com/treetop-policy-engine/treetop-bundle/releases/download/v${TREETOP_BUNDLE_VERSION}/treetop-bundle-x86_64-linux-musl.tar.gz"
+          curl --fail --silent --show-error --location \
+            --output SHA256SUMS \
+            "https://github.com/treetop-policy-engine/treetop-bundle/releases/download/v${TREETOP_BUNDLE_VERSION}/SHA256SUMS"
+          sha256sum --check --ignore-missing SHA256SUMS
+          tar --extract --gzip --file treetop-bundle-x86_64-linux-musl.tar.gz
+          chmod +x treetop-bundle
+      - name: Validate reproducible unsigned bundle
+        run: scripts/check-treetop-bundle.sh
+        env:
+          TREETOP_BUNDLE_BIN: ./treetop-bundle
+
   test:
     name: Test
     runs-on: ${{ matrix.os }}
@@ -35,16 +59,14 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         python-version:
-          - "3.10"
-          - "3.11"
           - "3.12"
           - "3.13"
           - "3.14"
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
       - name: Install dependencies
@@ -63,16 +85,18 @@ jobs:
         run: |
           export MREG_DB_NAME=mreg MREG_DB_USER=mreg MREG_DB_PASSWORD=postgres
           uv run manage.py makemigrations --check
-      # - name: Export OpenAPI schema
-      #   run: uv run manage.py generateschema > openapi.yml
-      # - name: Upload OpenAPI schema
-      #   if: matrix.python-version == '3.10'
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: openapi.yml
-      #     path: openapi.yml
+      - name: Validate OpenAPI schema
+        run: |
+          export MREG_DB_NAME=mreg MREG_DB_USER=mreg MREG_DB_PASSWORD=postgres
+          uv run manage.py spectacular --validate --file openapi.yml
+      - name: Upload OpenAPI schema
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v7
+        with:
+          name: openapi.yml
+          path: openapi.yml
       - name: Upload coverage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-${{ matrix.python-version }}
           path: .coverage
@@ -88,20 +112,18 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         python-version:
-          - "3.10"
-          - "3.11"
           - "3.12"
           - "3.13"
           - "3.14"
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
       - name: Download coverage
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: coverage-${{ matrix.python-version }}
       - name: Install Coveralls

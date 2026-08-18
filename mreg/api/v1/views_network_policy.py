@@ -20,6 +20,7 @@ from mreg.api.v1.filters import (
 )
 
 from mreg.api.errors import ValidationError409
+from mreg.api.responses import created_response_at_url
 
 from mreg.api.v1.views import JSONContentTypeMixin, HistoryLog
 from mreg.api.permissions import IsGrantedNetGroupRegexPermission, IsSuperOrNetworkAdminMember
@@ -70,13 +71,11 @@ class NetworkPolicyList(JSONContentTypeMixin, generics.ListCreateAPIView):
         serializer.is_valid(raise_exception=True)
         with transaction.atomic():
             network_policy = serializer.save()
-        headers = self.get_success_headers(serializer.data)
-
         # Dynamically generate the Location URL
-        headers["Location"] = request.build_absolute_uri(
+        location = request.build_absolute_uri(
             reverse(URL.NetworkPolicy.DETAIL, kwargs={"pk": network_policy.id})
         )
-        return response.Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        return created_response_at_url(serializer, location)
 
 
 class NetworkPolicyDetail(JSONContentTypeMixin, generics.RetrieveUpdateDestroyAPIView):
@@ -118,12 +117,11 @@ class NetworkPolicyAttributeList(JSONContentTypeMixin, generics.ListCreateAPIVie
         with transaction.atomic():
             network_policy_attribute = serializer.save()
 
-        headers = self.get_success_headers(serializer.data)
-        headers["Location"] = request.build_absolute_uri(
+        location = request.build_absolute_uri(
             reverse(URL.NetworkPolicy.ATTRIBUTE_DETAIL, kwargs={"pk": network_policy_attribute.id})
         )
 
-        return response.Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        return created_response_at_url(serializer, location)
 
 class NetworkPolicyAttributeDetail(JSONContentTypeMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = NetworkPolicyAttribute.objects.all().order_by("id")
@@ -167,13 +165,11 @@ class NetworkCommunityList(JSONContentTypeMixin, CommunityLogMixin, generics.Lis
         with transaction.atomic():
             community = serializer.save(network=network)
             self.save_log_create(serializer)
-        headers = self.get_success_headers(serializer.data)
-
         # Dynamically generate the Location URL
-        headers["Location"] = request.build_absolute_uri(
+        location = request.build_absolute_uri(
             reverse(URL.NetworkPolicy.COMMUNITY_DETAIL, kwargs={"network": str(network.network), "cpk": community.id})
         )
-        return response.Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)        
+        return created_response_at_url(serializer, location)
 
 
 
@@ -220,13 +216,15 @@ class NetworkCommunityHostList(HostInCommunityMixin, generics.ListCreateAPIView)
     permission_classes = (IsGrantedNetGroupRegexPermission | IsSuperOrNetworkAdminMember,)
 
     def get_queryset(self):
+        if "network" not in self.kwargs or "cpk" not in self.kwargs:
+            return Host.objects.none()
         _, community = self.get_policy_and_community()
         return HostFilterSet(
-            data=self.request.GET, queryset=Host.objects.filter(communities__in=[community]).order_by("id")
+            data=self.request.GET, queryset=Host.objects.filter(communities__in=[community]).order_by("id").distinct()
         ).qs
 
     def create(self, request, *args, **kwargs):
-        _, community = self.get_policy_and_community()
+        network, community = self.get_policy_and_community()
         host_id = request.data.get("id")
         ipaddress = request.data.get("ipaddress")
         host = None
@@ -252,7 +250,20 @@ class NetworkCommunityHostList(HostInCommunityMixin, generics.ListCreateAPIView)
             
         host.add_to_community(community, ipaddress)
 
-        return response.Response(HostSerializer(host).data, status=status.HTTP_201_CREATED)
+        location = request.build_absolute_uri(
+            reverse(
+                URL.NetworkPolicy.COMMUNITY_HOST_DETAIL,
+                kwargs={
+                    "network": str(network.network),
+                    "cpk": community.pk,
+                    "hostpk": host.pk,
+                },
+            )
+        )
+        return created_response_at_url(
+            HostSerializer(host),
+            location,
+        )
 
 
 # Retrieve or delete a specific host in a specific community
@@ -261,9 +272,11 @@ class NetworkCommunityHostDetail(HostInCommunityMixin, generics.RetrieveDestroyA
     permission_classes = (IsGrantedNetGroupRegexPermission | IsSuperOrNetworkAdminMember,)
 
     def get_queryset(self):
+        if "network" not in self.kwargs or "cpk" not in self.kwargs:
+            return Host.objects.none()
         _, community = self.get_policy_and_community()
         return HostFilterSet(
-            data=self.request.GET, queryset=Host.objects.filter(communities__in=[community]).order_by("id")
+            data=self.request.GET, queryset=Host.objects.filter(communities__in=[community]).order_by("id").distinct()
         ).qs
 
     def get_object(self):
@@ -275,6 +288,7 @@ class NetworkCommunityHostDetail(HostInCommunityMixin, generics.RetrieveDestroyA
     def delete(self, request, *args, **kwargs):
         host = self.get_object()
         _, community = self.get_policy_and_community()
-        host.remove_from_community(community)
+        ipaddress = request.data.get("ipaddress")
+        host.remove_from_community(community, ipaddress)
         host.save()
         return response.Response(status=status.HTTP_204_NO_CONTENT)

@@ -12,12 +12,14 @@ https://docs.djangoproject.com/en/2.0/ref/settings/
 
 import logging.config
 import os
+from pathlib import Path
 import sys
-from typing import TypeVar
+from typing import Literal, TypeVar
 
 import structlog
 
 import mreg.log_processors
+import mreg.__about__
 
 
 DefaultT = TypeVar("DefaultT", str, int, float, bool)
@@ -48,8 +50,8 @@ def envvar(var: str, default: DefaultT) -> DefaultT:
     except (ValueError, TypeError):
         return default
 
-def parse_protected_attrs(raw: str) -> list[dict]:
-    out: list[dict] = []
+def parse_protected_attrs(raw: str) -> list[dict[str, str]]:
+    out: list[dict[str, str]] = []
     for part in raw.split(","):
         part = part.strip()
         if not part:
@@ -86,9 +88,10 @@ raw = (envvar("MREG_POLICY_NAMESPACE", "MREG") or "").strip()
 # Accept both Cedar-style `org::MREG` and comma-separated `org,MREG`.
 raw = raw.replace("::", ",")
 POLICY_NAMESPACE = [ns.strip() for ns in raw.split(",") if ns.strip()] or ["MREG"]
-POLICY_EXTRA_LOG_FILE_NAME = envvar("MREG_POLICY_EXTRA_LOG_FILE_NAME", "policy_parity.log")
-POLICY_TRUNCATE_LOG_FILE = envvar("MREG_POLICY_TRUNCATE_LOG_FILE", True)
 POLICY_PARITY_BATCH_ENABLED = envvar("MREG_POLICY_PARITY_BATCH_ENABLED", True)
+POLICY_PARITY_LOG_DETAILS = envvar("MREG_POLICY_PARITY_LOG_DETAILS", False)
+POLICY_PARITY_QUEUE_SIZE = envvar("MREG_POLICY_PARITY_QUEUE_SIZE", 100)
+POLICY_TIMEOUT_SECONDS = envvar("MREG_POLICY_TIMEOUT_SECONDS", 5.0)
 
 REQUESTS_THRESHOLD_SLOW = envvar("MREG_REQUESTS_THRESHOLD_SLOW", 1000)
 REQUESTS_LOG_LEVEL_SLOW = envvar("MREG_REQUESTS_LOG_LEVEL_SLOW", "WARNING")
@@ -143,6 +146,7 @@ MREG_DB_PASSWORD = envvar("MREG_DB_PASSWORD", "")
 MREG_DB_HOST = envvar("MREG_DB_HOST", "localhost")
 MREG_DB_PORT = envvar("MREG_DB_PORT", "5432")
 
+MREG_DB_POOL_ENABLED = envvar("MREG_DB_POOL_ENABLED", True)
 MREG_DB_POOL_MIN_SIZE = envvar("MREG_DB_POOL_MIN_SIZE", 5)
 MREG_DB_POOL_MAX_SIZE = envvar("MREG_DB_POOL_MAX_SIZE", 25)
 MREG_DB_POOL_MAX_IDLE = envvar("MREG_DB_POOL_MAX_IDLE", 300)
@@ -213,6 +217,8 @@ INSTALLED_APPS = [
     'mreg',
     'hostpolicy',
     'drf_standardized_errors',
+    'drf_spectacular',
+    'drf_spectacular_sidecar',  # required for Django collectstatic discovery
 ]
 
 MIDDLEWARE = [
@@ -247,29 +253,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "mregsite.wsgi.application"
 
-DATABASES = {
-    "default": {
-        "ENGINE": MREG_DB_ENGINE,
-        "NAME": MREG_DB_NAME,
-        "USER": MREG_DB_USER,
-        "PASSWORD": MREG_DB_PASSWORD,
-        "HOST": MREG_DB_HOST,        
-        "PORT": MREG_DB_PORT,
-        "CONN_MAX_AGE": 0,  # Let the pool manage connection lifecycle
-        "OPTIONS": {
-            # Native psycopg3 connection pooling (Django 5.2+)
-            "pool": {
-                "max_size": MREG_DB_POOL_MAX_SIZE,  # Maximum connections in the pool
-                "min_size": MREG_DB_POOL_MIN_SIZE,  # Minimum idle connections to maintain
-                "max_idle": MREG_DB_POOL_MAX_IDLE,  # Max idle time before connection is closed (seconds)
-                "max_lifetime": MREG_DB_POOL_MAX_LIFETIME,  # Max connection lifetime (seconds)
-            },
-            # psycopg3 connection parameters
-            "connect_timeout": MREG_DB_PSYCOPG_CONNECT_TIMEOUT,  # 5 second timeout for initial connection
-            "options": MREG_DB_PSYCOPG_OPTIONS,  # 30 second statement timeout
-        },
-    }
-}
 
 
 # Password validation
@@ -330,7 +313,7 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'mreg.api.permissions.IsAuthenticatedAndReadOnly',
     ),
-    'DEFAULT_SCHEMA_CLASS': 'rest_framework.schemas.openapi.AutoSchema',
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     
     # Other settings
     "EXCEPTION_HANDLER": "drf_standardized_errors.handler.exception_handler"
@@ -340,6 +323,18 @@ REST_FRAMEWORK_EXTENSIONS = {
     "DEFAULT_OBJECT_ETAG_FUNC": "rest_framework_extensions.utils.default_object_etag_func",
     "DEFAULT_LIST_ETAG_FUNC": "rest_framework_extensions.utils.default_list_etag_func",
 }
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'MREG API',
+    'DESCRIPTION': 'MREG API documentation',
+    'VERSION': mreg.__about__.__version__,
+    'SERVE_INCLUDE_SCHEMA': False,
+    # Sidecar (static swagger/redoc files) settings
+    'SWAGGER_UI_DIST': 'SIDECAR',  # shorthand to use the sidecar instead
+    'SWAGGER_UI_FAVICON_HREF': 'SIDECAR',
+    'REDOC_DIST': 'SIDECAR',
+}
+
 
 # TXT record(s) automatically added to a host when added to a ForwardZone.
 TXT_AUTO_RECORDS = {
@@ -468,6 +463,28 @@ structlog.configure(
     cache_logger_on_first_use=True,
 )
 
+# Django Silk profiling and request inspection settings
+try:
+    import silk  # noqa: F401  # pyright: ignore[reportUnusedImport, reportMissingTypeStubs]
+    _silk_installed = True
+except ImportError:
+    _silk_installed = False
+
+# Enable silk instrumentation of requests and queries
+MREG_PROFILING_ENABLED = envvar("MREG_PROFILING_ENABLED", False)
+
+# Use cProfile for profiling of the selected views.
+# If this is disabled, silk will only collect request/response data and timings,
+# but not detailed profiling information.
+SILKY_PYTHON_PROFILER = envvar("MREG_SILKY_PYTHON_PROFILER", True)
+
+# Save profiler results to disk for later analysis in silk or with other tools.
+SILKY_PYTHON_PROFILER_BINARY = envvar("MREG_SILKY_PYTHON_PROFILER_BINARY", True)
+SILKY_PYTHON_PROFILER_RESULT_PATH = envvar('MREG_SILKY_PYTHON_PROFILER_RESULT_PATH', 'silk/profiles')
+
+# Meta-profiling of requests (show silk's performance impact)
+SILKY_META = envvar("MREG_SILKY_META", False) # disable meta-profiling by default
+
 # Import local settings that may override those in this file.
 try:
     from .local_settings import *  # noqa: F401,F403
@@ -482,3 +499,138 @@ if TESTING or "CI" in os.environ:
     HOSTPOLICYADMIN_GROUP = "default-hostpolicyadmin-group"
     DNS_WILDCARD_GROUP = "default-dns-wildcard-group"
     DNS_UNDERSCORE_GROUP = "default-dns-underscore-group"
+
+
+def get_pool_settings() -> dict[str, int] | Literal[False]:
+    """Get the connection pool settings for psycopg3, or False if pooling is disabled."""
+    if not MREG_DB_POOL_ENABLED:
+        return False
+    return {
+        "max_size": MREG_DB_POOL_MAX_SIZE,  # Maximum connections in the pool
+        "min_size": MREG_DB_POOL_MIN_SIZE,  # Minimum idle connections to maintain
+        "max_idle": MREG_DB_POOL_MAX_IDLE,  # Max idle time before connection is closed (seconds)
+        "max_lifetime": MREG_DB_POOL_MAX_LIFETIME,  # Max connection lifetime (seconds)
+    }
+
+# Compatibility hack for older local_settings.py files that define the
+# DATABASES setting directly instead of using the MREG_DB_* variables.
+# Thus, we only set DATABASES if it hasn't already been defined.
+if "DATABASES" not in globals():
+    DATABASES = {
+        "default": {
+            "ENGINE": MREG_DB_ENGINE,
+            "NAME": MREG_DB_NAME,
+            "USER": MREG_DB_USER,
+            "PASSWORD": MREG_DB_PASSWORD,
+            "HOST": MREG_DB_HOST,
+            "PORT": MREG_DB_PORT,
+            "CONN_MAX_AGE": 0,  # Let the pool manage connection lifecycle
+            "OPTIONS": {
+                # Native psycopg3 connection pooling (Django 5.2+)
+                "pool": get_pool_settings(),
+                # psycopg3 connection parameters
+                "connect_timeout": MREG_DB_PSYCOPG_CONNECT_TIMEOUT,  # 5 second timeout for initial connection
+                "options": MREG_DB_PSYCOPG_OPTIONS,  # 30 second statement timeout
+            },
+        }
+    }
+
+# Configure Silk profiling if enabled
+if MREG_PROFILING_ENABLED:
+    logger = structlog.get_logger(__name__)
+    if not _silk_installed:
+        logger.error(
+            "MREG_PROFILING_ENABLED is set to True, but silk is not installed.",
+            "Install silk with `uv sync --(only-)group profile` or disable profiling.",
+        )
+        sys.exit(1)
+
+    # NOTE: logging happens twice here on startup for some reason...
+    logger.warning("Profiling is enabled. All requests will be profiled with Silk. This will impact performance.")
+
+    # Define views to enable Silk profiling for
+    # (Can be overridden by setting SILKY_DYNAMIC_PROFILING in local_settings.py)
+    if "SILKY_DYNAMIC_PROFILING" not in globals():
+        SILKY_DYNAMIC_PROFILING = [
+            {
+                "module": "mreg.api.v1.views",
+                "function": "HostDetail.get",
+                'name': 'Get single host',
+            },
+            {
+                "module": "mreg.api.v1.views",
+                "function": "HostList.get",
+                'name': 'Get hosts',
+            },
+            {
+                "module": "mreg.api.v1.views",
+                "function": "HostList.post",
+                'name': 'Create host',
+            },
+            {
+                "module": "hostpolicy.api.v1.views",
+                "function": "HostPolicyAtomDetail.get",
+                'name': 'Get single Atom',
+            },
+            {
+                "module": "hostpolicy.api.v1.views",
+                "function": "HostPolicyAtomDetail.delete",
+                'name': 'Delete single Atom',
+            },
+            {
+                "module": "hostpolicy.api.v1.views",
+                "function": "HostPolicyAtomList.get",
+                'name': 'Get Atoms',
+            },
+            {
+                "module": "hostpolicy.api.v1.views",
+                "function": "HostPolicyAtomList.post",
+                'name': 'Create Atom',
+            },
+            {
+                "module": "hostpolicy.api.v1.views",
+                "function": "HostPolicyRoleDetail.get",
+                'name': 'Get single Role',
+            },
+            {
+                "module": "hostpolicy.api.v1.views",
+                "function": "HostPolicyRoleDetail.delete",
+                'name': 'Delete a single Role',
+            },
+            {
+                "module": "hostpolicy.api.v1.views",
+                "function": "HostPolicyRoleList.get",
+                'name': 'Get Roles',
+            },
+            {
+                "module": "hostpolicy.api.v1.views",
+                "function": "HostPolicyRoleList.post",
+                'name': 'Create Role',
+            },
+            {
+                "module": "hostpolicy.api.v1.views",
+                "function": "HostPolicyRoleAtomsList.get",
+                'name': 'Get Role Atoms',
+            },
+            {
+                "module": "hostpolicy.api.v1.views",
+                "function": "HostPolicyRoleHostsList.get",
+                'name': 'Get Role Hosts',
+            },
+        ]
+
+    # Ensure the profiler result path exists and is writable before enabling Silk
+    if SILKY_PYTHON_PROFILER_RESULT_PATH:
+        p = Path(SILKY_PYTHON_PROFILER_RESULT_PATH)
+        if not p.exists():
+            try:
+                p.mkdir(parents=True)
+            except OSError as e:
+                logger.error(f"Failed to create Silk profiler result directory {SILKY_PYTHON_PROFILER_RESULT_PATH}: {e}")
+                sys.exit(1)
+        elif not p.is_dir() or not os.access(p, os.W_OK):
+            logger.error(f"Silk profiler result path {SILKY_PYTHON_PROFILER_RESULT_PATH} is not a writable directory.")
+            sys.exit(1)
+
+    INSTALLED_APPS.append("silk")
+    MIDDLEWARE.insert(0, "silk.middleware.SilkyMiddleware")

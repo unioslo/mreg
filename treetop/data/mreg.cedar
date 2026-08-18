@@ -82,7 +82,7 @@ permit (
          MREG::Action::"host_read",
          MREG::Action::"host_update",
          MREG::Action::"host_delete"],
-    resource is Host
+    resource is MREG::Host
 );
 
 // Webadmins can edit, delete, or create hosts with a name label containing "webserver", and the IP
@@ -95,10 +95,12 @@ permit (
          MREG::Action::"host_read",
          MREG::Action::"host_update",
          MREG::Action::"host_delete"],
-    resource is Host
+    resource is MREG::Host
 )
 when
 {
+    resource has nameLabels &&
+    resource has ip &&
     resource.nameLabels.contains("webserver") &&
     resource.ip.isInRange(ip("192.168.1.0/24"))
 };
@@ -114,7 +116,7 @@ permit (
          MREG::Action::"ip_network_management",
          MREG::Action::"ip_reserved_management",
          MREG::Action::"ip_restricted_management"],
-    resource is IPAddress
+    resource is MREG::Ipaddress
 );
 
 
@@ -282,7 +284,7 @@ permit (
 permit (
     principal in MREG::Group::"default-networkadmin-group",
     action == MREG::Action::"ip_network_management",
-    resource is IPAddress
+    resource is MREG::Ipaddress
 );
 
 /// Users can only manage IPs in specific networks
@@ -290,12 +292,15 @@ permit (
 permit (
     principal in MREG::Group::"users",
     action == MREG::Action::"ip_network_management",
-    resource is IPAddress
+    resource is MREG::Ipaddress
 )
 when
 {
-    resource.ip.isInRange(ip("192.168.1.0/24")) ||
-    resource.ip.isInRange(ip("10.0.0.0/8"))
+    resource has ip &&
+    (
+        resource.ip.isInRange(ip("192.168.1.0/24")) ||
+        resource.ip.isInRange(ip("10.0.0.0/8"))
+    )
 };
 
 /// Admins can do whatever with labels.
@@ -307,15 +312,7 @@ permit (
          MREG::Action::"delete_label",
          MREG::Action::"view_label",
          MREG::Action::"edit_label"],
-    resource is Label
-);
-
-/// Superadmins
-@id("MREG.superadmin")
-permit (
-    principal in MREG::Group::"default-super-group",
-    action, // Superadmins don't care what the action is
-    resource
+    resource is MREG::Label
 );
 
 /// Normal admins

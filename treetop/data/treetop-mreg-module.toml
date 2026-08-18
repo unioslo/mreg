@@ -2,3 +2,5 @@ format_version = 1
 name = "MREG"
 namespace = "MREG"
 policies = ["mreg.cedar"]
+schemas = ["mreg.cedarschema"]
+labels = ["labels.json"]

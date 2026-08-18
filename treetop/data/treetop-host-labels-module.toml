@@ -1,4 +1,0 @@
-format_version = 1
-name = "host-labels"
-namespace = "Host"
-labels = ["labels.json"]

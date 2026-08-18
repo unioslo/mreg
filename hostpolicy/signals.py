@@ -1,5 +1,6 @@
 from django.db.models.signals import m2m_changed, pre_delete, pre_save, post_save, post_delete
 from django.dispatch import receiver
+from django.utils import timezone
 
 from .models import HostPolicyAtom, HostPolicyRole
 from mreg.models.host import Host
@@ -19,8 +20,7 @@ def role_update_updated_at_on_changes(sender, instance, action, model,
 
 
 def _hostpolicyatom_update_m2m_relations(instance):
-    for role in instance.roles.all():
-        role.save()
+    instance.roles.all().update(updated_at=timezone.now())
 
 
 @receiver(pre_save, sender=HostPolicyAtom)

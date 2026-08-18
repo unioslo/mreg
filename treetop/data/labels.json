@@ -1,6 +1,6 @@
 [
     {
-        "kind": "Host",
+        "kind": "MREG::Host",
         "field": "name",
         "output": "nameLabels",
         "patterns": [

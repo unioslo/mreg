@@ -3,10 +3,6 @@ name = "mreg"
 
 [[modules]]
 manifest = "treetop-mreg-module.toml"
-role = "global"
-
-[[modules]]
-manifest = "treetop-host-labels-module.toml"
 role = "ordinary"
 
 [[modules]]

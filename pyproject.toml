@@ -21,12 +21,12 @@ dependencies = [
     "sentry-sdk>=2.48.0",
     "tzdata>=2025.3",
     "drf-standardized-errors>=0.15",
-    # For OpenAPI schema generation.
-    "uritemplate",
-    "pyyaml",
+    # For OpenAPI schema generation
+    # Pinned to prevent breaking changes: https://drf-spectacular.readthedocs.io/en/latest/readme.html#release-management
+    "drf-spectacular[sidecar]==0.29.0",
     # For testing inside Docker image
     "unittest-parametrize",
-    "treetop-client>=0.0.7",
+    "treetop-client>=0.0.12",
     "prometheus-client>=0.24",
 ]
 dynamic = ["version"]
@@ -36,10 +36,9 @@ dynamic = ["version"]
 dev = [
     "tox-uv>=1.29",
     "coverage[toml]",
-    "pytest",
-    "pytest-django",
     "uv>=0.10",
     "tblib>=3",
+    {include-group = "profile"},
 ]
 ci = [
     # Explictly include dev group for non-uv package managers
@@ -48,6 +47,18 @@ ci = [
     "tox-gh-actions", 
     "coveralls",
 ]
+profile = ["django-silk[formatting]>=5.5.0"]
+django52 = ["Django>=5.2,<5.3"]
+django60 = ["Django>=6.0,<6.1; python_version >= '3.12'"]
+
+[tool.uv]
+conflicts = [
+    [
+        { group = "django52" },
+        { group = "django60" },
+    ],
+]
+
 
 [tool.ruff]
 line-length = 140

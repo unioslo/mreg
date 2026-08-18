@@ -1,12 +1,14 @@
 from unittest import mock
 
-from django.test import TestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 from rest_framework import serializers
 
 from mreg.api.errors import ValidationError409
 from mreg.api.v1.serializers import (
     CommunitySerializer,
     HostSerializer,
+    NetGroupRegexPermissionSerializer,
+    NetworkSerializer,
     NetworkPolicyAttributeValueSerializer,
     NetworkPolicySerializer,
 )
@@ -88,6 +90,46 @@ class CommunitySerializerTests(TestCase):
         serializer = CommunitySerializer()
 
         self.assertEqual(serializer.get_global_name(community), "community01")
+
+
+class NetworkSerializerTests(SimpleTestCase):
+    def test_fields_preserve_api_order(self):
+        self.assertEqual(
+            list(NetworkSerializer().fields),
+            [
+                "id",
+                "excluded_ranges",
+                "policy",
+                "communities",
+                "created_at",
+                "updated_at",
+                "network",
+                "description",
+                "vlan",
+                "dns_delegated",
+                "category",
+                "location",
+                "frozen",
+                "reserved",
+                "max_communities",
+            ],
+        )
+
+
+class NetGroupRegexPermissionSerializerTests(SimpleTestCase):
+    def test_fields_preserve_api_order(self):
+        self.assertEqual(
+            list(NetGroupRegexPermissionSerializer().fields),
+            [
+                "id",
+                "created_at",
+                "updated_at",
+                "group",
+                "range",
+                "regex",
+                "labels",
+            ],
+        )
 
 
 class HostSerializerTests(TestCase):

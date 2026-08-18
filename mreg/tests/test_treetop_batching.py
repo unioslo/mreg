@@ -1,35 +1,49 @@
+from __future__ import annotations
+
+import logging
 from types import SimpleNamespace
-from unittest.mock import mock_open, patch
+from unittest.mock import Mock, patch
 
 from django.http import HttpRequest, HttpResponse
 from django.test import SimpleTestCase
 
 from mreg.api.treetop import (
-    _batch_queue,
+    PolicyCheck,
+    PolicyResource,
+    _ParityBatchItem,
+    _ParityDispatcher,
+    _build_policy_request,
+    _build_resource_attrs,
+    _compute_parity_payload,
     _fully_qualified_action,
-    _initialize_policy_parity_log_file,
     _is_parity_enabled,
+    _process_policy_parity_batch,
+    _qualified_resource_kind,
+    _request_state,
     _result_to_decision_and_error,
-    _thread_local,
+    _safe_log,
     batch_policy_parity,
+    disable_policy_parity,
+    flush_policy_parity_batch,
     policy_parity,
 )
 from mreg.middleware.logging_http import LoggingMiddleware
-from mreg.tests.prometheus_test_utils import (
-    metric_by_label as _metric_by_label,
-    metric_total as _metric_total,
-    prometheus_registry_text,
-)
 
 
 class _DummyAuthorizeResult:
-    def __init__(self, allowed: bool) -> None:
+    def __init__(
+        self,
+        allowed: bool = False,
+        *,
+        status: str = "success",
+        error: str | None = None,
+    ) -> None:
         self._allowed = allowed
-        self.status = "success"
-        self.error = None
+        self.status = status
+        self.error = error
 
     def is_success(self) -> bool:
-        return True
+        return self.status == "success"
 
     def is_allowed(self) -> bool:
         return self._allowed
@@ -41,14 +55,8 @@ class _DummyAuthorizeResponse:
 
 
 class TreeTopParityBatchingTests(SimpleTestCase):
-    def tearDown(self) -> None:
-        _thread_local.batch_queue = []
-        _thread_local.batch_depth = 0
-        super().tearDown()
-
     @staticmethod
     def _request() -> HttpRequest:
-        """Build a baseline request object for parity test invocations."""
         request = HttpRequest()
         request.method = "GET"
         request.path = "/api/v1/hosts/"
@@ -58,7 +66,6 @@ class TreeTopParityBatchingTests(SimpleTestCase):
 
     @staticmethod
     def _middleware_request() -> HttpRequest:
-        """Build a request object compatible with LoggingMiddleware tests."""
         request = TreeTopParityBatchingTests._request()
         request.path_info = request.path
         request._body = b""
@@ -66,396 +73,334 @@ class TreeTopParityBatchingTests(SimpleTestCase):
         return request
 
     @staticmethod
-    def _normalize_authorize_requests(requests):  # type: ignore[no-untyped-def]
-        """Normalize authorize input to a list for call-count assertions."""
-        return requests if isinstance(requests, list) else [requests]
+    def _check(hostname: str = "host.example.org") -> PolicyCheck:
+        return PolicyCheck(
+            action="host_read",
+            resource=PolicyResource(
+                kind="Host",
+                id=hostname,
+                attrs={"kind": "host", "hostname": hostname},
+            ),
+        )
 
-    @staticmethod
-    def _host_resource_attrs(hostname: str) -> dict[str, str]:
-        """Return standard host resource attributes used by parity tests."""
-        return {"kind": "host", "hostname": hostname}
-
-    def _run_parity_check(self, request: HttpRequest, *, decision: bool, hostname: str) -> bool:
-        """Run one host_read parity check with canonical host test payload."""
+    def _run_parity_check(
+        self,
+        request: HttpRequest,
+        *,
+        decision: bool,
+        hostname: str,
+    ) -> bool:
         return policy_parity(
             decision,
             request=request,
-            action="host_read",
-            resource_kind="Host",
-            resource_id=hostname,
-            resource_attrs=self._host_resource_attrs(hostname),
+            check=self._check(hostname),
         )
 
-    def _middleware_response_with_checks(self, checks: list[tuple[bool, str]]):
-        """Create middleware callback that emits parity checks then returns 200."""
-        def mock_get_response(http_request: HttpRequest) -> HttpResponse:
-            for decision, hostname in checks:
-                self._run_parity_check(
-                    http_request,
-                    decision=decision,
-                    hostname=hostname,
-                )
-            return HttpResponse(status=200)
+    def test_policy_contract_rejects_empty_values(self) -> None:
+        with self.assertRaisesRegex(ValueError, "kind"):
+            PolicyResource(kind="", id="id", attrs={"kind": "host"})
+        with self.assertRaisesRegex(ValueError, "ID"):
+            PolicyResource(kind="Host", id="", attrs={"kind": "host"})
+        with self.assertRaisesRegex(ValueError, "attributes"):
+            PolicyResource(kind="Host", id="id", attrs={})
+        with self.assertRaisesRegex(ValueError, "action"):
+            PolicyCheck(action="", resource=self._check().resource)
 
-        return mock_get_response
-
-    def test_initialize_policy_log_file_truncates_only_once(self) -> None:
-        """Main process should truncate once and then mark initialization."""
-        mocked_open = mock_open()
-        with (
-            patch("mreg.api.treetop.POLICY_TRUNCATE_LOG_FILE", True),
-            patch("mreg.api.treetop.POLICY_BASE_URL", "http://localhost:9999"),
-            patch("mreg.api.treetop.POLICY_EXTRA_LOG_FILE_NAME", "policy_parity.log"),
-            patch(
-                "mreg.api.treetop.multiprocessing.current_process",
-                return_value=SimpleNamespace(name="MainProcess"),
-            ),
-            patch("mreg.api.treetop.open", mocked_open),
-            patch.dict("mreg.api.treetop.os.environ", {}, clear=True),
-        ):
-            _initialize_policy_parity_log_file()
-            _initialize_policy_parity_log_file()
-
-        mocked_open.assert_called_once_with("policy_parity.log", "w")
-
-    def test_initialize_policy_log_file_skips_parallel_worker(self) -> None:
-        """Parallel workers must not truncate the shared parity log file."""
-        mocked_open = mock_open()
-        with (
-            patch("mreg.api.treetop.POLICY_TRUNCATE_LOG_FILE", True),
-            patch("mreg.api.treetop.POLICY_BASE_URL", "http://localhost:9999"),
-            patch(
-                "mreg.api.treetop.multiprocessing.current_process",
-                return_value=SimpleNamespace(name="ForkPoolWorker-1"),
-            ),
-            patch("mreg.api.treetop.open", mocked_open),
-            patch.dict("mreg.api.treetop.os.environ", {}, clear=True),
-        ):
-            _initialize_policy_parity_log_file()
-
-        mocked_open.assert_not_called()
-
-    def test_initialize_policy_log_file_skips_when_truncate_disabled(self) -> None:
-        """Do not touch parity log file when truncation is disabled."""
-        mocked_open = mock_open()
-        with (
-            patch("mreg.api.treetop.POLICY_TRUNCATE_LOG_FILE", False),
-            patch("mreg.api.treetop.POLICY_BASE_URL", "http://localhost:9999"),
-            patch("mreg.api.treetop.open", mocked_open),
-            patch.dict("mreg.api.treetop.os.environ", {}, clear=True),
-        ):
-            _initialize_policy_parity_log_file()
-
-        mocked_open.assert_not_called()
-
-    def test_batch_queue_initializes_when_missing(self) -> None:
-        """_batch_queue should create and store an empty queue on first access."""
-        if hasattr(_thread_local, "batch_queue"):
-            delattr(_thread_local, "batch_queue")
-
-        queue = _batch_queue()
-
-        self.assertEqual(queue, [])
-        self.assertIs(queue, _thread_local.batch_queue)
-
-    def test_is_parity_enabled_false_when_globally_disabled(self) -> None:
+    def test_is_parity_enabled_requires_configuration_and_context(self) -> None:
         with patch("mreg.api.treetop.POLICY_PARITY_ENABLED", False):
             self.assertFalse(_is_parity_enabled())
-
-    def test_is_parity_enabled_false_when_base_url_unset(self) -> None:
         with (
             patch("mreg.api.treetop.POLICY_PARITY_ENABLED", True),
             patch("mreg.api.treetop.POLICY_BASE_URL", ""),
         ):
             self.assertFalse(_is_parity_enabled())
+        with (
+            patch("mreg.api.treetop.POLICY_PARITY_ENABLED", True),
+            patch("mreg.api.treetop.POLICY_BASE_URL", "http://policy"),
+            disable_policy_parity(),
+        ):
+            self.assertFalse(_is_parity_enabled())
 
-    def test_fully_qualified_action_without_namespace(self) -> None:
-        action = SimpleNamespace(id=SimpleNamespace(namespace=[], id="host_read"))
-        self.assertEqual(_fully_qualified_action(action), "host_read")
+    def test_disable_policy_parity_supports_nesting(self) -> None:
+        with (
+            patch("mreg.api.treetop.POLICY_PARITY_ENABLED", True),
+            patch("mreg.api.treetop.POLICY_BASE_URL", "http://policy"),
+        ):
+            self.assertTrue(_is_parity_enabled())
+            with disable_policy_parity():
+                with disable_policy_parity():
+                    self.assertFalse(_is_parity_enabled())
+                self.assertFalse(_is_parity_enabled())
+            self.assertTrue(_is_parity_enabled())
 
-    def test_result_to_decision_and_error_missing_index(self) -> None:
+    def test_build_resource_attrs_detects_ip_values(self) -> None:
+        attrs = _build_resource_attrs({"ip": "192.0.2.1", "name": "host"})
+        self.assertEqual(attrs["ip"].type.value, "Ip")
+        self.assertEqual(attrs["name"].type.value, "String")
+
+    def test_build_policy_request_uses_namespaced_resource_and_groups(self) -> None:
+        muser = SimpleNamespace(username="tester", group_list=["admins"])
+        with patch("mreg.api.treetop.POLICY_NAMESPACE", ["UiO", "MREG"]):
+            payload = _build_policy_request(muser, self._check()).to_api()
+
+        self.assertEqual(payload["resource"]["kind"], "UiO::MREG::Host")
+        self.assertEqual(payload["action"]["namespace"], ["UiO", "MREG"])
+        self.assertEqual(
+            payload["principal"]["User"]["groups"][0],
+            {"id": "admins", "namespace": ["UiO", "MREG"]},
+        )
+
+    def test_qualified_names_without_namespace(self) -> None:
+        action = SimpleNamespace(__str__=lambda _self: "host_read")
+        self.assertEqual(_fully_qualified_action(action), str(action))
+        with patch("mreg.api.treetop.POLICY_NAMESPACE", []):
+            self.assertEqual(_qualified_resource_kind("Host"), "Host")
+
+    def test_result_parsing_covers_missing_failed_and_success(self) -> None:
         allowed, error = _result_to_decision_and_error([], 0)
         self.assertIsNone(allowed)
         self.assertEqual(error, "Missing policy result at index 0")
 
-    def test_result_to_decision_and_error_failure_status(self) -> None:
-        failed_result = SimpleNamespace(
-            is_success=lambda: False,
-            status="denied",
-            error=None,
-        )
-
-        allowed, error = _result_to_decision_and_error([failed_result], 0)
-
+        failed = _DummyAuthorizeResult(status="failed")
+        allowed, error = _result_to_decision_and_error([failed], 0)  # type: ignore[arg-type]
         self.assertIsNone(allowed)
-        self.assertEqual(error, "Authorization failed with status=denied")
+        self.assertEqual(error, "Authorization failed with status=failed")
 
-    @patch("mreg.api.treetop.MregUser.from_request")
-    @patch("mreg.api.treetop.log_policy_parity")
-    def test_batch_policy_parity_uses_single_authorize_call(
-        self,
-        mock_log_policy_parity,
-        mock_from_request,
-    ) -> None:
-        mock_from_request.return_value = SimpleNamespace(username="tester", group_list=[])
+        failed_with_error = _DummyAuthorizeResult(status="failed", error="bad request")
+        allowed, error = _result_to_decision_and_error([failed_with_error], 0)  # type: ignore[arg-type]
+        self.assertIsNone(allowed)
+        self.assertEqual(error, "bad request")
 
-        calls: list[tuple[int, str | None]] = []
+        allowed, error = _result_to_decision_and_error([_DummyAuthorizeResult(True)], 0)  # type: ignore[arg-type]
+        self.assertTrue(allowed)
+        self.assertIsNone(error)
 
-        def fake_authorize(requests, correlation_id=None):  # type: ignore[no-untyped-def]
-            request_list = self._normalize_authorize_requests(requests)
-            calls.append((len(request_list), correlation_id))
-            # Keep policy results aligned with legacy decisions in this test.
-            decisions = [True, False][: len(request_list)]
-            return _DummyAuthorizeResponse(decisions)
+    def test_compute_payload_distinguishes_match_mismatch_and_error(self) -> None:
+        matching = _compute_parity_payload(
+            decision=True,
+            policy_allowed=True,
+            error=None,
+            context={},
+        )
+        mismatch = _compute_parity_payload(
+            decision=False,
+            policy_allowed=True,
+            error=None,
+            context={},
+        )
+        unavailable = _compute_parity_payload(
+            decision=True,
+            policy_allowed=None,
+            error="offline",
+            context={},
+        )
+        self.assertTrue(matching["parity"])
+        self.assertFalse(mismatch["parity"])
+        self.assertFalse(unavailable["parity"])
 
-        request = self._request()
-        with (
-            patch("mreg.api.treetop.POLICY_PARITY_ENABLED", True),
-            patch("mreg.api.treetop.POLICY_BASE_URL", "http://localhost:9999"),
-            patch("mreg.api.treetop.POLICY_PARITY_BATCH_ENABLED", True),
-            patch("mreg.api.treetop.treetopclient.authorize", side_effect=fake_authorize),
-            batch_policy_parity(),
-        ):
-            self.assertTrue(self._run_parity_check(request, decision=True, hostname="host1.example.org"))
-            self.assertFalse(self._run_parity_check(request, decision=False, hostname="host2.example.org"))
+    @patch("mreg.api.treetop.logger")
+    def test_safe_log_preserves_structured_context(self, logger: Mock) -> None:
+        _safe_log(logging.WARNING, "policy_event", result="mismatch")
 
-        self.assertEqual(calls, [(2, "test-correlation-id")])
-        self.assertEqual(mock_log_policy_parity.call_count, 2)
-
-    @patch("mreg.api.treetop.MregUser.from_request")
-    @patch("mreg.api.treetop.log_policy_parity")
-    def test_policy_parity_without_batch_context_calls_authorize_per_check(
-        self,
-        mock_log_policy_parity,
-        mock_from_request,
-    ) -> None:
-        mock_from_request.return_value = SimpleNamespace(username="tester", group_list=[])
-
-        calls: list[int] = []
-
-        def fake_authorize(requests, correlation_id=None):  # type: ignore[no-untyped-def]
-            request_list = self._normalize_authorize_requests(requests)
-            calls.append(len(request_list))
-            return _DummyAuthorizeResponse([True] * len(request_list))
-
-        request = self._request()
-        with (
-            patch("mreg.api.treetop.POLICY_PARITY_ENABLED", True),
-            patch("mreg.api.treetop.POLICY_BASE_URL", "http://localhost:9999"),
-            patch("mreg.api.treetop.POLICY_PARITY_BATCH_ENABLED", True),
-            patch("mreg.api.treetop.treetopclient.authorize", side_effect=fake_authorize),
-        ):
-            self._run_parity_check(request, decision=True, hostname="host1.example.org")
-            self._run_parity_check(request, decision=True, hostname="host2.example.org")
-
-        self.assertEqual(calls, [1, 1])
-        self.assertEqual(mock_log_policy_parity.call_count, 2)
-
-    @patch("mreg.api.treetop.MregUser.from_request")
-    @patch("mreg.api.treetop.log_policy_parity")
-    def test_single_http_request_flushes_one_authorize_batch(
-        self,
-        mock_log_policy_parity,
-        mock_from_request,
-    ) -> None:
-        """Verify one policy-engine query for one request with multiple parity checks."""
-        mock_from_request.return_value = SimpleNamespace(username="tester", group_list=[])
-
-        calls: list[tuple[int, str | None]] = []
-
-        def fake_authorize(requests, correlation_id=None):  # type: ignore[no-untyped-def]
-            request_list = self._normalize_authorize_requests(requests)
-            calls.append((len(request_list), correlation_id))
-            return _DummyAuthorizeResponse([True] * len(request_list))
-
-        request = self._middleware_request()
-        middleware = LoggingMiddleware(
-            self._middleware_response_with_checks(
-                [
-                    (True, "host1.example.org"),
-                    (True, "host2.example.org"),
-                ]
-            )
+        logger.log.assert_called_once_with(
+            logging.WARNING,
+            "policy_event",
+            result="mismatch",
         )
 
-        with (
-            patch("mreg.api.treetop.POLICY_PARITY_ENABLED", True),
-            patch("mreg.api.treetop.POLICY_BASE_URL", "http://localhost:9999"),
-            patch("mreg.api.treetop.POLICY_PARITY_BATCH_ENABLED", True),
-            patch("mreg.api.treetop.treetopclient.authorize", side_effect=fake_authorize),
-        ):
-            middleware(request)
-
-        self.assertEqual(calls, [(2, "test-correlation-id")])
-        self.assertEqual(mock_log_policy_parity.call_count, 2)
-
     @patch("mreg.api.treetop.MregUser.from_request")
-    @patch("mreg.api.treetop.log_policy_parity")
-    @patch("mreg.api.treetop.logger.warning")
-    @patch("mreg.api.treetop.logger.error")
-    def test_flush_policy_parity_batch_handles_authorize_exception(
+    def test_request_batch_is_submitted_after_response_without_authorize_io(
         self,
-        mock_error,
-        _mock_warning,
-        mock_log_policy_parity,
-        mock_from_request,
+        mock_from_request: Mock,
     ) -> None:
         mock_from_request.return_value = SimpleNamespace(username="tester", group_list=[])
+        submitted: list[list[_ParityBatchItem]] = []
+
+        def capture(items):  # type: ignore[no-untyped-def]
+            submitted.append(list(items))
+            return True
 
         request = self._request()
         with (
             patch("mreg.api.treetop.POLICY_PARITY_ENABLED", True),
-            patch("mreg.api.treetop.POLICY_BASE_URL", "http://localhost:9999"),
+            patch("mreg.api.treetop.POLICY_BASE_URL", "http://policy"),
             patch("mreg.api.treetop.POLICY_PARITY_BATCH_ENABLED", True),
-            patch(
-                "mreg.api.treetop.treetopclient.authorize",
-                side_effect=RuntimeError("policy service unavailable"),
-            ),
+            patch("mreg.api.treetop._submit_policy_batch", side_effect=capture),
+            patch("mreg.api.treetop._get_treetop_client") as get_client,
             batch_policy_parity(),
         ):
-            self._run_parity_check(request, decision=True, hostname="host1.example.org")
-            self._run_parity_check(request, decision=False, hostname="host2.example.org")
+            self.assertTrue(self._run_parity_check(request, decision=True, hostname="one.example"))
+            self.assertFalse(self._run_parity_check(request, decision=False, hostname="two.example"))
+            self.assertEqual(submitted, [])
 
-        self.assertEqual(mock_log_policy_parity.call_count, 2)
-        self.assertEqual(mock_error.call_count, 1)
-        self.assertEqual(mock_error.call_args.kwargs["extra"]["batch_size"], 2)
+        get_client.assert_not_called()
+        self.assertEqual(len(submitted), 1)
+        self.assertEqual(len(submitted[0]), 2)
+        self.assertIsNone(_request_state.get())
 
     @patch("mreg.api.treetop.MregUser.from_request")
-    @patch("mreg.api.treetop.log_policy_parity")
-    @patch("mreg.api.treetop.logger.warning")
-    @patch("mreg.api.treetop.logger.error")
-    def test_policy_parity_non_batch_authorize_exception_records_error_metrics(
-        self,
-        mock_error,
-        _mock_warning,
-        mock_log_policy_parity,
-        mock_from_request,
-    ) -> None:
+    def test_batching_disabled_submits_each_check(self, mock_from_request: Mock) -> None:
         mock_from_request.return_value = SimpleNamespace(username="tester", group_list=[])
+        submissions: list[int] = []
 
-        base_policy_error = _metric_by_label("mreg_policy_decisions_total", 'decision="error"')
-        base_parity_error = _metric_by_label("mreg_policy_parity_results_total", 'result="error"')
+        def capture(items):  # type: ignore[no-untyped-def]
+            submissions.append(len(items))
+            return True
 
-        request = self._request()
         with (
             patch("mreg.api.treetop.POLICY_PARITY_ENABLED", True),
-            patch("mreg.api.treetop.POLICY_BASE_URL", "http://localhost:9999"),
+            patch("mreg.api.treetop.POLICY_BASE_URL", "http://policy"),
             patch("mreg.api.treetop.POLICY_PARITY_BATCH_ENABLED", False),
-            patch(
-                "mreg.api.treetop.treetopclient.authorize",
-                side_effect=RuntimeError("policy service unavailable"),
-            ),
+            patch("mreg.api.treetop._submit_policy_batch", side_effect=capture),
+            batch_policy_parity(),
         ):
-            decision = self._run_parity_check(request, decision=True, hostname="host1.example.org")
+            self._run_parity_check(self._request(), decision=True, hostname="one.example")
+            self._run_parity_check(self._request(), decision=True, hostname="two.example")
 
-        self.assertTrue(decision)
-        self.assertEqual(
-            _metric_by_label("mreg_policy_decisions_total", 'decision="error"') - base_policy_error,
-            1.0,
-        )
-        self.assertEqual(
-            _metric_by_label("mreg_policy_parity_results_total", 'result="error"') - base_parity_error,
-            1.0,
-        )
-        self.assertEqual(mock_error.call_count, 1)
-        self.assertEqual(mock_log_policy_parity.call_count, 1)
+        self.assertEqual(submissions, [1, 1])
 
     @patch("mreg.api.treetop.MregUser.from_request")
-    @patch("mreg.api.treetop.log_policy_parity")
-    @patch("mreg.api.treetop.logger.warning")
-    def test_policy_metrics_are_recorded_for_batched_request(
-        self,
-        _mock_warning,
-        mock_log_policy_parity,
-        mock_from_request,
-    ) -> None:
+    def test_flush_submits_and_clears_active_batch(self, mock_from_request: Mock) -> None:
         mock_from_request.return_value = SimpleNamespace(username="tester", group_list=[])
+        with (
+            patch("mreg.api.treetop.POLICY_PARITY_ENABLED", True),
+            patch("mreg.api.treetop.POLICY_BASE_URL", "http://policy"),
+            patch("mreg.api.treetop.POLICY_PARITY_BATCH_ENABLED", True),
+            patch("mreg.api.treetop._submit_policy_batch", return_value=True) as submit,
+            batch_policy_parity(),
+        ):
+            self._run_parity_check(self._request(), decision=True, hostname="one.example")
+            self.assertTrue(flush_policy_parity_batch())
+            self.assertFalse(flush_policy_parity_batch())
 
-        base_calls_success = _metric_by_label("mreg_policy_authorize_calls_total", 'status="success"')
-        base_policy_allow = _metric_by_label("mreg_policy_decisions_total", 'decision="allow"')
-        base_policy_deny = _metric_by_label("mreg_policy_decisions_total", 'decision="deny"')
-        base_legacy_allow = _metric_by_label("mreg_policy_legacy_decisions_total", 'decision="allow"')
-        base_legacy_deny = _metric_by_label("mreg_policy_legacy_decisions_total", 'decision="deny"')
-        base_parity_match = _metric_by_label("mreg_policy_parity_results_total", 'result="match"')
-        base_parity_mismatch = _metric_by_label("mreg_policy_parity_results_total", 'result="mismatch"')
-        base_parity_error = _metric_by_label("mreg_policy_parity_results_total", 'result="error"')
-        base_queries_count = _metric_total("mreg_policy_queries_per_request_count")
-        base_queries_sum = _metric_total("mreg_policy_queries_per_request_sum")
-        base_req_per_auth_count = _metric_total("mreg_policy_requests_per_authorize_count")
-        base_req_per_auth_sum = _metric_total("mreg_policy_requests_per_authorize_sum")
+        submit.assert_called_once()
 
-        def fake_authorize(requests, correlation_id=None):  # type: ignore[no-untyped-def]
-            request_list = self._normalize_authorize_requests(requests)
-            decisions = [True, False, True][: len(request_list)]
-            return _DummyAuthorizeResponse(decisions)
+    @patch("mreg.api.treetop.MregUser.from_request", side_effect=RuntimeError("broken user"))
+    @patch("mreg.api.treetop._record_instrumentation_failure")
+    def test_policy_parity_is_fail_open_for_build_errors(
+        self,
+        record_failure: Mock,
+        _from_request: Mock,
+    ) -> None:
+        with (
+            patch("mreg.api.treetop.POLICY_PARITY_ENABLED", True),
+            patch("mreg.api.treetop.POLICY_BASE_URL", "http://policy"),
+        ):
+            self.assertTrue(policy_parity(True, request=self._request(), check=self._check()))
+        record_failure.assert_called_once()
 
-        request = self._middleware_request()
-        middleware = LoggingMiddleware(
-            self._middleware_response_with_checks(
-                [
-                    (True, "host1.example.org"),
-                    (True, "host2.example.org"),
-                    (False, "host3.example.org"),
-                ]
-            )
+    @patch("mreg.api.treetop.MregUser.from_request")
+    def test_sensitive_log_details_are_disabled_by_default(self, mock_from_request: Mock) -> None:
+        mock_from_request.return_value = SimpleNamespace(
+            username="tester",
+            group_list=["secret-group"],
         )
+        captured: list[_ParityBatchItem] = []
+
+        def capture(items):  # type: ignore[no-untyped-def]
+            captured.extend(items)
+            return True
 
         with (
             patch("mreg.api.treetop.POLICY_PARITY_ENABLED", True),
-            patch("mreg.api.treetop.POLICY_BASE_URL", "http://localhost:9999"),
-            patch("mreg.api.treetop.POLICY_PARITY_BATCH_ENABLED", True),
-            patch("mreg.api.treetop.treetopclient.authorize", side_effect=fake_authorize),
+            patch("mreg.api.treetop.POLICY_BASE_URL", "http://policy"),
+            patch("mreg.api.treetop.POLICY_PARITY_LOG_DETAILS", False),
+            patch("mreg.api.treetop._submit_policy_batch", side_effect=capture),
         ):
-            middleware(request)
+            self._run_parity_check(self._request(), decision=True, hostname="secret.example")
 
-        self.assertEqual(
-            _metric_by_label("mreg_policy_authorize_calls_total", 'status="success"') - base_calls_success,
-            1.0,
-        )
-        self.assertEqual(
-            _metric_by_label("mreg_policy_decisions_total", 'decision="allow"') - base_policy_allow,
-            2.0,
-        )
-        self.assertEqual(
-            _metric_by_label("mreg_policy_decisions_total", 'decision="deny"') - base_policy_deny,
-            1.0,
-        )
-        self.assertEqual(
-            _metric_by_label("mreg_policy_legacy_decisions_total", 'decision="allow"') - base_legacy_allow,
-            2.0,
-        )
-        self.assertEqual(
-            _metric_by_label("mreg_policy_legacy_decisions_total", 'decision="deny"') - base_legacy_deny,
-            1.0,
-        )
-        self.assertEqual(
-            _metric_by_label("mreg_policy_parity_results_total", 'result="match"') - base_parity_match,
-            1.0,
-        )
-        self.assertEqual(
-            _metric_by_label("mreg_policy_parity_results_total", 'result="mismatch"') - base_parity_mismatch,
-            2.0,
-        )
-        self.assertEqual(
-            _metric_by_label("mreg_policy_parity_results_total", 'result="error"') - base_parity_error,
-            0.0,
-        )
-        self.assertEqual(_metric_total("mreg_policy_queries_per_request_count") - base_queries_count, 1.0)
-        self.assertEqual(_metric_total("mreg_policy_queries_per_request_sum") - base_queries_sum, 1.0)
-        self.assertEqual(_metric_total("mreg_policy_requests_per_authorize_count") - base_req_per_auth_count, 1.0)
-        self.assertEqual(_metric_total("mreg_policy_requests_per_authorize_sum") - base_req_per_auth_sum, 3.0)
+        self.assertNotIn("principal", captured[0].context)
+        self.assertNotIn("groups", captured[0].context)
+        self.assertNotIn("resource_attrs", captured[0].context)
 
-        raw = prometheus_registry_text()
-        # Prometheus boundaries for buckets: 0,1,2,3,5,8,+Inf (ranges: 0,1,2,3,4-5,6-8,9+)
-        self.assertIn('mreg_policy_queries_per_request_bucket{le="0.0"}', raw)
-        self.assertIn('mreg_policy_queries_per_request_bucket{le="1.0"}', raw)
-        self.assertIn('mreg_policy_queries_per_request_bucket{le="2.0"}', raw)
-        self.assertIn('mreg_policy_queries_per_request_bucket{le="3.0"}', raw)
-        self.assertIn('mreg_policy_queries_per_request_bucket{le="5.0"}', raw)
-        self.assertIn('mreg_policy_queries_per_request_bucket{le="8.0"}', raw)
-        self.assertIn('mreg_policy_requests_per_authorize_bucket{le="0.0"}', raw)
-        self.assertIn('mreg_policy_requests_per_authorize_bucket{le="1.0"}', raw)
-        self.assertIn('mreg_policy_requests_per_authorize_bucket{le="2.0"}', raw)
-        self.assertIn('mreg_policy_requests_per_authorize_bucket{le="3.0"}', raw)
-        self.assertIn('mreg_policy_requests_per_authorize_bucket{le="5.0"}', raw)
-        self.assertIn('mreg_policy_requests_per_authorize_bucket{le="8.0"}', raw)
+    @patch("mreg.api.treetop.MregUser.from_request")
+    def test_sensitive_log_details_can_be_enabled(self, mock_from_request: Mock) -> None:
+        mock_from_request.return_value = SimpleNamespace(username="tester", group_list=["admins"])
+        captured: list[_ParityBatchItem] = []
+
+        def capture(items):  # type: ignore[no-untyped-def]
+            captured.extend(items)
+            return True
+
+        with (
+            patch("mreg.api.treetop.POLICY_PARITY_ENABLED", True),
+            patch("mreg.api.treetop.POLICY_BASE_URL", "http://policy"),
+            patch("mreg.api.treetop.POLICY_PARITY_LOG_DETAILS", True),
+            patch("mreg.api.treetop._submit_policy_batch", side_effect=capture),
+        ):
+            self._run_parity_check(self._request(), decision=True, hostname="host.example")
+
+        self.assertEqual(captured[0].context["principal"], "tester")
+        self.assertEqual(captured[0].context["groups"], ["admins"])
+
+    @patch("mreg.api.treetop._log_parity_payload")
+    @patch("mreg.api.treetop._get_treetop_client")
+    def test_worker_processes_a_batch_in_one_authorize_call(
+        self,
+        get_client: Mock,
+        log_payload: Mock,
+    ) -> None:
+        client = get_client.return_value
+        client.authorize.return_value = _DummyAuthorizeResponse([True, False])
+        items = [
+            _ParityBatchItem(True, {"request": "one"}, {"correlation_id": "cid", "path": "/one"}),
+            _ParityBatchItem(False, {"request": "two"}, {"correlation_id": "cid", "path": "/one"}),
+        ]
+
+        _process_policy_parity_batch(items)
+
+        client.authorize.assert_called_once_with(
+            [{"request": "one"}, {"request": "two"}],
+            correlation_id="cid",
+        )
+        self.assertEqual(log_payload.call_count, 2)
+        self.assertTrue(log_payload.call_args_list[0].args[0]["parity"])
+        self.assertTrue(log_payload.call_args_list[1].args[0]["parity"])
+
+    @patch("mreg.api.treetop._log_parity_payload")
+    @patch("mreg.api.treetop._get_treetop_client")
+    def test_worker_records_authorize_exceptions_for_every_item(
+        self,
+        get_client: Mock,
+        log_payload: Mock,
+    ) -> None:
+        get_client.return_value.authorize.side_effect = RuntimeError("offline")
+        items = [
+            _ParityBatchItem(True, {"request": "one"}, {}),
+            _ParityBatchItem(False, {"request": "two"}, {}),
+        ]
+
+        _process_policy_parity_batch(items)
+
+        self.assertEqual(log_payload.call_count, 2)
+        self.assertIn("offline", log_payload.call_args_list[0].args[0]["error"])
+
+    def test_bounded_dispatcher_drops_when_queue_is_full(self) -> None:
+        dispatcher = _ParityDispatcher(max_queue_size=1)
+        item = _ParityBatchItem(True, {}, {})
+        with patch.object(dispatcher, "_ensure_started"):
+            self.assertTrue(dispatcher.submit([item]))
+            self.assertFalse(dispatcher.submit([item]))
+
+    @patch("mreg.api.treetop.MregUser.from_request")
+    def test_logging_middleware_only_enqueues_policy_work(self, mock_from_request: Mock) -> None:
+        mock_from_request.return_value = SimpleNamespace(username="tester", group_list=[])
+
+        def get_response(request: HttpRequest) -> HttpResponse:
+            self._run_parity_check(request, decision=True, hostname="one.example")
+            self._run_parity_check(request, decision=True, hostname="two.example")
+            return HttpResponse(status=200)
+
+        middleware = LoggingMiddleware(get_response)
+        with (
+            patch("mreg.api.treetop.POLICY_PARITY_ENABLED", True),
+            patch("mreg.api.treetop.POLICY_BASE_URL", "http://policy"),
+            patch("mreg.api.treetop.POLICY_PARITY_BATCH_ENABLED", True),
+            patch("mreg.api.treetop._submit_policy_batch", return_value=True) as submit,
+            patch("mreg.api.treetop._get_treetop_client") as get_client,
+        ):
+            response = middleware(self._middleware_request())
+
+        self.assertEqual(response.status_code, 200)
+        get_client.assert_not_called()
+        self.assertEqual(len(submit.call_args.args[0]), 2)

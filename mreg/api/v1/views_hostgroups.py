@@ -3,8 +3,8 @@ from django.contrib.auth.models import Group
 from django.db.models import Prefetch
 
 from rest_framework import status
-from rest_framework.response import Response
 
+from mreg.api.responses import error_response
 from mreg.api.permissions import (HostGroupPermission,
                                   IsSuperOrGroupAdminOrReadOnly)
 from mreg.models.host import Host, HostGroup
@@ -83,8 +83,7 @@ class HostGroupList(HostGroupLogMixin, LowerCaseLookupMixin, MregListCreateAPIVi
 
     def post(self, request, *args, **kwargs):
         if self.get_object_from_request(request):
-            content = {'ERROR': 'hostgroup name already in use'}
-            return Response(content, status=status.HTTP_409_CONFLICT)
+            return error_response('hostgroup name already in use', status.HTTP_409_CONFLICT)
         return super().post(request, *args, **kwargs)
 
 
@@ -144,7 +143,8 @@ class HostGroupGroupsDetail(HostGroupM2MDetail):
 
     serializer_class = serializers.HostGroupSerializer
     m2m_field = 'groups'
-    lookup_field = 'group'
+    lookup_field = 'name'
+    lookup_url_kwarg = 'group'
 
 
 class HostGroupHostsList(HostGroupM2MList):
@@ -175,7 +175,8 @@ class HostGroupHostsDetail(HostGroupM2MDetail):
 
     serializer_class = serializers.GroupSerializer
     m2m_field = 'hosts'
-    lookup_field = 'host'
+    lookup_field = 'name'
+    lookup_url_kwarg = 'host'
 
 
 class HostGroupOwnersList(HostGroupM2MList):
@@ -207,4 +208,5 @@ class HostGroupOwnersDetail(HostGroupM2MDetail):
 
     serializer_class = serializers.GroupSerializer
     m2m_field = 'owners'
-    lookup_field = 'owner'
+    lookup_field = 'name'
+    lookup_url_kwarg = 'owner'
