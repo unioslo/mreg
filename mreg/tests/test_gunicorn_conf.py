@@ -12,6 +12,15 @@ from mregsite import gunicorn_conf
 class GunicornLifecycleHookTests(SimpleTestCase):
     """Ensure parity dispatchers follow each Gunicorn worker lifecycle."""
 
+    @patch("django.setup")
+    @patch("django.apps.apps")
+    def test_setup_initializes_django_when_apps_are_not_ready(self, apps, django_setup):
+        apps.ready = False
+
+        gunicorn_conf._setup_django()
+
+        django_setup.assert_called_once_with()
+
     @patch("mreg.api.treetop.start_policy_parity_dispatcher")
     def test_post_fork_starts_dispatcher(self, start_dispatcher):
         gunicorn_conf.post_fork(None, None)
@@ -23,6 +32,15 @@ class GunicornLifecycleHookTests(SimpleTestCase):
         gunicorn_conf.worker_exit(None, None)
 
         stop_dispatcher.assert_called_once_with()
+
+    @patch("mreg.api.treetop.stop_policy_parity_dispatcher")
+    @patch("django.apps.apps")
+    def test_worker_exit_is_safe_before_django_setup(self, apps, stop_dispatcher):
+        apps.ready = False
+
+        gunicorn_conf.worker_exit(None, SimpleNamespace(pid=42))
+
+        stop_dispatcher.assert_not_called()
 
     @patch("prometheus_client.multiprocess.mark_process_dead")
     @patch("mreg.api.treetop.stop_policy_parity_dispatcher")

@@ -1,9 +1,11 @@
+from pathlib import Path
 from unittest import mock
 
 from django.test import SimpleTestCase
 
 from mreg.api.permissions import ParityMixin
 from mreg.api.treetop import PolicyCheck, PolicyResource
+from mreg.policy.contracts import render_cedar_schema
 
 
 class Host:
@@ -32,6 +34,11 @@ class PolicyContractTests(SimpleTestCase):
             self.mixin._resource_kind_from_view(view=_ModelView()),
             "Host",
         )
+
+    def test_rendered_schema_matches_committed_contract(self):
+        schema_path = Path(__file__).resolve().parents[2] / "treetop/data/mreg.cedarschema"
+
+        self.assertEqual(render_cedar_schema(), schema_path.read_text())
 
     def test_resource_kind_supports_explicit_non_model_contract(self):
         view = mock.Mock(policy_resource_kind="Generic")

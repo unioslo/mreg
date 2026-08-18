@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import logging
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -18,6 +19,7 @@ from mreg.api.treetop import (
     _compute_parity_payload,
     _deserialize_policy_batch,
     _fully_qualified_action,
+    _get_treetop_client,
     _is_parity_enabled,
     _process_policy_parity_batch,
     _qualified_resource_kind,
@@ -25,10 +27,13 @@ from mreg.api.treetop import (
     _result_to_decision_and_error,
     _safe_log,
     _serialize_policy_batch,
+    _close_treetop_client,
     batch_policy_parity,
     disable_policy_parity,
     flush_policy_parity_batch,
     policy_parity,
+    start_policy_parity_dispatcher,
+    stop_policy_parity_dispatcher,
 )
 from mreg.middleware.logging_http import LoggingMiddleware
 
@@ -407,6 +412,90 @@ class TreeTopParityBatchingTests(TestCase):
         self.assertFalse(restored[0].decision)
         self.assertEqual(restored[0].context, {"correlation_id": "cid"})
         self.assertEqual(restored[0].policy_request.to_api(), request.to_api())
+
+    def test_durable_batch_rejects_malformed_payloads(self) -> None:
+        request = _build_policy_request(
+            SimpleNamespace(username="tester", group_list=[]),
+            self._check(),
+        ).to_api()
+
+        def batch(policy_request):  # type: ignore[no-untyped-def]
+            return {
+                "version": 1,
+                "items": [{"decision": True, "policy_request": policy_request, "context": {}}],
+            }
+
+        invalid_payloads: list[dict[str, object]] = [
+            {"version": 2, "items": []},
+            {"version": 1, "items": {}},
+            {"version": 1, "items": ["invalid"]},
+            {"version": 1, "items": [{"policy_request": request, "context": []}]},
+            batch({"principal": []}),
+            batch({"principal": {"User": []}}),
+        ]
+
+        invalid_action = deepcopy(request)
+        invalid_action["action"] = []
+        invalid_payloads.append(batch(invalid_action))
+        invalid_attrs = deepcopy(request)
+        invalid_attrs["resource"]["attrs"] = []
+        invalid_payloads.append(batch(invalid_attrs))
+        invalid_attribute = deepcopy(request)
+        invalid_attribute["resource"]["attrs"]["kind"] = []
+        invalid_payloads.append(batch(invalid_attribute))
+
+        for payload in invalid_payloads:
+            with self.subTest(payload=payload), self.assertRaises((ValueError, KeyError)):
+                _deserialize_policy_batch(payload)
+
+    def test_treetop_client_is_process_local_and_closed_safely(self) -> None:
+        old_client = Mock()
+        new_client = Mock()
+        with (
+            patch("mreg.api.treetop._client", old_client),
+            patch("mreg.api.treetop._client_pid", -1),
+            patch("mreg.api.treetop.os.getpid", return_value=42),
+            patch("mreg.api.treetop.TreeTopClient", return_value=new_client) as client_class,
+        ):
+            self.assertIs(_get_treetop_client(), new_client)
+
+        old_client.close.assert_called_once_with()
+        client_class.assert_called_once()
+
+        with (
+            patch("mreg.api.treetop._client", new_client),
+            patch("mreg.api.treetop._client_pid", 42),
+            patch("mreg.api.treetop.asyncio.run") as async_run,
+        ):
+            _close_treetop_client()
+        async_run.assert_called_once_with(new_client.aclose.return_value)
+
+        fallback_client = Mock()
+        with (
+            patch("mreg.api.treetop._client", fallback_client),
+            patch("mreg.api.treetop._client_pid", 42),
+            patch("mreg.api.treetop.asyncio.run", side_effect=RuntimeError("no event loop")),
+        ):
+            _close_treetop_client()
+        fallback_client.close.assert_called_once_with()
+
+    def test_dispatcher_lifecycle_respects_configuration_and_process(self) -> None:
+        dispatcher = Mock()
+        with (
+            patch("mreg.api.treetop.POLICY_PARITY_ENABLED", True),
+            patch("mreg.api.treetop.POLICY_BASE_URL", "http://policy"),
+            patch("mreg.api.treetop._get_dispatcher", return_value=dispatcher),
+        ):
+            start_policy_parity_dispatcher()
+        dispatcher._ensure_started.assert_called_once_with()
+
+        with (
+            patch("mreg.api.treetop._dispatcher", dispatcher),
+            patch("mreg.api.treetop._dispatcher_pid", 42),
+            patch("mreg.api.treetop.os.getpid", return_value=42),
+        ):
+            stop_policy_parity_dispatcher()
+        dispatcher.shutdown.assert_called_once_with()
 
     def test_dispatcher_claims_and_completes_a_durable_batch(self) -> None:
         from mreg.models.policy import PolicyParityOutbox

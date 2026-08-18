@@ -5,7 +5,8 @@ from unittest.mock import Mock, patch
 
 from rest_framework.test import APIClient
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.http import HttpResponse
+from django.test import RequestFactory, TestCase
 from typing import Any
 
 from mreg.models.host import Host, Ipaddress
@@ -71,7 +72,6 @@ class MetricsTests(TestCase):
 
         host = Host.objects.create(
             name="db_metric_test.example.com",
-            contact="test@example.com",
             ttl=3600,
             comment="test",
         )
@@ -99,7 +99,6 @@ class MetricsTests(TestCase):
 
         host = Host.objects.create(
             name="db_count_test.example.com",
-            contact="test@example.com",
             ttl=3600,
             comment="test",
         )
@@ -146,9 +145,16 @@ class MetricsTests(TestCase):
         user = User.objects.create_user(username="size_metrics_user", password="x")
         client.force_authenticate(user=user)
 
-        # Simple GET with no body (request size ~0), small response
-        r: Any = client.get("/api/meta/health/heartbeat")
+        # An explicit content length is observed without forcing request-body access.
+        r: Any = client.get("/api/meta/health/heartbeat", CONTENT_LENGTH="0")
         assert r.status_code == 200
+
+        # Response sizes are recorded only when an upstream view/middleware sets
+        # Content-Length; exercise that explicit contract directly.
+        middleware = PrometheusRequestMiddleware(
+            lambda _request: HttpResponse(b"ok", headers={"Content-Length": "2"})
+        )
+        middleware(RequestFactory().get("/api/meta/health/heartbeat"))
 
         metrics_resp: Any = client.get("/api/meta/metrics")
         raw = metrics_resp.content.decode("utf-8")
