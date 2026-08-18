@@ -1,25 +1,93 @@
 [
-    {
-        "kind": "MREG::Host",
-        "field": "name",
-        "output": "nameLabels",
-        "patterns": [
-            {
-                "name": "in_domain",
-                "regex": "example\\.com$"
-            },
-            {
-                "name": "valid_webserver_name",
-                "regex": "^web-\\d+"
-            },
-            {
-                "name": "admin_subdomain",
-                "regex": "^admin\\."
-            },
-            {
-                "name": "staging_environment",
-                "regex": "^staging\\."
-            }
-        ]
-    }
+  {
+    "kind": "MREG::Host",
+    "field": "hostname",
+    "output": "nameLabels",
+    "patterns": [
+      {"name": "netgroup_example_org", "regex": ".*\\.example\\.org$"},
+      {"name": "netgroup_host_example_org", "regex": "^ho.*\\.example\\.org$"},
+      {"name": "safelabel", "regex": ".*\\.example\\.org$"},
+      {"name": "webserver", "regex": "^web-\\d+"},
+      {"name": "admin_subdomain", "regex": "^admin\\."},
+      {"name": "staging_environment", "regex": "^staging\\."}
+    ]
+  },
+  {
+    "kind": "MREG::Ipaddress",
+    "field": "hostname",
+    "output": "nameLabels",
+    "patterns": [
+      {"name": "netgroup_example_org", "regex": ".*\\.example\\.org$"},
+      {"name": "netgroup_host_example_org", "regex": "^ho.*\\.example\\.org$"}
+    ]
+  },
+  {
+    "kind": "MREG::Cname",
+    "field": "hostname",
+    "output": "nameLabels",
+    "patterns": [
+      {"name": "netgroup_example_org", "regex": ".*\\.example\\.org$"},
+      {"name": "netgroup_host_example_org", "regex": "^ho.*\\.example\\.org$"}
+    ]
+  },
+  {
+    "kind": "MREG::Hinfo",
+    "field": "hostname",
+    "output": "nameLabels",
+    "patterns": [{"name": "netgroup_example_org", "regex": ".*\\.example\\.org$"}]
+  },
+  {
+    "kind": "MREG::Loc",
+    "field": "hostname",
+    "output": "nameLabels",
+    "patterns": [{"name": "netgroup_example_org", "regex": ".*\\.example\\.org$"}]
+  },
+  {
+    "kind": "MREG::Mx",
+    "field": "hostname",
+    "output": "nameLabels",
+    "patterns": [{"name": "netgroup_example_org", "regex": ".*\\.example\\.org$"}]
+  },
+  {
+    "kind": "MREG::Naptr",
+    "field": "hostname",
+    "output": "nameLabels",
+    "patterns": [{"name": "netgroup_example_org", "regex": ".*\\.example\\.org$"}]
+  },
+  {
+    "kind": "MREG::NameServer",
+    "field": "hostname",
+    "output": "nameLabels",
+    "patterns": [{"name": "netgroup_example_org", "regex": ".*\\.example\\.org$"}]
+  },
+  {
+    "kind": "MREG::PtrOverride",
+    "field": "hostname",
+    "output": "nameLabels",
+    "patterns": [{"name": "netgroup_example_org", "regex": ".*\\.example\\.org$"}]
+  },
+  {
+    "kind": "MREG::Sshfp",
+    "field": "hostname",
+    "output": "nameLabels",
+    "patterns": [{"name": "netgroup_example_org", "regex": ".*\\.example\\.org$"}]
+  },
+  {
+    "kind": "MREG::Srv",
+    "field": "hostname",
+    "output": "nameLabels",
+    "patterns": [{"name": "netgroup_example_org", "regex": ".*\\.example\\.org$"}]
+  },
+  {
+    "kind": "MREG::Txt",
+    "field": "hostname",
+    "output": "nameLabels",
+    "patterns": [{"name": "netgroup_example_org", "regex": ".*\\.example\\.org$"}]
+  },
+  {
+    "kind": "MREG::BACnetID",
+    "field": "hostname",
+    "output": "nameLabels",
+    "patterns": [{"name": "netgroup_example_org", "regex": ".*\\.example\\.org$"}]
+  }
 ]

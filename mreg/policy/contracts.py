@@ -48,7 +48,7 @@ def snake_case(value: str) -> str:
     return re.sub(r"[^a-zA-Z0-9_]+", "_", value).strip("_").lower() or "generic"
 
 
-HOST_ATTRIBUTES = tuple(
+ENDPOINT_ATTRIBUTES = tuple(
     ResourceAttributeContract(name, cedar_type)
     for name, cedar_type in (
         ("kind", "String"),
@@ -58,25 +58,32 @@ HOST_ATTRIBUTES = tuple(
         ("hostname", "String"),
         ("ip", "ipaddr"),
         ("nameLabels", "Set<String>"),
+        ("dnsWildcard", "Bool"),
+        ("dnsWildcardValidDepth", "Bool"),
+        ("dnsUnderscore", "Bool"),
+        ("ipReserved", "Bool"),
+        ("ipRestricted", "Bool"),
+        ("selfAccess", "Bool"),
+        ("requesterIsOwner", "Bool"),
+        ("ownerMutation", "Bool"),
+        ("descriptionUpdate", "Bool"),
+        ("roleLabel", "String"),
+        ("network", "String"),
     )
 )
 
 
 RESOURCE_CONTRACTS = (
-    ResourceContract("Generic"),
-    ResourceContract("Host", CRUD_OPERATIONS, HOST_ATTRIBUTES),
-    ResourceContract("HostContact", identifier_fields=("pk", "id", "email")),
+    ResourceContract("Generic", attributes=ENDPOINT_ATTRIBUTES),
+    ResourceContract("Host", CRUD_OPERATIONS, ENDPOINT_ATTRIBUTES),
+    ResourceContract("HostContact", attributes=ENDPOINT_ATTRIBUTES, identifier_fields=("pk", "id", "email")),
     ResourceContract(
         "Ipaddress",
         CRUD_OPERATIONS,
-        (
-            ResourceAttributeContract("kind"),
-            ResourceAttributeContract("id"),
-            ResourceAttributeContract("ip", "ipaddr"),
-        ),
+        ENDPOINT_ATTRIBUTES,
         identifier_fields=("pk", "id", "ipaddress"),
     ),
-    *(ResourceContract(kind, CRUD_OPERATIONS) for kind in (
+    *(ResourceContract(kind, CRUD_OPERATIONS, ENDPOINT_ATTRIBUTES) for kind in (
         "Cname",
         "Hinfo",
         "Loc",
@@ -95,6 +102,15 @@ RESOURCE_CONTRACTS = (
         "NetworkPolicy",
         "NetworkPolicyAttribute",
         "NetworkPolicyAttributeValue",
+        "HostGroup",
+        "NetworkExcludedRange",
+        "ForwardZone",
+        "ForwardZoneDelegation",
+        "ReverseZone",
+        "ReverseZoneDelegation",
+        "HostPolicyAtom",
+        "HostPolicyRole",
+        "NetGroupRegexPermission",
     )),
 )
 
@@ -114,16 +130,23 @@ MEMBERSHIP_ACTIONS = {
 CUSTOM_ACTIONS = frozenset(
     {
         *MEMBERSHIP_ACTIONS.values(),
+        "authenticated_access",
         "create_label",
         "delete_label",
         "edit_label",
         "host_contacts_read",
+        "host_contacts_create",
+        "host_contacts_delete",
+        "hostgroup_membership_update",
+        "hostpolicy_role_atom_membership_update",
+        "hostpolicy_role_host_membership_update",
         "ip_broadcast_management",
         "ip_gw_management",
         "ip_network_management",
         "ip_reserved_management",
         "ip_restricted_management",
         "is_superuser",
+        "user_info_read",
         "view_label",
     }
 )

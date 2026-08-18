@@ -11,7 +11,7 @@ groups:
         labels:
           severity: page
         annotations:
-          summary: TreeTop parity mismatch rate exceeds 0.1%
+          summary: TreeTop endpoint parity mismatch rate exceeds 0.1%
       - alert: MregTreeTopParityErrorRateHigh
         expr: |
           sum(rate(mreg_policy_parity_results_total{result="error"}[30m]))
@@ -22,39 +22,29 @@ groups:
         labels:
           severity: page
         annotations:
-          summary: TreeTop parity error rate exceeds 0.1%
-      - alert: MregTreeTopParityPersistenceFailure
-        expr: increase(mreg_policy_parity_batches_total{status="persist_failed"}[5m]) > 0
-        for: 0m
-        labels:
-          severity: page
-        annotations:
-          summary: A policy parity batch could not be persisted
-      - alert: MregTreeTopParityDeadLetter
-        expr: max(mreg_policy_parity_outbox_entries{status="dead_letter"}) > 0
-        for: 0m
-        labels:
-          severity: page
-        annotations:
-          summary: The policy parity outbox contains dead letters
-      - alert: MregTreeTopParityBacklogStale
-        expr: max(mreg_policy_parity_outbox_oldest_seconds) > 300
-        for: 10m
-        labels:
-          severity: page
-        annotations:
-          summary: The oldest policy parity batch is over five minutes old
-      - alert: MregTreeTopParityCircuitOpen
-        expr: max(mreg_policy_parity_circuit_open) > 0
+          summary: TreeTop endpoint parity error rate exceeds 0.1%
+      - alert: MregTreeTopCircuitOpen
+        expr: max(mreg_policy_circuit_open) > 0
         for: 2m
         labels:
-          severity: ticket
+          severity: page
         annotations:
-          summary: A policy parity delivery circuit breaker is open
+          summary: A synchronous TreeTop worker circuit is open
+      - alert: MregTreeTopMultipleCallsPerRequest
+        expr: |
+          sum(rate(mreg_policy_authorize_calls_per_request_count[5m]))
+          -
+          sum(rate(mreg_policy_authorize_calls_per_request_bucket{le="1.0"}[5m]))
+          > 0
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: A request made more than one TreeTop authorize call
       - alert: MregTreeTopEnforcementFailure
-        expr: increase(mreg_policy_enforcement_results_total{result=~"error_.*"}[5m]) > 0
+        expr: increase(mreg_policy_enforcement_results_total{result="error_deny"}[5m]) > 0
         for: 0m
         labels:
           severity: page
         annotations:
-          summary: An authoritative TreeTop decision failed
+          summary: An authoritative TreeTop request failed closed

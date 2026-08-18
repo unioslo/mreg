@@ -1,236 +1,191 @@
+# TreeTop Authorization
 
-# Policy Actions
+MREG can evaluate authorization with the TreeTop Cedar policy engine. The
+integration is request-scoped, synchronous, bundle-based, and has three modes:
 
-This section documents the policy actions currently used by MREG permission checks.
+| Mode | TreeTop call | Returned decision |
+| --- | --- | --- |
+| `off` | none | legacy MREG permission |
+| `shadow` | one synchronous call per protected endpoint | legacy MREG permission |
+| `enforce` | one synchronous call per protected endpoint | TreeTop composite; errors deny |
 
-Related documentation:
+An empty `MREG_POLICY_BASE_URL` makes the default `shadow` mode behave like
+`off`. `enforce` requires a URL at startup and has no legacy error fallback.
+Authentication remains local; token acquisition, health checks, metrics, schema,
+and admin pages are the explicit policy exemptions.
 
-- Parity test workflow and triage: [`parity_testing.md`](./parity_testing.md)
+## Why there is no queue or async dispatcher
 
-## Source of Truth
+Authorization must complete before request processing can continue. Queuing the
+work would either allow an unauthorised request to proceed or still require the
+request to wait for the queue result. An async HTTP client would change how the
+thread waits, not remove the dependency. The DRF/Gunicorn application is
+synchronous, so MREG uses the synchronous `treetop-client` API directly.
 
-- Bundle manifest: `treetop/data/treetop-bundle.toml`
-- Policy module: `treetop/data/treetop-mreg-module.toml`
-- Global policy module: `treetop/data/treetop-global-module.toml`
-- Policy definitions: `treetop/data/mreg.cedar` and `treetop/data/global.cedar`
-- Python resource/action contracts: `mreg/policy/contracts.py`
-- Typed resource adapters: `mreg/policy/resources.py`
-- Generated Cedar schema: `treetop/data/mreg.cedarschema`
-- Derived labels: `treetop/data/labels.json`
-- Generated bundle: `treetop/data/mreg-bundle.tar.gz`
-- Parity transport/logging: `mreg/api/treetop.py`
+Shadow mode also waits. This ensures its comparison uses the policy bundle that
+was active for the request and exercises the exact latency, timeout, circuit,
+and response-validation path that enforcement will use. The former PostgreSQL
+outbox, migration, dispatcher, retry/dead-letter state, and Gunicorn background
+thread are intentionally absent.
 
-## Building the Bundle
+## One endpoint stack and one HTTP call
 
-Install `treetop-bundle` 0.0.5 from the
-[`treetop-bundle` releases](https://github.com/treetop-policy-engine/treetop-bundle/releases/tag/v0.0.5),
-which matches the bundle format and Treetop Core version supported by the
-pinned REST server. Then validate and build the bundle from the repository
-root:
+An endpoint builds a tree of `PolicyLeaf`, `PolicyAll`, and `PolicyAny` nodes.
+Every leaf is included in one batched `authorize` request. MREG then composes the
+ordered results locally using the tree's AND/OR structure. Examples include:
 
-```console
-$ python scripts/generate-treetop-schema.py --check
-$ treetop-bundle build \
-    --manifest treetop/data/treetop-bundle.toml \
-    --output treetop/data/mreg-bundle.tar.gz
-$ TREETOP_BUNDLE_BIN=treetop-bundle scripts/check-treetop-bundle.sh
+- all old and new targets required for a hostname rename;
+- any IP attached to a host matching a NetGroup rule;
+- any host-policy role label matching the host's derived labels;
+- DNS-name, reserved-address, ownership, and target facts in the same endpoint
+  decision.
+
+The request scope caches an identical repeated stack and rejects a second
+different stack. `mreg_policy_authorize_calls_per_request` makes violations of
+the one-call invariant observable.
+
+## Principal, action, resource, and facts
+
+Each leaf sends:
+
+- a qualified principal such as `MREG::User::"alice"`, with current group
+  memberships;
+- one explicit action such as `MREG::Action::"host_update"`;
+- a typed resource such as `MREG::Host::"host.example.org"`;
+- raw facts needed by Cedar, including hostname, IP, network, DNS-name shape,
+  target/self relationship, host-group ownership, or host-policy role label.
+
+MREG does not send a precomputed `allow` fact. Relationship booleans such as
+`selfAccess` and `requesterIsOwner` describe request state; Cedar decides what
+those facts mean.
+
+`mreg/policy/contracts.py` is the dependency-free source of truth for resource
+kinds, optional attributes, operations, and actions. `mreg/policy/resources.py`
+resolves model/view data to stable IDs and normalized attributes. Unknown kinds
+must be registered explicitly; view class names are not an authority fallback.
+The generated schema is checked in CI.
+
+## Mapping mutable database permissions
+
+User group membership remains dynamic and is sent on every call. Mutable
+`NetGroupRegexPermission` rows cannot remain an independent authority when
+TreeTop is authoritative. Their equivalents must be reviewed and added to the
+deployed bundle:
+
+| Database field | Bundle representation |
+| --- | --- |
+| `group` | Cedar principal group |
+| `range` | Cedar `ip.isInRange(...)` or exact network condition |
+| `regex` | named pattern in `labels.json` |
+| `labels` | derived label name used by Cedar/host-policy rules |
+
+TreeTop applies all regexes in the bundle to the raw `hostname` fact and adds
+`nameLabels`. Cedar checks labels such as `netgroup_example_org`; MREG neither
+runs the bundle regex nor invents the label. This is the intended TreeTop label
+boundary.
+
+In `enforce`, the NetGroupRegexPermission API remains readable but returns HTTP
+409 for POST, PUT, PATCH, and DELETE. This prevents the database from appearing
+to change authoritative policy. In `off` and `shadow`, writes retain their
+legacy behavior so policy authors can stage and compare a migration. Bundle
+publication is a separate reviewed deployment operation.
+
+## Local responsibilities and Cedar responsibilities
+
+MREG still owns authentication, serializer validation, object lookup, database
+transactions, conflicts, and business invariants. Cedar owns authorization for
+protected endpoints in `enforce`, including:
+
+- authenticated reads and explicit introspection actions;
+- super/admin/network/group/host-policy roles;
+- host, record, BACnet, network, community, zone, label, and host-policy CRUD;
+- NetGroup hostname/range rules through derived labels;
+- DNS wildcard/underscore restrictions;
+- restricted IP assignment;
+- host-group ownership and membership changes;
+- host-policy role-to-host label matching.
+
+## Failure behavior
+
+The timeout defaults to five seconds. Each Gunicorn worker owns a reusable
+client and a thread-safe closed/open/half-open circuit breaker. After the
+configured consecutive failures, the circuit rejects calls until its cooldown;
+one request then probes the service.
+
+- `shadow`: log/metric the error and return the legacy result.
+- `enforce`: log at critical severity, increment `error_deny`, and deny.
+
+Malformed result counts and per-result errors are failures just like transport
+exceptions. `disable_policy_parity()` can suppress only shadow calls in narrow
+test scopes; it cannot bypass enforcement.
+
+## Bundle source and build
+
+| Artifact | Path |
+| --- | --- |
+| Organization manifest | `treetop/data/treetop-bundle.toml` |
+| MREG module manifest | `treetop/data/treetop-mreg-module.toml` |
+| Global module manifest | `treetop/data/treetop-global-module.toml` |
+| Cedar policy | `treetop/data/mreg.cedar` |
+| Global super policy | `treetop/data/global.cedar` |
+| Derived labels | `treetop/data/labels.json` |
+| Generated schema | `treetop/data/mreg.cedarschema` |
+| Generated archive | `treetop/data/mreg-bundle.tar.gz` |
+
+Build with `treetop-bundle` 0.0.5:
+
+```bash
+python scripts/generate-treetop-schema.py --check
+treetop-bundle check bundle treetop/data/treetop-bundle.toml
+treetop-bundle build \
+  --manifest treetop/data/treetop-bundle.toml \
+  --output treetop/data/mreg-bundle.tar.gz
+TREETOP_BUNDLE_BIN=treetop-bundle scripts/check-treetop-bundle.sh
 ```
 
-The schema's entities and action declarations are generated from the Python
-contracts. Add a `ResourceContract` and its adapter before changing policies;
-CI rejects a stale generated schema. Bundle output is deterministic. Commit the
-regenerated archive whenever a module manifest, Cedar policy, contract/schema,
-or label definition changes. The local
-TreeTop stack loads the archive atomically through `TREETOP_BUNDLE_URL`. MREG
-currently uses unsigned bundles, verified with the explicit `allow-unsigned`
-signature policy.
+Bundle output is deterministic and CI compares it byte-for-byte. Bundles are
+currently unsigned; the development server explicitly uses
+`TREETOP_BUNDLE_SIGNATURE_POLICY=allow-unsigned`.
 
-## Adding a New Protected Resource
+No `treetop-client` change is required for bundle support. MREG sends ordinary
+authorization requests to `treetop-rest`; the REST server downloads, validates,
+atomically loads, and refreshes the bundle.
 
-When introducing a new resource that should be parity-checked, use this checklist:
+## Local setup and rollout
 
-1. Ensure the permission path reaches `ParityMixin.pp()` or `pp_generic_action()`.
-2. Add a `ResourceContract` and registered adapter in `mreg/policy/`.
-3. Confirm CRUD action dispatch is used (`<resource>_<create|read|update|delete>`).
-4. Define the resource kind contract for the endpoint:
-   - Use serializer `Meta.model` for model-backed views.
-   - Set `policy_resource_kind` explicitly on non-model views.
-   - Set a `policy_actions` operation mapping when an endpoint action is not
-     the model's conventional CRUD action.
-5. Verify resource ID resolution produces stable IDs for list/detail/custom views.
-6. Regenerate `treetop/data/mreg.cedarschema` and update Cedar rules.
-7. If policy conditions depend on derived labels, update `treetop/data/labels.json`.
-8. Rebuild `treetop/data/mreg-bundle.tar.gz`.
-9. Add tests for create/read/update/delete behavior and group/admin overrides.
-10. Run parity checks and confirm zero mismatches.
-11. If tests mutate permissions mid-test, scope `disable_policy_parity()` as narrowly as possible.
+Start `treetop-rest` 0.0.14 and the bundle file server:
 
-## Enforcement Mapping Boundary
+```bash
+docker compose -f treetop/docker-compose.yml up -d
+```
 
-`MREG_POLICY_MODE=enforce` makes TreeTop synchronous and authoritative wherever
-the permission path reaches `ParityMixin.pp()` or `pp_generic_action()`. The
-return value at that checkpoint becomes the TreeTop decision. Authentication,
-serializer validation, object lookup, and business invariants remain MREG
-responsibilities.
+Observe synchronously first:
 
-The mapping unit is a semantic permission checkpoint, not simply an HTTP
-request. One request can reach multiple checks (for example DNS-name rules,
-reserved-address rules, and a final host/IP permission). Those checks cannot be
-batched after the request in enforcement mode because each result may control
-the next branch. They therefore use synchronous `treetop-client.authorize`
-calls. The PostgreSQL queue remains only for asynchronous `shadow` comparisons.
+```bash
+export MREG_POLICY_MODE=shadow
+export MREG_POLICY_BASE_URL=http://localhost:9999
+export MREG_POLICY_NAMESPACE=MREG
+```
 
-The current DRF permission stack and Gunicorn workers are synchronous, and the
-result is needed before permission evaluation can continue. Using an async HTTP
-client would still require blocking at that boundary and would not make the
-decision asynchronous. A future end-to-end ASGI conversion could await TreeTop,
-but it would still be request-path I/O in `enforce`.
+After the bundle mapping is reviewed and the rollout gate passes, enable
+authority and restart all workers:
 
-Legacy permission code is still evaluated in `enforce` so its result can be
-compared and so the existing control flow can reach the mapped checkpoint. The
-TreeTop result returned by that checkpoint is authoritative. Once the mapping
-inventory is complete, legacy computation can be removed or reduced in a
-separate change. Until then, use `mreg_policy_queries_per_request` and authorize
-latency histograms to find endpoints where multiple dependent checks should be
-redesigned into one explicit endpoint-level policy decision.
+```bash
+export MREG_POLICY_MODE=enforce
+```
 
-Current mapped checkpoints include:
+Roll back by setting the mode to `shadow` or `off` and restarting workers. If
+MREG itself runs in a container, use a TreeTop URL reachable from that
+container—not its own `localhost`.
 
-| Legacy decision | Policy mapping |
-| --- | --- |
-| Administrative group membership | Explicit `*_admin_access` action on `Generic` |
-| CRUD permission after serializer/object resolution | Typed resource plus `<resource>_<operation>` |
-| Host/network regex evaluation | `Host`/record resource with `hostname` and optional typed `ip` |
-| DNS wildcard/underscore rules | Explicit membership actions |
-| Restricted IP operations | Explicit IP-management actions |
-| Host contact reads | Explicit `host_contacts_read` view action |
+## Adding a protected endpoint
 
-This is an incremental mapping boundary, not yet proof that every endpoint in
-MREG is policy-backed. Plain `IsAuthenticated` endpoints, host-group ownership,
-and legacy branches that do not call the parity mixin remain application-owned
-until they receive an explicit contract and Cedar rule. Do not describe a
-deployment as globally TreeTop-authoritative until an endpoint inventory shows
-that every authorization decision intended for delegation reaches a mapped
-checkpoint. MREG authentication and non-authorization validation are expected
-to remain local.
-
-Dynamic user group membership is sent with every TreeTop request. Mutable
-database permission rules such as `NetGroupRegexPermission` are not exported
-automatically; their Cedar equivalent must be present in the deployed bundle.
-This bundle-sync requirement must be part of the mapping/deployment process
-before enforcement is enabled.
-
-## Resource Kind and ID Resolution
-
-`ParityMixin` delegates resource kind, ID, and attributes to the typed adapters
-in `mreg/policy/resources.py`.
-
-Resource kind fallback order (`_resource_kind_from_view`):
-
-1. `obj.__class__.__name__` when object is available
-2. `validated_serializer.Meta.model.__name__`
-3. `validated_serializer.instance.__class__.__name__`
-4. Explicit `view.policy_resource_kind`
-5. `view.get_serializer_class().Meta.model.__name__`
-
-There is no view-class-name fallback. Renaming a view must not silently change
-authorization behavior. Resource and principal entity types are qualified in
-wire requests and the schema, for example `MREG::Host` and `MREG::User`.
-
-Custom actions are declared explicitly on views. For example, the host contacts
-endpoint uses `policy_resource_kind = "Host"` with
-`policy_actions = {"read": "host_contacts_read"}`.
-
-Resource ID fallback order (`_resource_id_from_view`):
-
-1. Object attributes: `pk`, `id`, `name`
-2. Request/serializer data keys: `pk`, `id`, `name`
-3. `validated_serializer.instance` attributes: `pk`, `id`, `name`
-4. URL kwargs: `pk`, `id`, `name`, `cpk`, `hostpk`, `network`
-5. Default `"any"`
-
-## CRUD Action Naming
-
-For model-backed checks, action names are generated as:
-
-`<resource_kind_snake_case>_<operation>`
-
-Where operation is mapped from HTTP method:
-
-- `GET`, `HEAD`, `OPTIONS` -> `read`
-- `POST` -> `create`
-- `PUT`, `PATCH` -> `update`
-- `DELETE` -> `delete`
-
-## CRUD Actions Declared in Cedar
-
-- `host_create`, `host_read`, `host_update`, `host_delete`
-- `host_contacts_read`
-- `ipaddress_create`, `ipaddress_read`, `ipaddress_update`, `ipaddress_delete`
-- `cname_create`, `cname_read`, `cname_update`, `cname_delete`
-- `hinfo_create`, `hinfo_read`, `hinfo_update`, `hinfo_delete`
-- `loc_create`, `loc_read`, `loc_update`, `loc_delete`
-- `mx_create`, `mx_read`, `mx_update`, `mx_delete`
-- `naptr_create`, `naptr_read`, `naptr_update`, `naptr_delete`
-- `name_server_create`, `name_server_read`, `name_server_update`, `name_server_delete`
-- `ptr_override_create`, `ptr_override_read`, `ptr_override_update`, `ptr_override_delete`
-- `sshfp_create`, `sshfp_read`, `sshfp_update`, `sshfp_delete`
-- `srv_create`, `srv_read`, `srv_update`, `srv_delete`
-- `txt_create`, `txt_read`, `txt_update`, `txt_delete`
-- `bacnet_id_create`, `bacnet_id_read`, `bacnet_id_update`, `bacnet_id_delete`
-- `community_create`, `community_read`, `community_update`, `community_delete`
-
-## Non-CRUD Actions Declared in Cedar
-
-- `admin_access`
-- `network_admin_access`
-- `hostgroup_admin_access`
-- `hostpolicy_admin_access`
-- `dns_wildcard_admin_access`
-- `dns_underscore_admin_access`
-- `ip_gw_management`
-- `ip_broadcast_management`
-- `ip_network_management`
-- `ip_reserved_management`
-- `ip_restricted_management`
-- `create_label`
-- `delete_label`
-- `view_label`
-- `edit_label`
-
-## Attribute Contract for Policy Checks
-
-All resource attributes are normalized through the registered resource adapter:
-
-- `kind` is always added using snake_case resource kind.
-- Attribute values are stringified.
-- In `policy_parity`, string values that parse as IPs are sent as IP-typed attributes, otherwise as string attributes.
-
-Common attribute payloads in current checks:
-
-| Context | Typical action(s) | Attributes sent |
-| --- | --- | --- |
-| Safe/read precheck in `IsGrantedNetGroupRegexPermission.has_permission` | `<resource>_read` | `kind`, `path` |
-| Host/IP netgroup evaluation (`has_perm`) | CRUD action from method | `kind`, `hostname`, optional `ip` |
-| Create admin parity check | `<resource>_create` | `kind` + flattened serializer data |
-| Update admin parity check | `<resource>_update` | `kind` + stringified validated data |
-| Destroy admin parity check | `<resource>_delete` | `kind`, `id` |
-
-## Wildcard Action Rules
-
-These global-module rules do not enumerate action names and therefore match any
-action:
-
-- `global.mreg_superadmin`: principal in `MREG::Group::"default-super-group"`
-  may perform any action.
-- `global.super_admin_allow_all_policy`: principal `MREG::User::"super"` may
-  perform any action.
-
-## Code-Emitted Parity Actions
-
-The code also emits parity checks for:
-
-- `superuser_access`
-- `is_superuser`
-
-These are covered by wildcard superadmin rules in Cedar.
+1. Register its typed resource contract and any custom action.
+2. Choose the final semantic authorization point. Use the early DRF permission
+   hook only when all facts are available there; otherwise authorize after
+   serializer/object resolution.
+3. Build the complete AND/OR stack and call `authorize_policy_stack()` once.
+4. Add Cedar permits/forbids and derived label rules together.
+5. Regenerate the schema and archive.
+6. Test legacy behavior, shadow comparison, enforce allow/deny/error behavior,
+   and the one-call invariant.

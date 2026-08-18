@@ -10,43 +10,28 @@ from mregsite import gunicorn_conf
 
 
 class GunicornLifecycleHookTests(SimpleTestCase):
-    """Ensure parity dispatchers follow each Gunicorn worker lifecycle."""
+    """Ensure worker-local policy clients follow Gunicorn lifecycle."""
 
-    @patch("django.setup")
-    @patch("django.apps.apps")
-    def test_setup_initializes_django_when_apps_are_not_ready(self, apps, django_setup):
-        apps.ready = False
-
-        gunicorn_conf._setup_django()
-
-        django_setup.assert_called_once_with()
-
-    @patch("mreg.api.treetop.start_policy_parity_dispatcher")
-    def test_post_fork_starts_dispatcher(self, start_dispatcher):
-        gunicorn_conf.post_fork(None, None)
-
-        start_dispatcher.assert_called_once_with()
-
-    @patch("mreg.api.treetop.stop_policy_parity_dispatcher")
-    def test_worker_exit_stops_dispatcher(self, stop_dispatcher):
+    @patch("mreg.api.treetop.close_policy_client")
+    def test_worker_exit_closes_policy_client(self, close_client):
         gunicorn_conf.worker_exit(None, None)
 
-        stop_dispatcher.assert_called_once_with()
+        close_client.assert_called_once_with()
 
-    @patch("mreg.api.treetop.stop_policy_parity_dispatcher")
+    @patch("mreg.api.treetop.close_policy_client")
     @patch("django.apps.apps")
-    def test_worker_exit_is_safe_before_django_setup(self, apps, stop_dispatcher):
+    def test_worker_exit_is_safe_before_django_setup(self, apps, close_client):
         apps.ready = False
 
         gunicorn_conf.worker_exit(None, SimpleNamespace(pid=42))
 
-        stop_dispatcher.assert_not_called()
+        close_client.assert_not_called()
 
     @patch("prometheus_client.multiprocess.mark_process_dead")
-    @patch("mreg.api.treetop.stop_policy_parity_dispatcher")
-    def test_worker_exit_marks_prometheus_process_dead(self, stop_dispatcher, mark_process_dead):
+    @patch("mreg.api.treetop.close_policy_client")
+    def test_worker_exit_marks_prometheus_process_dead(self, close_client, mark_process_dead):
         with patch.dict(os.environ, {"PROMETHEUS_MULTIPROC_DIR": "/tmp/prometheus"}):
             gunicorn_conf.worker_exit(None, SimpleNamespace(pid=42))
 
-        stop_dispatcher.assert_called_once_with()
+        close_client.assert_called_once_with()
         mark_process_dead.assert_called_once_with(42)

@@ -90,18 +90,16 @@ contexts and concurrently handled requests are isolated from one another. It
 disables only `shadow` checks; it is deliberately ignored in `enforce` so test
 or application code cannot bypass an authoritative decision accidentally.
 
-In `shadow`, parity batches are persisted in a shared PostgreSQL outbox.
-Post-fork workers claim rows with database locks, retry with exponential
-backoff, and retain dead letters after the configured attempt limit. A circuit
-breaker protects an unavailable TreeTop service. Client, serialization,
-persistence, logging, and TreeTop failures remain fail-open and never replace
-the legacy decision.
+In both `shadow` and `enforce`, one complete endpoint stack is sent
+synchronously in one `authorize` call. A stack can contain nested AND/OR rules;
+TreeTop evaluates all leaves and MREG composes their results locally. `shadow`
+records the comparison and returns the legacy result. `enforce` returns the
+TreeTop result and fails closed on every integration failure.
 
-The outbox and its worker exist only in `shadow`. In `enforce`, each mapped
-permission checkpoint calls TreeTop synchronously, records the comparison
-immediately, and returns the policy decision. No enforcement request is queued
-for later re-authorization. Enforcement failures deny by default; the explicit
-`legacy` failure mode is available only as a transitional fallback.
+The request scope rejects a second different stack, making accidental
+checkpoint-by-checkpoint calls visible during development instead of quietly
+adding request-path latency. A thread-safe circuit breaker prevents every
+request from waiting for the full timeout during an outage.
 
 ## Parity Runbook
 
@@ -122,13 +120,13 @@ mreg_policy_parity_results_total{result="mismatch"}
 3. List mismatch events in the configured application log.
 
 ```bash
-rg -n '"event": "policy_parity_mismatch"' logs/app.log
+rg -n '"event": "policy_stack_result".*"parity": false' logs/app.log
 ```
 
 4. Optional: inspect actions seen in mismatch events.
 
 ```bash
-jq -r 'select(.event == "policy_parity_mismatch") | .context.action // empty' logs/app.log \
+jq -r 'select(.event == "policy_stack_result" and .parity == false) | .context.path' logs/app.log \
   | sort | uniq -c | sort -nr
 ```
 
@@ -150,8 +148,9 @@ Do not enable enforcement until this command passes. Import
 
 ## Mismatch Triage Guide
 
-Use `legacy_decision`, `policy_decision`, and `context.action`. Detailed resource
-attributes are available only when `MREG_POLICY_PARITY_LOG_DETAILS` is enabled.
+Use `legacy_decision`, `policy_decision`, and the request context. Detailed
+leaf actions and resource attributes are available only when
+`MREG_POLICY_PARITY_LOG_DETAILS` is enabled.
 
 - `legacy_decision=true`, `policy_decision=false`:
   - Missing/too-narrow Cedar allow rule.

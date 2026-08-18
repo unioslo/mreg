@@ -10,7 +10,7 @@ import sentry_sdk
 import traceback
 from django.conf import settings
 from django.http import HttpRequest, HttpResponse
-from mreg.api.treetop import batch_policy_parity
+from mreg.api.treetop import policy_request_scope
 
 mreg_logger = structlog.getLogger("mreg.http")
 
@@ -48,7 +48,7 @@ class LoggingMiddleware:
 
         self.log_request(request)
  
-        with batch_policy_parity():
+        with policy_request_scope():
             try:
                 response = self.get_response(request)
             except Exception as e: # pragma: no cover (this is somewhat tricky to properly test)

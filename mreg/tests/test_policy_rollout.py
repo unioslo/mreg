@@ -35,12 +35,12 @@ class PolicyRolloutTests(SimpleTestCase):
         ):
             _prometheus_value("http://prometheus", "invalid", 2)
 
-    @patch("mreg.policy.rollout._prometheus_value", side_effect=[100, 1, 2, 0, 0, 0, 3])
+    @patch("mreg.policy.rollout._prometheus_value", side_effect=[100, 1, 2])
     def test_fetch_rollout_snapshot_queries_every_gate(self, prometheus_value) -> None:
         snapshot = fetch_rollout_snapshot("http://prometheus", window="6h", timeout=4)
 
-        self.assertEqual(snapshot, RolloutSnapshot(100, 1, 2, 0, 0, 0, 3))
-        self.assertEqual(prometheus_value.call_count, 7)
+        self.assertEqual(snapshot, RolloutSnapshot(100, 1, 2))
+        self.assertEqual(prometheus_value.call_count, 3)
         self.assertTrue(all(call.args[0] == "http://prometheus" for call in prometheus_value.call_args_list))
         self.assertTrue(all(call.args[2] == 4 for call in prometheus_value.call_args_list))
         self.assertIn("[6h]", prometheus_value.call_args_list[0].args[1])
@@ -51,10 +51,6 @@ class PolicyRolloutTests(SimpleTestCase):
                 comparisons=20_000,
                 mismatches=1,
                 errors=1,
-                persist_failures=0,
-                dead_letters=0,
-                pending_batches=0,
-                backlog_age_seconds=10,
             ),
             RolloutThresholds(),
         )
@@ -68,14 +64,10 @@ class PolicyRolloutTests(SimpleTestCase):
                 comparisons=100,
                 mismatches=5,
                 errors=5,
-                persist_failures=2,
-                dead_letters=3,
-                pending_batches=4,
-                backlog_age_seconds=600,
             ),
             RolloutThresholds(),
         )
 
         self.assertFalse(result.ready)
-        self.assertEqual(len(result.reasons), 7)
+        self.assertEqual(len(result.reasons), 3)
         self.assertIn("comparisons", result.reasons[0])

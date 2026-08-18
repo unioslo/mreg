@@ -13,13 +13,6 @@ class PolicyMode(StrEnum):
     ENFORCE = "enforce"
 
 
-class EnforcementFailureMode(StrEnum):
-    """Decision used when authoritative TreeTop evaluation fails."""
-
-    DENY = "deny"
-    LEGACY = "legacy"
-
-
 def resolve_policy_mode(raw: str | None, *, legacy_parity_enabled: bool) -> PolicyMode:
     """Resolve the explicit mode, falling back to the deprecated boolean."""
     candidate = (raw or "").strip().lower()
@@ -29,17 +22,6 @@ def resolve_policy_mode(raw: str | None, *, legacy_parity_enabled: bool) -> Poli
         return PolicyMode(candidate)
     except ValueError as exc:
         raise ValueError("MREG_POLICY_MODE must be one of: off, shadow, enforce") from exc
-
-
-def resolve_enforcement_failure_mode(raw: str | None) -> EnforcementFailureMode:
-    """Parse the explicit behavior used when TreeTop cannot decide."""
-    candidate = (raw or EnforcementFailureMode.DENY).strip().lower()
-    try:
-        return EnforcementFailureMode(candidate)
-    except ValueError as exc:
-        raise ValueError(
-            "MREG_POLICY_ENFORCEMENT_FAILURE_MODE must be one of: deny, legacy"
-        ) from exc
 
 
 def validate_policy_configuration(mode: PolicyMode, base_url: str) -> None:

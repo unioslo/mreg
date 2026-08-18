@@ -8,7 +8,6 @@ from mreg.api.responses import error_response
 from mreg.api.permissions import (HostGroupPermission,
                                   IsSuperOrGroupAdminOrReadOnly)
 from mreg.models.host import Host, HostGroup
-from mreg.models.auth import User
 
 from mreg.mixins import LowerCaseLookupMixin
 
@@ -28,13 +27,8 @@ class HostGroupM2MPermissions(M2MPermissions):
 
     def check_m2m_update_permission(self, request):
         for permission in self.get_permissions():
-            if isinstance(self, (HostGroupOwnersList, HostGroupOwnersDetail)):
-                user = User.from_request(request)
-                if not (user.is_mreg_superuser or user.is_mreg_hostgroup_admin):
-                    self.permission_denied(request)
-            else:
-                if not permission.has_m2m_change_permission(request, self):
-                    self.permission_denied(request)
+            if not permission.has_m2m_change_permission(request, self):
+                self.permission_denied(request)
 
 
 class HostGroupLogMixin(HistoryLog):

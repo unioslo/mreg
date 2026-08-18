@@ -23,7 +23,6 @@ import mreg.log_processors
 import mreg.__about__
 from mreg.policy.config import (
     PolicyMode,
-    resolve_enforcement_failure_mode,
     resolve_policy_mode,
     validate_policy_configuration,
 )
@@ -98,14 +97,10 @@ try:
         _raw_policy_mode,
         legacy_parity_enabled=_legacy_policy_parity_enabled,
     )
-    _policy_enforcement_failure_mode = resolve_enforcement_failure_mode(
-        envvar("MREG_POLICY_ENFORCEMENT_FAILURE_MODE", "deny")
-    )
     validate_policy_configuration(_policy_mode, POLICY_BASE_URL)
 except ValueError as exc:
     raise ImproperlyConfigured(str(exc)) from exc
 POLICY_MODE = _policy_mode.value
-POLICY_ENFORCEMENT_FAILURE_MODE = _policy_enforcement_failure_mode.value
 # Compatibility for local settings and integrations that still inspect the old
 # boolean. Explicit MREG_POLICY_MODE takes precedence over the deprecated flag.
 POLICY_PARITY_ENABLED = _policy_mode == PolicyMode.SHADOW
@@ -113,23 +108,13 @@ raw = (envvar("MREG_POLICY_NAMESPACE", "MREG") or "").strip()
 # Accept both Cedar-style `org::MREG` and comma-separated `org,MREG`.
 raw = raw.replace("::", ",")
 POLICY_NAMESPACE = [ns.strip() for ns in raw.split(",") if ns.strip()] or ["MREG"]
-POLICY_PARITY_BATCH_ENABLED = envvar("MREG_POLICY_PARITY_BATCH_ENABLED", True)
 POLICY_PARITY_LOG_DETAILS = envvar("MREG_POLICY_PARITY_LOG_DETAILS", False)
 POLICY_TIMEOUT_SECONDS = envvar("MREG_POLICY_TIMEOUT_SECONDS", 5.0)
-POLICY_PARITY_MAX_ATTEMPTS = envvar("MREG_POLICY_PARITY_MAX_ATTEMPTS", 8)
-POLICY_PARITY_RETRY_BASE_SECONDS = envvar("MREG_POLICY_PARITY_RETRY_BASE_SECONDS", 2.0)
-POLICY_PARITY_RETRY_MAX_SECONDS = envvar("MREG_POLICY_PARITY_RETRY_MAX_SECONDS", 300.0)
-POLICY_PARITY_LEASE_SECONDS = envvar("MREG_POLICY_PARITY_LEASE_SECONDS", 60.0)
-POLICY_PARITY_POLL_SECONDS = envvar("MREG_POLICY_PARITY_POLL_SECONDS", 1.0)
-POLICY_PARITY_CIRCUIT_FAILURES = envvar("MREG_POLICY_PARITY_CIRCUIT_FAILURES", 5)
-POLICY_PARITY_CIRCUIT_RESET_SECONDS = envvar("MREG_POLICY_PARITY_CIRCUIT_RESET_SECONDS", 30.0)
+POLICY_CIRCUIT_FAILURES = envvar("MREG_POLICY_CIRCUIT_FAILURES", 5)
+POLICY_CIRCUIT_RESET_SECONDS = envvar("MREG_POLICY_CIRCUIT_RESET_SECONDS", 30.0)
 POLICY_ROLLOUT_MIN_COMPARISONS = envvar("MREG_POLICY_ROLLOUT_MIN_COMPARISONS", 10_000)
 POLICY_ROLLOUT_MAX_MISMATCH_RATE = envvar("MREG_POLICY_ROLLOUT_MAX_MISMATCH_RATE", 0.001)
 POLICY_ROLLOUT_MAX_ERROR_RATE = envvar("MREG_POLICY_ROLLOUT_MAX_ERROR_RATE", 0.001)
-POLICY_ROLLOUT_MAX_PERSIST_FAILURES = envvar("MREG_POLICY_ROLLOUT_MAX_PERSIST_FAILURES", 0)
-POLICY_ROLLOUT_MAX_DEAD_LETTERS = envvar("MREG_POLICY_ROLLOUT_MAX_DEAD_LETTERS", 0)
-POLICY_ROLLOUT_MAX_PENDING_BATCHES = envvar("MREG_POLICY_ROLLOUT_MAX_PENDING_BATCHES", 0)
-POLICY_ROLLOUT_MAX_BACKLOG_AGE_SECONDS = envvar("MREG_POLICY_ROLLOUT_MAX_BACKLOG_AGE_SECONDS", 300.0)
 
 REQUESTS_THRESHOLD_SLOW = envvar("MREG_REQUESTS_THRESHOLD_SLOW", 1000)
 REQUESTS_LOG_LEVEL_SLOW = envvar("MREG_REQUESTS_LOG_LEVEL_SLOW", "WARNING")
@@ -543,14 +528,10 @@ try:
         _post_local_policy_mode,
         legacy_parity_enabled=POLICY_PARITY_ENABLED,
     )
-    _policy_enforcement_failure_mode = resolve_enforcement_failure_mode(
-        POLICY_ENFORCEMENT_FAILURE_MODE
-    )
     validate_policy_configuration(_policy_mode, POLICY_BASE_URL)
 except ValueError as exc:
     raise ImproperlyConfigured(str(exc)) from exc
 POLICY_MODE = _policy_mode.value
-POLICY_ENFORCEMENT_FAILURE_MODE = _policy_enforcement_failure_mode.value
 POLICY_PARITY_ENABLED = _policy_mode == PolicyMode.SHADOW
 
 if TESTING or "CI" in os.environ:

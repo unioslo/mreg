@@ -19,10 +19,6 @@ class Command(BaseCommand):
             min_comparisons=settings.POLICY_ROLLOUT_MIN_COMPARISONS,
             max_mismatch_rate=settings.POLICY_ROLLOUT_MAX_MISMATCH_RATE,
             max_error_rate=settings.POLICY_ROLLOUT_MAX_ERROR_RATE,
-            max_persist_failures=settings.POLICY_ROLLOUT_MAX_PERSIST_FAILURES,
-            max_dead_letters=settings.POLICY_ROLLOUT_MAX_DEAD_LETTERS,
-            max_pending_batches=settings.POLICY_ROLLOUT_MAX_PENDING_BATCHES,
-            max_backlog_age_seconds=settings.POLICY_ROLLOUT_MAX_BACKLOG_AGE_SECONDS,
         )
         try:
             snapshot = fetch_rollout_snapshot(
@@ -36,11 +32,7 @@ class Command(BaseCommand):
         summary = (
             f"comparisons={snapshot.comparisons:g} "
             f"mismatch_rate={snapshot.mismatch_rate:.6f} "
-            f"error_rate={snapshot.error_rate:.6f} "
-            f"persist_failures={snapshot.persist_failures:g} "
-            f"dead_letters={snapshot.dead_letters:g} "
-            f"pending_batches={snapshot.pending_batches:g} "
-            f"backlog_age_seconds={snapshot.backlog_age_seconds:g}"
+            f"error_rate={snapshot.error_rate:.6f}"
         )
         if not evaluation.ready:
             raise CommandError(f"TreeTop rollout gate failed: {'; '.join(evaluation.reasons)} ({summary})")
