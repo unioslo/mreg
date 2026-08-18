@@ -1,0 +1,51 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Parity mismatch rate",
+      "type": "timeseries",
+      "targets": [{"expr": "sum(rate(mreg_policy_parity_results_total{result=\"mismatch\"}[5m])) / clamp_min(sum(rate(mreg_policy_parity_results_total{result=~\"match|mismatch\"}[5m])), 1)", "legendFormat": "mismatch"}],
+      "fieldConfig": {"defaults": {"unit": "percentunit", "thresholds": {"steps": [{"color": "green", "value": null}, {"color": "red", "value": 0.001}]}}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+    },
+    {
+      "id": 2,
+      "title": "Parity error rate",
+      "type": "timeseries",
+      "targets": [{"expr": "sum(rate(mreg_policy_parity_results_total{result=\"error\"}[5m])) / clamp_min(sum(rate(mreg_policy_parity_results_total[5m])), 1)", "legendFormat": "errors"}],
+      "fieldConfig": {"defaults": {"unit": "percentunit", "thresholds": {"steps": [{"color": "green", "value": null}, {"color": "red", "value": 0.001}]}}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+    },
+    {
+      "id": 3,
+      "title": "Outbox entries",
+      "type": "timeseries",
+      "targets": [{"expr": "max by (status) (mreg_policy_parity_outbox_entries)", "legendFormat": "{{status}}"}],
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 8}
+    },
+    {
+      "id": 4,
+      "title": "Oldest pending batch",
+      "type": "stat",
+      "targets": [{"expr": "max(mreg_policy_parity_outbox_oldest_seconds)"}],
+      "fieldConfig": {"defaults": {"unit": "s", "thresholds": {"steps": [{"color": "green", "value": null}, {"color": "red", "value": 300}]}}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 8}
+    },
+    {
+      "id": 5,
+      "title": "Delivery lifecycle",
+      "type": "timeseries",
+      "targets": [{"expr": "sum by (status) (rate(mreg_policy_parity_batches_total[5m]))", "legendFormat": "{{status}}"}],
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 8}
+    }
+  ],
+  "schemaVersion": 41,
+  "tags": ["mreg", "treetop", "rollout"],
+  "templating": {"list": []},
+  "time": {"from": "now-24h", "to": "now"},
+  "title": "MREG TreeTop parity rollout",
+  "uid": "mreg-treetop-parity",
+  "version": 1
+}

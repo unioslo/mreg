@@ -3,7 +3,21 @@ namespace MREG {
     entity User in [Group];
 
     entity Generic;
+    entity Host = {
+        kind?: String,
+        id?: String,
+        name?: String,
+        path?: String,
+        hostname?: String,
+        ip?: ipaddr,
+        nameLabels?: Set<String>,
+    };
     entity HostContact;
+    entity Ipaddress = {
+        kind?: String,
+        id?: String,
+        ip?: ipaddr,
+    };
     entity Cname;
     entity Hinfo;
     entity Loc;
@@ -22,22 +36,6 @@ namespace MREG {
     entity NetworkPolicy;
     entity NetworkPolicyAttribute;
     entity NetworkPolicyAttributeValue;
-
-    entity Host = {
-        kind?: String,
-        id?: String,
-        name?: String,
-        path?: String,
-        hostname?: String,
-        ip?: ipaddr,
-        nameLabels?: Set<String>,
-    };
-
-    entity Ipaddress = {
-        kind?: String,
-        id?: String,
-        ip?: ipaddr,
-    };
 
     action
         "admin_access",

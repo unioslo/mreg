@@ -1,4 +1,4 @@
-# build stage
+# Runtime dependency build stage.
 FROM python:3.12-alpine AS builder
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -20,8 +20,13 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 ENTRYPOINT [ "/bin/sh" ]
 
-# final stage
-FROM python:3.12-alpine
+# Test dependencies are isolated from the production environment.
+FROM builder AS test-builder
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-editable --group dev
+
+# Production runtime stage.
+FROM python:3.12-alpine AS runtime
 EXPOSE 8000
 
 WORKDIR /app
@@ -36,8 +41,13 @@ ENV PATH="/app/.venv/bin:$PATH"
 COPY --from=builder /app/.venv /app/.venv
 
 # Copy over application files
-COPY entrypoint* manage.py /app/
-COPY mreg /app/mreg/
+COPY entrypoint.sh manage.py /app/
+COPY \
+    --exclude=tests \
+    --exclude=api/tests \
+    --exclude=api/v1/tests \
+    --exclude=**/__pycache__ \
+    mreg /app/mreg/
 COPY mregsite /app/mregsite/
 COPY hostpolicy /app/hostpolicy/
 COPY --from=ghcr.io/astral-sh/uv:0.12.0 /uv /uvx /bin/
@@ -48,3 +58,17 @@ RUN apk update && apk upgrade \
     && chmod a+x /app/entrypoint*
 
 CMD ["/app/entrypoint.sh"]
+
+# Dedicated test image. Production tests and their dependencies exist only here.
+FROM runtime AS test
+COPY --from=test-builder /app/.venv /app/.venv
+COPY --from=test-builder /app/mreg/tests /app/mreg/tests
+COPY --from=test-builder /app/mreg/api/tests /app/mreg/api/tests
+COPY --from=test-builder /app/mreg/api/v1/tests /app/mreg/api/v1/tests
+COPY entrypoint-test.sh /app/entrypoint-test.sh
+RUN chmod a+x /app/entrypoint-test.sh
+ENTRYPOINT ["/app/entrypoint-test.sh"]
+CMD []
+
+# Keep an unqualified `docker build .` production-safe.
+FROM runtime AS final

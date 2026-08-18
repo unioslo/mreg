@@ -5,18 +5,20 @@ import asyncio
 import ipaddress
 import logging
 import os
-import queue
 import threading
 from collections.abc import Mapping, Sequence
 from contextlib import contextmanager, suppress
 from contextvars import ContextVar
 from dataclasses import dataclass, field
+from datetime import timedelta
 from time import monotonic
-from typing import Final
 
 from django.conf import settings
+from django.db import close_old_connections, transaction
+from django.db.models import Q
+from django.utils import timezone
 from django.views import View
-from prometheus_client import Counter, Histogram
+from prometheus_client import Counter, Gauge, Histogram
 from rest_framework.request import Request
 import structlog
 from treetop_client.client import TreeTopClient
@@ -31,6 +33,7 @@ from treetop_client.models import (
 )
 
 from mreg.models.auth import User as MregUser
+from mreg.models.policy import PolicyParityOutbox
 
 logger = structlog.get_logger("mreg.policy.parity")
 
@@ -39,8 +42,14 @@ POLICY_BASE_URL = (getattr(settings, "POLICY_BASE_URL", "") or "").strip()
 POLICY_NAMESPACE = getattr(settings, "POLICY_NAMESPACE", ["MREG"])
 POLICY_PARITY_BATCH_ENABLED = getattr(settings, "POLICY_PARITY_BATCH_ENABLED", True)
 POLICY_PARITY_LOG_DETAILS = getattr(settings, "POLICY_PARITY_LOG_DETAILS", False)
-POLICY_PARITY_QUEUE_SIZE = getattr(settings, "POLICY_PARITY_QUEUE_SIZE", 100)
 POLICY_TIMEOUT_SECONDS = getattr(settings, "POLICY_TIMEOUT_SECONDS", 5.0)
+POLICY_PARITY_MAX_ATTEMPTS = getattr(settings, "POLICY_PARITY_MAX_ATTEMPTS", 8)
+POLICY_PARITY_RETRY_BASE_SECONDS = getattr(settings, "POLICY_PARITY_RETRY_BASE_SECONDS", 2.0)
+POLICY_PARITY_RETRY_MAX_SECONDS = getattr(settings, "POLICY_PARITY_RETRY_MAX_SECONDS", 300.0)
+POLICY_PARITY_LEASE_SECONDS = getattr(settings, "POLICY_PARITY_LEASE_SECONDS", 60.0)
+POLICY_PARITY_POLL_SECONDS = getattr(settings, "POLICY_PARITY_POLL_SECONDS", 1.0)
+POLICY_PARITY_CIRCUIT_FAILURES = getattr(settings, "POLICY_PARITY_CIRCUIT_FAILURES", 5)
+POLICY_PARITY_CIRCUIT_RESET_SECONDS = getattr(settings, "POLICY_PARITY_CIRCUIT_RESET_SECONDS", 30.0)
 
 
 POLICY_DECISIONS_TOTAL = Counter(
@@ -69,7 +78,7 @@ POLICY_AUTHORIZE_CALLS_TOTAL = Counter(
 
 POLICY_PARITY_BATCHES_TOTAL = Counter(
     "mreg_policy_parity_batches_total",
-    "Policy parity batches submitted to or dropped by the background worker.",
+    "Durable policy parity batch lifecycle events.",
     ["status"],
 )
 
@@ -96,6 +105,25 @@ POLICY_QUERIES_PER_REQUEST = Histogram(
     "mreg_policy_queries_per_request",
     "Number of policy authorize batches submitted per HTTP request.",
     buckets=[0, 1, 2, 3, 5, 8],
+)
+
+POLICY_PARITY_OUTBOX_ENTRIES = Gauge(
+    "mreg_policy_parity_outbox_entries",
+    "Current durable policy parity outbox entries.",
+    ["status"],
+    multiprocess_mode="livemax",
+)
+
+POLICY_PARITY_OUTBOX_OLDEST_SECONDS = Gauge(
+    "mreg_policy_parity_outbox_oldest_seconds",
+    "Age of the oldest pending durable policy parity batch.",
+    multiprocess_mode="livemax",
+)
+
+POLICY_PARITY_CIRCUIT_OPEN = Gauge(
+    "mreg_policy_parity_circuit_open",
+    "Whether this worker's TreeTop delivery circuit breaker is open.",
+    multiprocess_mode="livemax",
 )
 
 
@@ -133,6 +161,86 @@ class _ParityBatchItem:
     decision: bool
     policy_request: TreeTopRequest
     context: dict[str, object]
+
+
+def _serialize_policy_batch(items: Sequence[_ParityBatchItem]) -> dict[str, object]:
+    """Convert a batch into the versioned JSON outbox representation."""
+    return {
+        "version": 1,
+        "items": [
+            {
+                "decision": item.decision,
+                "policy_request": item.policy_request.to_api(),
+                "context": item.context,
+            }
+            for item in items
+        ],
+    }
+
+
+def _deserialize_policy_request(payload: Mapping[str, object]) -> TreeTopRequest:
+    principal_payload = payload["principal"]
+    if not isinstance(principal_payload, Mapping):
+        raise ValueError("Invalid durable policy principal")
+    user_payload = principal_payload["User"]
+    if not isinstance(user_payload, Mapping):
+        raise ValueError("Invalid durable policy user")
+    namespace = [str(part) for part in user_payload.get("namespace", [])]
+    groups_payload = user_payload.get("groups", [])
+    groups = [str(group["id"]) for group in groups_payload if isinstance(group, Mapping)]
+
+    action_payload = payload["action"]
+    resource_payload = payload["resource"]
+    if not isinstance(action_payload, Mapping) or not isinstance(resource_payload, Mapping):
+        raise ValueError("Invalid durable policy action or resource")
+    action = Action.new(
+        str(action_payload["id"]),
+        [str(part) for part in action_payload.get("namespace", [])],
+    )
+    attrs_payload = resource_payload.get("attrs", {})
+    if not isinstance(attrs_payload, Mapping):
+        raise ValueError("Invalid durable policy resource attributes")
+    attrs: dict[str, ResourceAttribute] = {}
+    for key, raw_attribute in attrs_payload.items():
+        if not isinstance(raw_attribute, Mapping):
+            raise ValueError("Invalid durable policy resource attribute")
+        attrs[str(key)] = ResourceAttribute.new(
+            str(raw_attribute["value"]),
+            ResourceAttributeType(str(raw_attribute["type"])),
+        )
+    return TreeTopRequest(
+        principal=TreeTopUser.new(str(user_payload["id"]), namespace, groups=groups),
+        action=action,
+        resource=TreeTopResource.new(
+            kind=str(resource_payload["kind"]),
+            id=str(resource_payload["id"]),
+            attrs=attrs,
+        ),
+    )
+
+
+def _deserialize_policy_batch(payload: Mapping[str, object]) -> list[_ParityBatchItem]:
+    if payload.get("version") != 1:
+        raise ValueError(f"Unsupported policy outbox payload version: {payload.get('version')}")
+    raw_items = payload.get("items")
+    if not isinstance(raw_items, list):
+        raise ValueError("Invalid durable policy batch")
+    items: list[_ParityBatchItem] = []
+    for raw_item in raw_items:
+        if not isinstance(raw_item, Mapping):
+            raise ValueError("Invalid durable policy batch item")
+        request_payload = raw_item.get("policy_request")
+        context = raw_item.get("context")
+        if not isinstance(request_payload, Mapping) or not isinstance(context, Mapping):
+            raise ValueError("Invalid durable policy batch request or context")
+        items.append(
+            _ParityBatchItem(
+                decision=bool(raw_item.get("decision")),
+                policy_request=_deserialize_policy_request(request_payload),
+                context={str(key): value for key, value in context.items()},
+            )
+        )
+    return items
 
 
 @dataclass(slots=True)
@@ -188,67 +296,225 @@ def _close_treetop_client() -> None:
         client.close()
 
 
+@dataclass(frozen=True, slots=True)
+class _ClaimedPolicyBatch:
+    id: int
+    attempts: int
+    payload: Mapping[str, object]
+
+
+class _CircuitBreaker:
+    """Small process-local breaker protecting the shared TreeTop service."""
+
+    def __init__(self, failure_threshold: int, reset_seconds: float) -> None:
+        self.failure_threshold = max(1, failure_threshold)
+        self.reset_seconds = max(0.1, reset_seconds)
+        self.consecutive_failures = 0
+        self.open_until = 0.0
+
+    def wait_seconds(self) -> float:
+        remaining = self.open_until - monotonic()
+        if remaining <= 0:
+            POLICY_PARITY_CIRCUIT_OPEN.set(0)
+            return 0.0
+        POLICY_PARITY_CIRCUIT_OPEN.set(1)
+        return remaining
+
+    def success(self) -> None:
+        self.consecutive_failures = 0
+        self.open_until = 0.0
+        POLICY_PARITY_CIRCUIT_OPEN.set(0)
+
+    def failure(self) -> None:
+        self.consecutive_failures += 1
+        if self.consecutive_failures >= self.failure_threshold:
+            self.open_until = monotonic() + self.reset_seconds
+            POLICY_PARITY_CIRCUIT_OPEN.set(1)
+            _safe_log(
+                logging.ERROR,
+                "policy_parity_circuit_open",
+                reset_seconds=self.reset_seconds,
+                consecutive_failures=self.consecutive_failures,
+            )
+
+
+def _refresh_outbox_metrics() -> None:
+    """Refresh low-cardinality gauges from the durable shared queue."""
+    try:
+        now = timezone.now()
+        pending = PolicyParityOutbox.objects.filter(failed_at__isnull=True)
+        POLICY_PARITY_OUTBOX_ENTRIES.labels(status="pending").set(pending.count())
+        POLICY_PARITY_OUTBOX_ENTRIES.labels(status="dead_letter").set(
+            PolicyParityOutbox.objects.filter(failed_at__isnull=False).count()
+        )
+        oldest = pending.order_by("created_at").values_list("created_at", flat=True).first()
+        POLICY_PARITY_OUTBOX_OLDEST_SECONDS.set(max(0.0, (now - oldest).total_seconds()) if oldest else 0.0)
+    except Exception as exc:
+        _record_instrumentation_failure(exc, stage="outbox_metrics")
+
+
 class _ParityDispatcher:
-    """Bounded, process-local worker that keeps parity I/O off request threads."""
+    """Database-outbox worker shared safely by all application processes."""
 
-    _STOP: Final = object()
-
-    def __init__(self, max_queue_size: int) -> None:
-        self._queue: queue.Queue[list[_ParityBatchItem] | object] = queue.Queue(maxsize=max(1, max_queue_size))
+    def __init__(self) -> None:
         self._thread: threading.Thread | None = None
         self._start_lock = threading.Lock()
+        self._wake = threading.Event()
+        self._stop = threading.Event()
+        self._circuit = _CircuitBreaker(
+            int(POLICY_PARITY_CIRCUIT_FAILURES),
+            float(POLICY_PARITY_CIRCUIT_RESET_SECONDS),
+        )
 
     def submit(self, items: Sequence[_ParityBatchItem]) -> bool:
+        """Persist a batch before waking a worker; no policy I/O occurs here."""
         if not items:
             return False
         self._ensure_started()
-        try:
-            self._queue.put_nowait(list(items))
-        except queue.Full:
-            with suppress(Exception):
-                POLICY_PARITY_BATCHES_TOTAL.labels(status="dropped").inc()
-            _safe_log(
-                logging.ERROR,
-                "policy_parity_queue_full",
-                queue_size=self._queue.maxsize,
-                batch_size=len(items),
-            )
-            return False
-        with suppress(Exception):
-            POLICY_PARITY_BATCHES_TOTAL.labels(status="submitted").inc()
+        PolicyParityOutbox.objects.create(payload=_serialize_policy_batch(items))
+        POLICY_PARITY_BATCHES_TOTAL.labels(status="persisted").inc()
+        transaction.on_commit(self.wake)
+        _refresh_outbox_metrics()
         return True
+
+    def wake(self) -> None:
+        self._wake.set()
 
     def _ensure_started(self) -> None:
         if self._thread is not None and self._thread.is_alive():
             return
         with self._start_lock:
             if self._thread is None or not self._thread.is_alive():
+                self._stop.clear()
                 self._thread = threading.Thread(
                     target=self._run,
-                    name="mreg-policy-parity",
+                    name="mreg-policy-parity-outbox",
                     daemon=True,
                 )
                 self._thread.start()
 
+    def _claim(self) -> _ClaimedPolicyBatch | None:
+        now = timezone.now()
+        stale_before = now - timedelta(seconds=float(POLICY_PARITY_LEASE_SECONDS))
+        with transaction.atomic():
+            row = (
+                PolicyParityOutbox.objects.select_for_update(skip_locked=True)
+                .filter(failed_at__isnull=True, available_at__lte=now)
+                .filter(Q(locked_at__isnull=True) | Q(locked_at__lt=stale_before))
+                .order_by("available_at", "id")
+                .first()
+            )
+            if row is None:
+                return None
+            row.attempts += 1
+            row.locked_at = now
+            row.save(update_fields=("attempts", "locked_at"))
+            return _ClaimedPolicyBatch(id=row.id, attempts=row.attempts, payload=row.payload)
+
+    def _complete(self, claimed: _ClaimedPolicyBatch) -> None:
+        PolicyParityOutbox.objects.filter(id=claimed.id).delete()
+        POLICY_PARITY_BATCHES_TOTAL.labels(status="processed").inc()
+        self._circuit.success()
+
+    def _fail(
+        self,
+        claimed: _ClaimedPolicyBatch,
+        exc: Exception,
+        items: Sequence[_ParityBatchItem],
+    ) -> None:
+        error = f"{type(exc).__name__}: {exc}"
+        self._circuit.failure()
+        now = timezone.now()
+        if claimed.attempts >= int(POLICY_PARITY_MAX_ATTEMPTS):
+            PolicyParityOutbox.objects.filter(id=claimed.id).update(
+                locked_at=None,
+                failed_at=now,
+                last_error=error,
+            )
+            POLICY_PARITY_BATCHES_TOTAL.labels(status="dead_letter").inc()
+            for item in items:
+                _log_parity_payload(
+                    _compute_parity_payload(
+                        decision=item.decision,
+                        policy_allowed=None,
+                        error=error,
+                        context=item.context,
+                    )
+                )
+            _safe_log(
+                logging.ERROR,
+                "policy_parity_dead_letter",
+                outbox_id=claimed.id,
+                attempts=claimed.attempts,
+                error_type=type(exc).__name__,
+            )
+            return
+        delay = min(
+            float(POLICY_PARITY_RETRY_MAX_SECONDS),
+            float(POLICY_PARITY_RETRY_BASE_SECONDS) * (2 ** (claimed.attempts - 1)),
+        )
+        PolicyParityOutbox.objects.filter(id=claimed.id).update(
+            locked_at=None,
+            available_at=now + timedelta(seconds=delay),
+            last_error=error,
+        )
+        POLICY_PARITY_BATCHES_TOTAL.labels(status="retried").inc()
+        _safe_log(
+            logging.WARNING,
+            "policy_parity_retry_scheduled",
+            outbox_id=claimed.id,
+            attempts=claimed.attempts,
+            delay_seconds=delay,
+            error_type=type(exc).__name__,
+        )
+
     def _run(self) -> None:
-        while True:
-            items = self._queue.get()
-            try:
-                if items is self._STOP:
-                    return
-                _process_policy_parity_batch(items)
-            except Exception as exc:
-                _record_instrumentation_failure(exc, stage="worker")
-            finally:
-                self._queue.task_done()
+        close_old_connections()
+        try:
+            while not self._stop.is_set():
+                circuit_wait = self._circuit.wait_seconds()
+                if circuit_wait > 0:
+                    self._wake.wait(timeout=min(circuit_wait, float(POLICY_PARITY_POLL_SECONDS)))
+                    self._wake.clear()
+                    continue
+                close_old_connections()
+                try:
+                    claimed = self._claim()
+                except Exception as exc:
+                    _record_instrumentation_failure(exc, stage="outbox_claim")
+                    close_old_connections()
+                    self._wake.wait(timeout=float(POLICY_PARITY_POLL_SECONDS))
+                    self._wake.clear()
+                    continue
+                if claimed is None:
+                    _refresh_outbox_metrics()
+                    self._wake.wait(timeout=float(POLICY_PARITY_POLL_SECONDS))
+                    self._wake.clear()
+                    continue
+                items: list[_ParityBatchItem] = []
+                try:
+                    items = _deserialize_policy_batch(claimed.payload)
+                    _process_policy_parity_batch(items)
+                    self._complete(claimed)
+                except Exception as exc:
+                    _record_instrumentation_failure(exc, stage="worker")
+                    try:
+                        self._fail(claimed, exc, items)
+                    except Exception as fail_exc:
+                        _record_instrumentation_failure(fail_exc, stage="outbox_retry")
+                        close_old_connections()
+                finally:
+                    _refresh_outbox_metrics()
+        finally:
+            close_old_connections()
 
     def shutdown(self) -> None:
         thread = self._thread
         if thread is None or not thread.is_alive():
             return
-        with suppress(queue.Full):
-            self._queue.put_nowait(self._STOP)
-        thread.join(timeout=1.0)
+        self._stop.set()
+        self._wake.set()
+        thread.join(timeout=max(1.0, float(POLICY_TIMEOUT_SECONDS) + 1.0))
 
 
 _dispatcher: _ParityDispatcher | None = None
@@ -262,14 +528,25 @@ def _get_dispatcher() -> _ParityDispatcher:
     pid = os.getpid()
     with _dispatcher_lock:
         if _dispatcher is None or _dispatcher_pid != pid:
-            _dispatcher = _ParityDispatcher(int(POLICY_PARITY_QUEUE_SIZE))
+            _dispatcher = _ParityDispatcher()
             _dispatcher_pid = pid
         return _dispatcher
 
 
-def _shutdown_policy_runtime() -> None:
+def start_policy_parity_dispatcher() -> None:
+    """Start a post-fork outbox worker so persisted work survives restarts."""
+    if POLICY_PARITY_ENABLED and POLICY_BASE_URL:
+        _get_dispatcher()._ensure_started()
+
+
+def stop_policy_parity_dispatcher() -> None:
+    """Stop this process's outbox worker without affecting persisted work."""
     if _dispatcher is not None and _dispatcher_pid == os.getpid():
         _dispatcher.shutdown()
+
+
+def _shutdown_policy_runtime() -> None:
+    stop_policy_parity_dispatcher()
     _close_treetop_client()
 
 
@@ -297,13 +574,15 @@ def _submit_policy_batch(items: Sequence[_ParityBatchItem]) -> bool:
     try:
         return _get_dispatcher().submit(items)
     except Exception as exc:
-        _record_instrumentation_failure(exc, stage="submit")
+        with suppress(Exception):
+            POLICY_PARITY_BATCHES_TOTAL.labels(status="persist_failed").inc()
+        _record_instrumentation_failure(exc, stage="persist")
         return False
 
 
 @contextmanager
 def batch_policy_parity():
-    """Collect one request's parity checks and enqueue them as one batch."""
+    """Collect one request's parity checks and persist them as one batch."""
     if _request_state.get() is not None:
         yield
         return
@@ -490,7 +769,12 @@ def _authorize_with_metrics(
 
 
 def _process_policy_parity_batch(items: Sequence[_ParityBatchItem]) -> None:
-    """Evaluate and record one batch. This function runs outside request threads."""
+    """Evaluate and record one durable batch outside request threads.
+
+    Delivery-level errors raise so the outbox can retry them.  Successful
+    responses are recorded only after a successful authorize call and before
+    deleting the durable row. Delivery is at-least-once across process crashes.
+    """
     if not items:
         return
 
@@ -501,11 +785,14 @@ def _process_policy_parity_batch(items: Sequence[_ParityBatchItem]) -> None:
         correlation_id=correlation_id if isinstance(correlation_id, str) else None,
         path=path if isinstance(path, str) else None,
     )
+    if authorize_error is not None:
+        raise RuntimeError(authorize_error)
+    parsed_results = [_result_to_decision_and_error(results, index) for index in range(len(items))]
+    result_error = next((error for _, error in parsed_results if error is not None), None)
+    if result_error is not None:
+        raise RuntimeError(result_error)
     for index, item in enumerate(items):
-        if authorize_error is None:
-            policy_allowed, error = _result_to_decision_and_error(results, index)
-        else:
-            policy_allowed, error = None, authorize_error
+        policy_allowed, error = parsed_results[index]
         _log_parity_payload(
             _compute_parity_payload(
                 decision=item.decision,
@@ -517,7 +804,7 @@ def _process_policy_parity_batch(items: Sequence[_ParityBatchItem]) -> None:
 
 
 def flush_policy_parity_batch() -> bool:
-    """Enqueue and clear the current request batch, if one exists."""
+    """Persist and clear the current request batch, if one exists."""
     state = _request_state.get()
     if state is None or not state.items:
         return False

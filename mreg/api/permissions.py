@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import ipaddress
-import re
 from collections.abc import Mapping
-from django.db import models
 from typing import TYPE_CHECKING, Any
 from rest_framework import exceptions
 from rest_framework.permissions import IsAuthenticated as DRFIsAuthenticated, SAFE_METHODS
@@ -18,6 +16,15 @@ from mreg.models.network import NetGroupRegexPermission, Network
 
 from mreg.models.auth import User, MregAdminGroup
 from mreg.api.treetop import PolicyCheck, PolicyResource, policy_parity
+from mreg.policy.contracts import MEMBERSHIP_ACTIONS, snake_case
+from mreg.policy.resources import (
+    adapter_for_kind,
+    crud_operation_from_method,
+    policy_action_from_view,
+    resource_id_from_view,
+    resource_kind_from_view,
+    stringify_attribute,
+)
 
 # NOTE: We _must_ import `rest_framework.generics` in an `if TYPE_CHECKING:`
 # block because DRF does some dynamic import shenanigans on runtime using
@@ -36,48 +43,25 @@ DEFAULT_RESOURCE_ATTRS = {"kind": "generic", "id": "any"}
 class ParityMixin:
     """Translate legacy permission results into explicit policy contracts."""
 
-    _CRUD_METHOD_TO_OPERATION = {
-        "GET": "read",
-        "HEAD": "read",
-        "OPTIONS": "read",
-        "POST": "create",
-        "PUT": "update",
-        "PATCH": "update",
-        "DELETE": "delete",
-    }
-    _IDENTIFIER_FIELDS = ("pk", "id", "name")
-    _VIEW_IDENTIFIER_FIELDS = ("pk", "id", "name", "cpk", "hostpk", "network")
     _MEMBERSHIP_ACTIONS = {
-        MregAdminGroup.SUPERUSER: "superuser_access",
-        MregAdminGroup.ADMINUSER: "admin_access",
-        MregAdminGroup.GROUP_ADMIN: "hostgroup_admin_access",
-        MregAdminGroup.NETWORK_ADMIN: "network_admin_access",
-        MregAdminGroup.DNS_WILDCARD: "dns_wildcard_admin_access",
-        MregAdminGroup.DNS_UNDERSCORE: "dns_underscore_admin_access",
-        MregAdminGroup.HOSTPOLICY_ADMIN: "hostpolicy_admin_access",
+        MregAdminGroup.SUPERUSER: MEMBERSHIP_ACTIONS["superuser"],
+        MregAdminGroup.ADMINUSER: MEMBERSHIP_ACTIONS["admin"],
+        MregAdminGroup.GROUP_ADMIN: MEMBERSHIP_ACTIONS["group_admin"],
+        MregAdminGroup.NETWORK_ADMIN: MEMBERSHIP_ACTIONS["network_admin"],
+        MregAdminGroup.DNS_WILDCARD: MEMBERSHIP_ACTIONS["dns_wildcard"],
+        MregAdminGroup.DNS_UNDERSCORE: MEMBERSHIP_ACTIONS["dns_underscore"],
+        MregAdminGroup.HOSTPOLICY_ADMIN: MEMBERSHIP_ACTIONS["hostpolicy_admin"],
     }
 
     @staticmethod
     def _stringify_attr_value(value: Any) -> str:
         """Convert attribute values to strings for TreeTop resource attributes."""
-        return "" if value is None else str(value)
+        return stringify_attribute(value)
 
     @staticmethod
     def _snake_case(value: str) -> str:
         """Normalize model/resource names to snake_case action/resource tokens."""
-        if value.startswith("BACnet"):
-            value = f"Bacnet{value[len('BACnet') :]}"
-        value = re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", value)
-        value = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", value)
-        value = value.replace("-", "_")
-        value = re.sub(r"[^a-zA-Z0-9_]+", "_", value).strip("_").lower()
-        return value or "generic"
-
-    @staticmethod
-    def _resource_name_from_model(model: Any) -> str | None:
-        """Return a model class name if available, otherwise None."""
-        name = getattr(model, "__name__", None)
-        return str(name) if name else None
+        return snake_case(value)
 
     def _resource_kind_from_view(
         self,
@@ -86,46 +70,7 @@ class ParityMixin:
         validated_serializer: "Serializer | None" = None,
         obj: Any = None,
     ) -> str:
-        """Resolve a resource kind from a concrete object or serializer model.
-
-        View-name guessing is deliberately rejected: renaming a view must not
-        silently alter authorization action names.
-        """
-        if obj is not None:
-            return obj.__class__.__name__
-
-        if validated_serializer is not None:
-            serializer_model = self._resource_name_from_model(getattr(getattr(validated_serializer, "Meta", None), "model", None))
-            if serializer_model:
-                return serializer_model
-
-        if validated_serializer is not None:
-            instance = getattr(validated_serializer, "instance", None)
-            if instance is not None:
-                return instance.__class__.__name__
-
-        explicit_kind = getattr(view, "policy_resource_kind", None)
-        if isinstance(explicit_kind, str) and explicit_kind.strip():
-            return explicit_kind
-
-        try:
-            serializer_class = view.get_serializer_class()
-        except (AttributeError, TypeError) as exc:
-            raise ValueError(f"{view.__class__.__name__} must declare an explicit policy resource kind") from exc
-        view_model = self._resource_name_from_model(getattr(getattr(serializer_class, "Meta", None), "model", None))
-        if view_model:
-            return view_model
-        raise ValueError(f"{view.__class__.__name__} serializer must declare Meta.model for policy parity")
-
-    @classmethod
-    def _identifier_from(cls, source: Any, fields: tuple[str, ...]) -> str | None:
-        if source is None:
-            return None
-        for field_name in fields:
-            value = source.get(field_name) if isinstance(source, Mapping) else getattr(source, field_name, None)
-            if value is not None:
-                return str(value)
-        return None
+        return resource_kind_from_view(view=view, validated_serializer=validated_serializer, obj=obj)
 
     def _resource_id_from_view(
         self,
@@ -136,25 +81,26 @@ class ParityMixin:
         data: Mapping[str, Any] | None = None,
         default: str = "any",
     ) -> str:
-        """Resolve a stable resource identifier for parity logging/evaluation."""
-        serializer_instance = getattr(validated_serializer, "instance", None)
-        candidates = (
-            self._identifier_from(obj, self._IDENTIFIER_FIELDS),
-            self._identifier_from(data, self._IDENTIFIER_FIELDS),
-            self._identifier_from(serializer_instance, self._IDENTIFIER_FIELDS),
-            self._identifier_from(getattr(view, "kwargs", None), self._VIEW_IDENTIFIER_FIELDS),
+        """Resolve a stable resource identifier through its registered adapter."""
+        kind = self._resource_kind_from_view(view=view, validated_serializer=validated_serializer, obj=obj)
+        return resource_id_from_view(
+            view=view,
+            kind=kind,
+            validated_serializer=validated_serializer,
+            obj=obj,
+            data=data,
+            default=default,
         )
-        return next((value for value in candidates if value is not None), default)
 
     def _crud_operation_from_method(self, method: str) -> str:
         """Map an HTTP method to a CRUD operation token."""
-        try:
-            return self._CRUD_METHOD_TO_OPERATION[method.upper()]
-        except KeyError as exc:
-            raise ValueError(f"Unsupported HTTP method for policy parity: {method}") from exc
+        return crud_operation_from_method(method)
 
     def _crud_action(self, resource_kind: str, operation: str) -> str:
         """Build a policy action name like `<resource>_<operation>`."""
+        contract = adapter_for_kind(resource_kind).contract
+        if operation not in contract.operations:
+            raise ValueError(f"{resource_kind} does not declare the {operation} policy operation")
         return f"{self._snake_case(resource_kind)}_{operation}"
 
     def _policy_action_from_view(
@@ -165,12 +111,7 @@ class ParityMixin:
         operation: str,
     ) -> str:
         """Resolve an explicit custom action or the model-backed CRUD action."""
-        explicit_actions = getattr(view, "policy_actions", None)
-        if isinstance(explicit_actions, Mapping):
-            explicit_action = explicit_actions.get(operation)
-            if isinstance(explicit_action, str) and explicit_action.strip():
-                return explicit_action
-        return self._crud_action(resource_kind, operation)
+        return policy_action_from_view(view=view, resource_kind=resource_kind, operation=operation)
 
     def _normalize_resource_attrs(
         self,
@@ -179,10 +120,7 @@ class ParityMixin:
         attrs: Mapping[str, Any] | None,
     ) -> dict[str, str]:
         """Normalize resource attributes to string values with a canonical kind."""
-        normalized = {str(key): self._stringify_attr_value(value) for key, value in (attrs or {}).items()}
-        # Callers cannot override the resource kind through request data.
-        normalized["kind"] = self._snake_case(resource_kind)
-        return normalized
+        return adapter_for_kind(resource_kind).attributes(attrs)
 
     def pp(
         self,
@@ -577,16 +515,9 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
             resource_id=resource_id,
         )
 
-    def _flatten_policy_attrs(self, data: Mapping[str, Any]) -> dict[str, str]:
-        """Flatten one model level into scalar attributes for policy parity."""
-        attrs: dict[str, str] = {}
-        for key, value in data.items():
-            if isinstance(value, models.Model):
-                for field in value._meta.fields:
-                    attrs[f"{key}_{field.name}"] = self._stringify_attr_value(getattr(value, field.name, ""))
-            else:
-                attrs[key] = self._stringify_attr_value(value)
-        return attrs
+    def _flatten_policy_attrs(self, data: Mapping[str, Any], *, resource_kind: str) -> dict[str, str]:
+        """Adapt serializer data through the resource's registered adapter."""
+        return adapter_for_kind(resource_kind).attributes(data)
 
     def _has_create_target_permission(
         self,
@@ -701,7 +632,7 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
             validated_serializer=validated_serializer,
             data=data,
         )
-        attrs = self._flatten_policy_attrs(data)
+        attrs = self._flatten_policy_attrs(data, resource_kind=resource_kind)
         ip_value = data.get("ipaddress")
 
         # First check if we are asking for a restricted name.

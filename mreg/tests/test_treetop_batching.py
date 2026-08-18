@@ -5,16 +5,18 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from django.http import HttpRequest, HttpResponse
-from django.test import SimpleTestCase
+from django.test import TestCase
 
 from mreg.api.treetop import (
     PolicyCheck,
     PolicyResource,
+    _CircuitBreaker,
     _ParityBatchItem,
     _ParityDispatcher,
     _build_policy_request,
     _build_resource_attrs,
     _compute_parity_payload,
+    _deserialize_policy_batch,
     _fully_qualified_action,
     _is_parity_enabled,
     _process_policy_parity_batch,
@@ -22,6 +24,7 @@ from mreg.api.treetop import (
     _request_state,
     _result_to_decision_and_error,
     _safe_log,
+    _serialize_policy_batch,
     batch_policy_parity,
     disable_policy_parity,
     flush_policy_parity_batch,
@@ -54,7 +57,7 @@ class _DummyAuthorizeResponse:
         self.results = [_DummyAuthorizeResult(decision) for decision in decisions]
 
 
-class TreeTopParityBatchingTests(SimpleTestCase):
+class TreeTopParityBatchingTests(TestCase):
     @staticmethod
     def _request() -> HttpRequest:
         request = HttpRequest()
@@ -370,17 +373,99 @@ class TreeTopParityBatchingTests(SimpleTestCase):
             _ParityBatchItem(False, {"request": "two"}, {}),
         ]
 
-        _process_policy_parity_batch(items)
+        with self.assertRaisesRegex(RuntimeError, "offline"):
+            _process_policy_parity_batch(items)
 
-        self.assertEqual(log_payload.call_count, 2)
-        self.assertIn("offline", log_payload.call_args_list[0].args[0]["error"])
+        log_payload.assert_not_called()
 
-    def test_bounded_dispatcher_drops_when_queue_is_full(self) -> None:
-        dispatcher = _ParityDispatcher(max_queue_size=1)
-        item = _ParityBatchItem(True, {}, {})
+    def test_dispatcher_persists_batches_in_the_shared_outbox(self) -> None:
+        dispatcher = _ParityDispatcher()
+        request = _build_policy_request(
+            SimpleNamespace(username="tester", group_list=[]),
+            self._check(),
+        )
+        item = _ParityBatchItem(True, request, {"path": "/one"})
         with patch.object(dispatcher, "_ensure_started"):
             self.assertTrue(dispatcher.submit([item]))
-            self.assertFalse(dispatcher.submit([item]))
+
+        from mreg.models.policy import PolicyParityOutbox
+
+        row = PolicyParityOutbox.objects.get()
+        self.assertEqual(row.payload["version"], 1)
+        self.assertEqual(row.payload["items"][0]["context"]["path"], "/one")
+
+    def test_durable_batch_round_trip_preserves_typed_requests(self) -> None:
+        request = _build_policy_request(
+            SimpleNamespace(username="tester", group_list=["admins"]),
+            self._check(),
+        )
+        items = [_ParityBatchItem(False, request, {"correlation_id": "cid"})]
+
+        restored = _deserialize_policy_batch(_serialize_policy_batch(items))
+
+        self.assertEqual(len(restored), 1)
+        self.assertFalse(restored[0].decision)
+        self.assertEqual(restored[0].context, {"correlation_id": "cid"})
+        self.assertEqual(restored[0].policy_request.to_api(), request.to_api())
+
+    def test_dispatcher_claims_and_completes_a_durable_batch(self) -> None:
+        from mreg.models.policy import PolicyParityOutbox
+
+        request = _build_policy_request(
+            SimpleNamespace(username="tester", group_list=[]),
+            self._check(),
+        )
+        row = PolicyParityOutbox.objects.create(
+            payload=_serialize_policy_batch([_ParityBatchItem(True, request, {})]),
+        )
+        dispatcher = _ParityDispatcher()
+
+        claimed = dispatcher._claim()
+
+        self.assertIsNotNone(claimed)
+        assert claimed is not None
+        self.assertEqual(claimed.id, row.id)
+        self.assertEqual(claimed.attempts, 1)
+        dispatcher._complete(claimed)
+        self.assertFalse(PolicyParityOutbox.objects.filter(id=row.id).exists())
+
+    def test_dispatcher_retries_then_retains_a_dead_letter(self) -> None:
+        from mreg.models.policy import PolicyParityOutbox
+
+        request = _build_policy_request(
+            SimpleNamespace(username="tester", group_list=[]),
+            self._check(),
+        )
+        item = _ParityBatchItem(True, request, {})
+        row = PolicyParityOutbox.objects.create(payload=_serialize_policy_batch([item]))
+        dispatcher = _ParityDispatcher()
+        claimed = dispatcher._claim()
+        assert claimed is not None
+
+        with patch("mreg.api.treetop.POLICY_PARITY_MAX_ATTEMPTS", 2):
+            dispatcher._fail(claimed, RuntimeError("offline"), [item])
+            row.refresh_from_db()
+            self.assertIsNone(row.failed_at)
+            self.assertIsNone(row.locked_at)
+
+            row.available_at = row.created_at
+            row.save(update_fields=("available_at",))
+            claimed = dispatcher._claim()
+            assert claimed is not None
+            dispatcher._fail(claimed, RuntimeError("still offline"), [item])
+
+        row.refresh_from_db()
+        self.assertIsNotNone(row.failed_at)
+        self.assertIn("still offline", row.last_error)
+
+    def test_circuit_breaker_opens_and_recovers(self) -> None:
+        circuit = _CircuitBreaker(failure_threshold=2, reset_seconds=30)
+        circuit.failure()
+        self.assertEqual(circuit.wait_seconds(), 0)
+        circuit.failure()
+        self.assertGreater(circuit.wait_seconds(), 0)
+        circuit.success()
+        self.assertEqual(circuit.wait_seconds(), 0)
 
     @patch("mreg.api.treetop.MregUser.from_request")
     def test_logging_middleware_only_enqueues_policy_work(self, mock_from_request: Mock) -> None:

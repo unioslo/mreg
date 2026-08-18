@@ -1,0 +1,53 @@
+groups:
+  - name: mreg-treetop-rollout
+    rules:
+      - alert: MregTreeTopParityMismatchRateHigh
+        expr: |
+          sum(rate(mreg_policy_parity_results_total{result="mismatch"}[30m]))
+          /
+          clamp_min(sum(rate(mreg_policy_parity_results_total{result=~"match|mismatch"}[30m])), 1)
+          > 0.001
+        for: 30m
+        labels:
+          severity: page
+        annotations:
+          summary: TreeTop parity mismatch rate exceeds 0.1%
+      - alert: MregTreeTopParityErrorRateHigh
+        expr: |
+          sum(rate(mreg_policy_parity_results_total{result="error"}[30m]))
+          /
+          clamp_min(sum(rate(mreg_policy_parity_results_total[30m])), 1)
+          > 0.001
+        for: 15m
+        labels:
+          severity: page
+        annotations:
+          summary: TreeTop parity error rate exceeds 0.1%
+      - alert: MregTreeTopParityPersistenceFailure
+        expr: increase(mreg_policy_parity_batches_total{status="persist_failed"}[5m]) > 0
+        for: 0m
+        labels:
+          severity: page
+        annotations:
+          summary: A policy parity batch could not be persisted
+      - alert: MregTreeTopParityDeadLetter
+        expr: max(mreg_policy_parity_outbox_entries{status="dead_letter"}) > 0
+        for: 0m
+        labels:
+          severity: page
+        annotations:
+          summary: The policy parity outbox contains dead letters
+      - alert: MregTreeTopParityBacklogStale
+        expr: max(mreg_policy_parity_outbox_oldest_seconds) > 300
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: The oldest policy parity batch is over five minutes old
+      - alert: MregTreeTopParityCircuitOpen
+        expr: max(mreg_policy_parity_circuit_open) > 0
+        for: 2m
+        labels:
+          severity: ticket
+        annotations:
+          summary: A policy parity delivery circuit breaker is open

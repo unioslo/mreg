@@ -61,14 +61,6 @@ Keep this disabled unless detailed parity investigation is necessary. These
 fields may contain operationally sensitive data. Parity events use the normal
 console and rotating `MREG_LOG_FILE_NAME` handlers.
 
-## `MREG_POLICY_PARITY_QUEUE_SIZE`
-
-Maximum number of parity batches waiting for the process-local background
-worker. Default: `100`
-
-When the queue is full, the batch is dropped, the legacy decision is preserved,
-and a metric/log event is emitted.
-
 ## `MREG_POLICY_TIMEOUT_SECONDS`
 
 Timeout in seconds for calls from the background parity worker to TreeTop.
@@ -79,9 +71,47 @@ Default: `5.0`
 Boolean flag controlling request-scoped batching of parity authorize checks.
 Default: `True`
 
-When enabled, parity checks are collected during request handling and submitted
-to a bounded background worker as one batch. Requests never wait for TreeTop.
-When disabled, each check is submitted as its own background batch.
+When enabled, parity checks are collected during request handling and persisted
+to the PostgreSQL outbox as one batch. Requests never wait for TreeTop. When
+disabled, each check is persisted as its own durable batch.
+
+## Durable parity delivery
+
+The following settings control the shared PostgreSQL outbox:
+
+- `MREG_POLICY_PARITY_MAX_ATTEMPTS` (`8`): delivery attempts before a row is
+  retained as a dead letter.
+- `MREG_POLICY_PARITY_RETRY_BASE_SECONDS` (`2.0`): initial exponential-backoff
+  delay.
+- `MREG_POLICY_PARITY_RETRY_MAX_SECONDS` (`300.0`): retry delay cap.
+- `MREG_POLICY_PARITY_LEASE_SECONDS` (`60.0`): time before an abandoned claim
+  can be reclaimed by another worker.
+- `MREG_POLICY_PARITY_POLL_SECONDS` (`1.0`): worker polling interval.
+- `MREG_POLICY_PARITY_CIRCUIT_FAILURES` (`5`): consecutive delivery failures
+  that open a worker's circuit breaker.
+- `MREG_POLICY_PARITY_CIRCUIT_RESET_SECONDS` (`30.0`): circuit cooldown.
+
+Successful rows are deleted. Exhausted rows remain in
+`mreg_policyparityoutbox` with `failed_at` and `last_error` populated. The
+outbox necessarily contains the principal, groups, resource identifier, and
+resource attributes required for a later authorization call. Protect database
+access accordingly and establish an operational dead-letter retention policy.
+
+The container sets `PROMETHEUS_MULTIPROC_DIR` to an isolated directory so
+metrics from every Gunicorn worker are aggregated. Custom Gunicorn deployments
+must set this variable to a clean, writable directory before starting Python.
+
+## TreeTop enforcement rollout gates
+
+`manage.py check_policy_rollout` evaluates Prometheus telemetry before an
+operator enables policy enforcement. Defaults can be tuned with:
+
+- `MREG_POLICY_ROLLOUT_MIN_COMPARISONS` (`10000`)
+- `MREG_POLICY_ROLLOUT_MAX_MISMATCH_RATE` (`0.001`)
+- `MREG_POLICY_ROLLOUT_MAX_ERROR_RATE` (`0.001`)
+- `MREG_POLICY_ROLLOUT_MAX_PERSIST_FAILURES` (`0`)
+- `MREG_POLICY_ROLLOUT_MAX_DEAD_LETTERS` (`0`)
+- `MREG_POLICY_ROLLOUT_MAX_BACKLOG_AGE_SECONDS` (`300.0`)
 
 ## `MREG_LOG_FILE_SIZE`
 

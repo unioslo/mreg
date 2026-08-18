@@ -177,6 +177,17 @@ If a test fails only when run in parallel:
 
 ## CI/CD Integration
 
+Container tests use the dedicated `test` target, which contains test modules
+and development-only dependencies such as `unittest-parametrize`:
+
+```bash
+docker build --target test -t mreg-test .
+docker run --rm mreg-test
+```
+
+The default/final image is the `runtime` target and excludes test packages and
+test-only dependencies.
+
 The parallel flag is already enabled in `tox.ini` for all test environments:
 
 ```ini

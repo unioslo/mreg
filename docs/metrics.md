@@ -135,15 +135,31 @@ Metrics are exposed at the following endpoint: `/api/meta/metrics`.
   - Type: Counter
   - Labels: status
   - Unit: batches
-  - Description: Batches submitted to or dropped by the bounded background worker.
-  - Label values: `submitted`, `dropped`
+  - Description: Durable outbox lifecycle events.
+  - Label values: `persisted`, `processed`, `retried`, `dead_letter`, `persist_failed`
+
+- Name: mreg_policy_parity_outbox_entries
+  - Type: Gauge
+  - Labels: status
+  - Description: Current shared outbox rows by `pending` or `dead_letter` status.
+
+- Name: mreg_policy_parity_outbox_oldest_seconds
+  - Type: Gauge
+  - Labels: none
+  - Unit: seconds
+  - Description: Age of the oldest pending durable batch.
+
+- Name: mreg_policy_parity_circuit_open
+  - Type: Gauge
+  - Labels: none
+  - Description: `1` while a worker's TreeTop delivery circuit is open, otherwise `0`.
 
 - Name: mreg_policy_parity_failures_total
   - Type: Counter
   - Labels: stage
   - Unit: failures
   - Description: Fail-open parity instrumentation failures by processing stage.
-  - Typical label values: `build`, `submit`, `request_exit`, `worker`, `result_logging`
+  - Typical label values: `build`, `persist`, `request_exit`, `worker`, `result_logging`
 
 - Name: mreg_policy_authorize_duration_seconds
   - Type: Histogram
@@ -170,9 +186,19 @@ Metrics are exposed at the following endpoint: `/api/meta/metrics`.
     - Prometheus boundaries: [0, 1, 2, 3, 5, 8, +Inf]
 
 When request batching is enabled (default), `mreg_policy_queries_per_request`
-should usually be `0` (no parity checks queued) or `1` (one batch submitted).
-The background worker performs the corresponding authorize call after request
-handling.
+should usually be `0` (no parity checks produced) or `1` (one batch persisted).
+The durable outbox worker performs the corresponding authorize call after
+request handling.
+
+## TreeTop rollout dashboard and alerts
+
+- Grafana dashboard: `monitoring/grafana/treetop-parity.json`
+- Prometheus alerts: `monitoring/treetop-alerts.yml`
+- Executable gate: `python manage.py check_policy_rollout --prometheus-url URL`
+
+The default gate requires at least 10,000 comparisons over the selected window,
+at most 0.1% mismatches, at most 0.1% errors, zero persistence failures, zero
+dead letters, and a pending backlog younger than five minutes.
 
 ## Labeling Strategy
 
@@ -186,7 +212,11 @@ handling.
 - Timing uses monotonic clocks to avoid wall-clock skew.
 - The metrics endpoint (/api/meta/metrics) is not instrumented and is tolerant to a trailing slash.
 - Gauges are carefully paired to prevent underflow.
-- For multi-process deployments, ensure Prometheus client multiprocess mode is configured or scrape per-worker and aggregate in Prometheus.
+- The container configures Prometheus client multiprocess mode and cleans its
+  per-process files before Gunicorn starts. Custom process managers must set
+  `PROMETHEUS_MULTIPROC_DIR` to a clean, writable directory before Python
+  starts and call `prometheus_client.multiprocess.mark_process_dead` when a
+  worker exits.
 - Avoid building dashboards/alerts on high-cardinality labels; stick to method/path/status/exception.
 
 ## Alerting Examples

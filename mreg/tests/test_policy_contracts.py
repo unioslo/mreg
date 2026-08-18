@@ -6,13 +6,13 @@ from mreg.api.permissions import ParityMixin
 from mreg.api.treetop import PolicyCheck, PolicyResource
 
 
-class _ExampleModel:
+class Host:
     pass
 
 
 class _ModelSerializer:
     class Meta:
-        model = _ExampleModel
+        model = Host
 
 
 class _ModelView:
@@ -30,16 +30,16 @@ class PolicyContractTests(SimpleTestCase):
     def test_resource_kind_uses_serializer_model(self):
         self.assertEqual(
             self.mixin._resource_kind_from_view(view=_ModelView()),
-            "_ExampleModel",
+            "Host",
         )
 
     def test_resource_kind_supports_explicit_non_model_contract(self):
-        view = mock.Mock(policy_resource_kind="HealthCheck")
+        view = mock.Mock(policy_resource_kind="Generic")
         view.get_serializer_class.side_effect = AttributeError
 
         self.assertEqual(
             self.mixin._resource_kind_from_view(view=view),
-            "HealthCheck",
+            "Generic",
         )
 
     def test_resource_kind_does_not_guess_from_view_name(self):
@@ -52,7 +52,8 @@ class PolicyContractTests(SimpleTestCase):
             self.mixin._resource_kind_from_view(view=ReportList())
 
     def test_resource_id_has_stable_precedence(self):
-        obj = mock.Mock(pk=7)
+        obj = Host()
+        obj.pk = 7
 
         self.assertEqual(
             self.mixin._resource_id_from_view(

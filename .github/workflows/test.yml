@@ -1,5 +1,7 @@
 on:
   push:
+    branches: [master]
+    tags: ['v*']
     paths-ignore:
       - 'ci/**'
       - 'README.md'
@@ -7,6 +9,10 @@ on:
   pull_request:
     types: [opened, reopened, synchronize]
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 #env:
 #  UV_FROZEN: 1
@@ -36,6 +42,8 @@ jobs:
         run: scripts/check-treetop-bundle.sh
         env:
           TREETOP_BUNDLE_BIN: ./treetop-bundle
+      - name: Check generated Cedar contracts
+        run: python scripts/generate-treetop-schema.py --check
 
   test:
     name: Test

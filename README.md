@@ -185,11 +185,23 @@ mreg supports configuration via environment variables with the `MREG_` prefix. T
 | `MREG_POLICY_PARITY_ENABLED` | `True` | Enable parity checks when a policy base URL is configured |
 | `MREG_POLICY_BASE_URL` | `""` | TreeTop REST base URL; an empty value disables calls |
 | `MREG_POLICY_NAMESPACE` | `MREG` | Cedar namespace used for principals, actions, and resources |
-| `MREG_POLICY_PARITY_BATCH_ENABLED` | `True` | Submit one background parity batch per HTTP request |
-| `MREG_POLICY_PARITY_QUEUE_SIZE` | `100` | Maximum queued parity batches per process |
+| `MREG_POLICY_PARITY_BATCH_ENABLED` | `True` | Persist one durable parity batch per HTTP request |
 | `MREG_POLICY_TIMEOUT_SECONDS` | `5.0` | TreeTop client timeout in seconds |
+| `MREG_POLICY_PARITY_MAX_ATTEMPTS` | `8` | Delivery attempts before retaining a dead letter |
+| `MREG_POLICY_PARITY_RETRY_BASE_SECONDS` | `2.0` | Initial durable-outbox retry delay |
+| `MREG_POLICY_PARITY_RETRY_MAX_SECONDS` | `300.0` | Maximum durable-outbox retry delay |
+| `MREG_POLICY_PARITY_LEASE_SECONDS` | `60.0` | Time before another worker may reclaim an abandoned row |
+| `MREG_POLICY_PARITY_POLL_SECONDS` | `1.0` | Durable-outbox polling interval |
+| `MREG_POLICY_PARITY_CIRCUIT_FAILURES` | `5` | Consecutive failures that open the delivery circuit |
+| `MREG_POLICY_PARITY_CIRCUIT_RESET_SECONDS` | `30.0` | Open-circuit cooldown |
 | `MREG_POLICY_PARITY_LOG_LEVEL` | `WARNING` | Dedicated parity logger level |
 | `MREG_POLICY_PARITY_LOG_DETAILS` | `False` | Include sensitive principal/resource details in parity logs |
+| `MREG_POLICY_ROLLOUT_MIN_COMPARISONS` | `10000` | Minimum observations required by the enforcement gate |
+| `MREG_POLICY_ROLLOUT_MAX_MISMATCH_RATE` | `0.001` | Maximum accepted mismatch ratio |
+| `MREG_POLICY_ROLLOUT_MAX_ERROR_RATE` | `0.001` | Maximum accepted policy error ratio |
+| `MREG_POLICY_ROLLOUT_MAX_PERSIST_FAILURES` | `0` | Maximum accepted outbox persistence failures |
+| `MREG_POLICY_ROLLOUT_MAX_DEAD_LETTERS` | `0` | Maximum accepted dead letters |
+| `MREG_POLICY_ROLLOUT_MAX_BACKLOG_AGE_SECONDS` | `300.0` | Maximum age of the oldest pending batch |
 
 ### Network Policy Configuration
 

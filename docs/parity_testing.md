@@ -88,9 +88,11 @@ Keep parity disable scope as narrow as possible:
 The `disable_policy_parity()` context manager uses `ContextVar` state. Nested
 contexts and concurrently handled requests are isolated from one another.
 
-Parity HTTP calls run on a bounded process-local background worker. Client,
-serialization, queue, logging, and TreeTop failures are fail-open: they are
-recorded, but never replace the legacy permission decision.
+Parity batches are persisted in a shared PostgreSQL outbox. Post-fork workers
+claim rows with database locks, retry with exponential backoff, and retain dead
+letters after the configured attempt limit. A circuit breaker protects an
+unavailable TreeTop service. Client, serialization, persistence, logging, and
+TreeTop failures remain fail-open and never replace the legacy decision.
 
 ## Parity Runbook
 
@@ -124,6 +126,18 @@ jq -r 'select(.event == "policy_parity_mismatch") | .context.action // empty' lo
 Set `MREG_POLICY_PARITY_LOG_DETAILS=True` temporarily in a suitably protected
 environment only when principal, group, resource ID, or attribute details are
 required for triage.
+
+5. Run the enforcement readiness gate against the production Prometheus:
+
+```bash
+python manage.py check_policy_rollout \
+  --prometheus-url https://prometheus.example.org \
+  --window 24h
+```
+
+Do not enable enforcement until this command passes. Import
+`monitoring/grafana/treetop-parity.json` and load
+`monitoring/treetop-alerts.yml` before the observation window begins.
 
 ## Mismatch Triage Guide
 

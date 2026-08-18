@@ -24,8 +24,6 @@ dependencies = [
     # For OpenAPI schema generation
     # Pinned to prevent breaking changes: https://drf-spectacular.readthedocs.io/en/latest/readme.html#release-management
     "drf-spectacular[sidecar]==0.29.0",
-    # For testing inside Docker image
-    "unittest-parametrize",
     "treetop-client>=0.0.12",
     "prometheus-client>=0.24",
 ]
@@ -36,6 +34,7 @@ dynamic = ["version"]
 dev = [
     "tox-uv>=1.29",
     "coverage[toml]",
+    "unittest-parametrize",
     "uv>=0.10",
     "tblib>=3",
     {include-group = "profile"},

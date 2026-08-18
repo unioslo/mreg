@@ -1,4 +1,6 @@
 import ldap
+import os
+from tempfile import TemporaryDirectory
 from unittest.mock import Mock, patch
 
 from rest_framework.test import APIClient
@@ -12,6 +14,19 @@ from mreg.tests.prometheus_test_utils import parse_prometheus_metric as _parse_p
 
 
 class MetricsTests(TestCase):
+    @patch("mreg.api.views.multiprocess.MultiProcessCollector")
+    @patch("mreg.api.views.generate_latest", return_value=b"# multiprocess metrics\n")
+    def test_metrics_endpoint_aggregates_gunicorn_workers(self, generate_latest_mock, collector_mock) -> None:
+        with TemporaryDirectory() as metrics_dir:
+            with patch.dict(os.environ, {"PROMETHEUS_MULTIPROC_DIR": metrics_dir}):
+                response: Any = APIClient().get("/api/meta/metrics")
+
+        assert response.status_code == 200
+        assert response.content == b"# multiprocess metrics\n"
+        registry = collector_mock.call_args.args[0]
+        collector_mock.assert_called_once_with(registry, path=metrics_dir)
+        generate_latest_mock.assert_called_once_with(registry)
+
     def test_metrics_endpoint_exposes_prometheus_metrics(self) -> None:
         """Test that metrics endpoint returns Prometheus-formatted output."""
         client = APIClient()

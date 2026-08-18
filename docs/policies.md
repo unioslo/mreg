@@ -13,10 +13,11 @@ Related documentation:
 - Policy module: `treetop/data/treetop-mreg-module.toml`
 - Global policy module: `treetop/data/treetop-global-module.toml`
 - Policy definitions: `treetop/data/mreg.cedar` and `treetop/data/global.cedar`
-- Cedar schema: `treetop/data/mreg.cedarschema`
+- Python resource/action contracts: `mreg/policy/contracts.py`
+- Typed resource adapters: `mreg/policy/resources.py`
+- Generated Cedar schema: `treetop/data/mreg.cedarschema`
 - Derived labels: `treetop/data/labels.json`
 - Generated bundle: `treetop/data/mreg-bundle.tar.gz`
-- Action generation in code: `mreg/api/permissions.py` (`ParityMixin._crud_action`)
 - Parity transport/logging: `mreg/api/treetop.py`
 
 ## Building the Bundle
@@ -28,14 +29,18 @@ pinned REST server. Then validate and build the bundle from the repository
 root:
 
 ```console
+$ python scripts/generate-treetop-schema.py --check
 $ treetop-bundle build \
     --manifest treetop/data/treetop-bundle.toml \
     --output treetop/data/mreg-bundle.tar.gz
 $ TREETOP_BUNDLE_BIN=treetop-bundle scripts/check-treetop-bundle.sh
 ```
 
-Bundle output is deterministic. Commit the regenerated archive whenever a
-module manifest, Cedar policy, schema, or label definition changes. The local
+The schema's entities and action declarations are generated from the Python
+contracts. Add a `ResourceContract` and its adapter before changing policies;
+CI rejects a stale generated schema. Bundle output is deterministic. Commit the
+regenerated archive whenever a module manifest, Cedar policy, contract/schema,
+or label definition changes. The local
 TreeTop stack loads the archive atomically through `TREETOP_BUNDLE_URL`. MREG
 currently uses unsigned bundles, verified with the explicit `allow-unsigned`
 signature policy.
@@ -45,23 +50,25 @@ signature policy.
 When introducing a new resource that should be parity-checked, use this checklist:
 
 1. Ensure the permission path reaches `ParityMixin.pp()` or `pp_generic_action()`.
-2. Confirm CRUD action dispatch is used (`<resource>_<create|read|update|delete>`).
-3. Define the resource kind contract for the endpoint:
+2. Add a `ResourceContract` and registered adapter in `mreg/policy/`.
+3. Confirm CRUD action dispatch is used (`<resource>_<create|read|update|delete>`).
+4. Define the resource kind contract for the endpoint:
    - Use serializer `Meta.model` for model-backed views.
    - Set `policy_resource_kind` explicitly on non-model views.
    - Set a `policy_actions` operation mapping when an endpoint action is not
      the model's conventional CRUD action.
-4. Verify resource ID resolution produces stable IDs for list/detail/custom views.
-5. Add or update Cedar actions/rules in `treetop/data/mreg.cedar`.
-6. If policy conditions depend on derived labels, update `treetop/data/labels.json`.
-7. Rebuild `treetop/data/mreg-bundle.tar.gz`.
-8. Add tests for create/read/update/delete behavior and group/admin overrides.
-9. Run parity checks and confirm zero mismatches.
-10. If tests mutate permissions mid-test, scope `disable_policy_parity()` as narrowly as possible.
+5. Verify resource ID resolution produces stable IDs for list/detail/custom views.
+6. Regenerate `treetop/data/mreg.cedarschema` and update Cedar rules.
+7. If policy conditions depend on derived labels, update `treetop/data/labels.json`.
+8. Rebuild `treetop/data/mreg-bundle.tar.gz`.
+9. Add tests for create/read/update/delete behavior and group/admin overrides.
+10. Run parity checks and confirm zero mismatches.
+11. If tests mutate permissions mid-test, scope `disable_policy_parity()` as narrowly as possible.
 
 ## Resource Kind and ID Resolution
 
-`ParityMixin` resolves resource kind and ID using deterministic contracts.
+`ParityMixin` delegates resource kind, ID, and attributes to the typed adapters
+in `mreg/policy/resources.py`.
 
 Resource kind fallback order (`_resource_kind_from_view`):
 
@@ -138,7 +145,7 @@ Where operation is mapped from HTTP method:
 
 ## Attribute Contract for Policy Checks
 
-All resource attributes are normalized through `ParityMixin._normalize_resource_attrs`:
+All resource attributes are normalized through the registered resource adapter:
 
 - `kind` is always added using snake_case resource kind.
 - Attribute values are stringified.
