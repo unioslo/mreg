@@ -97,7 +97,10 @@ jobs:
         cp -r mreg-cli/ci /tmp
         C=$(cat ci/MREG-CLI_COMMIT)
         cd mreg-cli
-        git -c advice.detachedHead=false checkout $C
+        # A default shallow clone can contain the commit object without all of
+        # its trees. Fetch the pinned revision explicitly before checkout.
+        git fetch --depth=1 origin "$C"
+        git -c advice.detachedHead=false checkout FETCH_HEAD
         cp --no-clobber /tmp/ci/* ci/
     - name: Run the tests
       run: mreg-cli/ci/run_testsuite_and_record_V2.sh
