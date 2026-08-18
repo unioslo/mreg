@@ -21,8 +21,8 @@ Related documentation:
 
 ## Building the Bundle
 
-Install `treetop-bundle` 0.0.4 from the
-[`treetop-bundle` releases](https://github.com/treetop-policy-engine/treetop-bundle/releases/tag/v0.0.4),
+Install `treetop-bundle` 0.0.5 from the
+[`treetop-bundle` releases](https://github.com/treetop-policy-engine/treetop-bundle/releases/tag/v0.0.5),
 which matches the bundle format and Treetop Core version supported by the
 pinned REST server. Then validate and build the bundle from the repository
 root:
