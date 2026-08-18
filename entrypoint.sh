@@ -6,4 +6,4 @@ python manage.py create_citext_extension
 python manage.py migrate
 
 # Let gunicorn become PID 1 so container stop signals are delivered directly.
-exec gunicorn --workers 3 --bind 0.0.0.0:8000 mregsite.wsgi
+exec gunicorn --workers 3 --bind 0.0.0.0:8000 --pid /var/run/gunicorn.pid mregsite.wsgi
