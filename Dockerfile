@@ -25,6 +25,16 @@ FROM builder AS test-builder
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-editable --group dev
 
+# Prepare application sources for production without relying on the newer
+# Dockerfile COPY --exclude flag used only by recent BuildKit releases.
+FROM builder AS runtime-builder
+RUN rm -rf \
+    /app/mreg/tests \
+    /app/mreg/api/tests \
+    /app/mreg/api/v1/tests \
+    && find /app/mreg -type f -name '*.pyc' -delete \
+    && find /app/mreg -depth -type d -name __pycache__ -empty -delete
+
 # Production runtime stage.
 FROM python:3.12-alpine AS runtime
 EXPOSE 8000
@@ -42,12 +52,7 @@ COPY --from=builder /app/.venv /app/.venv
 
 # Copy over application files
 COPY entrypoint.sh manage.py /app/
-COPY \
-    --exclude=tests \
-    --exclude=api/tests \
-    --exclude=api/v1/tests \
-    --exclude=**/__pycache__ \
-    mreg /app/mreg/
+COPY --from=runtime-builder /app/mreg /app/mreg/
 COPY mregsite /app/mregsite/
 COPY hostpolicy /app/hostpolicy/
 COPY --from=ghcr.io/astral-sh/uv:0.12.0 /uv /uvx /bin/
