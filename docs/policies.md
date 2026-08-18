@@ -65,6 +65,61 @@ When introducing a new resource that should be parity-checked, use this checklis
 10. Run parity checks and confirm zero mismatches.
 11. If tests mutate permissions mid-test, scope `disable_policy_parity()` as narrowly as possible.
 
+## Enforcement Mapping Boundary
+
+`MREG_POLICY_MODE=enforce` makes TreeTop synchronous and authoritative wherever
+the permission path reaches `ParityMixin.pp()` or `pp_generic_action()`. The
+return value at that checkpoint becomes the TreeTop decision. Authentication,
+serializer validation, object lookup, and business invariants remain MREG
+responsibilities.
+
+The mapping unit is a semantic permission checkpoint, not simply an HTTP
+request. One request can reach multiple checks (for example DNS-name rules,
+reserved-address rules, and a final host/IP permission). Those checks cannot be
+batched after the request in enforcement mode because each result may control
+the next branch. They therefore use synchronous `treetop-client.authorize`
+calls. The PostgreSQL queue remains only for asynchronous `shadow` comparisons.
+
+The current DRF permission stack and Gunicorn workers are synchronous, and the
+result is needed before permission evaluation can continue. Using an async HTTP
+client would still require blocking at that boundary and would not make the
+decision asynchronous. A future end-to-end ASGI conversion could await TreeTop,
+but it would still be request-path I/O in `enforce`.
+
+Legacy permission code is still evaluated in `enforce` so its result can be
+compared and so the existing control flow can reach the mapped checkpoint. The
+TreeTop result returned by that checkpoint is authoritative. Once the mapping
+inventory is complete, legacy computation can be removed or reduced in a
+separate change. Until then, use `mreg_policy_queries_per_request` and authorize
+latency histograms to find endpoints where multiple dependent checks should be
+redesigned into one explicit endpoint-level policy decision.
+
+Current mapped checkpoints include:
+
+| Legacy decision | Policy mapping |
+| --- | --- |
+| Administrative group membership | Explicit `*_admin_access` action on `Generic` |
+| CRUD permission after serializer/object resolution | Typed resource plus `<resource>_<operation>` |
+| Host/network regex evaluation | `Host`/record resource with `hostname` and optional typed `ip` |
+| DNS wildcard/underscore rules | Explicit membership actions |
+| Restricted IP operations | Explicit IP-management actions |
+| Host contact reads | Explicit `host_contacts_read` view action |
+
+This is an incremental mapping boundary, not yet proof that every endpoint in
+MREG is policy-backed. Plain `IsAuthenticated` endpoints, host-group ownership,
+and legacy branches that do not call the parity mixin remain application-owned
+until they receive an explicit contract and Cedar rule. Do not describe a
+deployment as globally TreeTop-authoritative until an endpoint inventory shows
+that every authorization decision intended for delegation reaches a mapped
+checkpoint. MREG authentication and non-authorization validation are expected
+to remain local.
+
+Dynamic user group membership is sent with every TreeTop request. Mutable
+database permission rules such as `NetGroupRegexPermission` are not exported
+automatically; their Cedar equivalent must be present in the deployed bundle.
+This bundle-sync requirement must be part of the mapping/deployment process
+before enforcement is enabled.
+
 ## Resource Kind and ID Resolution
 
 `ParityMixin` delegates resource kind, ID, and attributes to the typed adapters

@@ -15,7 +15,7 @@ def _setup_django() -> None:
 
 
 def post_fork(server, worker):  # noqa: ARG001
-    """Start the durable parity outbox consumer only after worker fork."""
+    """Start the shadow-mode outbox consumer only after worker fork."""
     _setup_django()
 
     from mreg.api.treetop import start_policy_parity_dispatcher

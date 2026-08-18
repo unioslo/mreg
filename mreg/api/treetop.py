@@ -34,10 +34,15 @@ from treetop_client.models import (
 
 from mreg.models.auth import User as MregUser
 from mreg.models.policy import PolicyParityOutbox
+from mreg.policy.config import EnforcementFailureMode, PolicyMode
 
 logger = structlog.get_logger("mreg.policy.parity")
 
-POLICY_PARITY_ENABLED = getattr(settings, "POLICY_PARITY_ENABLED", True)
+POLICY_MODE = PolicyMode(getattr(settings, "POLICY_MODE", "shadow"))
+POLICY_PARITY_ENABLED = getattr(settings, "POLICY_PARITY_ENABLED", POLICY_MODE == PolicyMode.SHADOW)
+POLICY_ENFORCEMENT_FAILURE_MODE = EnforcementFailureMode(
+    getattr(settings, "POLICY_ENFORCEMENT_FAILURE_MODE", "deny")
+)
 POLICY_BASE_URL = (getattr(settings, "POLICY_BASE_URL", "") or "").strip()
 POLICY_NAMESPACE = getattr(settings, "POLICY_NAMESPACE", ["MREG"])
 POLICY_PARITY_BATCH_ENABLED = getattr(settings, "POLICY_PARITY_BATCH_ENABLED", True)
@@ -84,9 +89,23 @@ POLICY_PARITY_BATCHES_TOTAL = Counter(
 
 POLICY_PARITY_FAILURES_TOTAL = Counter(
     "mreg_policy_parity_failures_total",
-    "Policy parity instrumentation failures that did not affect the legacy decision.",
+    "Policy integration failures by processing stage.",
     ["stage"],
 )
+
+POLICY_ENFORCEMENT_RESULTS_TOTAL = Counter(
+    "mreg_policy_enforcement_results_total",
+    "Synchronous authoritative policy outcomes.",
+    ["result"],
+)
+
+POLICY_MODE_INFO = Gauge(
+    "mreg_policy_mode_info",
+    "Configured MREG policy decision mode.",
+    ["mode"],
+    multiprocess_mode="livemax",
+)
+POLICY_MODE_INFO.labels(mode=POLICY_MODE.value).set(1)
 
 POLICY_AUTHORIZE_DURATION_SECONDS = Histogram(
     "mreg_policy_authorize_duration_seconds",
@@ -534,8 +553,8 @@ def _get_dispatcher() -> _ParityDispatcher:
 
 
 def start_policy_parity_dispatcher() -> None:
-    """Start a post-fork outbox worker so persisted work survives restarts."""
-    if POLICY_PARITY_ENABLED and POLICY_BASE_URL:
+    """Start the shadow-mode outbox worker after Gunicorn forks."""
+    if _is_shadow_enabled():
         _get_dispatcher()._ensure_started()
 
 
@@ -582,7 +601,10 @@ def _submit_policy_batch(items: Sequence[_ParityBatchItem]) -> bool:
 
 @contextmanager
 def batch_policy_parity():
-    """Collect one request's parity checks and persist them as one batch."""
+    """Track one request's policy work and batch shadow checks."""
+    if not _is_policy_enabled():
+        yield
+        return
     if _request_state.get() is not None:
         yield
         return
@@ -593,7 +615,7 @@ def batch_policy_parity():
         yield
     finally:
         try:
-            if POLICY_PARITY_BATCH_ENABLED and state.items:
+            if _current_policy_mode() == PolicyMode.SHADOW and POLICY_PARITY_BATCH_ENABLED and state.items:
                 if _submit_policy_batch(state.items):
                     state.submitted_queries += 1
             with suppress(Exception):
@@ -606,7 +628,11 @@ def batch_policy_parity():
 
 @contextmanager
 def disable_policy_parity():
-    """Temporarily disable parity checks in the current execution context."""
+    """Temporarily disable shadow checks in the current execution context.
+
+    Enforcement deliberately ignores this test helper so production code cannot
+    turn an authoritative decision back into a legacy decision accidentally.
+    """
     token = _parity_disabled_depth.set(_parity_disabled_depth.get() + 1)
     try:
         yield
@@ -614,8 +640,38 @@ def disable_policy_parity():
         _parity_disabled_depth.reset(token)
 
 
+def _current_policy_mode() -> PolicyMode:
+    value = POLICY_MODE
+    return value if isinstance(value, PolicyMode) else PolicyMode(value)
+
+
+def _current_enforcement_failure_mode() -> EnforcementFailureMode:
+    value = POLICY_ENFORCEMENT_FAILURE_MODE
+    return value if isinstance(value, EnforcementFailureMode) else EnforcementFailureMode(value)
+
+
+def _is_shadow_enabled() -> bool:
+    return bool(
+        _current_policy_mode() == PolicyMode.SHADOW
+        and POLICY_PARITY_ENABLED
+        and POLICY_BASE_URL
+        and _parity_disabled_depth.get() == 0
+    )
+
+
+def _is_enforcement_enabled() -> bool:
+    return _current_policy_mode() == PolicyMode.ENFORCE
+
+
+def _is_policy_enabled() -> bool:
+    if _is_enforcement_enabled():
+        return True
+    return _is_shadow_enabled()
+
+
 def _is_parity_enabled() -> bool:
-    return bool(POLICY_PARITY_ENABLED and POLICY_BASE_URL and _parity_disabled_depth.get() == 0)
+    """Compatibility alias for callers that mean shadow parity."""
+    return _is_shadow_enabled()
 
 
 def _corr_id(request: Request) -> str | None:
@@ -816,6 +872,130 @@ def flush_policy_parity_batch() -> bool:
     return submitted
 
 
+def _build_policy_context(
+    *,
+    request: Request,
+    check: PolicyCheck,
+    view: View | None,
+    permission_class: str | None,
+) -> dict[str, object]:
+    policy_action = Action.new(check.action, POLICY_NAMESPACE)
+    return {
+        "path": request.path,
+        "method": request.method,
+        "permission": permission_class or (view and view.__class__.__name__),
+        "view": view and view.__class__.__name__,
+        "model": _model_name_from_view(view),
+        "action": _fully_qualified_action(policy_action),
+        "resource_kind": _qualified_resource_kind(check.resource.kind),
+        "correlation_id": _corr_id(request),
+        "mode": _current_policy_mode().value,
+    }
+
+
+def _record_enforcement_result(result: str) -> None:
+    with suppress(Exception):
+        POLICY_ENFORCEMENT_RESULTS_TOTAL.labels(result=result).inc()
+
+
+def _enforcement_failure(
+    *,
+    decision: bool,
+    error: str,
+    context: dict[str, object],
+    stage: str,
+) -> bool:
+    """Apply the configured fail-closed or transitional legacy fallback."""
+    _record_instrumentation_failure(RuntimeError(error), stage=stage)
+    _log_parity_payload(
+        _compute_parity_payload(
+            decision=decision,
+            policy_allowed=None,
+            error=error,
+            context=context,
+        )
+    )
+    failure_mode = _current_enforcement_failure_mode()
+    if failure_mode == EnforcementFailureMode.LEGACY:
+        result = "error_legacy"
+        enforced_decision = bool(decision)
+    else:
+        result = "error_deny"
+        enforced_decision = False
+    _record_enforcement_result(result)
+    _safe_log(
+        logging.CRITICAL,
+        "policy_enforcement_failure",
+        failure_mode=failure_mode.value,
+        enforced_decision=enforced_decision,
+        error=error,
+        **context,
+    )
+    return enforced_decision
+
+
+def _enforce_policy_decision(
+    *,
+    decision: bool,
+    policy_request: TreeTopRequest,
+    context: dict[str, object],
+) -> bool:
+    """Synchronously return the authoritative TreeTop decision."""
+    if not POLICY_BASE_URL:
+        return _enforcement_failure(
+            decision=decision,
+            error="MREG_POLICY_BASE_URL is not configured",
+            context=context,
+            stage="enforce_configuration",
+        )
+
+    state = _request_state.get()
+    if state is not None:
+        state.submitted_queries += 1
+    try:
+        results, authorize_error = _authorize_with_metrics(
+            policy_requests=[policy_request],
+            correlation_id=context.get("correlation_id")
+            if isinstance(context.get("correlation_id"), str)
+            else None,
+            path=context.get("path") if isinstance(context.get("path"), str) else None,
+        )
+    except Exception as exc:
+        return _enforcement_failure(
+            decision=decision,
+            error=f"{type(exc).__name__}: {exc}",
+            context=context,
+            stage="enforce_instrumentation",
+        )
+    if authorize_error is not None:
+        return _enforcement_failure(
+            decision=decision,
+            error=authorize_error,
+            context=context,
+            stage="enforce_authorize",
+        )
+
+    policy_allowed, result_error = _result_to_decision_and_error(results, 0)
+    if result_error is not None or policy_allowed is None:
+        return _enforcement_failure(
+            decision=decision,
+            error=result_error or "TreeTop returned no decision",
+            context=context,
+            stage="enforce_result",
+        )
+
+    _log_parity_payload(
+        _compute_parity_payload(
+            decision=decision,
+            policy_allowed=policy_allowed,
+            error=None,
+            context=context,
+        )
+    )
+    _record_enforcement_result("allow" if policy_allowed else "deny")
+    return policy_allowed
+
+
 def policy_parity(
     decision: bool,
     *,
@@ -824,24 +1004,29 @@ def policy_parity(
     view: View | None = None,
     permission_class: str | None = None,
 ) -> bool:
-    """Queue a policy comparison and always preserve the legacy decision."""
-    if not _is_parity_enabled():
+    """Apply the configured off, shadow, or enforce policy behavior."""
+    mode = _current_policy_mode()
+    if mode == PolicyMode.OFF:
+        return decision
+    if mode == PolicyMode.SHADOW and not _is_shadow_enabled():
         return decision
 
+    context: dict[str, object] = {
+        "path": request.path,
+        "method": request.method,
+        "action": check.action,
+        "resource_kind": check.resource.kind,
+        "mode": mode.value,
+    }
     try:
+        context = _build_policy_context(
+            request=request,
+            check=check,
+            view=view,
+            permission_class=permission_class,
+        )
         muser = MregUser.from_request(request)
         policy_request = _build_policy_request(muser, check)
-        policy_action = Action.new(check.action, POLICY_NAMESPACE)
-        context: dict[str, object] = {
-            "path": request.path,
-            "method": request.method,
-            "permission": permission_class or (view and view.__class__.__name__),
-            "view": view and view.__class__.__name__,
-            "model": _model_name_from_view(view),
-            "action": _fully_qualified_action(policy_action),
-            "resource_kind": _qualified_resource_kind(check.resource.kind),
-            "correlation_id": _corr_id(request),
-        }
         if POLICY_PARITY_LOG_DETAILS:
             context.update(
                 {
@@ -851,17 +1036,32 @@ def policy_parity(
                     "resource_attrs": dict(check.resource.attrs),
                 }
             )
+    except Exception as exc:
+        if mode == PolicyMode.ENFORCE:
+            return _enforcement_failure(
+                decision=decision,
+                error=f"{type(exc).__name__}: {exc}",
+                context=context,
+                stage="enforce_build",
+            )
+        _record_instrumentation_failure(exc, stage="shadow_build")
+        return decision
 
-        item = _ParityBatchItem(
-            decision=bool(decision),
+    if mode == PolicyMode.ENFORCE:
+        return _enforce_policy_decision(
+            decision=decision,
             policy_request=policy_request,
             context=context,
         )
-        state = _request_state.get()
-        if state is not None and POLICY_PARITY_BATCH_ENABLED:
-            state.items.append(item)
-        elif _submit_policy_batch([item]) and state is not None:
-            state.submitted_queries += 1
-    except Exception as exc:
-        _record_instrumentation_failure(exc, stage="build")
+
+    item = _ParityBatchItem(
+        decision=bool(decision),
+        policy_request=policy_request,
+        context=context,
+    )
+    state = _request_state.get()
+    if state is not None and POLICY_PARITY_BATCH_ENABLED:
+        state.items.append(item)
+    elif _submit_policy_batch([item]) and state is not None:
+        state.submitted_queries += 1
     return decision

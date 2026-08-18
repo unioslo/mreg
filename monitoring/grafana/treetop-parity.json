@@ -39,6 +39,20 @@
       "type": "timeseries",
       "targets": [{"expr": "sum by (status) (rate(mreg_policy_parity_batches_total[5m]))", "legendFormat": "{{status}}"}],
       "gridPos": {"h": 8, "w": 8, "x": 16, "y": 8}
+    },
+    {
+      "id": 6,
+      "title": "Policy mode",
+      "type": "stat",
+      "targets": [{"expr": "max by (mode) (mreg_policy_mode_info)", "legendFormat": "{{mode}}"}],
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 16}
+    },
+    {
+      "id": 7,
+      "title": "Enforcement decisions",
+      "type": "timeseries",
+      "targets": [{"expr": "sum by (result) (rate(mreg_policy_enforcement_results_total[5m]))", "legendFormat": "{{result}}"}],
+      "gridPos": {"h": 8, "w": 16, "x": 8, "y": 16}
     }
   ],
   "schemaVersion": 41,

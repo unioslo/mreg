@@ -28,19 +28,33 @@ Must be one of the following:
 - `ERROR`
 - `CRITICAL`
 
+## `MREG_POLICY_MODE`
+
+Controls how MREG uses TreeTop. Default: `shadow`
+
+- `off`: use legacy permissions and make no TreeTop calls.
+- `shadow`: keep legacy permissions authoritative and submit comparisons
+  asynchronously through the durable PostgreSQL outbox.
+- `enforce`: call TreeTop synchronously at each mapped authorization checkpoint
+  and use its result. The shadow outbox and dispatcher are not used.
+
+`enforce` requires a non-empty `MREG_POLICY_BASE_URL`; invalid values or a
+missing enforcement URL stop Django during configuration rather than silently
+falling back.
+
 ## `MREG_POLICY_PARITY_ENABLED`
 
-Boolean flag controlling whether policy parity checks run. Default: `True`
+Deprecated compatibility flag. Default: `True`
 
-Parity checks run only when both `MREG_POLICY_PARITY_ENABLED` is true and
-`MREG_POLICY_BASE_URL` is set to a non-empty value.
+When `MREG_POLICY_MODE` is unset, true maps to `shadow` and false maps to `off`.
+An explicit mode always takes precedence.
 
 ## `MREG_POLICY_BASE_URL`
 
 Base URL for the TreeTop policy engine REST service. Default: empty (disabled)
 
-If unset or empty, the policy parity code is disabled and no requests are made
-to the policy engine.
+If unset or empty, no policy requests are made in `off`/`shadow` operation. It
+is a configuration error in `enforce` mode.
 
 Example: `http://localhost:9999`
 
@@ -63,8 +77,23 @@ console and rotating `MREG_LOG_FILE_NAME` handlers.
 
 ## `MREG_POLICY_TIMEOUT_SECONDS`
 
-Timeout in seconds for calls from the background parity worker to TreeTop.
-Default: `5.0`
+Timeout in seconds for calls to TreeTop. Default: `5.0`
+
+These calls run in the background in `shadow` and synchronously on the request
+path in `enforce`.
+
+## `MREG_POLICY_ENFORCEMENT_FAILURE_MODE`
+
+Decision used when a synchronous authoritative TreeTop call cannot return a
+valid result. Default: `deny`
+
+- `deny`: fail closed. This is the production enforcement default.
+- `legacy`: return the already-computed legacy decision. This is a transitional
+  rollout fallback and is not fully authoritative.
+
+Explicit TreeTop allow/deny responses are always authoritative in `enforce`;
+this setting applies only to transport, serialization, configuration, or
+invalid-result failures.
 
 ## `MREG_POLICY_PARITY_BATCH_ENABLED`
 
@@ -73,11 +102,13 @@ Default: `True`
 
 When enabled, parity checks are collected during request handling and persisted
 to the PostgreSQL outbox as one batch. Requests never wait for TreeTop. When
-disabled, each check is persisted as its own durable batch.
+disabled, each check is persisted as its own durable batch. This setting applies
+only to `shadow`; authoritative checks are necessarily synchronous and are not
+queued.
 
 ## Durable parity delivery
 
-The following settings control the shared PostgreSQL outbox:
+The following settings control the shared PostgreSQL outbox in `shadow` mode:
 
 - `MREG_POLICY_PARITY_MAX_ATTEMPTS` (`8`): delivery attempts before a row is
   retained as a dead letter.
@@ -97,6 +128,11 @@ outbox necessarily contains the principal, groups, resource identifier, and
 resource attributes required for a later authorization call. Protect database
 access accordingly and establish an operational dead-letter retention policy.
 
+Before switching from `shadow` to `enforce`, drain pending rows and resolve dead
+letters. Enforcement does not start the dispatcher or consume old shadow rows;
+re-evaluating them against a later bundle would not represent the decision that
+was available when the original request ran.
+
 The container sets `PROMETHEUS_MULTIPROC_DIR` to an isolated directory so
 metrics from every Gunicorn worker are aggregated. Custom Gunicorn deployments
 must set this variable to a clean, writable directory before starting Python.
@@ -111,6 +147,7 @@ operator enables policy enforcement. Defaults can be tuned with:
 - `MREG_POLICY_ROLLOUT_MAX_ERROR_RATE` (`0.001`)
 - `MREG_POLICY_ROLLOUT_MAX_PERSIST_FAILURES` (`0`)
 - `MREG_POLICY_ROLLOUT_MAX_DEAD_LETTERS` (`0`)
+- `MREG_POLICY_ROLLOUT_MAX_PENDING_BATCHES` (`0`)
 - `MREG_POLICY_ROLLOUT_MAX_BACKLOG_AGE_SECONDS` (`300.0`)
 
 ## `MREG_LOG_FILE_SIZE`

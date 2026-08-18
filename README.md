@@ -182,11 +182,13 @@ mreg supports configuration via environment variables with the `MREG_` prefix. T
 
 | Variable | Default | Description |
 | -------- | ------- | ----------- |
-| `MREG_POLICY_PARITY_ENABLED` | `True` | Enable parity checks when a policy base URL is configured |
+| `MREG_POLICY_MODE` | `shadow` | `off`, asynchronous `shadow`, or synchronous authoritative `enforce` |
+| `MREG_POLICY_PARITY_ENABLED` | `True` | Deprecated compatibility flag used only when `MREG_POLICY_MODE` is unset |
 | `MREG_POLICY_BASE_URL` | `""` | TreeTop REST base URL; an empty value disables calls |
 | `MREG_POLICY_NAMESPACE` | `MREG` | Cedar namespace used for principals, actions, and resources |
 | `MREG_POLICY_PARITY_BATCH_ENABLED` | `True` | Persist one durable parity batch per HTTP request |
 | `MREG_POLICY_TIMEOUT_SECONDS` | `5.0` | TreeTop client timeout in seconds |
+| `MREG_POLICY_ENFORCEMENT_FAILURE_MODE` | `deny` | Deny on enforcement error, or use the transitional `legacy` fallback |
 | `MREG_POLICY_PARITY_MAX_ATTEMPTS` | `8` | Delivery attempts before retaining a dead letter |
 | `MREG_POLICY_PARITY_RETRY_BASE_SECONDS` | `2.0` | Initial durable-outbox retry delay |
 | `MREG_POLICY_PARITY_RETRY_MAX_SECONDS` | `300.0` | Maximum durable-outbox retry delay |
@@ -201,6 +203,7 @@ mreg supports configuration via environment variables with the `MREG_` prefix. T
 | `MREG_POLICY_ROLLOUT_MAX_ERROR_RATE` | `0.001` | Maximum accepted policy error ratio |
 | `MREG_POLICY_ROLLOUT_MAX_PERSIST_FAILURES` | `0` | Maximum accepted outbox persistence failures |
 | `MREG_POLICY_ROLLOUT_MAX_DEAD_LETTERS` | `0` | Maximum accepted dead letters |
+| `MREG_POLICY_ROLLOUT_MAX_PENDING_BATCHES` | `0` | Maximum pending shadow batches before enforcement |
 | `MREG_POLICY_ROLLOUT_MAX_BACKLOG_AGE_SECONDS` | `300.0` | Maximum age of the oldest pending batch |
 
 ### Network Policy Configuration

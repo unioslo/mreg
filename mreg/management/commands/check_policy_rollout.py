@@ -21,6 +21,7 @@ class Command(BaseCommand):
             max_error_rate=settings.POLICY_ROLLOUT_MAX_ERROR_RATE,
             max_persist_failures=settings.POLICY_ROLLOUT_MAX_PERSIST_FAILURES,
             max_dead_letters=settings.POLICY_ROLLOUT_MAX_DEAD_LETTERS,
+            max_pending_batches=settings.POLICY_ROLLOUT_MAX_PENDING_BATCHES,
             max_backlog_age_seconds=settings.POLICY_ROLLOUT_MAX_BACKLOG_AGE_SECONDS,
         )
         try:
@@ -38,6 +39,7 @@ class Command(BaseCommand):
             f"error_rate={snapshot.error_rate:.6f} "
             f"persist_failures={snapshot.persist_failures:g} "
             f"dead_letters={snapshot.dead_letters:g} "
+            f"pending_batches={snapshot.pending_batches:g} "
             f"backlog_age_seconds={snapshot.backlog_age_seconds:g}"
         )
         if not evaluation.ready:

@@ -9,7 +9,9 @@ from django.http import HttpRequest, HttpResponse
 from django.test import TestCase
 
 from mreg.api.treetop import (
+    EnforcementFailureMode,
     PolicyCheck,
+    PolicyMode,
     PolicyResource,
     _CircuitBreaker,
     _ParityBatchItem,
@@ -20,7 +22,9 @@ from mreg.api.treetop import (
     _deserialize_policy_batch,
     _fully_qualified_action,
     _get_treetop_client,
+    _is_enforcement_enabled,
     _is_parity_enabled,
+    _is_policy_enabled,
     _process_policy_parity_batch,
     _qualified_resource_kind,
     _request_state,
@@ -140,6 +144,41 @@ class TreeTopParityBatchingTests(TestCase):
                     self.assertFalse(_is_parity_enabled())
                 self.assertFalse(_is_parity_enabled())
             self.assertTrue(_is_parity_enabled())
+
+    def test_policy_modes_distinguish_shadow_and_enforcement(self) -> None:
+        with (
+            patch("mreg.api.treetop.POLICY_MODE", PolicyMode.OFF),
+            patch("mreg.api.treetop.POLICY_BASE_URL", "http://policy"),
+        ):
+            self.assertFalse(_is_parity_enabled())
+            self.assertFalse(_is_enforcement_enabled())
+            self.assertFalse(_is_policy_enabled())
+        with (
+            patch("mreg.api.treetop.POLICY_MODE", PolicyMode.ENFORCE),
+            patch("mreg.api.treetop.POLICY_BASE_URL", "http://policy"),
+            disable_policy_parity(),
+        ):
+            self.assertFalse(_is_parity_enabled())
+            self.assertTrue(_is_enforcement_enabled())
+            self.assertTrue(_is_policy_enabled())
+
+    def test_off_mode_does_not_build_submit_or_authorize(self) -> None:
+        with (
+            patch("mreg.api.treetop.POLICY_MODE", PolicyMode.OFF),
+            patch("mreg.api.treetop.MregUser.from_request") as from_request,
+            patch("mreg.api.treetop._submit_policy_batch") as submit,
+            patch("mreg.api.treetop._get_treetop_client") as get_client,
+        ):
+            decision = self._run_parity_check(
+                self._request(),
+                decision=True,
+                hostname="host.example",
+            )
+
+        self.assertTrue(decision)
+        from_request.assert_not_called()
+        submit.assert_not_called()
+        get_client.assert_not_called()
 
     def test_build_resource_attrs_detects_ip_values(self) -> None:
         attrs = _build_resource_attrs({"ip": "192.0.2.1", "name": "host"})
@@ -296,6 +335,185 @@ class TreeTopParityBatchingTests(TestCase):
         ):
             self.assertTrue(policy_parity(True, request=self._request(), check=self._check()))
         record_failure.assert_called_once()
+
+    @patch("mreg.api.treetop.MregUser.from_request")
+    def test_enforcement_is_synchronous_and_does_not_use_outbox(
+        self,
+        mock_from_request: Mock,
+    ) -> None:
+        mock_from_request.return_value = SimpleNamespace(username="tester", group_list=[])
+        client = Mock()
+        client.authorize.return_value = _DummyAuthorizeResponse([True])
+        with (
+            patch("mreg.api.treetop.POLICY_MODE", PolicyMode.ENFORCE),
+            patch("mreg.api.treetop.POLICY_BASE_URL", "http://policy"),
+            patch("mreg.api.treetop._get_treetop_client", return_value=client),
+            patch("mreg.api.treetop._submit_policy_batch") as submit,
+            batch_policy_parity(),
+        ):
+            enforced = self._run_parity_check(
+                self._request(),
+                decision=False,
+                hostname="host.example",
+            )
+
+        self.assertTrue(enforced)
+        client.authorize.assert_called_once()
+        submit.assert_not_called()
+
+    @patch("mreg.api.treetop.MregUser.from_request")
+    def test_enforcement_policy_deny_overrides_legacy_allow(
+        self,
+        mock_from_request: Mock,
+    ) -> None:
+        mock_from_request.return_value = SimpleNamespace(username="tester", group_list=[])
+        client = Mock()
+        client.authorize.return_value = _DummyAuthorizeResponse([False])
+        with (
+            patch("mreg.api.treetop.POLICY_MODE", PolicyMode.ENFORCE),
+            patch("mreg.api.treetop.POLICY_BASE_URL", "http://policy"),
+            patch("mreg.api.treetop._get_treetop_client", return_value=client),
+        ):
+            enforced = self._run_parity_check(
+                self._request(),
+                decision=True,
+                hostname="host.example",
+            )
+
+        self.assertFalse(enforced)
+
+    @patch("mreg.api.treetop.MregUser.from_request")
+    def test_enforcement_errors_deny_by_default(
+        self,
+        mock_from_request: Mock,
+    ) -> None:
+        mock_from_request.return_value = SimpleNamespace(username="tester", group_list=[])
+        client = Mock()
+        client.authorize.side_effect = RuntimeError("offline")
+        with (
+            patch("mreg.api.treetop.POLICY_MODE", PolicyMode.ENFORCE),
+            patch("mreg.api.treetop.POLICY_BASE_URL", "http://policy"),
+            patch(
+                "mreg.api.treetop.POLICY_ENFORCEMENT_FAILURE_MODE",
+                EnforcementFailureMode.DENY,
+            ),
+            patch("mreg.api.treetop._get_treetop_client", return_value=client),
+            patch("mreg.api.treetop._submit_policy_batch") as submit,
+        ):
+            enforced = self._run_parity_check(
+                self._request(),
+                decision=True,
+                hostname="host.example",
+            )
+
+        self.assertFalse(enforced)
+        submit.assert_not_called()
+
+    @patch("mreg.api.treetop.MregUser.from_request")
+    def test_enforcement_can_use_explicit_legacy_failure_fallback(
+        self,
+        mock_from_request: Mock,
+    ) -> None:
+        mock_from_request.return_value = SimpleNamespace(username="tester", group_list=[])
+        client = Mock()
+        client.authorize.side_effect = RuntimeError("offline")
+        with (
+            patch("mreg.api.treetop.POLICY_MODE", PolicyMode.ENFORCE),
+            patch("mreg.api.treetop.POLICY_BASE_URL", "http://policy"),
+            patch(
+                "mreg.api.treetop.POLICY_ENFORCEMENT_FAILURE_MODE",
+                EnforcementFailureMode.LEGACY,
+            ),
+            patch("mreg.api.treetop._get_treetop_client", return_value=client),
+        ):
+            enforced = self._run_parity_check(
+                self._request(),
+                decision=True,
+                hostname="host.example",
+            )
+
+        self.assertTrue(enforced)
+
+    @patch("mreg.api.treetop.MregUser.from_request")
+    def test_disable_shadow_helper_cannot_bypass_enforcement(
+        self,
+        mock_from_request: Mock,
+    ) -> None:
+        mock_from_request.return_value = SimpleNamespace(username="tester", group_list=[])
+        client = Mock()
+        client.authorize.return_value = _DummyAuthorizeResponse([False])
+        with (
+            patch("mreg.api.treetop.POLICY_MODE", PolicyMode.ENFORCE),
+            patch("mreg.api.treetop.POLICY_BASE_URL", "http://policy"),
+            patch("mreg.api.treetop._get_treetop_client", return_value=client),
+            disable_policy_parity(),
+        ):
+            enforced = self._run_parity_check(
+                self._request(),
+                decision=True,
+                hostname="host.example",
+            )
+
+        self.assertFalse(enforced)
+
+    @patch("mreg.api.treetop.MregUser.from_request", side_effect=RuntimeError("bad principal"))
+    def test_enforcement_build_errors_fail_closed(self, _from_request: Mock) -> None:
+        with (
+            patch("mreg.api.treetop.POLICY_MODE", PolicyMode.ENFORCE),
+            patch("mreg.api.treetop.POLICY_BASE_URL", "http://policy"),
+            patch(
+                "mreg.api.treetop.POLICY_ENFORCEMENT_FAILURE_MODE",
+                EnforcementFailureMode.DENY,
+            ),
+        ):
+            enforced = self._run_parity_check(
+                self._request(),
+                decision=True,
+                hostname="host.example",
+            )
+
+        self.assertFalse(enforced)
+
+    @patch("mreg.api.treetop.MregUser.from_request")
+    def test_enforcement_missing_result_fails_closed(
+        self,
+        mock_from_request: Mock,
+    ) -> None:
+        mock_from_request.return_value = SimpleNamespace(username="tester", group_list=[])
+        client = Mock()
+        client.authorize.return_value = _DummyAuthorizeResponse([])
+        with (
+            patch("mreg.api.treetop.POLICY_MODE", PolicyMode.ENFORCE),
+            patch("mreg.api.treetop.POLICY_BASE_URL", "http://policy"),
+            patch("mreg.api.treetop._get_treetop_client", return_value=client),
+        ):
+            enforced = self._run_parity_check(
+                self._request(),
+                decision=True,
+                hostname="host.example",
+            )
+
+        self.assertFalse(enforced)
+
+    @patch("mreg.api.treetop.MregUser.from_request")
+    def test_enforcement_without_runtime_url_fails_closed(
+        self,
+        mock_from_request: Mock,
+    ) -> None:
+        mock_from_request.return_value = SimpleNamespace(username="tester", group_list=[])
+        with (
+            patch("mreg.api.treetop.POLICY_MODE", PolicyMode.ENFORCE),
+            patch("mreg.api.treetop.POLICY_BASE_URL", ""),
+            patch("mreg.api.treetop._get_treetop_client") as get_client,
+        ):
+            enforced = self._run_parity_check(
+                self._request(),
+                decision=True,
+                hostname="host.example",
+            )
+
+        self.assertFalse(enforced)
+        get_client.assert_not_called()
 
     @patch("mreg.api.treetop.MregUser.from_request")
     def test_sensitive_log_details_are_disabled_by_default(self, mock_from_request: Mock) -> None:
@@ -496,6 +714,16 @@ class TreeTopParityBatchingTests(TestCase):
         ):
             stop_policy_parity_dispatcher()
         dispatcher.shutdown.assert_called_once_with()
+
+    def test_dispatcher_does_not_start_in_enforcement_mode(self) -> None:
+        with (
+            patch("mreg.api.treetop.POLICY_MODE", PolicyMode.ENFORCE),
+            patch("mreg.api.treetop.POLICY_BASE_URL", "http://policy"),
+            patch("mreg.api.treetop._get_dispatcher") as get_dispatcher,
+        ):
+            start_policy_parity_dispatcher()
+
+        get_dispatcher.assert_not_called()
 
     def test_dispatcher_claims_and_completes_a_durable_batch(self) -> None:
         from mreg.models.policy import PolicyParityOutbox

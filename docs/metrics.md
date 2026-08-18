@@ -158,8 +158,21 @@ Metrics are exposed at the following endpoint: `/api/meta/metrics`.
   - Type: Counter
   - Labels: stage
   - Unit: failures
-  - Description: Fail-open parity instrumentation failures by processing stage.
-  - Typical label values: `build`, `persist`, `request_exit`, `worker`, `result_logging`
+  - Description: Policy integration failures by processing stage. Shadow failures are fail-open; enforcement failures follow the configured failure mode.
+  - Typical label values: `shadow_build`, `persist`, `request_exit`, `worker`, `result_logging`, `enforce_build`, `enforce_authorize`, `enforce_result`
+
+- Name: mreg_policy_enforcement_results_total
+  - Type: Counter
+  - Labels: result
+  - Unit: decisions
+  - Description: Synchronous authoritative outcomes in `enforce` mode.
+  - Label values: `allow`, `deny`, `error_deny`, `error_legacy`
+
+- Name: mreg_policy_mode_info
+  - Type: Gauge
+  - Labels: mode
+  - Description: Configured policy mode for the worker.
+  - Label values: `off`, `shadow`, `enforce`
 
 - Name: mreg_policy_authorize_duration_seconds
   - Type: Histogram
@@ -181,14 +194,15 @@ Metrics are exposed at the following endpoint: `/api/meta/metrics`.
   - Type: Histogram
   - Labels: none
   - Unit: submitted batches
-  - Description: Number of policy batches submitted by each HTTP request.
+  - Description: Number of shadow batches submitted or synchronous enforcement calls made by each HTTP request.
   - Buckets/ranges: `0`, `1`, `2`, `3`, `4-5`, `6-8`, `9+`
     - Prometheus boundaries: [0, 1, 2, 3, 5, 8, +Inf]
 
-When request batching is enabled (default), `mreg_policy_queries_per_request`
-should usually be `0` (no parity checks produced) or `1` (one batch persisted).
-The durable outbox worker performs the corresponding authorize call after
-request handling.
+In `shadow`, request batching normally produces `0` (no checks) or `1` (one
+durable batch) and the worker authorizes it later. In `enforce`, the value is the
+number of synchronous mapped authorization checkpoints reached by the request;
+these cannot be delayed or combined after the request because their result
+controls permission flow.
 
 ## TreeTop rollout dashboard and alerts
 
@@ -198,7 +212,12 @@ request handling.
 
 The default gate requires at least 10,000 comparisons over the selected window,
 at most 0.1% mismatches, at most 0.1% errors, zero persistence failures, zero
-dead letters, and a pending backlog younger than five minutes.
+dead letters, zero pending shadow batches, and a pending backlog younger than
+five minutes.
+
+`MregTreeTopEnforcementFailure` pages on any `error_deny` or `error_legacy`
+outcome. `error_legacy` means TreeTop was not authoritative for that request and
+should only exist during a deliberate transitional rollout.
 
 ## Labeling Strategy
 

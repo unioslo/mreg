@@ -15,6 +15,7 @@ class RolloutThresholds:
     max_error_rate: float = 0.001
     max_persist_failures: int = 0
     max_dead_letters: int = 0
+    max_pending_batches: int = 0
     max_backlog_age_seconds: float = 300.0
 
 
@@ -25,6 +26,7 @@ class RolloutSnapshot:
     errors: float
     persist_failures: float
     dead_letters: float
+    pending_batches: float
     backlog_age_seconds: float
 
     @property
@@ -56,6 +58,10 @@ def evaluate_rollout(snapshot: RolloutSnapshot, thresholds: RolloutThresholds) -
         reasons.append(f"persist failures {snapshot.persist_failures:g} > {thresholds.max_persist_failures}")
     if snapshot.dead_letters > thresholds.max_dead_letters:
         reasons.append(f"dead letters {snapshot.dead_letters:g} > {thresholds.max_dead_letters}")
+    if snapshot.pending_batches > thresholds.max_pending_batches:
+        reasons.append(
+            f"pending batches {snapshot.pending_batches:g} > {thresholds.max_pending_batches}"
+        )
     if snapshot.backlog_age_seconds > thresholds.max_backlog_age_seconds:
         reasons.append(
             f"oldest backlog age {snapshot.backlog_age_seconds:g}s > {thresholds.max_backlog_age_seconds:g}s"
@@ -88,6 +94,7 @@ def fetch_rollout_snapshot(
         "errors": f'sum(increase(mreg_policy_parity_results_total{{result="error"}}[{window}]))',
         "persist_failures": f'sum(increase(mreg_policy_parity_batches_total{{status="persist_failed"}}[{window}]))',
         "dead_letters": 'max(mreg_policy_parity_outbox_entries{status="dead_letter"})',
+        "pending_batches": 'max(mreg_policy_parity_outbox_entries{status="pending"})',
         "backlog_age_seconds": "max(mreg_policy_parity_outbox_oldest_seconds)",
     }
     values = {

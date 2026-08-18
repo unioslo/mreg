@@ -51,3 +51,10 @@ groups:
           severity: ticket
         annotations:
           summary: A policy parity delivery circuit breaker is open
+      - alert: MregTreeTopEnforcementFailure
+        expr: increase(mreg_policy_enforcement_results_total{result=~"error_.*"}[5m]) > 0
+        for: 0m
+        labels:
+          severity: page
+        annotations:
+          summary: An authoritative TreeTop decision failed

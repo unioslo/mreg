@@ -16,10 +16,17 @@ from pathlib import Path
 import sys
 from typing import Literal, TypeVar
 
+from django.core.exceptions import ImproperlyConfigured
 import structlog
 
 import mreg.log_processors
 import mreg.__about__
+from mreg.policy.config import (
+    PolicyMode,
+    resolve_enforcement_failure_mode,
+    resolve_policy_mode,
+    validate_policy_configuration,
+)
 
 
 DefaultT = TypeVar("DefaultT", str, int, float, bool)
@@ -82,8 +89,26 @@ SECRET_KEY = ")e#67040xjxar=zl^y#@#b*zilv2dxtraj582$^(e6!wf++_n#"
 
 LOG_LEVEL = envvar("MREG_LOG_LEVEL", "CRITICAL").upper()
 POLICY_PARITY_LOG_LEVEL = envvar("MREG_POLICY_PARITY_LOG_LEVEL", "WARNING").upper()
-POLICY_PARITY_ENABLED = envvar("MREG_POLICY_PARITY_ENABLED", True)
 POLICY_BASE_URL = envvar("MREG_POLICY_BASE_URL", "").strip()
+_legacy_policy_parity_enabled = envvar("MREG_POLICY_PARITY_ENABLED", True)
+_raw_policy_mode = envvar("MREG_POLICY_MODE", "")
+_policy_mode_was_explicit = bool((_raw_policy_mode or "").strip())
+try:
+    _policy_mode = resolve_policy_mode(
+        _raw_policy_mode,
+        legacy_parity_enabled=_legacy_policy_parity_enabled,
+    )
+    _policy_enforcement_failure_mode = resolve_enforcement_failure_mode(
+        envvar("MREG_POLICY_ENFORCEMENT_FAILURE_MODE", "deny")
+    )
+    validate_policy_configuration(_policy_mode, POLICY_BASE_URL)
+except ValueError as exc:
+    raise ImproperlyConfigured(str(exc)) from exc
+POLICY_MODE = _policy_mode.value
+POLICY_ENFORCEMENT_FAILURE_MODE = _policy_enforcement_failure_mode.value
+# Compatibility for local settings and integrations that still inspect the old
+# boolean. Explicit MREG_POLICY_MODE takes precedence over the deprecated flag.
+POLICY_PARITY_ENABLED = _policy_mode == PolicyMode.SHADOW
 raw = (envvar("MREG_POLICY_NAMESPACE", "MREG") or "").strip()
 # Accept both Cedar-style `org::MREG` and comma-separated `org,MREG`.
 raw = raw.replace("::", ",")
@@ -103,6 +128,7 @@ POLICY_ROLLOUT_MAX_MISMATCH_RATE = envvar("MREG_POLICY_ROLLOUT_MAX_MISMATCH_RATE
 POLICY_ROLLOUT_MAX_ERROR_RATE = envvar("MREG_POLICY_ROLLOUT_MAX_ERROR_RATE", 0.001)
 POLICY_ROLLOUT_MAX_PERSIST_FAILURES = envvar("MREG_POLICY_ROLLOUT_MAX_PERSIST_FAILURES", 0)
 POLICY_ROLLOUT_MAX_DEAD_LETTERS = envvar("MREG_POLICY_ROLLOUT_MAX_DEAD_LETTERS", 0)
+POLICY_ROLLOUT_MAX_PENDING_BATCHES = envvar("MREG_POLICY_ROLLOUT_MAX_PENDING_BATCHES", 0)
 POLICY_ROLLOUT_MAX_BACKLOG_AGE_SECONDS = envvar("MREG_POLICY_ROLLOUT_MAX_BACKLOG_AGE_SECONDS", 300.0)
 
 REQUESTS_THRESHOLD_SLOW = envvar("MREG_REQUESTS_THRESHOLD_SLOW", 1000)
@@ -502,6 +528,30 @@ try:
     from .local_settings import *  # noqa: F401,F403
 except ImportError:
     pass
+
+# Validate policy values again because local_settings.py may override the
+# environment-derived configuration above.
+try:
+    _post_local_policy_mode = POLICY_MODE
+    if (
+        not _policy_mode_was_explicit
+        and _post_local_policy_mode == PolicyMode.SHADOW.value
+        and not POLICY_PARITY_ENABLED
+    ):
+        _post_local_policy_mode = ""
+    _policy_mode = resolve_policy_mode(
+        _post_local_policy_mode,
+        legacy_parity_enabled=POLICY_PARITY_ENABLED,
+    )
+    _policy_enforcement_failure_mode = resolve_enforcement_failure_mode(
+        POLICY_ENFORCEMENT_FAILURE_MODE
+    )
+    validate_policy_configuration(_policy_mode, POLICY_BASE_URL)
+except ValueError as exc:
+    raise ImproperlyConfigured(str(exc)) from exc
+POLICY_MODE = _policy_mode.value
+POLICY_ENFORCEMENT_FAILURE_MODE = _policy_enforcement_failure_mode.value
+POLICY_PARITY_ENABLED = _policy_mode == PolicyMode.SHADOW
 
 if TESTING or "CI" in os.environ:
     SUPERUSER_GROUP = "default-super-group"

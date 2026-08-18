@@ -86,13 +86,22 @@ Keep parity disable scope as narrow as possible:
 ## Implementation Details
 
 The `disable_policy_parity()` context manager uses `ContextVar` state. Nested
-contexts and concurrently handled requests are isolated from one another.
+contexts and concurrently handled requests are isolated from one another. It
+disables only `shadow` checks; it is deliberately ignored in `enforce` so test
+or application code cannot bypass an authoritative decision accidentally.
 
-Parity batches are persisted in a shared PostgreSQL outbox. Post-fork workers
-claim rows with database locks, retry with exponential backoff, and retain dead
-letters after the configured attempt limit. A circuit breaker protects an
-unavailable TreeTop service. Client, serialization, persistence, logging, and
-TreeTop failures remain fail-open and never replace the legacy decision.
+In `shadow`, parity batches are persisted in a shared PostgreSQL outbox.
+Post-fork workers claim rows with database locks, retry with exponential
+backoff, and retain dead letters after the configured attempt limit. A circuit
+breaker protects an unavailable TreeTop service. Client, serialization,
+persistence, logging, and TreeTop failures remain fail-open and never replace
+the legacy decision.
+
+The outbox and its worker exist only in `shadow`. In `enforce`, each mapped
+permission checkpoint calls TreeTop synchronously, records the comparison
+immediately, and returns the policy decision. No enforcement request is queued
+for later re-authorization. Enforcement failures deny by default; the explicit
+`legacy` failure mode is available only as a transitional fallback.
 
 ## Parity Runbook
 
