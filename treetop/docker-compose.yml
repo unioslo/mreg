@@ -1,6 +1,6 @@
 # This docker file allows you to set up a TreeTop policy server for tests.
 services:
-  cedar-server:
+  bundle-server:
     image: svenstaro/miniserve
     ports:
       - "8080:8080"
@@ -9,13 +9,16 @@ services:
     command: ["/data", "--port", "8080"]
 
   treetop-server:
-    image: ghcr.io/terjekv/treetop-rest:develop
+    image: ghcr.io/treetop-policy-engine/treetop-rest:v0.0.13
     pull_policy: "always"
+    depends_on:
+      - bundle-server
     ports:
       - "9999:9999"
     environment:
-      - TREETOP_POLICY_URL=http://cedar-server:8080/mreg.cedar
-      - TREETOP_LABELS_URL=http://cedar-server:8080/labels.json
+      - TREETOP_BUNDLE_URL=http://bundle-server:8080/mreg-bundle.tar.gz
+      - TREETOP_BUNDLE_UPDATE_FREQUENCY=5
+      - TREETOP_BUNDLE_SIGNATURE_POLICY=allow-unsigned
       - TREETOP_PORT=9999
       - TREETOP_CLIENT_ALLOWLIST=*
       - TREETOP_LISTEN=0.0.0.0

@@ -1,0 +1,14 @@
+format_version = 1
+name = "mreg"
+
+[[modules]]
+manifest = "treetop-mreg-module.toml"
+role = "global"
+
+[[modules]]
+manifest = "treetop-host-labels-module.toml"
+role = "ordinary"
+
+[[modules]]
+manifest = "treetop-global-module.toml"
+role = "global"

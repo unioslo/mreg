@@ -365,12 +365,3 @@ permit (
     action == MREG::Action::"dns_underscore_admin_access",
     resource
 );
-
-/// We also have a global super admin policy that allows the root super user
-/// to do anything to any resource.
-@id("global.super_admin_allow_all_policy")
-permit (
-    principal == User::"super",
-    action,
-    resource
-);

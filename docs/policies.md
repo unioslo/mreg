@@ -9,9 +9,35 @@ Related documentation:
 
 ## Source of Truth
 
-- Policy definitions: `treetop/data/mreg.cedar`
+- Bundle manifest: `treetop/data/treetop-bundle.toml`
+- Policy module: `treetop/data/treetop-mreg-module.toml`
+- Global policy module: `treetop/data/treetop-global-module.toml`
+- Label module: `treetop/data/treetop-host-labels-module.toml`
+- Policy definitions: `treetop/data/mreg.cedar` and `treetop/data/global.cedar`
+- Derived labels: `treetop/data/labels.json`
+- Generated bundle: `treetop/data/mreg-bundle.tar.gz`
 - Action generation in code: `mreg/api/permissions.py` (`ParityMixin._crud_action`)
 - Parity transport/logging: `mreg/api/treetop.py`
+
+## Building the Bundle
+
+Install `treetop-bundle` 0.0.4 from the
+[`treetop-bundle` releases](https://github.com/treetop-policy-engine/treetop-bundle/releases/tag/v0.0.4),
+which matches the bundle format and Treetop Core version supported by the
+pinned REST server. Then validate and build the bundle from the repository
+root:
+
+```console
+$ treetop-bundle check bundle treetop/data/treetop-bundle.toml
+$ treetop-bundle build \
+    --manifest treetop/data/treetop-bundle.toml \
+    --output /tmp/mreg-bundle.tar.gz
+$ mv /tmp/mreg-bundle.tar.gz treetop/data/mreg-bundle.tar.gz
+```
+
+Bundle output is deterministic. Commit the regenerated archive whenever a
+module manifest, Cedar policy, schema, or label definition changes. The local
+TreeTop stack loads the archive atomically through `TREETOP_BUNDLE_URL`.
 
 ## Adding a New Protected Resource
 
@@ -25,9 +51,10 @@ When introducing a new resource that should be parity-checked, use this checklis
 4. Verify resource ID resolution produces stable IDs for list/detail/custom views.
 5. Add or update Cedar actions/rules in `treetop/data/mreg.cedar`.
 6. If policy conditions depend on derived labels, update `treetop/data/labels.json`.
-7. Add tests for create/read/update/delete behavior and group/admin overrides.
-8. Run parity checks and confirm zero mismatches.
-9. If tests mutate permissions mid-test, scope `disable_policy_parity()` as narrowly as possible.
+7. Rebuild `treetop/data/mreg-bundle.tar.gz`.
+8. Add tests for create/read/update/delete behavior and group/admin overrides.
+9. Run parity checks and confirm zero mismatches.
+10. If tests mutate permissions mid-test, scope `disable_policy_parity()` as narrowly as possible.
 
 ## Resource Kind and ID Resolution
 
