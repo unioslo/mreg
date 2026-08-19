@@ -137,25 +137,42 @@ test scopes; it cannot bypass enforcement.
 | Generated NetGroup/role policy | `treetop/data/netgroup.cedar` |
 | Generated TreeTop labels | `treetop/data/labels.json` |
 | Conversion report | `treetop/data/netgroup-conversion-report.json` |
-| Permission export input | `treetop/fixtures/network-permissions.txt` |
-| Role export input | `treetop/fixtures/hostpolicy-roles.txt` |
+| Normalized API snapshot | `treetop/fixtures/policy-source.json` |
 | Generated schema | `treetop/data/mreg.cedarschema` |
 | Generated archive | `treetop/data/mreg-bundle.tar.gz` |
 
-Refresh the conversion inputs with mreg-cli against the database whose policy
-is being migrated:
+Refresh the conversion input directly from the MREG instance whose policy is
+being migrated:
 
 ```bash
-mreg-cli permission network_list > treetop/fixtures/network-permissions.txt
-mreg-cli policy list_roles '*' > treetop/fixtures/hostpolicy-roles.txt
+export MREG_API_BASE_URL=https://mreg.example
+export MREG_API_TOKEN='replace-with-an-MREG-API-token'
 python scripts/generate-treetop-policy.py
+unset MREG_API_TOKEN
 ```
 
-The parser consumes the commands' fixed-width tables, validates every CIDR and
-regular expression, removes duplicates, collapses redundant ranges, and emits
-stable hashed IDs. Review the generated Cedar and
-`netgroup-conversion-report.json`, especially unmatched or unused legacy
-labels. The checked-in fixtures are sanitized examples, not production policy.
+The generator paginates the existing `/api/v1/labels/`,
+`/api/v1/permissions/netgroupregex/`, and `/api/v1/hostpolicy/roles/`
+endpoints. It authenticates with `Authorization: Token`, resolves label IDs to
+names, and writes a deterministic snapshot containing only the fields needed by
+the conversion. No `mreg-cli` installation or new export endpoint is required.
+Use HTTPS outside a trusted local environment, and use a token with authenticated
+read access to all three endpoints. The token is read only from the environment
+and is never written to the snapshot.
+
+The converter validates every CIDR and regular expression, removes duplicate
+permission rows, collapses redundant ranges, and emits stable hashed IDs.
+Review the snapshot, generated Cedar, and `netgroup-conversion-report.json`,
+especially unmatched or unused legacy labels. The checked-in snapshot is a
+sanitized example, not production policy. `MREG_API_TIMEOUT` optionally changes
+the per-page timeout from 20 seconds.
+
+Without `MREG_API_BASE_URL`, the generator uses the checked-in snapshot. CI uses
+that offline path:
+
+```bash
+python scripts/generate-treetop-policy.py --check
+```
 
 The restricted-address examples in `mreg.cedar` are also based on the sample
 networks. Replace and review them for the deployment before enabling `enforce`.

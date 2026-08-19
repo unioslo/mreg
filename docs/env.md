@@ -103,6 +103,20 @@ operator enables policy enforcement. Defaults can be tuned with:
 - `MREG_POLICY_ROLLOUT_MAX_MISMATCH_RATE` (`0.001`)
 - `MREG_POLICY_ROLLOUT_MAX_ERROR_RATE` (`0.001`)
 
+## TreeTop bundle generation
+
+These variables are used only by `scripts/generate-treetop-policy.py`; they are
+not Django runtime settings:
+
+- `MREG_API_BASE_URL`: MREG base URL to read policy source data from. When
+  omitted, the generator uses `treetop/fixtures/policy-source.json`.
+- `MREG_API_TOKEN`: API token sent to the three existing MREG endpoints. It is
+  required when `MREG_API_BASE_URL` is set and is never persisted.
+- `MREG_API_TIMEOUT`: per-page API timeout in seconds. Default: `20`.
+
+Use HTTPS for a remote MREG instance. The token needs authenticated read access
+to labels, NetGroup regex permissions, and host-policy roles.
+
 ## `MREG_LOG_FILE_SIZE`
 
 Maximum file size of the log file in bytes. Default: `52428800` (50MB).

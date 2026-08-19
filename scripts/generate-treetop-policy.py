@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate TreeTop policy data from deterministic mreg-cli table output."""
+"""Generate TreeTop policy data from existing MREG API endpoints."""
 
 from pathlib import Path
 from runpy import run_path

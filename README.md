@@ -195,6 +195,9 @@ mreg supports configuration via environment variables with the `MREG_` prefix. T
 | `MREG_POLICY_ROLLOUT_MAX_MISMATCH_RATE` | `0.001` | Maximum accepted mismatch ratio |
 | `MREG_POLICY_ROLLOUT_MAX_ERROR_RATE` | `0.001` | Maximum accepted policy error ratio |
 
+TreeTop bundle generation reads the three existing MREG policy endpoints with
+`MREG_API_BASE_URL` and `MREG_API_TOKEN`; see [the policy documentation](docs/policies.md#bundle-source-and-build).
+
 ### Network Policy Configuration
 
 | Variable | Default | Description |

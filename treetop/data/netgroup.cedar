@@ -1,4 +1,4 @@
-// Generated from mreg-cli permission data. Do not edit by hand.
+// Generated from the normalized MREG API policy snapshot. Do not edit by hand.
 
 @id("MREG.generated.netgroup_ip_72fdb3c3e854")
 permit (

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate TreeTop policy data from deterministic mreg-cli table output."""
+"""Generate TreeTop policy data from existing MREG API endpoints."""
 
 from __future__ import annotations
 
@@ -8,19 +8,22 @@ from dataclasses import dataclass
 import hashlib
 import ipaddress
 import json
+import math
+import os
 from pathlib import Path
 import re
 import sys
-from typing import Iterable, Sequence
+from typing import Any, Iterable, Mapping, Sequence
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode, urljoin, urlparse
+from urllib.request import Request, urlopen
 
 
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_PERMISSIONS = ROOT / "treetop/fixtures/network-permissions.txt"
-DEFAULT_ROLES = ROOT / "treetop/fixtures/hostpolicy-roles.txt"
+DEFAULT_SNAPSHOT = ROOT / "treetop/fixtures/policy-source.json"
 DEFAULT_OUTPUT_DIR = ROOT / "treetop/data"
-
-PERMISSION_HEADERS = ("Range", "Group", "Regex", "Labels")
-ROLE_HEADERS = ("Name", "Description", "Labels")
+SNAPSHOT_SCHEMA_VERSION = 1
+API_PAGE_SIZE = 1000
 
 LABEL_RESOURCE_KINDS = (
     "MREG::Host",
@@ -100,11 +103,8 @@ NETWORK_SCOPED_ACTIONS = (
     "host_delete",
 )
 
-ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
-
-
 class ConversionError(ValueError):
-    """Raised when mreg-cli output cannot be converted safely."""
+    """Raised when MREG API data cannot be converted safely."""
 
 
 @dataclass(frozen=True, order=True)
@@ -128,83 +128,261 @@ class GeneratedPolicy:
     report: str
 
 
-def _column_starts(header_line: str, headers: Sequence[str]) -> tuple[int, ...]:
-    starts: list[int] = []
-    cursor = 0
-    for header in headers:
-        index = header_line.find(header, cursor)
-        if index < 0:
-            raise ConversionError(f"Expected table header {header!r}: {header_line!r}")
-        if starts and index - cursor < 3:
-            raise ConversionError(f"Table columns are not separated by at least three spaces: {header_line!r}")
-        starts.append(index)
-        cursor = index + len(header)
-    if header_line[: starts[0]].strip() or header_line[cursor:].strip():
-        raise ConversionError(f"Unexpected content in table header: {header_line!r}")
-    return tuple(starts)
+def _object(value: Any, context: str) -> Mapping[str, Any]:
+    if not isinstance(value, dict):
+        raise ConversionError(f"{context} must be a JSON object")
+    return value
 
 
-def parse_fixed_width_table(text: str, headers: Sequence[str]) -> list[tuple[str, ...]]:
-    """Parse an OutputManager fixed-width table without splitting field content."""
-    lines = [ANSI_ESCAPE.sub("", line.rstrip()) for line in text.splitlines() if line.strip()]
-    if not lines:
-        raise ConversionError("mreg-cli output is empty")
-    starts = _column_starts(lines[0], headers)
-    rows: list[tuple[str, ...]] = []
-    for line_number, line in enumerate(lines[1:], start=2):
-        if len(line) <= starts[-2]:
-            raise ConversionError(f"Row {line_number} is shorter than the required columns: {line!r}")
-        # OutputManager pads an empty final column with spaces. Be tolerant of
-        # users or editors stripping that trailing whitespace from a capture.
-        line = line.ljust(starts[-1])
-        values = tuple(
-            line[start : starts[index + 1] if index + 1 < len(starts) else None].strip()
-            for index, start in enumerate(starts)
+def _array(value: Any, context: str) -> list[Any]:
+    if not isinstance(value, list):
+        raise ConversionError(f"{context} must be a JSON array")
+    return value
+
+
+def _string(row: Mapping[str, Any], field: str, context: str) -> str:
+    value = row.get(field)
+    if not isinstance(value, str) or not value:
+        raise ConversionError(f"{context}.{field} must be a non-empty string")
+    return value
+
+
+def _label_names(value: Any, context: str) -> tuple[str, ...]:
+    labels = _array(value, context)
+    if any(not isinstance(label, str) or not label for label in labels):
+        raise ConversionError(f"{context} must contain only non-empty strings")
+    return tuple(sorted(set(labels)))
+
+
+def _permission(row: Mapping[str, Any], context: str) -> NetworkPermission:
+    network_value = _string(row, "range", context)
+    group = _string(row, "group", context)
+    regex = _string(row, "regex", context)
+    try:
+        network = str(ipaddress.ip_network(network_value, strict=True))
+    except ValueError as exc:
+        raise ConversionError(f"Invalid permission range {network_value!r}: {exc}") from exc
+    try:
+        re.compile(regex)
+    except re.error as exc:
+        raise ConversionError(f"Invalid permission regex {regex!r}: {exc}") from exc
+    return NetworkPermission(
+        network=network,
+        group=group,
+        regex=regex,
+        labels=_label_names(row.get("labels"), f"{context}.labels"),
+    )
+
+
+def _role(row: Mapping[str, Any], context: str) -> HostPolicyRole:
+    return HostPolicyRole(
+        name=_string(row, "name", context),
+        labels=_label_names(row.get("labels"), f"{context}.labels"),
+    )
+
+
+def parse_snapshot(text: str) -> tuple[tuple[NetworkPermission, ...], tuple[HostPolicyRole, ...]]:
+    """Parse the deterministic, normalized snapshot produced from MREG endpoints."""
+    try:
+        payload = _object(json.loads(text), "snapshot")
+    except json.JSONDecodeError as exc:
+        raise ConversionError(f"Snapshot is not valid JSON: {exc}") from exc
+    schema_version = payload.get("schema_version")
+    if isinstance(schema_version, bool) or schema_version != SNAPSHOT_SCHEMA_VERSION:
+        raise ConversionError(f"snapshot.schema_version must be {SNAPSHOT_SCHEMA_VERSION}")
+
+    permission_rows = _array(payload.get("permissions"), "snapshot.permissions")
+    permissions = {
+        _permission(_object(row, f"snapshot.permissions[{index}]"), f"snapshot.permissions[{index}]")
+        for index, row in enumerate(permission_rows)
+    }
+    if not permissions:
+        raise ConversionError("snapshot.permissions contains no data rows")
+
+    role_rows = _array(payload.get("roles"), "snapshot.roles")
+    roles_by_name: dict[str, HostPolicyRole] = {}
+    for index, value in enumerate(role_rows):
+        context = f"snapshot.roles[{index}]"
+        role = _role(_object(value, context), context)
+        if role.name in roles_by_name:
+            raise ConversionError(f"Duplicate host-policy role {role.name!r}")
+        roles_by_name[role.name] = role
+    if not roles_by_name:
+        raise ConversionError("snapshot.roles contains no data rows")
+    return tuple(sorted(permissions)), tuple(sorted(roles_by_name.values()))
+
+
+def serialize_snapshot(
+    permissions: Iterable[NetworkPermission],
+    roles: Iterable[HostPolicyRole],
+) -> str:
+    """Serialize only the endpoint fields needed to reproduce generated policy."""
+    payload = {
+        "schema_version": SNAPSHOT_SCHEMA_VERSION,
+        "permissions": [
+            {
+                "group": permission.group,
+                "labels": list(permission.labels),
+                "range": permission.network,
+                "regex": permission.regex,
+            }
+            for permission in sorted(set(permissions))
+        ],
+        "roles": [
+            {"labels": list(role.labels), "name": role.name}
+            for role in sorted(set(roles))
+        ],
+    }
+    return json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True) + "\n"
+
+
+def snapshot_from_endpoint_rows(
+    permission_rows: Sequence[Mapping[str, Any]],
+    role_rows: Sequence[Mapping[str, Any]],
+    label_rows: Sequence[Mapping[str, Any]],
+) -> str:
+    """Normalize the three existing endpoint responses into one stable snapshot."""
+    label_names: dict[int, str] = {}
+    names_seen: set[str] = set()
+    for index, row in enumerate(label_rows):
+        context = f"labels[{index}]"
+        label_id = row.get("id")
+        if isinstance(label_id, bool) or not isinstance(label_id, int):
+            raise ConversionError(f"{context}.id must be an integer")
+        name = _string(row, "name", context)
+        if label_id in label_names:
+            raise ConversionError(f"Duplicate label id {label_id}")
+        if name in names_seen:
+            raise ConversionError(f"Duplicate label name {name!r}")
+        label_names[label_id] = name
+        names_seen.add(name)
+
+    def resolve_labels(row: Mapping[str, Any], context: str) -> tuple[str, ...]:
+        label_ids = _array(row.get("labels"), f"{context}.labels")
+        resolved: set[str] = set()
+        for label_id in label_ids:
+            if isinstance(label_id, bool) or not isinstance(label_id, int):
+                raise ConversionError(f"{context}.labels must contain only integer label ids")
+            try:
+                resolved.add(label_names[label_id])
+            except KeyError as exc:
+                raise ConversionError(f"{context} references unknown label id {label_id}") from exc
+        return tuple(sorted(resolved))
+
+    permissions: list[NetworkPermission] = []
+    for index, row in enumerate(permission_rows):
+        context = f"permissions[{index}]"
+        normalized = dict(row)
+        normalized["labels"] = list(resolve_labels(row, context))
+        permissions.append(_permission(normalized, context))
+
+    roles: list[HostPolicyRole] = []
+    for index, row in enumerate(role_rows):
+        context = f"roles[{index}]"
+        normalized = dict(row)
+        normalized["labels"] = list(resolve_labels(row, context))
+        roles.append(_role(normalized, context))
+    return serialize_snapshot(permissions, roles)
+
+
+def _validated_api_base_url(value: str) -> str:
+    url = value.rstrip("/")
+    parsed = urlparse(url)
+    if parsed.scheme.lower() not in {"http", "https"} or not parsed.netloc:
+        raise ConversionError("MREG API base URL must be an absolute HTTP(S) URL")
+    if parsed.username or parsed.password or parsed.query or parsed.fragment:
+        raise ConversionError("MREG API base URL must not contain credentials, a query, or a fragment")
+    return url
+
+
+def _same_origin(url: str, base_url: str) -> bool:
+    parsed = urlparse(url)
+    base = urlparse(base_url)
+    return (parsed.scheme.lower(), parsed.netloc.lower()) == (base.scheme.lower(), base.netloc.lower())
+
+
+def _fetch_paginated_rows(
+    *,
+    base_url: str,
+    path: str,
+    token: str,
+    timeout: float,
+    ordering: str,
+) -> list[Mapping[str, Any]]:
+    query = urlencode({"ordering": ordering, "page_size": API_PAGE_SIZE})
+    next_url: str | None = f"{urljoin(base_url + '/', path.lstrip('/'))}?{query}"
+    seen_urls: set[str] = set()
+    rows: list[Mapping[str, Any]] = []
+
+    while next_url is not None:
+        if next_url in seen_urls:
+            raise ConversionError(f"MREG API pagination loop detected at {next_url}")
+        if not _same_origin(next_url, base_url):
+            raise ConversionError(f"MREG API pagination URL changed origin: {next_url}")
+        seen_urls.add(next_url)
+        request = Request(next_url, headers={"Accept": "application/json"})
+        # Do not allow urllib to copy the API token to a redirected request.
+        # The endpoint URLs already include their canonical trailing slash.
+        request.add_unredirected_header("Authorization", f"Token {token}")
+        try:
+            with urlopen(request, timeout=timeout) as response:  # noqa: S310 - URL scheme and origin are validated.
+                response_url = response.geturl()
+                if not _same_origin(response_url, base_url):
+                    raise ConversionError(f"MREG API response changed origin: {response_url}")
+                payload = _object(json.loads(response.read()), f"response from {next_url}")
+        except HTTPError as exc:
+            raise ConversionError(f"MREG API returned HTTP {exc.code} for {next_url}") from exc
+        except URLError as exc:
+            raise ConversionError(f"Unable to reach MREG API at {next_url}: {exc.reason}") from exc
+        except json.JSONDecodeError as exc:
+            raise ConversionError(f"MREG API returned invalid JSON for {next_url}: {exc}") from exc
+
+        page_rows = _array(payload.get("results"), f"response from {next_url}.results")
+        rows.extend(
+            _object(row, f"response from {next_url}.results[{index}]")
+            for index, row in enumerate(page_rows)
         )
-        if not any(values):
-            continue
-        if any(not value for value in values[:-1]):
-            raise ConversionError(f"Row {line_number} has an empty required column: {line!r}")
-        rows.append(values)
-    if not rows:
-        raise ConversionError("mreg-cli output contains no data rows")
+        following = payload.get("next")
+        if following is None:
+            next_url = None
+        elif isinstance(following, str) and following:
+            next_url = urljoin(next_url, following)
+        else:
+            raise ConversionError(f"response from {next_url}.next must be a URL or null")
     return rows
 
 
-def _parse_labels(value: str) -> tuple[str, ...]:
-    return tuple(sorted({label.strip() for label in value.split(",") if label.strip()}))
+def fetch_policy_snapshot(base_url: str, token: str, timeout: float = 20.0) -> str:
+    """Fetch current policy inputs from existing MREG endpoints."""
+    base_url = _validated_api_base_url(base_url)
+    token = token.strip()
+    if not token or "\r" in token or "\n" in token:
+        raise ConversionError("MREG_API_TOKEN must be a non-empty HTTP header value")
+    if not math.isfinite(timeout) or timeout <= 0:
+        raise ConversionError("MREG API timeout must be a finite number greater than zero")
 
-
-def parse_permissions(text: str) -> tuple[NetworkPermission, ...]:
-    permissions: set[NetworkPermission] = set()
-    for network_value, group, regex, labels_value in parse_fixed_width_table(text, PERMISSION_HEADERS):
-        try:
-            network = str(ipaddress.ip_network(network_value, strict=True))
-        except ValueError as exc:
-            raise ConversionError(f"Invalid permission range {network_value!r}: {exc}") from exc
-        try:
-            re.compile(regex)
-        except re.error as exc:
-            raise ConversionError(f"Invalid permission regex {regex!r}: {exc}") from exc
-        permissions.add(
-            NetworkPermission(
-                network=network,
-                group=group,
-                regex=regex,
-                labels=_parse_labels(labels_value),
-            )
-        )
-    return tuple(sorted(permissions))
-
-
-def parse_roles(text: str) -> tuple[HostPolicyRole, ...]:
-    roles_by_name: dict[str, HostPolicyRole] = {}
-    for name, _description, labels_value in parse_fixed_width_table(text, ROLE_HEADERS):
-        role = HostPolicyRole(name=name, labels=_parse_labels(labels_value))
-        if name in roles_by_name:
-            raise ConversionError(f"Duplicate host-policy role {name!r}")
-        roles_by_name[name] = role
-    return tuple(sorted(roles_by_name.values()))
+    labels = _fetch_paginated_rows(
+        base_url=base_url,
+        path="/api/v1/labels/",
+        token=token,
+        timeout=timeout,
+        ordering="name",
+    )
+    permissions = _fetch_paginated_rows(
+        base_url=base_url,
+        path="/api/v1/permissions/netgroupregex/",
+        token=token,
+        timeout=timeout,
+        ordering="range,group",
+    )
+    roles = _fetch_paginated_rows(
+        base_url=base_url,
+        path="/api/v1/hostpolicy/roles/",
+        token=token,
+        timeout=timeout,
+        ordering="name",
+    )
+    return snapshot_from_endpoint_rows(permissions, roles, labels)
 
 
 def _stable_name(prefix: str, *parts: str) -> str:
@@ -344,7 +522,7 @@ def generate_policy(permissions: Sequence[NetworkPermission], roles: Sequence[Ho
     ]
 
     rules: list[str] = [
-        "// Generated from mreg-cli permission data. Do not edit by hand.\n",
+        "// Generated from the normalized MREG API policy snapshot. Do not edit by hand.\n",
     ]
     rule_ids: list[str] = []
 
@@ -414,15 +592,33 @@ def _outputs(output_dir: Path, policy: GeneratedPolicy) -> dict[Path, str]:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--permissions", type=Path, default=DEFAULT_PERMISSIONS)
-    parser.add_argument("--roles", type=Path, default=DEFAULT_ROLES)
+    parser.add_argument("--snapshot", type=Path, default=DEFAULT_SNAPSHOT)
+    parser.add_argument(
+        "--api-base-url",
+        default=os.environ.get("MREG_API_BASE_URL"),
+        help="fetch current inputs from MREG instead of using the checked-in snapshot",
+    )
+    parser.add_argument(
+        "--api-timeout",
+        default=os.environ.get("MREG_API_TIMEOUT", "20"),
+        type=float,
+        help="per-request MREG API timeout in seconds (default: 20)",
+    )
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--check", action="store_true", help="fail if generated output differs")
     args = parser.parse_args(argv)
 
     try:
-        permissions = parse_permissions(args.permissions.read_text())
-        roles = parse_roles(args.roles.read_text())
+        fetched_snapshot = None
+        if args.api_base_url:
+            token = os.environ.get("MREG_API_TOKEN", "")
+            if not token:
+                raise ConversionError("MREG_API_TOKEN is required when MREG_API_BASE_URL is configured")
+            fetched_snapshot = fetch_policy_snapshot(args.api_base_url, token, args.api_timeout)
+            snapshot = fetched_snapshot
+        else:
+            snapshot = args.snapshot.read_text()
+        permissions, roles = parse_snapshot(snapshot)
         generated = generate_policy(permissions, roles)
     except (ConversionError, OSError) as exc:
         print(f"Unable to generate TreeTop policy: {exc}", file=sys.stderr)
@@ -431,12 +627,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     outputs = _outputs(args.output_dir, generated)
     if args.check:
         stale = [path for path, content in outputs.items() if not path.exists() or path.read_text() != content]
+        if fetched_snapshot is not None and (
+            not args.snapshot.exists() or args.snapshot.read_text() != fetched_snapshot
+        ):
+            stale.append(args.snapshot)
         if stale:
             print("Generated TreeTop policy is stale: " + ", ".join(str(path) for path in stale), file=sys.stderr)
             return 1
-        print("Generated TreeTop permission policy matches the mreg-cli fixtures")
+        print("Generated TreeTop permission policy matches the MREG API snapshot")
         return 0
 
+    if fetched_snapshot is not None:
+        args.snapshot.parent.mkdir(parents=True, exist_ok=True)
+        args.snapshot.write_text(fetched_snapshot)
+        print(f"wrote {args.snapshot}")
     args.output_dir.mkdir(parents=True, exist_ok=True)
     for path, content in outputs.items():
         path.write_text(content)
