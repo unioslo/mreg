@@ -2,14 +2,11 @@
 """Generate TreeTop policy data from deterministic mreg-cli table output."""
 
 from pathlib import Path
-import sys
+from runpy import run_path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
-from mreg.policy.treetop_generator import main  # noqa: E402
+main = run_path(str(ROOT / "mreg/policy/treetop_generator.py"))["main"]
 
 
 if __name__ == "__main__":
