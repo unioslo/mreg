@@ -1,4 +1,3 @@
-import os
 import platform
 import time
 from time import monotonic
@@ -23,11 +22,9 @@ from django.http import HttpResponse
 from drf_spectacular.utils import OpenApiParameter, OpenApiTypes, extend_schema
 from prometheus_client import (
     CONTENT_TYPE_LATEST,
-    CollectorRegistry,
     Counter,
     Histogram,
     generate_latest,
-    multiprocess,
 )
 
 from mreg.__about__ import __version__ as mreg_version
@@ -363,11 +360,4 @@ class MetricsView(APIView):
         responses={(status.HTTP_200_OK, "text/plain"): PROMETHEUS_METRICS_TEXT_SCHEMA},
     )
     def get(self, request: Request):
-        multiprocess_dir = os.environ.get("PROMETHEUS_MULTIPROC_DIR")
-        if multiprocess_dir:
-            registry = CollectorRegistry()
-            multiprocess.MultiProcessCollector(registry, path=multiprocess_dir)
-            metrics = generate_latest(registry)
-        else:
-            metrics = generate_latest()
-        return HttpResponse(metrics, content_type=CONTENT_TYPE_LATEST)
+        return HttpResponse(generate_latest(), content_type=CONTENT_TYPE_LATEST)

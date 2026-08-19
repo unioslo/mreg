@@ -44,6 +44,8 @@ jobs:
           TREETOP_BUNDLE_BIN: ./treetop-bundle
       - name: Check generated Cedar contracts
         run: python scripts/generate-treetop-schema.py --check
+      - name: Check generated permission policy
+        run: python scripts/generate-treetop-policy.py --check
 
   test:
     name: Test

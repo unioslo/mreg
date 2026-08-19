@@ -58,19 +58,17 @@ ENDPOINT_ATTRIBUTES = tuple(
         ("hostname", "String"),
         ("ip", "ipaddr"),
         ("nameLabels", "Set<String>"),
-        ("dnsWildcard", "Bool"),
-        ("dnsWildcardValidDepth", "Bool"),
-        ("dnsUnderscore", "Bool"),
-        ("ipReserved", "Bool"),
-        ("ipRestricted", "Bool"),
         ("selfAccess", "Bool"),
         ("requesterIsOwner", "Bool"),
         ("ownerMutation", "Bool"),
         ("descriptionUpdate", "Bool"),
-        ("roleLabel", "String"),
         ("network", "String"),
     )
 )
+
+ENDPOINT_ATTRIBUTE_TYPES = {
+    attribute.name: attribute.cedar_type for attribute in ENDPOINT_ATTRIBUTES
+}
 
 
 RESOURCE_CONTRACTS = (

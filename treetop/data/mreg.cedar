@@ -205,195 +205,6 @@ permit (
     resource
 );
 
-// Static bundle representation of the testgroup NetGroupRegexPermission rows.
-// The regex portion is a TreeTop-derived label; MREG sends only hostname/IP facts.
-@id("MREG.testgroup_netgroup")
-permit (
-    principal in MREG::Group::"testgroup",
-    action in
-        [MREG::Action::"host_create",
-         MREG::Action::"host_update",
-         MREG::Action::"host_delete",
-         MREG::Action::"host_contacts_create",
-         MREG::Action::"host_contacts_delete",
-         MREG::Action::"ipaddress_create",
-         MREG::Action::"ipaddress_update",
-         MREG::Action::"ipaddress_delete",
-         MREG::Action::"hinfo_create",
-         MREG::Action::"hinfo_update",
-         MREG::Action::"hinfo_delete",
-         MREG::Action::"loc_create",
-         MREG::Action::"loc_update",
-         MREG::Action::"loc_delete",
-         MREG::Action::"mx_create",
-         MREG::Action::"mx_update",
-         MREG::Action::"mx_delete",
-         MREG::Action::"naptr_create",
-         MREG::Action::"naptr_update",
-         MREG::Action::"naptr_delete",
-         MREG::Action::"name_server_create",
-         MREG::Action::"name_server_update",
-         MREG::Action::"name_server_delete",
-         MREG::Action::"ptr_override_create",
-         MREG::Action::"ptr_override_update",
-         MREG::Action::"ptr_override_delete",
-         MREG::Action::"sshfp_create",
-         MREG::Action::"sshfp_update",
-         MREG::Action::"sshfp_delete",
-         MREG::Action::"srv_create",
-         MREG::Action::"srv_update",
-         MREG::Action::"srv_delete",
-         MREG::Action::"txt_create",
-         MREG::Action::"txt_update",
-         MREG::Action::"txt_delete",
-         MREG::Action::"bacnet_id_create",
-         MREG::Action::"bacnet_id_update",
-         MREG::Action::"bacnet_id_delete"],
-    resource
-)
-when {
-    resource has nameLabels &&
-    resource.nameLabels.contains("netgroup_example_org") &&
-    resource has ip &&
-    (resource.ip.isInRange(ip("10.0.0.0/24")) ||
-     resource.ip.isInRange(ip("10.1.0.0/25")) ||
-     resource.ip.isInRange(ip("192.168.1.0/24")) ||
-     resource.ip.isInRange(ip("192.168.2.1/32")) ||
-     resource.ip.isInRange(ip("2001:db8::/64")) ||
-     resource.ip.isInRange(ip("2002:db9::/64")))
-};
-
-@id("MREG.testgroup_cname_netgroup")
-permit (
-    principal in MREG::Group::"testgroup",
-    action in
-        [MREG::Action::"cname_create",
-         MREG::Action::"cname_update",
-         MREG::Action::"cname_delete"],
-    resource is MREG::Cname
-)
-when {
-    resource has nameLabels &&
-    resource.nameLabels.contains("netgroup_host_example_org")
-};
-
-// Network administrators need an explicit NetGroup mapping for host/DNS CRUD,
-// just like the legacy database permission path.
-@id("MREG.network_admin_netgroup")
-permit (
-    principal in MREG::Group::"default-networkadmin-group",
-    action in
-        [MREG::Action::"host_create",
-         MREG::Action::"host_update",
-         MREG::Action::"host_delete",
-         MREG::Action::"ipaddress_create",
-         MREG::Action::"ipaddress_update",
-         MREG::Action::"ipaddress_delete",
-         MREG::Action::"hinfo_create",
-         MREG::Action::"hinfo_update",
-         MREG::Action::"hinfo_delete",
-         MREG::Action::"loc_create",
-         MREG::Action::"loc_update",
-         MREG::Action::"loc_delete",
-         MREG::Action::"mx_create",
-         MREG::Action::"mx_update",
-         MREG::Action::"mx_delete",
-         MREG::Action::"naptr_create",
-         MREG::Action::"naptr_update",
-         MREG::Action::"naptr_delete",
-         MREG::Action::"name_server_create",
-         MREG::Action::"name_server_update",
-         MREG::Action::"name_server_delete",
-         MREG::Action::"ptr_override_create",
-         MREG::Action::"ptr_override_update",
-         MREG::Action::"ptr_override_delete",
-         MREG::Action::"sshfp_create",
-         MREG::Action::"sshfp_update",
-         MREG::Action::"sshfp_delete",
-         MREG::Action::"srv_create",
-         MREG::Action::"srv_update",
-         MREG::Action::"srv_delete",
-         MREG::Action::"txt_create",
-         MREG::Action::"txt_update",
-         MREG::Action::"txt_delete",
-         MREG::Action::"bacnet_id_create",
-         MREG::Action::"bacnet_id_update",
-         MREG::Action::"bacnet_id_delete"],
-    resource
-)
-when {
-    resource has nameLabels &&
-    resource.nameLabels.contains("netgroup_example_org") &&
-    resource has ip &&
-    (resource.ip.isInRange(ip("10.0.0.0/24")) ||
-     resource.ip.isInRange(ip("10.1.0.0/25")) ||
-     resource.ip.isInRange(ip("192.168.1.0/24")) ||
-     resource.ip.isInRange(ip("192.168.2.1/32")) ||
-     resource.ip.isInRange(ip("2001:db8::/64")) ||
-     resource.ip.isInRange(ip("2002:db9::/64")))
-};
-
-@id("MREG.network_admin_cname_netgroup")
-permit (
-    principal in MREG::Group::"default-networkadmin-group",
-    action in
-        [MREG::Action::"cname_create",
-         MREG::Action::"cname_update",
-         MREG::Action::"cname_delete"],
-    resource is MREG::Cname
-)
-when {
-    resource has nameLabels &&
-    resource.nameLabels.contains("netgroup_host_example_org")
-};
-
-@id("MREG.testgroup_community_network")
-permit (
-    principal in MREG::Group::"testgroup",
-    action in
-        [MREG::Action::"community_create",
-         MREG::Action::"community_update",
-         MREG::Action::"community_delete",
-         MREG::Action::"host_create",
-         MREG::Action::"host_delete"],
-    resource
-)
-when {
-    resource has network &&
-    (resource.network == "10.0.0.0/24" ||
-     resource.network == "10.1.0.0/25" ||
-     resource.network == "192.168.1.0/24")
-};
-
-@id("MREG.dummygroup_hostpolicy_role_host")
-permit (
-    principal in MREG::Group::"dummygroup",
-    action == MREG::Action::"hostpolicy_role_host_membership_update",
-    resource is MREG::Host
-)
-when {
-    resource has nameLabels &&
-    resource has roleLabel &&
-    resource.nameLabels.contains(resource.roleLabel) &&
-    resource has ip && resource.ip.isInRange(ip("11.22.33.0/24"))
-};
-
-@id("MREG.webadmins")
-permit (
-    principal in MREG::Group::"webadmins",
-    action in
-        [MREG::Action::"host_create",
-         MREG::Action::"host_update",
-         MREG::Action::"host_delete"],
-    resource is MREG::Host
-)
-when {
-    resource has nameLabels &&
-    resource has ip &&
-    resource.nameLabels.contains("webserver") &&
-    resource.ip.isInRange(ip("192.168.1.0/24"))
-};
-
 // These rules replace local post-policy denials in authoritative mode.
 @id("MREG.invalid_or_unprivileged_dns_wildcard")
 forbid (
@@ -424,10 +235,11 @@ forbid (
     resource
 )
 when {
-    resource has dnsWildcard && resource.dnsWildcard &&
+    resource has nameLabels &&
+    resource.nameLabels.contains("dns_wildcard") &&
     principal != MREG::User::"super" &&
     !(principal in MREG::Group::"default-super-group") &&
-    (resource has dnsWildcardValidDepth && !resource.dnsWildcardValidDepth ||
+    (!resource.nameLabels.contains("dns_wildcard_valid_depth") ||
      !(principal in MREG::Group::"default-dns-wildcard-group"))
 };
 
@@ -458,7 +270,8 @@ forbid (
     resource
 )
 when {
-    resource has dnsUnderscore && resource.dnsUnderscore &&
+    resource has nameLabels &&
+    resource.nameLabels.contains("dns_underscore") &&
     principal != MREG::User::"super" &&
     !(principal in MREG::Group::"default-super-group") &&
     !(principal in MREG::Group::"default-dns-underscore-group")
@@ -477,7 +290,26 @@ forbid (
     resource
 )
 when {
-    resource has ipRestricted && resource.ipRestricted &&
+    resource has ip &&
+    (resource.ip.isInRange(ip("10.0.0.0/32")) ||
+     resource.ip.isInRange(ip("10.0.0.1/32")) ||
+     resource.ip.isInRange(ip("10.0.0.2/32")) ||
+     resource.ip.isInRange(ip("10.0.0.3/32")) ||
+     resource.ip.isInRange(ip("10.0.0.255/32")) ||
+     resource.ip.isInRange(ip("10.1.0.0/32")) ||
+     resource.ip.isInRange(ip("10.1.0.1/32")) ||
+     resource.ip.isInRange(ip("10.1.0.2/32")) ||
+     resource.ip.isInRange(ip("10.1.0.3/32")) ||
+     resource.ip.isInRange(ip("10.1.0.127/32")) ||
+     resource.ip.isInRange(ip("192.168.1.0/32")) ||
+     resource.ip.isInRange(ip("192.168.1.1/32")) ||
+     resource.ip.isInRange(ip("192.168.1.2/32")) ||
+     resource.ip.isInRange(ip("192.168.1.3/32")) ||
+     resource.ip.isInRange(ip("192.168.1.255/32")) ||
+     resource.ip.isInRange(ip("2001:db8::/128")) ||
+     resource.ip.isInRange(ip("2001:db8::1/128")) ||
+     resource.ip.isInRange(ip("2001:db8::2/128")) ||
+     resource.ip.isInRange(ip("2001:db8::3/128"))) &&
     principal != MREG::User::"super" &&
     !(principal in MREG::Group::"default-super-group") &&
     !(principal in MREG::Group::"default-networkadmin-group")

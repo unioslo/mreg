@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import atexit
-import asyncio
 import ipaddress
 import logging
 import os
@@ -33,6 +32,7 @@ from treetop_client.models import (
 
 from mreg.models.auth import User as MregUser
 from mreg.policy.config import PolicyMode
+from mreg.policy.contracts import ENDPOINT_ATTRIBUTE_TYPES
 
 
 logger = structlog.get_logger("mreg.policy.parity")
@@ -81,7 +81,6 @@ POLICY_MODE_INFO = Gauge(
     "mreg_policy_mode_info",
     "Configured MREG policy decision mode.",
     ["mode"],
-    multiprocess_mode="livemax",
 )
 POLICY_MODE_INFO.labels(mode=POLICY_MODE.value).set(1)
 POLICY_AUTHORIZE_DURATION_SECONDS = Histogram(
@@ -95,15 +94,13 @@ POLICY_STACK_SIZE = Histogram(
     "Number of Cedar checks in one endpoint policy stack.",
     buckets=[1, 2, 3, 5, 8, 13, 21],
 )
-POLICY_CALLS_PER_REQUEST = Histogram(
-    "mreg_policy_authorize_calls_per_request",
-    "Number of TreeTop authorize HTTP calls made by one MREG request.",
-    buckets=[0, 1, 2],
+POLICY_STACK_CONFLICTS_TOTAL = Counter(
+    "mreg_policy_stack_conflicts_total",
+    "Attempts to evaluate two different endpoint policy stacks in one request.",
 )
 POLICY_CIRCUIT_OPEN = Gauge(
     "mreg_policy_circuit_open",
     "Whether this worker's synchronous TreeTop circuit is open.",
-    multiprocess_mode="livemax",
 )
 
 
@@ -198,16 +195,12 @@ def policy_any(*nodes: PolicyNode) -> PolicyAny:
 
 @dataclass(slots=True)
 class _RequestPolicyState:
-    calls: int = 0
     fingerprint: tuple[object, ...] | None = None
     policy_decision: bool | None = None
     error: str | None = None
 
 
-_request_state: ContextVar[_RequestPolicyState | None] = ContextVar(
-    "mreg_policy_request_state",
-    default=None,
-)
+_REQUEST_POLICY_STATE_ATTRIBUTE = "_mreg_policy_state"
 _shadow_disabled_depth: ContextVar[int] = ContextVar(
     "mreg_policy_shadow_disabled_depth",
     default=0,
@@ -292,11 +285,8 @@ def close_policy_client() -> None:
         _client_pid = None
     if client is None:
         return
-    try:
-        asyncio.run(client.aclose())
-    except Exception:
-        with suppress(Exception):
-            client.close()
+    with suppress(Exception):
+        client.close()
 
 
 atexit.register(close_policy_client)
@@ -311,22 +301,6 @@ def _record_failure(stage: str, error: str, **context: object) -> None:
     with suppress(Exception):
         POLICY_FAILURES_TOTAL.labels(stage=stage).inc()
     _safe_log(logging.ERROR, "policy_integration_error", stage=stage, error=error, **context)
-
-
-@contextmanager
-def policy_request_scope():
-    """Record and enforce the one-authorize-call-per-request invariant."""
-    if _request_state.get() is not None:
-        yield
-        return
-    state = _RequestPolicyState()
-    token = _request_state.set(state)
-    try:
-        yield
-    finally:
-        with suppress(Exception):
-            POLICY_CALLS_PER_REQUEST.observe(float(state.calls))
-        _request_state.reset(token)
 
 
 @contextmanager
@@ -376,13 +350,14 @@ def _build_resource_attrs(resource_attrs: Mapping[str, str]) -> dict[str, Resour
     attrs: dict[str, ResourceAttribute] = {}
     for key, value in resource_attrs.items():
         normalized = str(value)
-        if normalized.lower() in {"true", "false"}:
+        cedar_type = ENDPOINT_ATTRIBUTE_TYPES.get(key)
+        if cedar_type == "Bool":
+            if normalized.lower() not in {"true", "false"}:
+                raise ValueError(f"Policy attribute {key!r} must be a boolean")
             attrs[key] = ResourceAttribute.new(normalized.lower(), ResourceAttributeType.BOOLEAN)
-            continue
-        try:
-            ip = ipaddress.ip_address(normalized)
-            attrs[key] = ResourceAttribute.new(str(ip), ResourceAttributeType.IP)
-        except ValueError:
+        elif cedar_type == "ipaddr":
+            attrs[key] = ResourceAttribute.new(str(ipaddress.ip_address(normalized)), ResourceAttributeType.IP)
+        else:
             attrs[key] = ResourceAttribute.new(normalized, ResourceAttributeType.STRING)
     return attrs
 
@@ -442,6 +417,16 @@ def _node_fingerprint(node: PolicyNode) -> tuple[object, ...]:
     )
 
 
+def _request_policy_state(request: Request) -> _RequestPolicyState:
+    """Return state owned by the underlying Django request."""
+    owner = getattr(request, "_request", request)
+    state = getattr(owner, _REQUEST_POLICY_STATE_ATTRIBUTE, None)
+    if state is None:
+        state = _RequestPolicyState()
+        setattr(owner, _REQUEST_POLICY_STATE_ATTRIBUTE, state)
+    return state
+
+
 def _result_decision(result: AuthorizeResultBrief, index: int) -> bool:
     if result.index != index:
         raise RuntimeError(f"Authorization result index {result.index} does not match {index}")
@@ -462,9 +447,11 @@ def _authorize_stack(
     if not leaves:
         raise RuntimeError("Endpoint policy stack is empty")
     fingerprint = _node_fingerprint(root)
-    state = _request_state.get()
-    if state is not None and state.fingerprint is not None:
+    state = _request_policy_state(request)
+    if state.fingerprint is not None:
         if state.fingerprint != fingerprint:
+            with suppress(Exception):
+                POLICY_STACK_CONFLICTS_TOTAL.inc()
             raise RuntimeError("A second different endpoint policy stack was evaluated in one request")
         if state.error is not None:
             raise RuntimeError(state.error)
@@ -472,18 +459,18 @@ def _authorize_stack(
             raise RuntimeError("Cached endpoint policy stack has no decision")
         return state.policy_decision
 
+    state.fingerprint = fingerprint
     if not POLICY_BASE_URL:
-        raise RuntimeError("MREG_POLICY_BASE_URL is not configured")
+        state.error = "MREG_POLICY_BASE_URL is not configured"
+        raise RuntimeError(state.error)
     if not _circuit.allow_call():
-        raise RuntimeError("TreeTop circuit breaker is open")
+        state.error = "TreeTop circuit breaker is open"
+        raise RuntimeError(state.error)
 
     user = MregUser.from_request(request)
     policy_requests = [_build_policy_request(user, leaf.check, request_id=f"mreg-{index}") for index, leaf in enumerate(leaves)]
     POLICY_STACK_SIZE.observe(float(len(policy_requests)))
     started = monotonic()
-    if state is not None:
-        state.calls += 1
-        state.fingerprint = fingerprint
     try:
         response = _get_treetop_client().authorize(
             policy_requests,
@@ -498,16 +485,14 @@ def _authorize_stack(
         POLICY_AUTHORIZE_CALLS_TOTAL.labels(status="exception").inc()
         POLICY_AUTHORIZE_DURATION_SECONDS.labels(status="exception").observe(monotonic() - started)
         error = f"{type(exc).__name__}: {exc}"
-        if state is not None:
-            state.error = error
+        state.error = error
         raise RuntimeError(error) from exc
 
     _circuit.success()
     POLICY_AUTHORIZE_CALLS_TOTAL.labels(status="success").inc()
     POLICY_AUTHORIZE_DURATION_SECONDS.labels(status="success").observe(monotonic() - started)
     policy_decision = _evaluate_tree(root, iter(decisions))
-    if state is not None:
-        state.policy_decision = policy_decision
+    state.policy_decision = policy_decision
     if POLICY_PARITY_LOG_DETAILS:
         context["checks"] = [
             {

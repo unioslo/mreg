@@ -1,0 +1,3 @@
+Name       Description                  Labels
+role1      Example generated role       Safelabel
+web        Example web-server role      Webserver

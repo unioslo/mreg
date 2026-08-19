@@ -178,7 +178,7 @@ mreg supports configuration via environment variables with the `MREG_` prefix. T
 | `MREG_REQUESTS_THRESHOLD_VERY_SLOW` | `5000` | Very slow request threshold (ms) |
 | `MREG_REQUESTS_LOG_LEVEL_VERY_SLOW` | `CRITICAL` | Log level for very slow requests |
 
-### TreeTop Policy Parity
+### TreeTop Authorization
 
 | Variable | Default | Description |
 | -------- | ------- | ----------- |

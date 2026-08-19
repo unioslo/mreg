@@ -90,13 +90,9 @@ rejection, or other TreeTop failure; there is no legacy fallback.
 - `MREG_POLICY_CIRCUIT_RESET_SECONDS` (`30.0`): cooldown before one half-open
   probe is allowed.
 
-The client timeout remains `MREG_POLICY_TIMEOUT_SECONDS` (`5.0`). Each Gunicorn
-worker owns its client and thread-safe circuit state. An open circuit returns
-the legacy decision in `shadow` and denies in `enforce`.
-
-The container sets `PROMETHEUS_MULTIPROC_DIR` to an isolated directory so
-metrics from every Gunicorn worker are aggregated. Custom Gunicorn deployments
-must set this variable to a clean, writable directory before starting Python.
+The client timeout remains `MREG_POLICY_TIMEOUT_SECONDS` (`5.0`). Each
+application process owns its client and thread-safe circuit state. An open
+circuit returns the legacy decision in `shadow` and denies in `enforce`.
 
 ## TreeTop enforcement rollout gates
 

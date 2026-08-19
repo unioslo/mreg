@@ -19,14 +19,14 @@ and admin pages are the explicit policy exemptions.
 Authorization must complete before request processing can continue. Queuing the
 work would either allow an unauthorised request to proceed or still require the
 request to wait for the queue result. An async HTTP client would change how the
-thread waits, not remove the dependency. The DRF/Gunicorn application is
+thread waits, not remove the dependency. The Django/DRF request path is
 synchronous, so MREG uses the synchronous `treetop-client` API directly.
 
 Shadow mode also waits. This ensures its comparison uses the policy bundle that
 was active for the request and exercises the exact latency, timeout, circuit,
 and response-validation path that enforcement will use. The former PostgreSQL
-outbox, migration, dispatcher, retry/dead-letter state, and Gunicorn background
-thread are intentionally absent.
+outbox, migration, dispatcher, and retry/dead-letter state are intentionally
+absent.
 
 ## One endpoint stack and one HTTP call
 
@@ -36,13 +36,15 @@ ordered results locally using the tree's AND/OR structure. Examples include:
 
 - all old and new targets required for a hostname rename;
 - any IP attached to a host matching a NetGroup rule;
-- any host-policy role label matching the host's derived labels;
-- DNS-name, reserved-address, ownership, and target facts in the same endpoint
+- the exact host-policy role together with the candidate hostname and IP;
+- DNS-name, reserved-address, ownership, and target checks in the same endpoint
   decision.
 
-The request scope caches an identical repeated stack and rejects a second
-different stack. `mreg_policy_authorize_calls_per_request` makes violations of
-the one-call invariant observable.
+State attached to the underlying Django request caches an identical repeated
+stack. A second different stack is rejected and increments
+`mreg_policy_stack_conflicts_total`: shadow mode returns the legacy result and
+enforce mode fails closed. This makes the one-stack invariant independent of
+middleware and explicit at the authorization boundary.
 
 ## Principal, action, resource, and facts
 
@@ -52,8 +54,10 @@ Each leaf sends:
   memberships;
 - one explicit action such as `MREG::Action::"host_update"`;
 - a typed resource such as `MREG::Host::"host.example.org"`;
-- raw facts needed by Cedar, including hostname, IP, network, DNS-name shape,
-  target/self relationship, host-group ownership, or host-policy role label.
+- contract-typed attributes needed by Cedar. NetGroup and DNS-name checks send
+  the raw `hostname` and, when available, `ip`; TreeTop derives `nameLabels`
+  from the bundle. Other endpoints can send business relationship attributes
+  such as `selfAccess` or `requesterIsOwner`.
 
 MREG does not send a precomputed `allow` fact. Relationship booleans such as
 `selfAccess` and `requesterIsOwner` describe request state; Cedar decides what
@@ -77,12 +81,14 @@ deployed bundle:
 | `group` | Cedar principal group |
 | `range` | Cedar `ip.isInRange(...)` or exact network condition |
 | `regex` | named pattern in `labels.json` |
-| `labels` | derived label name used by Cedar/host-policy rules |
+| `labels` | conversion-only join key to exact `HostPolicyRole` names |
 
 TreeTop applies all regexes in the bundle to the raw `hostname` fact and adds
-`nameLabels`. Cedar checks labels such as `netgroup_example_org`; MREG neither
-runs the bundle regex nor invents the label. This is the intended TreeTop label
-boundary.
+`nameLabels`. Cedar checks deterministic generated labels; MREG neither runs
+the bundle regex nor sends those labels. Legacy permission and role labels are
+not runtime facts. The converter uses them only to discover which exact roles
+each network permission used to cover, then writes rules whose resource is that
+specific `MREG::HostPolicyRole`.
 
 In `enforce`, the NetGroupRegexPermission API remains readable but returns HTTP
 409 for POST, PUT, PATCH, and DELETE. This prevents the database from appearing
@@ -103,11 +109,11 @@ protected endpoints in `enforce`, including:
 - DNS wildcard/underscore restrictions;
 - restricted IP assignment;
 - host-group ownership and membership changes;
-- host-policy role-to-host label matching.
+- host-policy role-to-host mapping generated from the legacy permission export.
 
 ## Failure behavior
 
-The timeout defaults to five seconds. Each Gunicorn worker owns a reusable
+The timeout defaults to five seconds. Each application process owns a reusable
 client and a thread-safe closed/open/half-open circuit breaker. After the
 configured consecutive failures, the circuit rejects calls until its cooldown;
 one request then probes the service.
@@ -126,20 +132,40 @@ test scopes; it cannot bypass enforcement.
 | Organization manifest | `treetop/data/treetop-bundle.toml` |
 | MREG module manifest | `treetop/data/treetop-mreg-module.toml` |
 | Global module manifest | `treetop/data/treetop-global-module.toml` |
-| Cedar policy | `treetop/data/mreg.cedar` |
 | Global super policy | `treetop/data/global.cedar` |
-| Derived labels | `treetop/data/labels.json` |
+| Hand-written endpoint policy | `treetop/data/mreg.cedar` |
+| Generated NetGroup/role policy | `treetop/data/netgroup.cedar` |
+| Generated TreeTop labels | `treetop/data/labels.json` |
+| Conversion report | `treetop/data/netgroup-conversion-report.json` |
+| Permission export input | `treetop/fixtures/network-permissions.txt` |
+| Role export input | `treetop/fixtures/hostpolicy-roles.txt` |
 | Generated schema | `treetop/data/mreg.cedarschema` |
 | Generated archive | `treetop/data/mreg-bundle.tar.gz` |
+
+Refresh the conversion inputs with mreg-cli against the database whose policy
+is being migrated:
+
+```bash
+mreg-cli permission network_list > treetop/fixtures/network-permissions.txt
+mreg-cli policy list_roles '*' > treetop/fixtures/hostpolicy-roles.txt
+python scripts/generate-treetop-policy.py
+```
+
+The parser consumes the commands' fixed-width tables, validates every CIDR and
+regular expression, removes duplicates, collapses redundant ranges, and emits
+stable hashed IDs. Review the generated Cedar and
+`netgroup-conversion-report.json`, especially unmatched or unused legacy
+labels. The checked-in fixtures are sanitized examples, not production policy.
+
+The restricted-address examples in `mreg.cedar` are also based on the sample
+networks. Replace and review them for the deployment before enabling `enforce`.
 
 Build with `treetop-bundle` 0.0.5:
 
 ```bash
 python scripts/generate-treetop-schema.py --check
-treetop-bundle check bundle treetop/data/treetop-bundle.toml
-treetop-bundle build \
-  --manifest treetop/data/treetop-bundle.toml \
-  --output treetop/data/mreg-bundle.tar.gz
+python scripts/generate-treetop-policy.py --check
+TREETOP_BUNDLE_BIN=treetop-bundle scripts/build-treetop-bundle.sh
 TREETOP_BUNDLE_BIN=treetop-bundle scripts/check-treetop-bundle.sh
 ```
 
@@ -188,4 +214,4 @@ container—not its own `localhost`.
 4. Add Cedar permits/forbids and derived label rules together.
 5. Regenerate the schema and archive.
 6. Test legacy behavior, shadow comparison, enforce allow/deny/error behavior,
-   and the one-call invariant.
+   and the one-stack invariant.

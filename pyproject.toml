@@ -26,6 +26,8 @@ dependencies = [
     "drf-spectacular[sidecar]==0.29.0",
     "treetop-client>=0.0.12",
     "prometheus-client>=0.24",
+    # The production image also carries the Django test entrypoint.
+    "unittest-parametrize",
 ]
 dynamic = ["version"]
 
@@ -34,7 +36,6 @@ dynamic = ["version"]
 dev = [
     "tox-uv>=1.29",
     "coverage[toml]",
-    "unittest-parametrize",
     "uv>=0.10",
     "tblib>=3",
     {include-group = "profile"},

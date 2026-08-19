@@ -673,40 +673,15 @@ class IsGrantedNetGroupRegexPermission(IsAuthenticated):
         resource_kind: str,
         resource_id: str,
         policy_name: str | None = None,
-        extra_attrs: Mapping[str, str] | None = None,
     ):
-        """Build an OR of target-IP leaves with raw authorization facts."""
+        """Build an OR of leaves containing only the raw target name and IP."""
         checked_name = str(policy_name or hostname)
         values = tuple(ips) or (None,)
         leaves = []
         for ip in values:
-            attrs = {
-                "kind": self._snake_case(resource_kind),
-                "name": checked_name,
-                "hostname": str(hostname),
-                "dnsWildcard": str("*" in checked_name).lower(),
-                "dnsWildcardValidDepth": str(checked_name.count(".") >= 3).lower(),
-                "dnsUnderscore": str("_" in checked_name).lower(),
-            }
+            attrs = {"hostname": checked_name}
             if ip is not None:
                 attrs["ip"] = str(ip)
-                network = Network.objects.filter(network__net_contains=str(ip)).first()
-                attrs["ipReserved"] = str(bool(network and network.is_reserved_ipaddress(str(ip)))).lower()
-                attrs["ipRestricted"] = str(
-                    bool(
-                        network
-                        and (
-                            network.is_reserved_ipaddress(str(ip))
-                            or ipaddress.ip_address(ip)
-                            in {
-                                network.network.network_address,
-                                network.network.broadcast_address,
-                            }
-                        )
-                    )
-                ).lower()
-            if extra_attrs:
-                attrs.update(extra_attrs)
             leaves.append(
                 policy_leaf(
                     action=action,

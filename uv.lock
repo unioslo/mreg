@@ -689,6 +689,7 @@ dependencies = [
     { name = "structlog" },
     { name = "treetop-client" },
     { name = "tzdata" },
+    { name = "unittest-parametrize" },
 ]
 
 [package.dev-dependencies]
@@ -699,7 +700,6 @@ ci = [
     { name = "tblib" },
     { name = "tox-gh-actions" },
     { name = "tox-uv" },
-    { name = "unittest-parametrize" },
     { name = "uv" },
 ]
 dev = [
@@ -707,7 +707,6 @@ dev = [
     { name = "django-silk", extra = ["formatting"] },
     { name = "tblib" },
     { name = "tox-uv" },
-    { name = "unittest-parametrize" },
     { name = "uv" },
 ]
 django52 = [
@@ -740,6 +739,7 @@ requires-dist = [
     { name = "structlog", specifier = ">=25" },
     { name = "treetop-client", specifier = ">=0.0.12" },
     { name = "tzdata", specifier = ">=2025.3" },
+    { name = "unittest-parametrize" },
 ]
 
 [package.metadata.requires-dev]
@@ -750,7 +750,6 @@ ci = [
     { name = "tblib", specifier = ">=3" },
     { name = "tox-gh-actions" },
     { name = "tox-uv", specifier = ">=1.29" },
-    { name = "unittest-parametrize" },
     { name = "uv", specifier = ">=0.10" },
 ]
 dev = [
@@ -758,7 +757,6 @@ dev = [
     { name = "django-silk", extras = ["formatting"], specifier = ">=5.5.0" },
     { name = "tblib", specifier = ">=3" },
     { name = "tox-uv", specifier = ">=1.29" },
-    { name = "unittest-parametrize" },
     { name = "uv", specifier = ">=0.10" },
 ]
 django52 = [{ name = "django", specifier = ">=5.2,<5.3" }]

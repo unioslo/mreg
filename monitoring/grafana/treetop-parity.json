@@ -20,9 +20,9 @@
     },
     {
       "id": 3,
-      "title": "Authorize calls per request",
+      "title": "Endpoint stack conflicts",
       "type": "timeseries",
-      "targets": [{"expr": "rate(mreg_policy_authorize_calls_per_request_sum[5m]) / clamp_min(rate(mreg_policy_authorize_calls_per_request_count[5m]), 1)", "legendFormat": "average"}],
+      "targets": [{"expr": "sum(increase(mreg_policy_stack_conflicts_total[5m]))", "legendFormat": "conflicts"}],
       "fieldConfig": {"defaults": {"thresholds": {"steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}, "overrides": []},
       "gridPos": {"h": 8, "w": 8, "x": 0, "y": 8}
     },
@@ -70,5 +70,5 @@
   "time": {"from": "now-24h", "to": "now"},
   "title": "MREG TreeTop endpoint rollout",
   "uid": "mreg-treetop-parity",
-  "version": 2
+  "version": 3
 }

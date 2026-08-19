@@ -10,7 +10,6 @@ import sentry_sdk
 import traceback
 from django.conf import settings
 from django.http import HttpRequest, HttpResponse
-from mreg.api.treetop import policy_request_scope
 
 mreg_logger = structlog.getLogger("mreg.http")
 
@@ -48,12 +47,11 @@ class LoggingMiddleware:
 
         self.log_request(request)
  
-        with policy_request_scope():
-            try:
-                response = self.get_response(request)
-            except Exception as e: # pragma: no cover (this is somewhat tricky to properly test)
-                self.log_exception(request, e, start_time)
-                raise
+        try:
+            response = self.get_response(request)
+        except Exception as e: # pragma: no cover (this is somewhat tricky to properly test)
+            self.log_exception(request, e, start_time)
+            raise
 
         self.log_response(request, response, start_time)
         return response

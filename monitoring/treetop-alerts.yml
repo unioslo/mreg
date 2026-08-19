@@ -30,17 +30,13 @@ groups:
           severity: page
         annotations:
           summary: A synchronous TreeTop worker circuit is open
-      - alert: MregTreeTopMultipleCallsPerRequest
-        expr: |
-          sum(rate(mreg_policy_authorize_calls_per_request_count[5m]))
-          -
-          sum(rate(mreg_policy_authorize_calls_per_request_bucket{le="1.0"}[5m]))
-          > 0
-        for: 5m
+      - alert: MregTreeTopStackConflict
+        expr: increase(mreg_policy_stack_conflicts_total[5m]) > 0
+        for: 0m
         labels:
           severity: page
         annotations:
-          summary: A request made more than one TreeTop authorize call
+          summary: A request attempted to evaluate two different TreeTop stacks
       - alert: MregTreeTopEnforcementFailure
         expr: increase(mreg_policy_enforcement_results_total{result="error_deny"}[5m]) > 0
         for: 0m

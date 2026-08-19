@@ -39,7 +39,7 @@ uses monotonic clocks.
 | `mreg_policy_enforcement_results_total` | Counter | `result` | Authoritative `allow`, `deny`, or fail-closed `error_deny` |
 | `mreg_policy_mode_info` | Gauge | `mode` | Active `off`, `shadow`, or `enforce` mode |
 | `mreg_policy_stack_size` | Histogram | none | Cedar leaves in the endpoint stack sent by one call |
-| `mreg_policy_authorize_calls_per_request` | Histogram | none | TreeTop HTTP calls per MREG request; protected requests should be `1` |
+| `mreg_policy_stack_conflicts_total` | Counter | none | Attempts to evaluate two different stacks in one request; should remain `0` |
 | `mreg_policy_circuit_open` | Gauge | none | Whether a worker's synchronous circuit is open |
 
 All protected endpoint checks are synchronous in both active modes. `shadow`
@@ -47,9 +47,10 @@ returns the legacy result after recording the comparison; `enforce` returns the
 TreeTop composite and fails closed. There is no queue, retry worker, persistence
 metric, and enforcement failures never return the legacy decision.
 
-The two design-invariant metrics are:
+The two design metrics are:
 
-- `mreg_policy_authorize_calls_per_request`: alert if observations exceed one.
+- `mreg_policy_stack_conflicts_total`: alert on any increase. Identical repeated
+  checks use the decision cached on the request and never make another call.
 - `mreg_policy_stack_size`: identify high-count endpoints whose semantic policy
   can be simplified even though transport is already consolidated.
 
@@ -62,7 +63,7 @@ The two design-invariant metrics are:
 The default gate requires at least 10,000 endpoint comparisons, no more than
 0.1% mismatches, and no more than 0.1% errors over the selected window. The
 alerts cover mismatch/error rates, any authoritative failure, an open circuit,
-and violations of the one-call-per-request invariant.
+and violations of the one-stack-per-request invariant.
 
 Useful PromQL:
 
@@ -83,8 +84,3 @@ rate(mreg_policy_stack_size_sum[5m])
 /
 clamp_min(rate(mreg_policy_stack_size_count[5m]), 1)
 ```
-
-The container configures Prometheus multiprocess mode and clears its directory
-before Gunicorn starts. Other process managers must provide a clean writable
-`PROMETHEUS_MULTIPROC_DIR` and call
-`prometheus_client.multiprocess.mark_process_dead` when a worker exits.

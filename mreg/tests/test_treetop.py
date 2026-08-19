@@ -6,6 +6,8 @@ from unittest.mock import Mock, patch
 from django.test import SimpleTestCase
 from rest_framework.test import APIRequestFactory
 
+from hostpolicy.api.permissions import IsSuperOrHostPolicyAdminOrReadOnly
+from mreg.api.permissions import IsGrantedNetGroupRegexPermission
 from mreg.api.treetop import (
     PolicyAll,
     PolicyAny,
@@ -20,7 +22,6 @@ from mreg.api.treetop import (
     policy_all,
     policy_any,
     policy_leaf,
-    policy_request_scope,
     policy_shadow_enabled,
 )
 from mreg.policy.config import PolicyMode
@@ -74,11 +75,58 @@ class SynchronousPolicyStackTests(SimpleTestCase):
         with self.assertRaisesRegex(ValueError, "at least one"):
             PolicyAny(())
 
-    def test_resource_attributes_detect_bool_ip_and_string(self) -> None:
-        attrs = _build_resource_attrs({"restricted": "true", "ip": "192.0.2.1", "name": "host"})
-        self.assertEqual(attrs["restricted"].type.value, "Bool")
+    def test_resource_attributes_follow_contract_types(self) -> None:
+        attrs = _build_resource_attrs({"selfAccess": "true", "ip": "192.0.2.1", "hostname": "true"})
+        self.assertEqual(attrs["selfAccess"].type.value, "Bool")
         self.assertEqual(attrs["ip"].type.value, "Ip")
-        self.assertEqual(attrs["name"].type.value, "String")
+        self.assertEqual(attrs["hostname"].type.value, "String")
+        with self.assertRaisesRegex(ValueError, "boolean"):
+            _build_resource_attrs({"selfAccess": "yes"})
+
+    def test_netgroup_targets_send_only_raw_hostname_and_ip(self) -> None:
+        root = IsGrantedNetGroupRegexPermission()._target_policy_node(
+            hostname="old.example.org",
+            policy_name="new.example.org",
+            ips=("192.0.2.10", "2001:db8::10"),
+            action="host_update",
+            resource_kind="Host",
+            resource_id="old.example.org",
+        )
+
+        self.assertIsInstance(root, PolicyAny)
+        self.assertEqual(
+            [dict(child.check.resource.attrs) for child in root.children],
+            [
+                {"hostname": "new.example.org", "ip": "192.0.2.10"},
+                {"hostname": "new.example.org", "ip": "2001:db8::10"},
+            ],
+        )
+
+    @patch("hostpolicy.api.permissions.authorize_policy_stack", return_value=True)
+    @patch("hostpolicy.api.permissions.Host.objects")
+    def test_hostpolicy_membership_sends_exact_role_and_raw_host(self, host_objects, authorize) -> None:
+        host_objects.filter.return_value.exclude.return_value.values_list.return_value = ["192.0.2.10"]
+        request = self.factory.post("/api/v1/hostpolicy/roles/web/hosts/")
+        view = SimpleNamespace(kwargs={"name": "web", "host": "web-1.example.org"})
+
+        self.assertTrue(
+            IsSuperOrHostPolicyAdminOrReadOnly()._authorize_role_host_membership(
+                request=request,
+                view=view,
+                legacy=False,
+            )
+        )
+
+        root = authorize.call_args.kwargs["root"]
+        self.assertIsInstance(root, PolicyAny)
+        self.assertEqual(len(root.children), 1)
+        leaf = root.children[0]
+        self.assertEqual(leaf.check.resource.kind, "HostPolicyRole")
+        self.assertEqual(leaf.check.resource.id, "web")
+        self.assertEqual(
+            dict(leaf.check.resource.attrs),
+            {"hostname": "web-1.example.org", "ip": "192.0.2.10"},
+        )
 
     @patch("mreg.api.treetop.MregUser.from_request")
     @patch("mreg.api.treetop._get_treetop_client")
@@ -94,7 +142,6 @@ class SynchronousPolicyStackTests(SimpleTestCase):
         with (
             patch("mreg.api.treetop.POLICY_MODE", PolicyMode.ENFORCE),
             patch("mreg.api.treetop.POLICY_BASE_URL", "http://policy"),
-            policy_request_scope(),
         ):
             self.assertTrue(authorize_policy_stack(False, request=self._request(), root=root))
 
@@ -110,13 +157,13 @@ class SynchronousPolicyStackTests(SimpleTestCase):
         client = self._client(True)
         get_client.return_value = client
         root = self._leaf()
+        request = self._request()
         with (
             patch("mreg.api.treetop.POLICY_MODE", PolicyMode.ENFORCE),
             patch("mreg.api.treetop.POLICY_BASE_URL", "http://policy"),
-            policy_request_scope(),
         ):
-            self.assertTrue(authorize_policy_stack(False, request=self._request(), root=root))
-            self.assertTrue(authorize_policy_stack(False, request=self._request(), root=root))
+            self.assertTrue(authorize_policy_stack(False, request=request, root=root))
+            self.assertTrue(authorize_policy_stack(False, request=request, root=root))
         client.authorize.assert_called_once()
 
     @patch("mreg.api.treetop.MregUser.from_request")
@@ -125,13 +172,13 @@ class SynchronousPolicyStackTests(SimpleTestCase):
         from_request.return_value = self.user
         client = self._client(True)
         get_client.return_value = client
+        request = self._request()
         with (
             patch("mreg.api.treetop.POLICY_MODE", PolicyMode.ENFORCE),
             patch("mreg.api.treetop.POLICY_BASE_URL", "http://policy"),
-            policy_request_scope(),
         ):
-            self.assertTrue(authorize_policy_stack(False, request=self._request(), root=self._leaf("one")))
-            self.assertFalse(authorize_policy_stack(True, request=self._request(), root=self._leaf("two")))
+            self.assertTrue(authorize_policy_stack(False, request=request, root=self._leaf("one")))
+            self.assertFalse(authorize_policy_stack(True, request=request, root=self._leaf("two")))
         client.authorize.assert_called_once()
 
     @patch("mreg.api.treetop._get_treetop_client")
@@ -166,7 +213,6 @@ class SynchronousPolicyStackTests(SimpleTestCase):
             patch("mreg.api.treetop.POLICY_MODE", PolicyMode.SHADOW),
             patch("mreg.api.treetop.POLICY_PARITY_ENABLED", True),
             patch("mreg.api.treetop.POLICY_BASE_URL", "http://policy"),
-            policy_request_scope(),
         ):
             self.assertFalse(authorize_policy_stack(False, request=self._request(), root=self._leaf()))
         get_client.return_value.authorize.assert_called_once()

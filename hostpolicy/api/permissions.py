@@ -63,11 +63,6 @@ class IsSuperOrHostPolicyAdminOrReadOnly(IsAuthenticated):
     def _authorize_role_host_membership(self, *, request, view, legacy: bool) -> bool:
         role_name = str(view.kwargs.get("name") or "")
         hostname = str(view.kwargs.get("host") or request.data.get("name") or "")
-        role_labels = tuple(
-            HostPolicyRole.objects.filter(name=role_name).values_list(
-                "labels__name", flat=True
-            )
-        )
         ips = tuple(
             str(ip)
             for ip in Host.objects.filter(name=hostname)
@@ -77,17 +72,13 @@ class IsSuperOrHostPolicyAdminOrReadOnly(IsAuthenticated):
         leaves = tuple(
             policy_leaf(
                 action="hostpolicy_role_host_membership_update",
-                resource_kind="Host",
-                resource_id=hostname or "any",
+                resource_kind="HostPolicyRole",
+                resource_id=role_name or "any",
                 resource_attrs={
-                    "kind": "host",
-                    "name": hostname,
                     "hostname": hostname,
                     "ip": ip,
-                    "roleLabel": str(label),
                 },
             )
-            for label in role_labels
             for ip in ips
         )
         root = (
@@ -95,13 +86,9 @@ class IsSuperOrHostPolicyAdminOrReadOnly(IsAuthenticated):
             if leaves
             else policy_leaf(
                 action="hostpolicy_role_host_membership_update",
-                resource_kind="Host",
-                resource_id=hostname or "any",
-                resource_attrs={
-                    "kind": "host",
-                    "name": hostname,
-                    "hostname": hostname,
-                },
+                resource_kind="HostPolicyRole",
+                resource_id=role_name or "any",
+                resource_attrs={"hostname": hostname},
             )
         )
         return authorize_policy_stack(

@@ -26,11 +26,9 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v6
     - name: Docker build
-      run: |
-        docker build --target runtime -t mreg .
-        docker build --target test -t mreg-test .
+      run: docker build -t mreg .
     - name: Save image
-      run: docker save mreg mreg-test | gzip > mreg.tgz
+      run: docker save mreg | gzip > mreg.tgz
     - name: Upload artifact
       uses: actions/upload-artifact@v7
       with:
@@ -65,9 +63,9 @@ jobs:
       run: docker load --input mreg.tgz
     - name: Run tests
       run: |
-        docker run --rm -t --network host \
+        docker run --rm -t --network host --entrypoint /app/entrypoint-test.sh \
         -e MREG_DB_HOST=localhost -e MREG_DB_PASSWORD=mreg -e MREG_DB_USER=mreg \
-        mreg-test
+        mreg
 
   mreg-cli:
     name: Test with mreg-cli

@@ -96,10 +96,11 @@ TreeTop evaluates all leaves and MREG composes their results locally. `shadow`
 records the comparison and returns the legacy result. `enforce` returns the
 TreeTop result and fails closed on every integration failure.
 
-The request scope rejects a second different stack, making accidental
-checkpoint-by-checkpoint calls visible during development instead of quietly
-adding request-path latency. A thread-safe circuit breaker prevents every
-request from waiting for the full timeout during an outage.
+Request-owned state rejects a second different stack and increments
+`mreg_policy_stack_conflicts_total`, making accidental checkpoint-by-checkpoint
+calls visible instead of quietly adding request-path latency. A thread-safe
+circuit breaker prevents every request from waiting for the full timeout during
+an outage.
 
 ## Parity Runbook
 
