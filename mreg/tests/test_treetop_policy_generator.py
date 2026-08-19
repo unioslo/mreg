@@ -1,21 +1,11 @@
 from __future__ import annotations
 
-import importlib.util
 import json
 from pathlib import Path
-import sys
 import tempfile
 from unittest import TestCase
 
-
-ROOT = Path(__file__).resolve().parents[2]
-SCRIPT = ROOT / "scripts/generate-treetop-policy.py"
-SPEC = importlib.util.spec_from_file_location("_generate_treetop_policy", SCRIPT)
-if SPEC is None or SPEC.loader is None:  # pragma: no cover
-    raise RuntimeError(f"Unable to load {SCRIPT}")
-generator = importlib.util.module_from_spec(SPEC)
-sys.modules[SPEC.name] = generator
-SPEC.loader.exec_module(generator)
+from mreg.policy import treetop_generator as generator
 
 
 class TreeTopPolicyGeneratorTests(TestCase):
@@ -74,31 +64,29 @@ role2      A role without permission     Missing
 
     def test_cli_check_detects_stale_output(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            output_dir = Path(directory)
+            temp_dir = Path(directory)
+            permissions_path = temp_dir / "permissions.txt"
+            roles_path = temp_dir / "roles.txt"
+            output_dir = temp_dir / "output"
+            permissions_path.write_text(self.permission_table)
+            roles_path.write_text(self.role_table)
+            arguments = [
+                "--permissions",
+                str(permissions_path),
+                "--roles",
+                str(roles_path),
+                "--output-dir",
+                str(output_dir),
+            ]
+
+            self.assertEqual(generator.main(arguments), 0)
             self.assertEqual(
-                generator.main(
-                    [
-                        "--permissions",
-                        str(ROOT / "treetop/fixtures/network-permissions.txt"),
-                        "--roles",
-                        str(ROOT / "treetop/fixtures/hostpolicy-roles.txt"),
-                        "--output-dir",
-                        str(output_dir),
-                    ]
-                ),
+                generator.main([*arguments, "--check"]),
                 0,
             )
+
+            (output_dir / "netgroup.cedar").write_text("stale\n")
             self.assertEqual(
-                generator.main(
-                    [
-                        "--permissions",
-                        str(ROOT / "treetop/fixtures/network-permissions.txt"),
-                        "--roles",
-                        str(ROOT / "treetop/fixtures/hostpolicy-roles.txt"),
-                        "--output-dir",
-                        str(output_dir),
-                        "--check",
-                    ]
-                ),
-                0,
+                generator.main([*arguments, "--check"]),
+                1,
             )
