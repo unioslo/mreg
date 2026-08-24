@@ -8,20 +8,27 @@ import hashlib
 import ipaddress
 import io
 import json
+import heapq
 import tarfile
 import tempfile
+from collections import defaultdict
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable, Iterator
+from string import hexdigits
+from time import monotonic
+from typing import Any, BinaryIO, Iterable, Iterator
 
+import structlog
 from django.conf import settings
 from django.db import DatabaseError, connection, transaction
-from django.db.models import Count
+from django.db.models import Count, Prefetch, Q
 from django.http import FileResponse
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, Throttled
 from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
+from rest_framework.throttling import SimpleRateThrottle
 from rest_framework.views import APIView
 
 from hostpolicy.models import HostPolicyAtom, HostPolicyRole
@@ -56,6 +63,9 @@ SUPPORTED_OPTIONS = {
     "redact": "false",
 }
 DEFERRED_WILDCARD_RECORD_TYPES = frozenset({"HINFO", "LOC", "SSHFP"})
+SNAPSHOT_ADVISORY_LOCK_ID = int.from_bytes(b"MREGSNAP", byteorder="big")
+
+log = structlog.get_logger("mreg.snapshot")
 
 
 class SnapshotArchiveRenderer(JSONRenderer):
@@ -88,8 +98,56 @@ class SnapshotUnavailable(SnapshotError):
     pass
 
 
+class SnapshotBusy(SnapshotError):
+    pass
+
+
+class SnapshotLimitExceeded(SnapshotError):
+    pass
+
+
 class SnapshotNotAcceptable(SnapshotRequestError):
     pass
+
+
+class SnapshotRateThrottle(SimpleRateThrottle):
+    """Apply a narrow per-principal rate limit to expensive snapshot requests."""
+
+    scope = "snapshot"
+
+    def get_rate(self) -> str:
+        return settings.MREG_SNAPSHOT_THROTTLE_RATE
+
+    def get_cache_key(self, request, view) -> str | None:
+        if not request.user or not request.user.is_authenticated:
+            return None
+        identity = getattr(request.user, "pk", None) or request.user.username
+        return self.cache_format % {"scope": self.scope, "ident": identity}
+
+
+@contextmanager
+def snapshot_generation_lock() -> Iterator[None]:
+    """Allow one snapshot artifact to be generated per PostgreSQL cluster."""
+    if connection.vendor != "postgresql":
+        raise SnapshotUnavailable("A consistent PostgreSQL snapshot cannot be obtained")
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT pg_try_advisory_lock(%s)", [SNAPSHOT_ADVISORY_LOCK_ID])
+            acquired = cursor.fetchone()[0]
+    except DatabaseError as error:
+        raise SnapshotUnavailable("The snapshot generation lock could not be acquired") from error
+    if not acquired:
+        raise SnapshotBusy("Another snapshot is already being generated")
+    try:
+        yield
+    finally:
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT pg_advisory_unlock(%s)", [SNAPSHOT_ADVISORY_LOCK_ID])
+        except DatabaseError:
+            # Closing a broken session also releases its advisory locks.
+            connection.close()
+            log.exception("snapshot_lock_release_failed")
 
 
 def _validate_snapshot_options(snapshot_format: str, include_permissions: bool) -> None:
@@ -114,7 +172,10 @@ def _without_none(data: dict[str, Any]) -> dict[str, Any]:
 def _normalized_mac(value: str) -> str | None:
     if not value:
         return None
-    compact = "".join(character for character in value.lower() if character.isalnum())
+    normalized = value.lower()
+    if any(character not in hexdigits and character not in ":.-" for character in normalized):
+        raise SnapshotError(f"Invalid MAC address {value!r}")
+    compact = "".join(character for character in normalized if character in hexdigits)
     if len(compact) != 12:
         raise SnapshotError(f"Invalid MAC address {value!r}")
     return ":".join(compact[index : index + 2] for index in range(0, 12, 2))
@@ -167,7 +228,7 @@ def _base_items(chunk_size: int) -> Iterator[dict[str, Any]]:
                 }
             ),
         )
-    values = NetworkPolicyAttributeValue.objects.select_related("policy", "attribute").order_by("pk")
+    values = NetworkPolicyAttributeValue.objects.order_by("pk")
     for obj in values.iterator(chunk_size=chunk_size):
         yield _item(
             _ref("network_policy_attribute_value", obj.pk),
@@ -200,7 +261,7 @@ def _network_zone_items(chunk_size: int) -> Iterator[dict[str, Any]]:
                 }
             ),
         )
-    ranges = NetworkExcludedRange.objects.select_related("network").order_by("pk")
+    ranges = NetworkExcludedRange.objects.order_by("pk")
     for obj in ranges.iterator(chunk_size=chunk_size):
         yield _item(
             _ref("excluded_range", obj.pk),
@@ -212,7 +273,7 @@ def _network_zone_items(chunk_size: int) -> Iterator[dict[str, Any]]:
                 "description": "",
             },
         )
-    communities = Community.objects.select_related("network__policy").order_by("pk")
+    communities = Community.objects.select_related("network").order_by("pk")
     for obj in communities.iterator(chunk_size=chunk_size):
         if obj.network.policy_id is None:
             raise SnapshotError("Community references a network without a policy", model="Community", object_id=obj.pk)
@@ -233,7 +294,7 @@ def _network_zone_items(chunk_size: int) -> Iterator[dict[str, Any]]:
 
 
 def _zone_items(model, kind: str, chunk_size: int) -> Iterator[dict[str, Any]]:
-    queryset = model.objects.prefetch_related("nameservers").order_by("pk")
+    queryset = model.objects.prefetch_related(Prefetch("nameservers", queryset=NameServer.objects.order_by("pk"))).order_by("pk")
     for obj in queryset.iterator(chunk_size=chunk_size):
         attributes = {
             "name": obj.name,
@@ -253,7 +314,7 @@ def _zone_items(model, kind: str, chunk_size: int) -> Iterator[dict[str, Any]]:
 
 
 def _delegation_items(model, kind: str, zone_kind: str, chunk_size: int) -> Iterator[dict[str, Any]]:
-    queryset = model.objects.prefetch_related("nameservers").order_by("pk")
+    queryset = model.objects.prefetch_related(Prefetch("nameservers", queryset=NameServer.objects.order_by("pk"))).order_by("pk")
     for obj in queryset.iterator(chunk_size=chunk_size):
         yield _item(
             _ref(kind, obj.pk),
@@ -289,7 +350,7 @@ def _host_items(wildcards: set[int], chunk_size: int) -> Iterator[dict[str, Any]
 
 
 def _ip_rows(chunk_size: int):
-    return Ipaddress.objects.select_related("host").order_by("host_id", "pk").iterator(chunk_size=chunk_size)
+    return Ipaddress.objects.order_by("host_id", "pk").iterator(chunk_size=chunk_size)
 
 
 def _attachment_items(index: NetworkIndex, wildcards: set[int], chunk_size: int) -> Iterator[dict[str, Any]]:
@@ -529,23 +590,30 @@ def _standalone_dns_record_items(chunk_size: int) -> Iterator[dict[str, Any]]:
 
 
 def _validate_wildcard_hosts(wildcards: set[int], chunk_size: int) -> None:
-    for host in Host.objects.filter(pk__in=wildcards).order_by("pk").iterator(chunk_size=chunk_size):
-        has_dns = Ipaddress.objects.filter(host_id=host.pk).exists() or any(
-            model.objects.filter(host_id=host.pk).exists() for model, *_ in _HOST_RECORD_SPECIFICATIONS
-        )
-        if not has_dns:
-            raise SnapshotError("Wildcard host has no translatable DNS data", model="Host", object_id=host.pk)
-        if host.comment or host.contacts.exists() or host.hostgroups.exists() or host.hostpolicyroles.exists():
-            raise SnapshotError("Wildcard host has non-DNS relationships", model="Host", object_id=host.pk)
-        if BACnetID.objects.filter(host_id=host.pk).exists() or HostCommunityMapping.objects.filter(host_id=host.pk).exists():
-            raise SnapshotError("Wildcard host has non-DNS relationships", model="Host", object_id=host.pk)
+    if not wildcards:
+        return
+    dns_host_ids = set(Ipaddress.objects.filter(host_id__in=wildcards).values_list("host_id", flat=True))
+    for model, *_ in _HOST_RECORD_SPECIFICATIONS:
+        dns_host_ids.update(model.objects.filter(host_id__in=wildcards).values_list("host_id", flat=True))
+    related_host_ids = set(
+        Host.objects.filter(pk__in=wildcards)
+        .filter(Q(contacts__isnull=False) | Q(hostgroups__isnull=False) | Q(hostpolicyroles__isnull=False))
+        .values_list("pk", flat=True)
+    )
+    related_host_ids.update(BACnetID.objects.filter(host_id__in=wildcards).values_list("host_id", flat=True))
+    related_host_ids.update(HostCommunityMapping.objects.filter(host_id__in=wildcards).values_list("host_id", flat=True))
+    hosts = Host.objects.filter(pk__in=wildcards).order_by("pk").values_list("pk", "comment")
+    for host_id, comment in hosts.iterator(chunk_size=chunk_size):
+        if host_id not in dns_host_ids:
+            raise SnapshotError("Wildcard host has no translatable DNS data", model="Host", object_id=host_id)
+        if comment or host_id in related_host_ids:
+            raise SnapshotError("Wildcard host has non-DNS relationships", model="Host", object_id=host_id)
 
 
 def _dns_record_items(wildcards: set[int], chunk_size: int) -> Iterator[dict[str, Any]]:
     yield from _wildcard_address_record_items(wildcards, chunk_size)
     yield from _host_dns_record_items(wildcards, chunk_size, deferred=False)
     yield from _standalone_dns_record_items(chunk_size)
-    _validate_wildcard_hosts(wildcards, chunk_size)
 
 
 def _deferred_dns_record_items(wildcards: set[int], chunk_size: int) -> Iterator[dict[str, Any]]:
@@ -553,7 +621,7 @@ def _deferred_dns_record_items(wildcards: set[int], chunk_size: int) -> Iterator
 
 
 def _relationship_items(index: NetworkIndex, wildcards: set[int], chunk_size: int) -> Iterator[dict[str, Any]]:
-    ptrs = PtrOverride.objects.select_related("host").order_by("pk")
+    ptrs = PtrOverride.objects.order_by("pk")
     for obj in ptrs.iterator(chunk_size=chunk_size):
         if obj.host_id in wildcards:
             raise SnapshotError("Wildcard PTR override cannot be translated", model="PtrOverride", object_id=obj.pk)
@@ -570,12 +638,12 @@ def _relationship_items(index: NetworkIndex, wildcards: set[int], chunk_size: in
             "bacnet_id",
             {"bacnet_id": obj.pk, "host_name_ref": _ref("host", obj.host_id)},
         )
-    contacts = HostContact.objects.prefetch_related("hosts").order_by("pk")
+    contacts = HostContact.objects.prefetch_related(Prefetch("hosts", queryset=Host.objects.order_by("pk"))).order_by("pk")
     for obj in contacts.iterator(chunk_size=chunk_size):
         hosts = [_ref("host", host.pk) for host in obj.hosts.all() if host.pk not in wildcards]
         if hosts:
             yield _item(_ref("host_contact", obj.pk), "host_contact", {"email": obj.email, "hosts": hosts})
-    yield from _host_group_items(wildcards)
+    yield from _host_group_items(wildcards, chunk_size)
 
     mappings = HostCommunityMapping.objects.select_related("ipaddress", "community__network").order_by("pk")
     seen: dict[str, int] = {}
@@ -610,35 +678,91 @@ def _relationship_items(index: NetworkIndex, wildcards: set[int], chunk_size: in
         )
 
 
-def _host_group_items(wildcards: set[int]) -> Iterator[dict[str, Any]]:
-    groups = list(HostGroup.objects.prefetch_related("parent", "hosts", "owners").order_by("pk"))
-    pending = {group.pk: group for group in groups}
-    emitted: set[int] = set()
-    while pending:
-        ready = [group for group in pending.values() if {parent.pk for parent in group.parent.all()} <= emitted]
-        if not ready:
-            group = min(pending.values(), key=lambda value: value.pk)
-            raise SnapshotError("Host group parent relationships contain a cycle", model="HostGroup", object_id=group.pk)
-        for group in sorted(ready, key=lambda value: value.pk):
+def _topological_group_order(group_ids: set[int], parent_links: list[tuple[int, int]]) -> tuple[list[int], dict[int, set[int]]]:
+    parents_by_child = {group_id: set() for group_id in group_ids}
+    children_by_parent: dict[int, set[int]] = defaultdict(set)
+    for child_id, parent_id in parent_links:
+        parents_by_child[child_id].add(parent_id)
+        children_by_parent[parent_id].add(child_id)
+    remaining_parent_count = {group_id: len(parents) for group_id, parents in parents_by_child.items()}
+    ready = [group_id for group_id, count in remaining_parent_count.items() if count == 0]
+    heapq.heapify(ready)
+    ordered: list[int] = []
+    while ready:
+        group_id = heapq.heappop(ready)
+        ordered.append(group_id)
+        for child_id in sorted(children_by_parent[group_id]):
+            remaining_parent_count[child_id] -= 1
+            if remaining_parent_count[child_id] == 0:
+                heapq.heappush(ready, child_id)
+    if len(ordered) != len(group_ids):
+        cyclic_id = min(group_ids - set(ordered))
+        raise SnapshotError("Host group parent relationships contain a cycle", model="HostGroup", object_id=cyclic_id)
+    return ordered, parents_by_child
+
+
+def _host_group_items(wildcards: set[int], chunk_size: int) -> Iterator[dict[str, Any]]:
+    groups = {
+        pk: (name, description) for pk, name, description in HostGroup.objects.order_by("pk").values_list("pk", "name", "description")
+    }
+    parent_field = HostGroup._meta.get_field("parent")
+    parent_source = parent_field.m2m_field_name()
+    parent_target = parent_field.m2m_reverse_field_name()
+    parent_links = list(
+        parent_field.remote_field.through.objects.order_by(f"{parent_source}_id", f"{parent_target}_id").values_list(
+            f"{parent_source}_id", f"{parent_target}_id"
+        )
+    )
+    ordered, parents_by_child = _topological_group_order(set(groups), parent_links)
+
+    host_field = HostGroup._meta.get_field("hosts")
+    host_source = host_field.m2m_field_name()
+    host_target = host_field.m2m_reverse_field_name()
+    owner_field = HostGroup._meta.get_field("owners")
+    owner_source = owner_field.m2m_field_name()
+    owner_target = owner_field.m2m_reverse_field_name()
+    for start in range(0, len(ordered), chunk_size):
+        batch = ordered[start : start + chunk_size]
+        hosts_by_group: dict[int, list[int]] = defaultdict(list)
+        host_links = (
+            host_field.remote_field.through.objects.filter(**{f"{host_source}_id__in": batch})
+            .exclude(**{f"{host_target}_id__in": wildcards})
+            .order_by(f"{host_source}_id", f"{host_target}_id")
+            .values_list(f"{host_source}_id", f"{host_target}_id")
+        )
+        for group_id, host_id in host_links:
+            hosts_by_group[group_id].append(host_id)
+        owners_by_group: dict[int, list[str]] = defaultdict(list)
+        owner_links = (
+            owner_field.remote_field.through.objects.filter(**{f"{owner_source}_id__in": batch})
+            .order_by(f"{owner_source}_id", f"{owner_target}_id")
+            .values_list(f"{owner_source}_id", f"{owner_target}__name")
+        )
+        for group_id, owner_name in owner_links:
+            owners_by_group[group_id].append(owner_name)
+        for group_id in batch:
+            name, description = groups[group_id]
             yield _item(
-                _ref("host_group", group.pk),
+                _ref("host_group", group_id),
                 "host_group",
                 {
-                    "name": group.name,
-                    "description": group.description,
-                    "hosts": [_ref("host", host.pk) for host in group.hosts.all() if host.pk not in wildcards],
-                    "parent_groups": [_ref("host_group", parent.pk) for parent in group.parent.all()],
-                    "owner_groups": [owner.name for owner in group.owners.all()],
+                    "name": name,
+                    "description": description,
+                    "hosts": [_ref("host", host_id) for host_id in hosts_by_group[group_id]],
+                    "parent_groups": [_ref("host_group", parent_id) for parent_id in sorted(parents_by_child[group_id])],
+                    "owner_groups": owners_by_group[group_id],
                 },
             )
-            emitted.add(group.pk)
-            del pending[group.pk]
 
 
 def _host_policy_items(wildcards: set[int], chunk_size: int) -> Iterator[dict[str, Any]]:
     for obj in HostPolicyAtom.objects.order_by("pk").iterator(chunk_size=chunk_size):
         yield _item(_ref("host_policy_atom", obj.pk), "host_policy_atom", {"name": obj.name, "description": obj.description})
-    roles = HostPolicyRole.objects.prefetch_related("atoms", "hosts", "labels").order_by("pk")
+    roles = HostPolicyRole.objects.prefetch_related(
+        Prefetch("atoms", queryset=HostPolicyAtom.objects.order_by("pk")),
+        Prefetch("hosts", queryset=Host.objects.order_by("pk")),
+        Prefetch("labels", queryset=Label.objects.order_by("pk")),
+    ).order_by("pk")
     for obj in roles.iterator(chunk_size=chunk_size):
         yield _item(_ref("host_policy_role", obj.pk), "host_policy_role", {"name": obj.name, "description": obj.description})
     for role in roles.iterator(chunk_size=chunk_size):
@@ -665,6 +789,7 @@ def _host_policy_items(wildcards: set[int], chunk_size: int) -> Iterator[dict[st
 
 def iter_import_items(chunk_size: int) -> Iterator[dict[str, Any]]:
     wildcards = _wildcard_ids()
+    _validate_wildcard_hosts(wildcards, chunk_size)
     index = NetworkIndex()
     yield from _base_items(chunk_size)
     yield from _network_zone_items(chunk_size)
@@ -689,6 +814,10 @@ class SnapshotArtifact:
     digest_base64: str
     filename: str
     content_type: str
+    size: int
+    requested_by: str
+    snapshot_format: str
+    include_permissions: bool
 
     def cleanup(self) -> None:
         self.temporary_directory.cleanup()
@@ -705,12 +834,14 @@ class SnapshotDataFile:
     path: Path
     count: int
     sha256: str
+    size: int
 
     def manifest_entry(self) -> dict[str, str | int]:
         return {
             "path": self.path.name,
             "count": self.count,
             "sha256": self.sha256,
+            "bytes": self.size,
         }
 
 
@@ -722,13 +853,67 @@ class SnapshotData:
     database_timestamp: datetime
 
 
+@dataclass
+class SnapshotResourceBudget:
+    max_bytes: int
+    deadline: float
+    bytes_used: int = 0
+
+    @classmethod
+    def from_settings(cls) -> SnapshotResourceBudget:
+        max_bytes = settings.MREG_SNAPSHOT_MAX_BYTES
+        max_duration = settings.MREG_SNAPSHOT_MAX_DURATION_SECONDS
+        if max_bytes <= 0 or max_duration <= 0:
+            raise SnapshotUnavailable("Snapshot resource limits must be positive")
+        return cls(max_bytes=max_bytes, deadline=monotonic() + max_duration)
+
+    def check_deadline(self) -> None:
+        if monotonic() > self.deadline:
+            raise SnapshotLimitExceeded("Snapshot generation exceeded its time limit")
+
+    def consume(self, size: int) -> None:
+        self.check_deadline()
+        if self.bytes_used + size > self.max_bytes:
+            raise SnapshotLimitExceeded("Snapshot generation exceeded its temporary storage limit")
+        self.bytes_used += size
+
+
+class _BudgetedWriter:
+    def __init__(self, output: BinaryIO, budget: SnapshotResourceBudget, digest=None):
+        self.output = output
+        self.budget = budget
+        self.digest = digest
+
+    def write(self, value: bytes) -> int:
+        self.budget.consume(len(value))
+        if self.digest is not None:
+            self.digest.update(value)
+        return self.output.write(value)
+
+    def flush(self) -> None:
+        self.output.flush()
+
+    def tell(self) -> int:
+        return self.output.tell()
+
+
+class _DeadlineReader:
+    def __init__(self, source: BinaryIO, budget: SnapshotResourceBudget):
+        self.source = source
+        self.budget = budget
+
+    def read(self, size: int = -1) -> bytes:
+        self.budget.check_deadline()
+        return self.source.read(size)
+
+
 def _json_bytes(value: Any) -> bytes:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
 
 
 def iter_permission_items(chunk_size: int) -> Iterator[dict[str, Any]]:
     """Yield legacy authorization rules separately from portable domain items."""
-    queryset = NetGroupRegexPermission.objects.prefetch_related("labels").order_by("pk")
+    queryset = NetGroupRegexPermission.objects.prefetch_related(Prefetch("labels", queryset=Label.objects.order_by("pk"))).order_by("pk")
     for permission in queryset.iterator(chunk_size=chunk_size):
         yield _item(
             _ref("netgroup_regex_permission", permission.pk),
@@ -742,16 +927,23 @@ def iter_permission_items(chunk_size: int) -> Iterator[dict[str, Any]]:
         )
 
 
-def _write_ndjson(path: Path, values: Iterable[dict[str, Any]]) -> SnapshotDataFile:
+def _write_ndjson(
+    path: Path,
+    values: Iterable[dict[str, Any]],
+    budget: SnapshotResourceBudget,
+) -> SnapshotDataFile:
     digest = hashlib.sha256()
     count = 0
+    size = 0
     with path.open("wb") as output:
         for value in values:
             encoded = _json_bytes(value) + b"\n"
+            budget.consume(len(encoded))
             output.write(encoded)
             digest.update(encoded)
             count += 1
-    return SnapshotDataFile(path=path, count=count, sha256=digest.hexdigest())
+            size += len(encoded)
+    return SnapshotDataFile(path=path, count=count, sha256=digest.hexdigest(), size=size)
 
 
 def _write_snapshot_data(
@@ -759,7 +951,9 @@ def _write_snapshot_data(
     chunk_size: int,
     *,
     include_permissions: bool,
+    budget: SnapshotResourceBudget | None = None,
 ) -> SnapshotData:
+    budget = budget or SnapshotResourceBudget.from_settings()
     try:
         with transaction.atomic(), connection.cursor() as cursor:
             if connection.vendor != "postgresql":
@@ -767,13 +961,14 @@ def _write_snapshot_data(
             cursor.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
             cursor.execute("SELECT transaction_timestamp()")
             database_timestamp = cursor.fetchone()[0]
-            items = _write_ndjson(directory / "items.ndjson", iter_import_items(chunk_size))
+            items = _write_ndjson(directory / "items.ndjson", iter_import_items(chunk_size), budget)
             deferred_records = _write_ndjson(
                 directory / "deferred-records.ndjson",
                 iter_deferred_record_items(chunk_size),
+                budget,
             )
             permissions = (
-                _write_ndjson(directory / "permissions.ndjson", iter_permission_items(chunk_size)) if include_permissions else None
+                _write_ndjson(directory / "permissions.ndjson", iter_permission_items(chunk_size), budget) if include_permissions else None
             )
     except SnapshotError:
         raise
@@ -787,10 +982,11 @@ def _write_snapshot_data(
     )
 
 
-def _write_json_array(output, path: Path) -> None:
+def _write_json_array(output, path: Path, budget: SnapshotResourceBudget) -> None:
     first = True
     with path.open("rb") as values:
         for line in values:
+            budget.check_deadline()
             if not first:
                 output.write(b",")
             output.write(line.rstrip(b"\n"))
@@ -802,14 +998,24 @@ def _build_json_artifact(
     artifact_path: Path,
     requested_by: str,
     created_at: datetime,
+    budget: SnapshotResourceBudget,
+    digest,
 ) -> None:
-    with artifact_path.open("wb") as raw, gzip.GzipFile(filename="", fileobj=raw, mode="wb", mtime=int(created_at.timestamp())) as output:
+    with (
+        artifact_path.open("wb") as raw,
+        gzip.GzipFile(
+            filename="",
+            fileobj=_BudgetedWriter(raw, budget, digest),
+            mode="wb",
+            mtime=int(created_at.timestamp()),
+        ) as output,
+    ):
         output.write(b'{"requested_by":')
         output.write(_json_bytes(requested_by))
         output.write(b',"items":[')
-        _write_json_array(output, data.items.path)
+        _write_json_array(output, data.items.path, budget)
         output.write(b'],"deferred_records":[')
-        _write_json_array(output, data.deferred_records.path)
+        _write_json_array(output, data.deferred_records.path, budget)
         output.write(b"]}\n")
 
 
@@ -825,9 +1031,17 @@ def _add_bytes_to_archive(archive: tarfile.TarFile, name: str, content: bytes, c
     archive.addfile(_tar_info(name, len(content), created_at), io.BytesIO(content))
 
 
-def _add_data_file_to_archive(archive: tarfile.TarFile, data_file: SnapshotDataFile, created_at: datetime) -> None:
+def _add_data_file_to_archive(
+    archive: tarfile.TarFile,
+    data_file: SnapshotDataFile,
+    created_at: datetime,
+    budget: SnapshotResourceBudget,
+) -> None:
     with data_file.path.open("rb") as source:
-        archive.addfile(_tar_info(data_file.path.name, data_file.path.stat().st_size, created_at), source)
+        archive.addfile(
+            _tar_info(data_file.path.name, data_file.size, created_at),
+            _DeadlineReader(source, budget),
+        )
 
 
 def _build_archive(
@@ -835,18 +1049,25 @@ def _build_archive(
     artifact_path: Path,
     manifest: dict[str, Any],
     created_at: datetime,
+    budget: SnapshotResourceBudget,
+    digest,
 ) -> None:
     manifest_bytes = _json_bytes(manifest) + b"\n"
     with (
         artifact_path.open("wb") as raw,
-        gzip.GzipFile(filename="", fileobj=raw, mode="wb", mtime=int(created_at.timestamp())) as compressed,
+        gzip.GzipFile(
+            filename="",
+            fileobj=_BudgetedWriter(raw, budget, digest),
+            mode="wb",
+            mtime=int(created_at.timestamp()),
+        ) as compressed,
     ):
         with tarfile.open(fileobj=compressed, mode="w", format=tarfile.USTAR_FORMAT) as archive:
             _add_bytes_to_archive(archive, "manifest.json", manifest_bytes, created_at)
-            _add_data_file_to_archive(archive, data.items, created_at)
-            _add_data_file_to_archive(archive, data.deferred_records, created_at)
+            _add_data_file_to_archive(archive, data.items, created_at, budget)
+            _add_data_file_to_archive(archive, data.deferred_records, created_at, budget)
             if data.permissions is not None:
-                _add_data_file_to_archive(archive, data.permissions, created_at)
+                _add_data_file_to_archive(archive, data.permissions, created_at, budget)
 
 
 def _build_manifest(data: SnapshotData, created_at: datetime, instance: str) -> dict[str, Any]:
@@ -879,12 +1100,12 @@ def _build_manifest(data: SnapshotData, created_at: datetime, instance: str) -> 
     }
 
 
-def _artifact_digest(path: Path) -> tuple[str, str]:
-    digest = hashlib.sha256()
-    with path.open("rb") as artifact:
-        while chunk := artifact.read(1024 * 1024):
-            digest.update(chunk)
-    return digest.hexdigest(), base64.b64encode(digest.digest()).decode("ascii")
+def _remove_snapshot_data_files(data: SnapshotData) -> None:
+    files = [data.items, data.deferred_records]
+    if data.permissions is not None:
+        files.append(data.permissions)
+    for data_file in files:
+        data_file.path.unlink()
 
 
 def create_snapshot_artifact(
@@ -895,28 +1116,37 @@ def create_snapshot_artifact(
     include_permissions: bool = False,
 ) -> SnapshotArtifact:
     _validate_snapshot_options(snapshot_format, include_permissions)
+    chunk_size = settings.MREG_SNAPSHOT_CHUNK_SIZE
+    if chunk_size <= 0:
+        raise SnapshotUnavailable("MREG_SNAPSHOT_CHUNK_SIZE must be positive")
+    budget = SnapshotResourceBudget.from_settings()
     temporary_directory = tempfile.TemporaryDirectory(dir=settings.MREG_SNAPSHOT_TMPDIR)
     directory = Path(temporary_directory.name)
     created_at = datetime.now(timezone.utc).replace(microsecond=0)
     try:
         data = _write_snapshot_data(
             directory,
-            settings.MREG_SNAPSHOT_CHUNK_SIZE,
+            chunk_size,
             include_permissions=include_permissions,
+            budget=budget,
         )
         if data.items.count == 0:
             raise SnapshotError("The source contains no snapshot items")
         timestamp = created_at.strftime("%Y%m%dT%H%M%SZ")
+        digest = hashlib.sha256()
         if snapshot_format == ARCHIVE_FORMAT:
             artifact_path = directory / f"mreg-snapshot-{timestamp}-v1.tar.gz"
             manifest = _build_manifest(data, created_at, instance)
-            _build_archive(data, artifact_path, manifest, created_at)
+            _build_archive(data, artifact_path, manifest, created_at, budget, digest)
             content_type = ARCHIVE_MEDIA_TYPE
         else:
             artifact_path = directory / f"mreg-import-{timestamp}-v1.json.gz"
-            _build_json_artifact(data, artifact_path, requested_by, created_at)
+            _build_json_artifact(data, artifact_path, requested_by, created_at, budget, digest)
             content_type = JSON_MEDIA_TYPE
-        digest_hex, digest_base64 = _artifact_digest(artifact_path)
+        digest_hex = digest.hexdigest()
+        digest_base64 = base64.b64encode(digest.digest()).decode("ascii")
+        artifact_size = artifact_path.stat().st_size
+        _remove_snapshot_data_files(data)
         return SnapshotArtifact(
             path=artifact_path,
             temporary_directory=temporary_directory,
@@ -924,6 +1154,10 @@ def create_snapshot_artifact(
             digest_base64=digest_base64,
             filename=artifact_path.name,
             content_type=content_type,
+            size=artifact_size,
+            requested_by=requested_by,
+            snapshot_format=snapshot_format,
+            include_permissions=include_permissions,
         )
     except Exception:
         temporary_directory.cleanup()
@@ -933,21 +1167,46 @@ def create_snapshot_artifact(
 class SnapshotFileResponse(FileResponse):
     def __init__(self, artifact: SnapshotArtifact):
         self.artifact = artifact
+        self.bytes_sent = 0
+        self.download_completed = False
+        self._snapshot_close_logged = False
         source = None
         try:
             source = artifact.path.open("rb")
             super().__init__(source, as_attachment=True, filename=artifact.filename, content_type=artifact.content_type)
+            self.streaming_content = self._track_stream(self.streaming_content)
         except Exception:
             if source is not None:
                 source.close()
             artifact.cleanup()
             raise
 
+    def _track_stream(self, chunks: Iterable[bytes]) -> Iterator[bytes]:
+        for chunk in chunks:
+            self.bytes_sent += len(chunk)
+            yield chunk
+        self.download_completed = True
+
     def close(self) -> None:
+        should_log = not self._snapshot_close_logged
+        self._snapshot_close_logged = True
         try:
             super().close()
         finally:
-            self.artifact.cleanup()
+            try:
+                self.artifact.cleanup()
+            finally:
+                if should_log:
+                    log.info(
+                        "snapshot_download_closed",
+                        user=self.artifact.requested_by,
+                        snapshot_format=self.artifact.snapshot_format,
+                        include_permissions=self.artifact.include_permissions,
+                        sha256=self.artifact.digest_hex,
+                        artifact_bytes=self.artifact.size,
+                        bytes_sent=self.bytes_sent,
+                        completed=self.download_completed,
+                    )
 
 
 def _error_response(code: str, message: str, status_code: int, error: SnapshotError | None = None) -> Response:
@@ -1016,6 +1275,7 @@ def _parse_request(request) -> SnapshotOptions:
 class SnapshotView(APIView):
     permission_classes = (IsSnapshotterOrAdmin,)
     renderer_classes = (SnapshotArchiveRenderer, SnapshotJSONRenderer)
+    throttle_classes = (SnapshotRateThrottle,)
 
     def handle_exception(self, exc: Exception) -> Response:
         if isinstance(exc, PermissionDenied):
@@ -1024,21 +1284,44 @@ class SnapshotView(APIView):
                 "The principal does not have snapshot permission",
                 403,
             )
+        if isinstance(exc, Throttled):
+            response = _error_response(
+                "snapshot_throttled",
+                "Snapshot request rate limit exceeded",
+                429,
+            )
+            if exc.wait is not None:
+                response["Retry-After"] = str(exc.wait)
+            return response
         return super().handle_exception(exc)
 
     def get(self, request):
+        started_at = monotonic()
         try:
             options = _parse_request(request)
-            artifact = create_snapshot_artifact(
-                options.snapshot_format,
-                request.user.username,
-                request.get_host(),
-                include_permissions=options.include_permissions,
-            )
+            with snapshot_generation_lock():
+                artifact = create_snapshot_artifact(
+                    options.snapshot_format,
+                    request.user.username,
+                    request.get_host(),
+                    include_permissions=options.include_permissions,
+                )
         except SnapshotNotAcceptable as error:
             return _error_response("snapshot_not_acceptable", str(error), 406, error)
         except SnapshotRequestError as error:
             return _error_response("invalid_snapshot_request", str(error), 400, error)
+        except SnapshotBusy as error:
+            response = _error_response("snapshot_busy", str(error), 429, error)
+            response["Retry-After"] = "30"
+            return response
+        except SnapshotLimitExceeded as error:
+            log.warning(
+                "snapshot_generation_limited",
+                user=request.user.username,
+                error=str(error),
+                duration_ms=round((monotonic() - started_at) * 1000, 2),
+            )
+            return _error_response("snapshot_limit_exceeded", str(error), 503, error)
         except SnapshotUnavailable as error:
             return _error_response("snapshot_unavailable", str(error), 503, error)
         except SnapshotError as error:
@@ -1046,6 +1329,15 @@ class SnapshotView(APIView):
         except OSError:
             return _error_response("snapshot_unavailable", "The snapshot artifact could not be created", 503)
 
+        log.info(
+            "snapshot_artifact_created",
+            user=request.user.username,
+            snapshot_format=options.snapshot_format,
+            include_permissions=options.include_permissions,
+            sha256=artifact.digest_hex,
+            artifact_bytes=artifact.size,
+            duration_ms=round((monotonic() - started_at) * 1000, 2),
+        )
         response = SnapshotFileResponse(artifact)
         response["Content-Encoding"] = "gzip"
         response["Content-Digest"] = f"sha-256=:{artifact.digest_base64}:"
