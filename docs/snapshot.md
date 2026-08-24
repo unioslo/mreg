@@ -69,9 +69,22 @@ temporary directory when unset. Ensure this filesystem can hold both the
 uncompressed NDJSON and compressed response. `MREG_SNAPSHOT_CHUNK_SIZE`
 controls ORM iterator batches and defaults to 2000.
 
+Only one artifact is generated at a time across application workers sharing
+the PostgreSQL cluster. Additional concurrent attempts receive `429 Too Many
+Requests`; a separate per-principal throttle defaults to two attempts per hour.
+`MREG_SNAPSHOT_MAX_BYTES` limits peak temporary storage per generation and
+defaults to 10 GiB, while `MREG_SNAPSHOT_MAX_DURATION_SECONDS` defaults to 900
+seconds. These limits should be sized for the installation before enabling
+snapshot access.
+
 The database transaction is closed before the artifact is downloaded. A client
 disconnect therefore does not leave a snapshot transaction open, and temporary
-files are removed when the response closes.
+files are removed when the response closes. Uncompressed intermediate files are
+removed before download begins. Snapshot creation and download closure are
+recorded as structured audit events with the principal, format, size, and
+artifact digest. Use a private, preferably encrypted or ephemeral filesystem
+for `MREG_SNAPSHOT_TMPDIR`, and remove stale temporary directories after an
+unclean process or host shutdown.
 
 This snapshot is a portable application-data contract rather than a forensic
 replica. Preserve a separate SQL dump until recovery has been validated.
