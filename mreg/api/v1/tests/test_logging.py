@@ -1,13 +1,12 @@
 """Test logging middleware and logging output."""
 
-
 import io
 import logging
 from typing import List
 from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
-from django.http import HttpRequest, HttpResponse
+from django.http import FileResponse, HttpRequest, HttpResponse
 from structlog import get_logger
 from structlog.testing import capture_logs
 
@@ -115,9 +114,7 @@ class TestLoggingInternals(MregAPITestCase):
         ]
 
         for source_dict, expected_dict in zip(source_dicts, expected_dicts):
-            self.assertEqual(
-                filter_sensitive_data(None, None, source_dict), expected_dict
-            )
+            self.assertEqual(filter_sensitive_data(None, None, source_dict), expected_dict)
 
     def test_binary_request_body(self) -> None:
         """Test logging of a request with a binary body."""
@@ -146,6 +143,21 @@ class TestLoggingInternals(MregAPITestCase):
 
 class TestLoggingMiddleware(MregAPITestCase):
     """Test logging middleware."""
+
+    def test_streaming_json_response_body_is_not_read(self) -> None:
+        """Streaming JSON responses must not be consumed by response logging."""
+        response = FileResponse(io.BytesIO(b"{}"), content_type="application/json")
+        middleware = LoggingMiddleware(lambda _: response)
+        request = HttpRequest()
+        request._body = b""
+        request.user = get_user_model().objects.get(username="superuser")
+
+        try:
+            returned = middleware(request)
+        finally:
+            response.close()
+
+        self.assertIs(returned, response)
 
     def test_run_time_ms_escalation(self):
         """Test run_time_ms escalation for logging levels."""
