@@ -151,7 +151,7 @@ class LoggingMiddleware:
             log_level = LOGMAP[settings.REQUESTS_LOG_LEVEL_SLOW.upper()]
 
         content = ""
-        if "application/json" in response.headers.get("Content-Type", ""):
+        if not response.streaming and "application/json" in response.headers.get("Content-Type", ""):
             content = response.content.decode("utf-8")
 
         username = request.user.username
