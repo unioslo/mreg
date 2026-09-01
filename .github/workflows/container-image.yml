@@ -167,6 +167,12 @@ jobs:
       packages: write
       contents: read
     steps:
+    - name: Checkout
+      uses: actions/checkout@v6
+      with:
+        # Full history of all branches, so we can check whether a version tag
+        # points to a commit on master (which determines the "latest" tag).
+        fetch-depth: 0
     - name: Download artifact
       uses: actions/download-artifact@v8
       with:
@@ -202,14 +208,6 @@ jobs:
           docker tag mreg:latest $IMAGE_ID:master
           docker push $IMAGE_ID:master
           PUBLISHED_TAGS+=("master-$SHORT_SHA" "master")
-          
-          # If this is also a version tag, publish as latest
-          if [[ ${{ github.ref }} == refs/tags/v* ]]; then
-            echo "::notice title=Docker Image::Publishing latest image: latest"
-            docker tag mreg:latest $IMAGE_ID:latest
-            docker push $IMAGE_ID:latest
-            PUBLISHED_TAGS+=("latest")
-          fi
         fi
 
         # Version tags - tag with version
@@ -218,10 +216,18 @@ jobs:
         if [[ ${{ github.ref }} == refs/tags/v* ]]; then
           VERSION=${GITHUB_REF#refs/tags/}
           echo "::notice title=Docker Image::Publishing version image: $VERSION"
-          
+
           docker tag mreg:latest $IMAGE_ID:$VERSION
           docker push $IMAGE_ID:$VERSION
           PUBLISHED_TAGS+=("$VERSION")
+
+          # Tags on master also update "latest"; tags on version branches do not.
+          if git merge-base --is-ancestor ${{ github.sha }} origin/master; then
+            echo "::notice title=Docker Image::Publishing latest image: latest"
+            docker tag mreg:latest $IMAGE_ID:latest
+            docker push $IMAGE_ID:latest
+            PUBLISHED_TAGS+=("latest")
+          fi
         fi
 
         # Generate job summary
