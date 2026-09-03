@@ -256,7 +256,7 @@ class Host(ForwardZoneMember):
             except Ipaddress.DoesNotExist:
                 raise NotAcceptable("No IP address found on this host with the provided value.")
         return ip
-    
+
     @transaction.atomic
     def add_to_community(
         self,
@@ -321,7 +321,7 @@ class Host(ForwardZoneMember):
                 mappings = HostCommunityMapping.objects.filter(host=self, community=community)
             else:
                 mappings = HostCommunityMapping.objects.filter(host=self, community__name=community)
-    
+
             # Consume queryset generator to ensure check and delete operations are
             # performed on the same objects, avoiding read/write race conditions.
             mappings = list(mappings[:2])

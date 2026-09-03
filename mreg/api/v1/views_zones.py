@@ -19,7 +19,7 @@ from mreg.models.zone import ForwardZone, ForwardZoneDelegation, ReverseZone, Re
 from mreg.mixins import LowerCaseLookupMixin
 
 from mreg.api.responses import created_response, error_response
-from mreg.api.permissions import (IsSuperGroupMember, IsAuthenticatedAndReadOnly)
+from mreg.api.permissions import IsSuperOrReadOnly
 
 from .serializers import (ForwardZoneByHostnameSerializer, ForwardZoneDelegationSerializer, ForwardZoneSerializer,
                           ReverseZoneDelegationSerializer, ReverseZoneSerializer)
@@ -90,7 +90,7 @@ class ZoneList(generics.ListCreateAPIView):
     """
 
     lookup_field = 'name'
-    permission_classes = (IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
+    permission_classes = (IsSuperOrReadOnly,)
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -142,7 +142,7 @@ class ZoneDelegationList(generics.ListCreateAPIView):
     """
 
     lookup_field = 'name'
-    permission_classes = (IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
+    permission_classes = (IsSuperOrReadOnly,)
 
     def get_queryset(self):
         if self.lookup_field not in self.kwargs:
@@ -201,7 +201,7 @@ class ZoneDetail(LowerCaseLookupMixin, MregRetrieveUpdateDestroyAPIView):
     """
 
     lookup_field = 'name'
-    permission_classes = (IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
+    permission_classes = (IsSuperOrReadOnly,)
 
     def patch(self, request, *args, **kwargs):
         query = self.kwargs[self.lookup_field]
@@ -258,7 +258,7 @@ class ReverseZoneDetail(ZoneDetail):
 class ZoneDelegationDetail(LowerCaseLookupMixin, MregRetrieveUpdateDestroyAPIView):
 
     lookup_field = 'delegation'
-    permission_classes = (IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
+    permission_classes = (IsSuperOrReadOnly,)
 
     def get_queryset(self):
         parentname = self.kwargs['name']
@@ -321,7 +321,7 @@ class ZoneNameServerDetail(MregRetrieveUpdateDestroyAPIView):
     """
 
     lookup_field = 'name'
-    permission_classes = (IsSuperGroupMember | IsAuthenticatedAndReadOnly, )
+    permission_classes = (IsSuperOrReadOnly,)
 
     def get(self, request, *args, **kwargs):
         zone = self.get_object()

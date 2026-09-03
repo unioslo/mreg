@@ -1,0 +1,27 @@
+{
+  "derived_labels": {
+    ".*\\.example\\.org$": "netgroup_5ffe5b162fe5",
+    "^web-\\d+": "netgroup_6eb5380aba41"
+  },
+  "generated_role_rules": 3,
+  "generated_rules": 12,
+  "permission_rows": 8,
+  "policy_ids": [
+    "hostpolicy_role_2b9b9645d997",
+    "hostpolicy_role_9856da2c249d",
+    "hostpolicy_role_fec5919a9dae",
+    "netgroup_hostname_06d46be4843b",
+    "netgroup_hostname_39b7f3522b17",
+    "netgroup_hostname_72fdb3c3e854",
+    "netgroup_ip_06d46be4843b",
+    "netgroup_ip_39b7f3522b17",
+    "netgroup_ip_72fdb3c3e854",
+    "netgroup_network_781caa6738a6",
+    "netgroup_network_828db597e176",
+    "netgroup_network_b04d124aeecc"
+  ],
+  "role_rows": 2,
+  "unique_regexes": 2,
+  "unmatched_role_labels": [],
+  "unused_permission_labels": []
+}

@@ -6,7 +6,7 @@ from mreg.api.v1.views import (
     MregListCreateAPIView,
     MregRetrieveUpdateDestroyAPIView,
 )
-from mreg.api.permissions import IsGrantedNetGroupRegexPermission
+from mreg.api.permissions import BACnetPermission
 from mreg.models.host import Host, BACnetID
 from . import serializers
 
@@ -16,7 +16,7 @@ from .filters import BACnetIDFilterSet
 class BACnetIDList(MregListCreateAPIView):
     queryset = BACnetID.objects.order_by("id")
     serializer_class = serializers.BACnetIDSerializer
-    permission_classes = (IsGrantedNetGroupRegexPermission,)
+    permission_classes = (BACnetPermission,)
     lookup_field = "id"
     filterset_fields = "id"
     filterset_class = BACnetIDFilterSet
@@ -65,7 +65,7 @@ class BACnetIDList(MregListCreateAPIView):
 class BACnetIDDetail(MregRetrieveUpdateDestroyAPIView):
     queryset = BACnetID.objects.all()
     serializer_class = serializers.BACnetIDSerializer
-    permission_classes = (IsGrantedNetGroupRegexPermission,)
+    permission_classes = (BACnetPermission,)
     lookup_field = "id"
 
     # Don't allow patch or put requests

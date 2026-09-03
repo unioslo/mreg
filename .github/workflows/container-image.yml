@@ -1,12 +1,18 @@
 name: Container image
 on:
   push:
+    branches: [master]
+    tags: ['v*']
     paths-ignore:
       - 'ci/**'
       - 'README.md'
   pull_request:
     types: [opened, reopened, synchronize]
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 defaults:
   run:
@@ -89,7 +95,10 @@ jobs:
         cp -r mreg-cli/ci /tmp
         C=$(cat ci/MREG-CLI_COMMIT)
         cd mreg-cli
-        git -c advice.detachedHead=false checkout $C
+        # A default shallow clone can contain the commit object without all of
+        # its trees. Fetch the pinned revision explicitly before checkout.
+        git fetch --depth=1 origin "$C"
+        git -c advice.detachedHead=false checkout FETCH_HEAD
         cp --no-clobber /tmp/ci/* ci/
     - name: Run the tests
       run: mreg-cli/ci/run_testsuite_and_record_V2.sh
@@ -130,13 +139,26 @@ jobs:
       run: docker load --input mreg.tgz
     - name: Start mreg
       run: |
-        docker run --rm -t --network host --detach --name mreg \
+        docker run -t --network host --detach --name mreg \
         -e MREG_DB_HOST=localhost -e MREG_DB_PASSWORD=mreg -e MREG_DB_USER=mreg \
         mreg
-    - name: Wait for mreg to create the database schema and start up
-      run: sleep 10s
+    - name: Wait for mreg to become ready
+      run: |
+        for attempt in {1..30}; do
+          if curl --silent --show-error \
+            http://127.0.0.1:8000/api/meta/health/heartbeat >/dev/null; then
+            exit 0
+          fi
+          if [ "$(docker inspect --format '{{.State.Running}}' mreg)" != "true" ]; then
+            docker logs mreg
+            exit 1
+          fi
+          sleep 2
+        done
+        docker logs mreg
+        exit 1
     - name: Create a user
-      run: docker exec -t mreg uv run /app/manage.py create_mreg_superuser --username test --password test123
+      run: docker exec -t mreg python /app/manage.py create_mreg_superuser --username test --password test123
     - name: Authenticate using curl
       shell: bash
       run: |
@@ -148,10 +170,16 @@ jobs:
           --write-out %{http_code} \
           > /tmp/http_status_code.txt 2> /tmp/curl_errors.txt
         STATUS=$(cat /tmp/http_status_code.txt)
-        if [ $STATUS -ge 400 ]; then
+        if [ "$STATUS" != "200" ]; then
           cat /tmp/curl_output.txt
           exit 1
         fi
+    - name: Show mreg logs
+      if: always()
+      run: docker logs mreg
+    - name: Stop mreg
+      if: always()
+      run: docker rm --force mreg
 
   publish:
     name: Publish

@@ -13,4 +13,3 @@ urlpatterns = [
     path('meta/health/heartbeat', views.HealthHeartbeat.as_view()),
     path('meta/health/ldap', views.HealthLDAP.as_view()),
 ]
-

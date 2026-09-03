@@ -14,17 +14,25 @@ from django_auth_ldap.backend import LDAPBackend
 from django.contrib.auth.models import update_last_login
 from rest_framework import serializers, status
 from rest_framework.authtoken.views import ObtainAuthToken
-from rest_framework.exceptions import AuthenticationFailed, NotFound, PermissionDenied
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import AuthenticationFailed, NotFound
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.http import HttpResponse
 from drf_spectacular.utils import OpenApiParameter, OpenApiTypes, extend_schema
-from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+from prometheus_client import (
+    CONTENT_TYPE_LATEST,
+    Counter,
+    Histogram,
+    generate_latest,
+)
 
 from mreg.__about__ import __version__ as mreg_version
-from mreg.api.permissions import IsSuperOrNetworkAdminMember
+from mreg.api.permissions import (
+    IsAuthenticatedWithPolicy,
+    IsSuperOrNetworkAdminMember,
+    UserInfoPermission,
+)
 from mreg.api.serializers import (
     HealthHeartbeatSerializer,
     MetaVersionsSerializer,
@@ -141,7 +149,7 @@ class ObtainExpiringAuthToken(ObtainAuthToken):
 
 class TokenLogout(APIView):
 
-    permission_classes = (IsAuthenticated,)
+    permission_classes = (IsAuthenticatedWithPolicy,)
 
     @extend_schema(request=None, responses={status.HTTP_200_OK: None})
     def post(self, request: Request):
@@ -152,7 +160,7 @@ class TokenLogout(APIView):
 
 class TokenIsValid(APIView):
 
-    permission_classes = (IsAuthenticated,)
+    permission_classes = (IsAuthenticatedWithPolicy,)
 
     @extend_schema(responses={status.HTTP_200_OK: None})
     def get(self, request: Request):
@@ -164,7 +172,7 @@ class TokenIsValid(APIView):
 
 class UserInfo(APIView):
 
-    permission_classes = (IsAuthenticated,)
+    permission_classes = (UserInfoPermission,)
 
     @extend_schema(
         parameters=[
@@ -187,8 +195,6 @@ class UserInfo(APIView):
         target_user = req_user
 
         if username and username != req_user.username:
-            if not (req_user.is_mreg_superuser_or_admin or req_user.is_mreg_hostgroup_admin):
-                raise PermissionDenied("You do not have permission to view other users' details.")
             try:
                 target_user = User.objects.get(username=username)
             except User.DoesNotExist:
@@ -248,7 +254,7 @@ class UserInfo(APIView):
 ###
 class MregVersion(APIView):
     
-    permission_classes = (IsAuthenticated,)
+    permission_classes = (IsAuthenticatedWithPolicy,)
 
     @extend_schema(responses={status.HTTP_200_OK: MregVersionSerializer})
     def get(self, request: Request):
@@ -280,6 +286,8 @@ class MetaVersions(APIView):
 
 
 class HealthHeartbeat(APIView):
+    permission_classes = ()
+
     @extend_schema(responses={status.HTTP_200_OK: HealthHeartbeatSerializer})
     def get(self, request: Request):
         uptime = int(time.time() - start_time)
@@ -291,6 +299,8 @@ class HealthHeartbeat(APIView):
 
 
 class HealthLDAP(APIView):
+    permission_classes = ()
+
     @extend_schema(
         responses={
             status.HTTP_200_OK: None,

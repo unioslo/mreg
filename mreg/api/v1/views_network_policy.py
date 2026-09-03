@@ -23,7 +23,10 @@ from mreg.api.errors import ValidationError409
 from mreg.api.responses import created_response_at_url
 
 from mreg.api.v1.views import JSONContentTypeMixin, HistoryLog
-from mreg.api.permissions import IsGrantedNetGroupRegexPermission, IsSuperOrNetworkAdminMember
+from mreg.api.permissions import (
+    IsGrantedNetGroupRegexOrNetworkAdmin,
+    IsSuperOrNetworkAdminMember,
+)
 from mreg.api.v1.endpoints import URL
 
 class CommunityLogMixin(HistoryLog):
@@ -131,7 +134,7 @@ class NetworkPolicyAttributeDetail(JSONContentTypeMixin, generics.RetrieveUpdate
 
 class NetworkCommunityList(JSONContentTypeMixin, CommunityLogMixin, generics.ListCreateAPIView):
     serializer_class = CommunitySerializer
-    permission_classes = (IsGrantedNetGroupRegexPermission | IsSuperOrNetworkAdminMember,)
+    permission_classes = (IsGrantedNetGroupRegexOrNetworkAdmin,)
     filterset_class = CommunityFilterSet
 
     def get_queryset(self):
@@ -176,7 +179,7 @@ class NetworkCommunityList(JSONContentTypeMixin, CommunityLogMixin, generics.Lis
 # Retrieve, update, or delete a specific Community under a specific Network
 class NetworkCommunityDetail(JSONContentTypeMixin, CommunityLogMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = CommunitySerializer
-    permission_classes = (IsGrantedNetGroupRegexPermission | IsSuperOrNetworkAdminMember,)
+    permission_classes = (IsGrantedNetGroupRegexOrNetworkAdmin,)
 
     def get_queryset(self):
         network = self.kwargs.get("network")
@@ -213,7 +216,7 @@ class HostInCommunityMixin(JSONContentTypeMixin, HostCommunityMappingLogMixin):
 # List all hosts in a specific community, or add a host to a community
 class NetworkCommunityHostList(HostInCommunityMixin, generics.ListCreateAPIView):
     serializer_class = HostSerializer
-    permission_classes = (IsGrantedNetGroupRegexPermission | IsSuperOrNetworkAdminMember,)
+    permission_classes = (IsGrantedNetGroupRegexOrNetworkAdmin,)
 
     def get_queryset(self):
         if "network" not in self.kwargs or "cpk" not in self.kwargs:
@@ -269,7 +272,7 @@ class NetworkCommunityHostList(HostInCommunityMixin, generics.ListCreateAPIView)
 # Retrieve or delete a specific host in a specific community
 class NetworkCommunityHostDetail(HostInCommunityMixin, generics.RetrieveDestroyAPIView):
     serializer_class = HostSerializer
-    permission_classes = (IsGrantedNetGroupRegexPermission | IsSuperOrNetworkAdminMember,)
+    permission_classes = (IsGrantedNetGroupRegexOrNetworkAdmin,)
 
     def get_queryset(self):
         if "network" not in self.kwargs or "cpk" not in self.kwargs:

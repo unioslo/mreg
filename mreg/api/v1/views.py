@@ -23,11 +23,12 @@ from mreg.models.network_policy import Community, HostCommunityMapping, NetworkP
 from mreg.types import IPAllocationMethod
 
 from mreg.api.responses import created_response, error_response
+from mreg.api.treetop import policy_enforcement_enabled
 from mreg.api.permissions import (
-    IsAuthenticatedAndReadOnly,
+    HostContactsPermission,
+    IsNetworkAdminOrReadOnly,
     IsGrantedNetGroupRegexPermission,
     IsSuperOrAdminOrReadOnly,
-    IsSuperOrNetworkAdminMember,
     IsGrantedReservedAddressPermission,
 )
 
@@ -556,6 +557,14 @@ class HostContactsView(HostPermissionsUpdateDestroy, APIView):
     DELETE: Remove one or more contacts (expects {"emails": ["email1@example.com", ...]})
     """
 
+    policy_resource_kind = "Host"
+    policy_actions = {
+        "read": "host_contacts_read",
+        "create": "host_contacts_create",
+        "delete": "host_contacts_delete",
+    }
+    permission_classes = (HostContactsPermission,)
+
     def get_host(self, name):
         """Get the host object by name."""
         return get_object_or_404(Host, name=name.lower())
@@ -949,7 +958,7 @@ class NetworkList(MregListCreateAPIView):
 
     queryset = Network.objects.all().prefetch_related("excluded_ranges")
     serializer_class = NetworkSerializer
-    permission_classes = (IsSuperOrNetworkAdminMember | IsAuthenticatedAndReadOnly,)
+    permission_classes = (IsNetworkAdminOrReadOnly,)
     lookup_field = "network"
     location_lookup_safe = "/:"
     filterset_class = NetworkFilterSet
@@ -975,7 +984,7 @@ class NetworkDetail(MregRetrieveUpdateDestroyAPIView):
 
     queryset = Network.objects.all()
     serializer_class = NetworkSerializer
-    permission_classes = (IsSuperOrNetworkAdminMember | IsAuthenticatedAndReadOnly,)
+    permission_classes = (IsNetworkAdminOrReadOnly,)
 
     lookup_field = "network"
     location_lookup_safe = "/:"
@@ -1022,7 +1031,7 @@ class NetworkExcludedRangeList(MregListCreateAPIView):
     """
 
     serializer_class = NetworkExcludedRangeSerializer
-    permission_classes = (IsSuperOrNetworkAdminMember | IsAuthenticatedAndReadOnly,)
+    permission_classes = (IsNetworkAdminOrReadOnly,)
 
     def get_queryset(self):
         """
@@ -1050,7 +1059,7 @@ class NetworkExcludedRangeDetail(MregRetrieveUpdateDestroyAPIView):
     """
 
     serializer_class = NetworkExcludedRangeSerializer
-    permission_classes = (IsSuperOrNetworkAdminMember | IsAuthenticatedAndReadOnly,)
+    permission_classes = (IsNetworkAdminOrReadOnly,)
     lookup_field = "pk"
 
     def get_queryset(self):
@@ -1241,6 +1250,14 @@ class NetGroupRegexPermissionList(MregListCreateAPIView):
     permission_classes = (IsSuperOrAdminOrReadOnly,)
     filterset_class = NetGroupRegexPermissionFilterSet
 
+    def post(self, request, *args, **kwargs):
+        if policy_enforcement_enabled():
+            return error_response(
+                "NetGroupRegexPermission is bundle-managed while TreeTop enforcement is enabled.",
+                status.HTTP_409_CONFLICT,
+            )
+        return super().post(request, *args, **kwargs)
+
 
 class NetGroupRegexPermissionDetail(MregRetrieveUpdateDestroyAPIView):
     """ """
@@ -1248,6 +1265,27 @@ class NetGroupRegexPermissionDetail(MregRetrieveUpdateDestroyAPIView):
     queryset = NetGroupRegexPermission.objects.all().order_by('id')
     serializer_class = NetGroupRegexPermissionSerializer
     permission_classes = (IsSuperOrAdminOrReadOnly,)
+
+    def _reject_bundle_managed_write(self):
+        return error_response(
+            "NetGroupRegexPermission is bundle-managed while TreeTop enforcement is enabled.",
+            status.HTTP_409_CONFLICT,
+        )
+
+    def put(self, request, *args, **kwargs):
+        if policy_enforcement_enabled():
+            return self._reject_bundle_managed_write()
+        return super().put(request, *args, **kwargs)
+
+    def patch(self, request, *args, **kwargs):
+        if policy_enforcement_enabled():
+            return self._reject_bundle_managed_write()
+        return super().patch(request, *args, **kwargs)
+
+    def delete(self, request, *args, **kwargs):
+        if policy_enforcement_enabled():
+            return self._reject_bundle_managed_write()
+        return super().delete(request, *args, **kwargs)
 
 
 def _get_iprange(kwargs):

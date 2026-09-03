@@ -177,6 +177,13 @@ If a test fails only when run in parallel:
 
 ## CI/CD Integration
 
+The application image includes the test entrypoint used by CI:
+
+```bash
+docker build -t mreg .
+docker run --rm --entrypoint /app/entrypoint-test.sh mreg
+```
+
 The parallel flag is already enabled in `tox.ini` for all test environments:
 
 ```ini

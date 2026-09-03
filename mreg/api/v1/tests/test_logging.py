@@ -143,7 +143,6 @@ class TestLoggingInternals(MregAPITestCase):
             # Check that the body was logged as '<Binary Data>'
             self.assertEqual(cap_logs[0]["content"], "<Binary Data>")
 
-
 class TestLoggingMiddleware(MregAPITestCase):
     """Test logging middleware."""
 

@@ -16,10 +16,16 @@ from pathlib import Path
 import sys
 from typing import Literal, TypeVar
 
+from django.core.exceptions import ImproperlyConfigured
 import structlog
 
 import mreg.log_processors
 import mreg.__about__
+from mreg.policy.config import (
+    PolicyMode,
+    resolve_policy_mode,
+    validate_policy_configuration,
+)
 
 
 DefaultT = TypeVar("DefaultT", str, int, float, bool)
@@ -81,6 +87,34 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SECRET_KEY = ")e#67040xjxar=zl^y#@#b*zilv2dxtraj582$^(e6!wf++_n#"
 
 LOG_LEVEL = envvar("MREG_LOG_LEVEL", "CRITICAL").upper()
+POLICY_PARITY_LOG_LEVEL = envvar("MREG_POLICY_PARITY_LOG_LEVEL", "WARNING").upper()
+POLICY_BASE_URL = envvar("MREG_POLICY_BASE_URL", "").strip()
+_legacy_policy_parity_enabled = envvar("MREG_POLICY_PARITY_ENABLED", True)
+_raw_policy_mode = envvar("MREG_POLICY_MODE", "")
+_policy_mode_was_explicit = bool((_raw_policy_mode or "").strip())
+try:
+    _policy_mode = resolve_policy_mode(
+        _raw_policy_mode,
+        legacy_parity_enabled=_legacy_policy_parity_enabled,
+    )
+    validate_policy_configuration(_policy_mode, POLICY_BASE_URL)
+except ValueError as exc:
+    raise ImproperlyConfigured(str(exc)) from exc
+POLICY_MODE = _policy_mode.value
+# Compatibility for local settings and integrations that still inspect the old
+# boolean. Explicit MREG_POLICY_MODE takes precedence over the deprecated flag.
+POLICY_PARITY_ENABLED = _policy_mode == PolicyMode.SHADOW
+raw = (envvar("MREG_POLICY_NAMESPACE", "MREG") or "").strip()
+# Accept both Cedar-style `org::MREG` and comma-separated `org,MREG`.
+raw = raw.replace("::", ",")
+POLICY_NAMESPACE = [ns.strip() for ns in raw.split(",") if ns.strip()] or ["MREG"]
+POLICY_PARITY_LOG_DETAILS = envvar("MREG_POLICY_PARITY_LOG_DETAILS", False)
+POLICY_TIMEOUT_SECONDS = envvar("MREG_POLICY_TIMEOUT_SECONDS", 5.0)
+POLICY_CIRCUIT_FAILURES = envvar("MREG_POLICY_CIRCUIT_FAILURES", 5)
+POLICY_CIRCUIT_RESET_SECONDS = envvar("MREG_POLICY_CIRCUIT_RESET_SECONDS", 30.0)
+POLICY_ROLLOUT_MIN_COMPARISONS = envvar("MREG_POLICY_ROLLOUT_MIN_COMPARISONS", 10_000)
+POLICY_ROLLOUT_MAX_MISMATCH_RATE = envvar("MREG_POLICY_ROLLOUT_MAX_MISMATCH_RATE", 0.001)
+POLICY_ROLLOUT_MAX_ERROR_RATE = envvar("MREG_POLICY_ROLLOUT_MAX_ERROR_RATE", 0.001)
 
 REQUESTS_THRESHOLD_SLOW = envvar("MREG_REQUESTS_THRESHOLD_SLOW", 1000)
 REQUESTS_LOG_LEVEL_SLOW = envvar("MREG_REQUESTS_LOG_LEVEL_SLOW", "WARNING")
@@ -399,12 +433,30 @@ logging.config.dictConfig(
                 "filename": LOG_FILE_NAME,
                 "formatter": "plain",
             },
+            "policy_parity_default": {
+                "level": POLICY_PARITY_LOG_LEVEL,
+                "class": "logging.StreamHandler",
+                "formatter": "colored",
+            },
+            "policy_parity_file": {
+                "level": POLICY_PARITY_LOG_LEVEL,
+                "class": "logging.handlers.RotatingFileHandler",
+                "maxBytes": LOG_FILE_SIZE,
+                "backupCount": LOG_FILE_COUNT,
+                "filename": LOG_FILE_NAME,
+                "formatter": "plain",
+            },
         },
         "loggers": {
             "": {
                 "handlers": ["default", "file"],
                 "level": "DEBUG",
                 "propagate": True,
+            },
+            "mreg.policy.parity": {
+                "handlers": ["policy_parity_default", "policy_parity_file"],
+                "level": POLICY_PARITY_LOG_LEVEL,
+                "propagate": False,
             },
         },
     }
@@ -445,7 +497,7 @@ except ImportError:
 MREG_PROFILING_ENABLED = envvar("MREG_PROFILING_ENABLED", False)
 
 # Use cProfile for profiling of the selected views.
-# If this is disabled, silk will only collect request/response data and timings, 
+# If this is disabled, silk will only collect request/response data and timings,
 # but not detailed profiling information.
 SILKY_PYTHON_PROFILER = envvar("MREG_SILKY_PYTHON_PROFILER", True)
 
@@ -461,6 +513,26 @@ try:
     from .local_settings import *  # noqa: F401,F403
 except ImportError:
     pass
+
+# Validate policy values again because local_settings.py may override the
+# environment-derived configuration above.
+try:
+    _post_local_policy_mode = POLICY_MODE
+    if (
+        not _policy_mode_was_explicit
+        and _post_local_policy_mode == PolicyMode.SHADOW.value
+        and not POLICY_PARITY_ENABLED
+    ):
+        _post_local_policy_mode = ""
+    _policy_mode = resolve_policy_mode(
+        _post_local_policy_mode,
+        legacy_parity_enabled=POLICY_PARITY_ENABLED,
+    )
+    validate_policy_configuration(_policy_mode, POLICY_BASE_URL)
+except ValueError as exc:
+    raise ImproperlyConfigured(str(exc)) from exc
+POLICY_MODE = _policy_mode.value
+POLICY_PARITY_ENABLED = _policy_mode == PolicyMode.SHADOW
 
 if TESTING or "CI" in os.environ:
     SUPERUSER_GROUP = "default-super-group"
@@ -493,7 +565,7 @@ if "DATABASES" not in globals():
             "NAME": MREG_DB_NAME,
             "USER": MREG_DB_USER,
             "PASSWORD": MREG_DB_PASSWORD,
-            "HOST": MREG_DB_HOST,        
+            "HOST": MREG_DB_HOST,
             "PORT": MREG_DB_PORT,
             "CONN_MAX_AGE": 0,  # Let the pool manage connection lifecycle
             "OPTIONS": {
@@ -515,10 +587,10 @@ if MREG_PROFILING_ENABLED:
             "Install silk with `uv sync --(only-)group profile` or disable profiling.",
         )
         sys.exit(1)
-    
+
     # NOTE: logging happens twice here on startup for some reason...
     logger.warning("Profiling is enabled. All requests will be profiled with Silk. This will impact performance.")
-    
+
     # Define views to enable Silk profiling for
     # (Can be overridden by setting SILKY_DYNAMIC_PROFILING in local_settings.py)
     if "SILKY_DYNAMIC_PROFILING" not in globals():
@@ -589,7 +661,7 @@ if MREG_PROFILING_ENABLED:
                 'name': 'Get Role Hosts',
             },
         ]
-    
+
     # Ensure the profiler result path exists and is writable before enabling Silk
     if SILKY_PYTHON_PROFILER_RESULT_PATH:
         p = Path(SILKY_PYTHON_PROFILER_RESULT_PATH)

@@ -1,0 +1,368 @@
+[
+  {
+    "kind": "MREG::Host",
+    "field": "hostname",
+    "output": "nameLabels",
+    "patterns": [
+      {
+        "name": "dns_wildcard",
+        "regex": "\\*"
+      },
+      {
+        "name": "dns_wildcard_valid_depth",
+        "regex": "^(?:[^.]+\\.){3,}[^.]+$"
+      },
+      {
+        "name": "dns_underscore",
+        "regex": "_"
+      },
+      {
+        "name": "netgroup_5ffe5b162fe5",
+        "regex": ".*\\.example\\.org$"
+      },
+      {
+        "name": "netgroup_6eb5380aba41",
+        "regex": "^web-\\d+"
+      }
+    ]
+  },
+  {
+    "kind": "MREG::Ipaddress",
+    "field": "hostname",
+    "output": "nameLabels",
+    "patterns": [
+      {
+        "name": "dns_wildcard",
+        "regex": "\\*"
+      },
+      {
+        "name": "dns_wildcard_valid_depth",
+        "regex": "^(?:[^.]+\\.){3,}[^.]+$"
+      },
+      {
+        "name": "dns_underscore",
+        "regex": "_"
+      },
+      {
+        "name": "netgroup_5ffe5b162fe5",
+        "regex": ".*\\.example\\.org$"
+      },
+      {
+        "name": "netgroup_6eb5380aba41",
+        "regex": "^web-\\d+"
+      }
+    ]
+  },
+  {
+    "kind": "MREG::Cname",
+    "field": "hostname",
+    "output": "nameLabels",
+    "patterns": [
+      {
+        "name": "dns_wildcard",
+        "regex": "\\*"
+      },
+      {
+        "name": "dns_wildcard_valid_depth",
+        "regex": "^(?:[^.]+\\.){3,}[^.]+$"
+      },
+      {
+        "name": "dns_underscore",
+        "regex": "_"
+      },
+      {
+        "name": "netgroup_5ffe5b162fe5",
+        "regex": ".*\\.example\\.org$"
+      },
+      {
+        "name": "netgroup_6eb5380aba41",
+        "regex": "^web-\\d+"
+      }
+    ]
+  },
+  {
+    "kind": "MREG::Hinfo",
+    "field": "hostname",
+    "output": "nameLabels",
+    "patterns": [
+      {
+        "name": "dns_wildcard",
+        "regex": "\\*"
+      },
+      {
+        "name": "dns_wildcard_valid_depth",
+        "regex": "^(?:[^.]+\\.){3,}[^.]+$"
+      },
+      {
+        "name": "dns_underscore",
+        "regex": "_"
+      },
+      {
+        "name": "netgroup_5ffe5b162fe5",
+        "regex": ".*\\.example\\.org$"
+      },
+      {
+        "name": "netgroup_6eb5380aba41",
+        "regex": "^web-\\d+"
+      }
+    ]
+  },
+  {
+    "kind": "MREG::Loc",
+    "field": "hostname",
+    "output": "nameLabels",
+    "patterns": [
+      {
+        "name": "dns_wildcard",
+        "regex": "\\*"
+      },
+      {
+        "name": "dns_wildcard_valid_depth",
+        "regex": "^(?:[^.]+\\.){3,}[^.]+$"
+      },
+      {
+        "name": "dns_underscore",
+        "regex": "_"
+      },
+      {
+        "name": "netgroup_5ffe5b162fe5",
+        "regex": ".*\\.example\\.org$"
+      },
+      {
+        "name": "netgroup_6eb5380aba41",
+        "regex": "^web-\\d+"
+      }
+    ]
+  },
+  {
+    "kind": "MREG::Mx",
+    "field": "hostname",
+    "output": "nameLabels",
+    "patterns": [
+      {
+        "name": "dns_wildcard",
+        "regex": "\\*"
+      },
+      {
+        "name": "dns_wildcard_valid_depth",
+        "regex": "^(?:[^.]+\\.){3,}[^.]+$"
+      },
+      {
+        "name": "dns_underscore",
+        "regex": "_"
+      },
+      {
+        "name": "netgroup_5ffe5b162fe5",
+        "regex": ".*\\.example\\.org$"
+      },
+      {
+        "name": "netgroup_6eb5380aba41",
+        "regex": "^web-\\d+"
+      }
+    ]
+  },
+  {
+    "kind": "MREG::Naptr",
+    "field": "hostname",
+    "output": "nameLabels",
+    "patterns": [
+      {
+        "name": "dns_wildcard",
+        "regex": "\\*"
+      },
+      {
+        "name": "dns_wildcard_valid_depth",
+        "regex": "^(?:[^.]+\\.){3,}[^.]+$"
+      },
+      {
+        "name": "dns_underscore",
+        "regex": "_"
+      },
+      {
+        "name": "netgroup_5ffe5b162fe5",
+        "regex": ".*\\.example\\.org$"
+      },
+      {
+        "name": "netgroup_6eb5380aba41",
+        "regex": "^web-\\d+"
+      }
+    ]
+  },
+  {
+    "kind": "MREG::NameServer",
+    "field": "hostname",
+    "output": "nameLabels",
+    "patterns": [
+      {
+        "name": "dns_wildcard",
+        "regex": "\\*"
+      },
+      {
+        "name": "dns_wildcard_valid_depth",
+        "regex": "^(?:[^.]+\\.){3,}[^.]+$"
+      },
+      {
+        "name": "dns_underscore",
+        "regex": "_"
+      },
+      {
+        "name": "netgroup_5ffe5b162fe5",
+        "regex": ".*\\.example\\.org$"
+      },
+      {
+        "name": "netgroup_6eb5380aba41",
+        "regex": "^web-\\d+"
+      }
+    ]
+  },
+  {
+    "kind": "MREG::PtrOverride",
+    "field": "hostname",
+    "output": "nameLabels",
+    "patterns": [
+      {
+        "name": "dns_wildcard",
+        "regex": "\\*"
+      },
+      {
+        "name": "dns_wildcard_valid_depth",
+        "regex": "^(?:[^.]+\\.){3,}[^.]+$"
+      },
+      {
+        "name": "dns_underscore",
+        "regex": "_"
+      },
+      {
+        "name": "netgroup_5ffe5b162fe5",
+        "regex": ".*\\.example\\.org$"
+      },
+      {
+        "name": "netgroup_6eb5380aba41",
+        "regex": "^web-\\d+"
+      }
+    ]
+  },
+  {
+    "kind": "MREG::Sshfp",
+    "field": "hostname",
+    "output": "nameLabels",
+    "patterns": [
+      {
+        "name": "dns_wildcard",
+        "regex": "\\*"
+      },
+      {
+        "name": "dns_wildcard_valid_depth",
+        "regex": "^(?:[^.]+\\.){3,}[^.]+$"
+      },
+      {
+        "name": "dns_underscore",
+        "regex": "_"
+      },
+      {
+        "name": "netgroup_5ffe5b162fe5",
+        "regex": ".*\\.example\\.org$"
+      },
+      {
+        "name": "netgroup_6eb5380aba41",
+        "regex": "^web-\\d+"
+      }
+    ]
+  },
+  {
+    "kind": "MREG::Srv",
+    "field": "hostname",
+    "output": "nameLabels",
+    "patterns": [
+      {
+        "name": "dns_wildcard",
+        "regex": "\\*"
+      },
+      {
+        "name": "dns_wildcard_valid_depth",
+        "regex": "^(?:[^.]+\\.){3,}[^.]+$"
+      },
+      {
+        "name": "dns_underscore",
+        "regex": "_"
+      },
+      {
+        "name": "netgroup_5ffe5b162fe5",
+        "regex": ".*\\.example\\.org$"
+      },
+      {
+        "name": "netgroup_6eb5380aba41",
+        "regex": "^web-\\d+"
+      }
+    ]
+  },
+  {
+    "kind": "MREG::Txt",
+    "field": "hostname",
+    "output": "nameLabels",
+    "patterns": [
+      {
+        "name": "dns_wildcard",
+        "regex": "\\*"
+      },
+      {
+        "name": "dns_wildcard_valid_depth",
+        "regex": "^(?:[^.]+\\.){3,}[^.]+$"
+      },
+      {
+        "name": "dns_underscore",
+        "regex": "_"
+      },
+      {
+        "name": "netgroup_5ffe5b162fe5",
+        "regex": ".*\\.example\\.org$"
+      },
+      {
+        "name": "netgroup_6eb5380aba41",
+        "regex": "^web-\\d+"
+      }
+    ]
+  },
+  {
+    "kind": "MREG::BACnetID",
+    "field": "hostname",
+    "output": "nameLabels",
+    "patterns": [
+      {
+        "name": "dns_wildcard",
+        "regex": "\\*"
+      },
+      {
+        "name": "dns_wildcard_valid_depth",
+        "regex": "^(?:[^.]+\\.){3,}[^.]+$"
+      },
+      {
+        "name": "dns_underscore",
+        "regex": "_"
+      },
+      {
+        "name": "netgroup_5ffe5b162fe5",
+        "regex": ".*\\.example\\.org$"
+      },
+      {
+        "name": "netgroup_6eb5380aba41",
+        "regex": "^web-\\d+"
+      }
+    ]
+  },
+  {
+    "kind": "MREG::HostPolicyRole",
+    "field": "hostname",
+    "output": "nameLabels",
+    "patterns": [
+      {
+        "name": "netgroup_5ffe5b162fe5",
+        "regex": ".*\\.example\\.org$"
+      },
+      {
+        "name": "netgroup_6eb5380aba41",
+        "regex": "^web-\\d+"
+      }
+    ]
+  }
+]

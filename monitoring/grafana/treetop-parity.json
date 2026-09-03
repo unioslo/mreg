@@ -1,0 +1,74 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Endpoint parity mismatch rate",
+      "type": "timeseries",
+      "targets": [{"expr": "sum(rate(mreg_policy_parity_results_total{result=\"mismatch\"}[5m])) / clamp_min(sum(rate(mreg_policy_parity_results_total{result=~\"match|mismatch\"}[5m])), 1)", "legendFormat": "mismatch"}],
+      "fieldConfig": {"defaults": {"unit": "percentunit", "thresholds": {"steps": [{"color": "green", "value": null}, {"color": "red", "value": 0.001}]}}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+    },
+    {
+      "id": 2,
+      "title": "Endpoint parity error rate",
+      "type": "timeseries",
+      "targets": [{"expr": "sum(rate(mreg_policy_parity_results_total{result=\"error\"}[5m])) / clamp_min(sum(rate(mreg_policy_parity_results_total[5m])), 1)", "legendFormat": "errors"}],
+      "fieldConfig": {"defaults": {"unit": "percentunit", "thresholds": {"steps": [{"color": "green", "value": null}, {"color": "red", "value": 0.001}]}}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+    },
+    {
+      "id": 3,
+      "title": "Endpoint stack conflicts",
+      "type": "timeseries",
+      "targets": [{"expr": "sum(increase(mreg_policy_stack_conflicts_total[5m]))", "legendFormat": "conflicts"}],
+      "fieldConfig": {"defaults": {"thresholds": {"steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 8}
+    },
+    {
+      "id": 4,
+      "title": "Checks per endpoint stack",
+      "type": "timeseries",
+      "targets": [{"expr": "rate(mreg_policy_stack_size_sum[5m]) / clamp_min(rate(mreg_policy_stack_size_count[5m]), 1)", "legendFormat": "average"}],
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 8}
+    },
+    {
+      "id": 5,
+      "title": "Authorize p95 latency",
+      "type": "timeseries",
+      "targets": [{"expr": "histogram_quantile(0.95, sum by (le) (rate(mreg_policy_authorize_duration_seconds_bucket[5m])))", "legendFormat": "p95"}],
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 8}
+    },
+    {
+      "id": 6,
+      "title": "Policy mode",
+      "type": "stat",
+      "targets": [{"expr": "max by (mode) (mreg_policy_mode_info)", "legendFormat": "{{mode}}"}],
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 16}
+    },
+    {
+      "id": 7,
+      "title": "Enforcement decisions",
+      "type": "timeseries",
+      "targets": [{"expr": "sum by (result) (rate(mreg_policy_enforcement_results_total[5m]))", "legendFormat": "{{result}}"}],
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 16}
+    },
+    {
+      "id": 8,
+      "title": "Worker circuit",
+      "type": "stat",
+      "targets": [{"expr": "max(mreg_policy_circuit_open)", "legendFormat": "open"}],
+      "fieldConfig": {"defaults": {"thresholds": {"steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 16}
+    }
+  ],
+  "schemaVersion": 41,
+  "tags": ["mreg", "treetop", "rollout"],
+  "templating": {"list": []},
+  "time": {"from": "now-24h", "to": "now"},
+  "title": "MREG TreeTop endpoint rollout",
+  "uid": "mreg-treetop-parity",
+  "version": 3
+}

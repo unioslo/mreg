@@ -1,5 +1,7 @@
-from rest_framework.permissions import IsAuthenticated, SAFE_METHODS
+from rest_framework.permissions import SAFE_METHODS
 
+from mreg.api.permissions import IsAuthenticated
+from mreg.api.treetop import authorize_policy_stack, policy_any, policy_leaf
 from mreg.models.auth import User
 from mreg.models.host import Host
 from mreg.models.network import NetGroupRegexPermission
@@ -14,59 +16,115 @@ class IsSuperOrHostPolicyAdminOrReadOnly(IsAuthenticated):
 
     def has_permission(self, request, view):
         if not super().has_permission(request, view):
-            # Not even reading is allowed if you're not authenticated
             return False
-        
+
         user = User.from_request(request)
-        
         if request.method in SAFE_METHODS:
-            return True
-        if user.is_mreg_superuser_or_hostpolicy_admin:
-            return True
+            legacy = True
+        elif user.is_mreg_superuser_or_hostpolicy_admin:
+            legacy = True
+        else:
+            legacy = self._legacy_role_host_permission(request, view)
 
-        # Handle the (possible) absence of 'name' during schema generation
-        name = view.kwargs.get('name')
-        if name is None: # pragma: no cover
+        if request.method not in SAFE_METHODS and view.__class__.__name__ in {
+            "HostPolicyRoleHostsDetail",
+            "HostPolicyRoleHostsList",
+        }:
+            return self._authorize_role_host_membership(
+                request=request,
+                view=view,
+                legacy=legacy,
+            )
+        if request.method not in SAFE_METHODS and view.__class__.__name__ in {
+            "HostPolicyRoleAtomsDetail",
+            "HostPolicyRoleAtomsList",
+        }:
+            role_name = str(view.kwargs.get("name") or "any")
+            return authorize_policy_stack(
+                legacy,
+                request=request,
+                root=policy_leaf(
+                    action="hostpolicy_role_atom_membership_update",
+                    resource_kind="HostPolicyRole",
+                    resource_id=role_name,
+                    resource_attrs={"kind": "host_policy_role", "name": role_name},
+                ),
+                view=view,
+                permission_class=self.__class__.__name__,
+            )
+        return self.authorize_endpoint(
+            legacy_decision=legacy,
+            request=request,
+            view=view,
+            data=request.data if isinstance(request.data, dict) else None,
+            fallback_action="hostpolicy_admin_access",
+        )
+
+    def _authorize_role_host_membership(self, *, request, view, legacy: bool) -> bool:
+        role_name = str(view.kwargs.get("name") or "")
+        hostname = str(view.kwargs.get("host") or request.data.get("name") or "")
+        ips = tuple(
+            str(ip)
+            for ip in Host.objects.filter(name=hostname)
+            .exclude(ipaddresses__ipaddress=None)
+            .values_list("ipaddresses__ipaddress", flat=True)
+        )
+        leaves = tuple(
+            policy_leaf(
+                action="hostpolicy_role_host_membership_update",
+                resource_kind="HostPolicyRole",
+                resource_id=role_name or "any",
+                resource_attrs={
+                    "hostname": hostname,
+                    "ip": ip,
+                },
+            )
+            for ip in ips
+        )
+        root = (
+            policy_any(*leaves)
+            if leaves
+            else policy_leaf(
+                action="hostpolicy_role_host_membership_update",
+                resource_kind="HostPolicyRole",
+                resource_id=role_name or "any",
+                resource_attrs={"hostname": hostname},
+            )
+        )
+        return authorize_policy_stack(
+            legacy,
+            request=request,
+            root=root,
+            view=view,
+            permission_class=self.__class__.__name__,
+        )
+
+    @staticmethod
+    def _legacy_role_host_permission(request, view) -> bool:
+        name = view.kwargs.get("name")
+        if name is None:  # pragma: no cover
             return False
-
-        # Is this request about atoms or something else that isn't a role?
-        # In that case, non-admin-users shouldn't have access anyway, and we can deny the request.
-        if not (view.__class__.__name__ == 'HostPolicyRoleHostsDetail' or
-                view.__class__.__name__ == 'HostPolicyRoleHostsList'):
+        if view.__class__.__name__ not in {
+            "HostPolicyRoleHostsDetail",
+            "HostPolicyRoleHostsList",
+        }:
             return False
-
-        # Find out which labels are attached to this role
-        role_labels = HostPolicyRole.objects.filter(name=name).values_list('labels__name', flat=True)
+        role_labels = HostPolicyRole.objects.filter(name=name).values_list("labels__name", flat=True)
         if not any(role_labels):
-            # if the role doesn't have any labels, there's no possibility of access at this point
             return False
-
-        # Find all the NetGroupRegexPermission objects that correspond with
-        # the ipaddress, hostname, and the groups that the user is a member of
-        # Also, ensure that the hostname is not empty.
-        hostname = view.kwargs.get('host', request.data.get("name"))
-        if not hostname: # pragma: no cover
+        hostname = view.kwargs.get("host", request.data.get("name"))
+        if not hostname:  # pragma: no cover
             return False
-
-        ips = list(Host.objects.filter(
-                        name=hostname
-                    ).exclude(
-                        ipaddresses__ipaddress=None
-                    ).values_list('ipaddresses__ipaddress', flat=True))
-        qs = NetGroupRegexPermission.find_perm(request.user.group_list, hostname, ips)
-
-        # If no permissions matched the host/ip, we deny access
-        if not qs.exists():
+        ips = list(
+            Host.objects.filter(name=hostname)
+            .exclude(ipaddresses__ipaddress=None)
+            .values_list("ipaddresses__ipaddress", flat=True)
+        )
+        permissions = NetGroupRegexPermission.find_perm(request.user.group_list, hostname, ips)
+        if not permissions.exists():
             return False
-
-        # Do any of those permissions have labels that match the labels attached to this role?
-        # If so, access is granted
-        perm_labels = qs.values_list('labels__name', flat=True)
-        if any(label in perm_labels for label in role_labels):
-            return True
-
-        # If the code got to this point, it means none of the labels matched.
-        return False
+        permission_labels = permissions.values_list("labels__name", flat=True)
+        return any(label in permission_labels for label in role_labels)
 
     def has_m2m_change_permission(self, request, view):
         return True

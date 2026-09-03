@@ -178,6 +178,26 @@ mreg supports configuration via environment variables with the `MREG_` prefix. T
 | `MREG_REQUESTS_THRESHOLD_VERY_SLOW` | `5000` | Very slow request threshold (ms) |
 | `MREG_REQUESTS_LOG_LEVEL_VERY_SLOW` | `CRITICAL` | Log level for very slow requests |
 
+### TreeTop Authorization
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `MREG_POLICY_MODE` | `shadow` | `off`, synchronous observational `shadow`, or synchronous authoritative `enforce` |
+| `MREG_POLICY_PARITY_ENABLED` | `True` | Deprecated compatibility flag used only when `MREG_POLICY_MODE` is unset |
+| `MREG_POLICY_BASE_URL` | `""` | TreeTop REST base URL; an empty value disables calls |
+| `MREG_POLICY_NAMESPACE` | `MREG` | Cedar namespace used for principals, actions, and resources |
+| `MREG_POLICY_TIMEOUT_SECONDS` | `5.0` | TreeTop client timeout in seconds |
+| `MREG_POLICY_CIRCUIT_FAILURES` | `5` | Consecutive synchronous failures that open a worker circuit |
+| `MREG_POLICY_CIRCUIT_RESET_SECONDS` | `30.0` | Open-circuit cooldown |
+| `MREG_POLICY_PARITY_LOG_LEVEL` | `WARNING` | Dedicated parity logger level |
+| `MREG_POLICY_PARITY_LOG_DETAILS` | `False` | Include sensitive principal/resource details in parity logs |
+| `MREG_POLICY_ROLLOUT_MIN_COMPARISONS` | `10000` | Minimum observations required by the enforcement gate |
+| `MREG_POLICY_ROLLOUT_MAX_MISMATCH_RATE` | `0.001` | Maximum accepted mismatch ratio |
+| `MREG_POLICY_ROLLOUT_MAX_ERROR_RATE` | `0.001` | Maximum accepted policy error ratio |
+
+TreeTop bundle generation reads the three existing MREG policy endpoints with
+`MREG_API_BASE_URL` and `MREG_API_TOKEN`; see [the policy documentation](docs/policies.md#bundle-source-and-build).
+
 ### Network Policy Configuration
 
 | Variable | Default | Description |

@@ -1,0 +1,46 @@
+groups:
+  - name: mreg-treetop-rollout
+    rules:
+      - alert: MregTreeTopParityMismatchRateHigh
+        expr: |
+          sum(rate(mreg_policy_parity_results_total{result="mismatch"}[30m]))
+          /
+          clamp_min(sum(rate(mreg_policy_parity_results_total{result=~"match|mismatch"}[30m])), 1)
+          > 0.001
+        for: 30m
+        labels:
+          severity: page
+        annotations:
+          summary: TreeTop endpoint parity mismatch rate exceeds 0.1%
+      - alert: MregTreeTopParityErrorRateHigh
+        expr: |
+          sum(rate(mreg_policy_parity_results_total{result="error"}[30m]))
+          /
+          clamp_min(sum(rate(mreg_policy_parity_results_total[30m])), 1)
+          > 0.001
+        for: 15m
+        labels:
+          severity: page
+        annotations:
+          summary: TreeTop endpoint parity error rate exceeds 0.1%
+      - alert: MregTreeTopCircuitOpen
+        expr: max(mreg_policy_circuit_open) > 0
+        for: 2m
+        labels:
+          severity: page
+        annotations:
+          summary: A synchronous TreeTop worker circuit is open
+      - alert: MregTreeTopStackConflict
+        expr: increase(mreg_policy_stack_conflicts_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: page
+        annotations:
+          summary: A request attempted to evaluate two different TreeTop stacks
+      - alert: MregTreeTopEnforcementFailure
+        expr: increase(mreg_policy_enforcement_results_total{result="error_deny"}[5m]) > 0
+        for: 0m
+        labels:
+          severity: page
+        annotations:
+          summary: An authoritative TreeTop request failed closed
