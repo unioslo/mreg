@@ -68,6 +68,16 @@ class IsSuperGroupMember(IsAuthenticated):
         return User.from_request(request).is_mreg_superuser
 
 
+class IsSnapshotterOrAdmin(IsAuthenticated):
+    """Allow portable snapshots to dedicated group members and MREG admins."""
+
+    def has_permission(self, request, view):
+        if not super().has_permission(request, view):
+            return False
+        user = User.from_request(request)
+        return user.is_mreg_snapshotter or user.is_mreg_superuser_or_admin
+
+
 class IsSuperOrAdminOrReadOnly(IsAuthenticated):
     """
     Permit user if in super or admin group, else read only.

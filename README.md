@@ -164,6 +164,17 @@ mreg supports configuration via environment variables with the `MREG_` prefix. T
 | `MREG_DB_PSYCOPG_CONNECT_TIMEOUT` | `5` | Connection timeout (seconds) |
 | `MREG_DB_PSYCOPG_OPTIONS` | `-c statement_timeout=30000` | PostgreSQL connection options |
 
+### Portable Snapshots
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `MREG_SNAPSHOT_GROUP` | `mreg-snapshot` | Group allowed to create portable snapshots |
+| `MREG_SNAPSHOT_TMPDIR` | Operating-system temporary directory | Directory used for snapshot artifacts |
+| `MREG_SNAPSHOT_CHUNK_SIZE` | `2000` | ORM iterator batch size |
+| `MREG_SNAPSHOT_THROTTLE_RATE` | `2/hour` | Per-principal snapshot request rate |
+| `MREG_SNAPSHOT_MAX_BYTES` | `10737418240` | Maximum peak temporary bytes per generation |
+| `MREG_SNAPSHOT_MAX_DURATION_SECONDS` | `900` | Maximum artifact generation duration in seconds |
+
 ### Logging Configuration
 
 | Variable | Default | Description |
