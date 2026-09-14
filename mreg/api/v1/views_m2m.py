@@ -36,12 +36,12 @@ class M2MDetail:
         lookup_url_kwarg = getattr(self, "lookup_url_kwarg", None) or self.lookup_field
         lookup_value = self.kwargs[lookup_url_kwarg]
         model = queryset.model
-        if not model.objects.filter(name=lookup_value).exists():
-            raise NotFound(detail=f"No {model.__name__} named '{lookup_value}' exists.")
         try:
             return queryset.get(name=lookup_value)
         except model.DoesNotExist:
-            raise NotFound(detail=f"'{lookup_value}' is not a member of '{self.object.name}'.")
+            if model.objects.filter(name=lookup_value).exists():
+                raise NotFound(detail=f"'{lookup_value}' is not a member of '{self.object.name}'.")
+            raise NotFound(detail=f"No {model.__name__} named '{lookup_value}' exists.")
 
     def get_queryset(self):
         if 'name' not in self.kwargs:
