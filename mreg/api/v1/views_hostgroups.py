@@ -3,6 +3,7 @@ from django.contrib.auth.models import Group
 from django.db.models import Prefetch
 
 from rest_framework import status
+from rest_framework.exceptions import NotFound
 
 from mreg.api.responses import error_response
 from mreg.api.permissions import (HostGroupPermission,
@@ -210,3 +211,8 @@ class HostGroupOwnersDetail(HostGroupM2MDetail):
     m2m_field = 'owners'
     lookup_field = 'name'
     lookup_url_kwarg = 'owner'
+
+    def member_not_found(self, model, lookup_value) -> NotFound:
+        # Owner groups are created on demand, so global Group existence is
+        # irrelevant here; all that matters is ownership of this hostgroup.
+        return NotFound(detail=f"'{lookup_value}' is not an owner of '{self.object.name}'.")

@@ -39,9 +39,13 @@ class M2MDetail:
         try:
             return queryset.get(name=lookup_value)
         except model.DoesNotExist:
-            if model.objects.filter(name=lookup_value).exists():
-                raise NotFound(detail=f"'{lookup_value}' is not a member of '{self.object.name}'.")
-            raise NotFound(detail=f"No {model.__name__} named '{lookup_value}' exists.")
+            raise self.member_not_found(model, lookup_value)
+
+    def member_not_found(self, model, lookup_value) -> NotFound:
+        """Build the 404 error for a member that isn't in this relation."""
+        if model.objects.filter(name=lookup_value).exists():
+            return NotFound(detail=f"'{lookup_value}' is not a member of '{self.object.name}'.")
+        return NotFound(detail=f"No {model.__name__} named '{lookup_value}' exists.")
 
     def get_queryset(self):
         if 'name' not in self.kwargs:

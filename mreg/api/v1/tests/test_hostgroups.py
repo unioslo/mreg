@@ -218,6 +218,14 @@ class APIHostGroupOwnersTestCase(MregAPITestCase):
                                 {'name': self.owner_one.name})
         self.assert_patch_and_405(data['Location'], {'name': 'newgroupname'})
 
+    def test_remove_non_owner_404_not_found(self):
+        """Removing a non-owner reports it as not associated, not as a missing Group."""
+        owner_name = 'notanowner'
+        response = self.assert_delete_and_404(
+            f'/hostgroups/{self.hostgroup_one.name}/owners/{owner_name}')
+        detail = response.json()['errors'][0]['detail']
+        self.assertEqual(detail, f"'{owner_name}' is not an owner of '{self.hostgroup_one.name}'.")
+
 
 class GroupAdminTestCase(APIHostGroupsTestCase, APIHostGroupHostsTestCase,
                          APIHostGroupGroupsTestCase, APIHostGroupOwnersTestCase):
