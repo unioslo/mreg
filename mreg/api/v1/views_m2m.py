@@ -1,7 +1,7 @@
 from django.shortcuts import get_object_or_404
 
 from rest_framework import status
-from rest_framework.exceptions import MethodNotAllowed
+from rest_framework.exceptions import MethodNotAllowed, NotFound
 from rest_framework.response import Response
 
 from mreg.api.responses import created_response, error_response
@@ -34,8 +34,18 @@ class M2MDetail:
     def get_object(self):
         queryset = self.filter_queryset(self.get_queryset())
         lookup_url_kwarg = getattr(self, "lookup_url_kwarg", None) or self.lookup_field
-        obj = get_object_or_404(queryset, name=self.kwargs[lookup_url_kwarg])
-        return obj
+        lookup_value = self.kwargs[lookup_url_kwarg]
+        model = queryset.model
+        try:
+            return queryset.get(name=lookup_value)
+        except model.DoesNotExist:
+            raise self.member_not_found(model, lookup_value)
+
+    def member_not_found(self, model, lookup_value) -> NotFound:
+        """Build the 404 error for a member that isn't in this relation."""
+        if model.objects.filter(name=lookup_value).exists():
+            return NotFound(detail=f"'{lookup_value}' is not a member of '{self.object.name}'.")
+        return NotFound(detail=f"No {model.__name__} named '{lookup_value}' exists.")
 
     def get_queryset(self):
         if 'name' not in self.kwargs:
