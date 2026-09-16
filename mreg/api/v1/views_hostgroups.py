@@ -4,6 +4,7 @@ from django.db.models import Prefetch
 
 from rest_framework import status
 from rest_framework.exceptions import NotFound
+from typing_extensions import override
 
 from mreg.api.responses import error_response
 from mreg.api.permissions import (HostGroupPermission,
@@ -212,7 +213,14 @@ class HostGroupOwnersDetail(HostGroupM2MDetail):
     lookup_field = 'name'
     lookup_url_kwarg = 'owner'
 
+    @override
     def member_not_found(self, model, lookup_value) -> NotFound:
-        # Owner groups are created on demand, so global Group existence is
-        # irrelevant here; all that matters is ownership of this hostgroup.
+        """Return a NotFound response when the specified owner is not found."
+
+        Owners are a special case, since they are not necessarily existing Group
+        instances, but can be created ad-hoc.
+
+        Overridden to remove check for global Group existence when determining
+        404 error message.
+        """
         return NotFound(detail=f"'{lookup_value}' is not an owner of '{self.object.name}'.")
