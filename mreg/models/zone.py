@@ -146,7 +146,7 @@ class ReverseZone(BaseZone):
     # the network is not set. Will anyway be overridden by update() and save().
     network = CidrAddressField(unique=True, blank=True)
 
-    # We want lower case filtering and exludes for "name", but also use NetManager for the network field.
+    # Keep NetManager's network handling; the name field handles case normalization.
     objects = lower_case_manager_factory(NetManager)()
 
     class Meta:

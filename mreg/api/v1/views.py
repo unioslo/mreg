@@ -558,7 +558,7 @@ class HostContactsView(HostPermissionsUpdateDestroy, APIView):
 
     def get_host(self, name):
         """Get the host object by name."""
-        return get_object_or_404(Host, name=name.lower())
+        return get_object_or_404(Host, name=name)
 
     @extend_schema(
         parameters=[OpenApiParameter("name", OpenApiTypes.STR, OpenApiParameter.PATH)],
