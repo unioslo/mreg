@@ -93,7 +93,7 @@ class Cname(ForwardZoneMember):
     name = LowerCaseDNSNameField(unique=True)
     ttl = models.IntegerField(blank=True, null=True, validators=[validate_ttl])
 
-    objects = LowerCaseManager
+    objects = LowerCaseManager()
 
     class Meta:
         db_table = "cname"
