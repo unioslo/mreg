@@ -115,6 +115,17 @@ class LowerCaseManagerTestCase(TestCase):
         # Value(...) is an expression, not a str.
         self.assertTrue(LowerCaseModel.objects.filter(lower=Value("ABC")).exists())
 
+    @expectedFailure
+    def test_regex_metacharacters_not_mangled(self):
+        # .lower() corrupts escaped metaclasses: \D (non-digit) -> \d (digit).
+        # "abc" is all non-digits so \D should match; mangled to \d it misses.
+        self.assertTrue(LowerCaseModel.objects.filter(lower__regex=r"\D").exists())
+
+    @expectedFailure
+    def test_iregex_metacharacters_not_mangled(self):
+        # Same corruption on the case-insensitive variant.
+        self.assertTrue(LowerCaseModel.objects.filter(lower__iregex=r"\D").exists())
+
 
 class LowerCaseManagerTestsMixin:
     """Mixin that enables shared tests for any model using LowerCaseManager.
