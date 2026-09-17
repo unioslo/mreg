@@ -1,54 +1,60 @@
 
-from typing import Any, Dict, Type
+from functools import lru_cache
+from typing import Any
+
 from django.db import models
+from typing_extensions import Self
 
 from .fields import LowerCaseCharField
 
 
-class LowerCaseManager(models.Manager[Any]):
-    """A manager that lowercases all values of LowerCaseCharFields in filter/exclude/get calls."""
+@lru_cache(maxsize=None)
+def _lowercase_field_names(model: type[models.Model]) -> frozenset[str]:
+    """Names of the model's LowerCaseCharFields.
 
-    @property
-    def lowercase_fields(self):
-        """A list of field names that are LowerCaseCharFields.
-        
-        Note: This is a cached property to avoid recalculating the list every time it is accessed.
-        We are making the assumption that the model's fields do not change during runtime...
-        """
+    Cached per model class; we assume the model's fields do not change at runtime.
+    """
+    return frozenset(
+        field.name
+        for field in model._meta.get_fields()
+        if isinstance(field, LowerCaseCharField) and field.name
+    )
 
-        if not hasattr(self, "_lowercase_fields_cache"):
-            self._lowercase_fields_cache = [
-                field.name
-                for field in self.model._meta.get_fields()
-                if isinstance(field, LowerCaseCharField)
-            ]
-        return self._lowercase_fields_cache
 
-    def _lowercase_fields(self, **kwargs: Dict[str, Any]) -> Dict[str, Any]:
+class LowerCaseQuerySet(models.QuerySet):
+    """A queryset that lowercases string values targeting LowerCaseCharFields.
+
+    Lower-casing is defined on the queryset intead of a manager, so 
+    chained lookups derived from this queryset also benefit from lower-casing.
+    """
+
+    def _lowercase_fields(self, kwargs: dict[str, Any]) -> dict[str, Any]:
         """Lowercase all values of LowerCaseCharFields in kwargs."""
-
-        lower_kwargs: Dict[str, Any] = {}
+        lowercase_fields = _lowercase_field_names(self.model)
+        lower_kwargs: dict[str, Any] = {}
         for key, value in kwargs.items():
             field_name = key.split("__")[0]
-            if field_name in self.lowercase_fields and isinstance(value, str):
+            if field_name in lowercase_fields and isinstance(value, str):
                 value = value.lower()
             lower_kwargs[key] = value
         return lower_kwargs
 
-    def filter(self, **kwargs: Dict[str, Any]):
-        """Lowercase all values of LowerCaseCharFields in kwargs during filtering."""
-        return super().filter(**self._lowercase_fields(**kwargs))
+    def filter(self, *args: Any, **kwargs: Any) -> Self:
+        return super().filter(*args, **self._lowercase_fields(kwargs))
 
-    def exclude(self, **kwargs: Dict[str, Any]):
-        """Lowercase all values of LowerCaseCharFields in kwargs during excluding."""
-        return super().exclude(**self._lowercase_fields(**kwargs))
+    def exclude(self, *args: Any, **kwargs: Any) -> Self:
+        return super().exclude(*args, **self._lowercase_fields(kwargs))
 
-    def get(self, **kwargs: Dict[str, Any]):
-        """Lowercase all values of LowerCaseCharFields in kwargs during get."""
-        return super().get(**self._lowercase_fields(**kwargs))
+    def get(self, *args: Any, **kwargs: Any) -> Any:
+        return super().get(*args, **self._lowercase_fields(kwargs))
 
 
-def lower_case_manager_factory(base_manager: Type[models.Manager[Any]]):
+class LowerCaseManager(models.Manager.from_queryset(LowerCaseQuerySet)):
+    """A manager that lowercases all values of LowerCaseCharFields in filter/exclude/get calls."""
+    pass
+
+
+def lower_case_manager_factory(base_manager: type[models.Manager]) -> type[LowerCaseManager]:
     """A factory function to create a LowerCaseManager for a given base_manager."""
 
     class LowerCaseBaseManager(base_manager, LowerCaseManager):
