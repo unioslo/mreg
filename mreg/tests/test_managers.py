@@ -1,17 +1,22 @@
 """Tests for LowerCaseManager / LowerCaseQuerySet.
 
-Two layers:
+NOTE: Lots of AI slop comments in this module, but the tests themselves are pretty sound.
 
-1. ``LowerCaseManagerTestCase`` — a throwaway test-only model, exercising the
+Two tiers of tests:
+
+1. `LowerCaseManagerTestCase` — a throwaway test-only model, exercising the
    manager in isolation (including that plain CharFields are left untouched).
-2. ``LowerCaseManagerTestsMixin`` — shared behavioural tests that any real model
-   using the manager can opt into by subclassing ``(mixin, TestCase)``, setting
-   ``model``, and implementing ``make_instance``. ``test_all_models_covered``
+2. `LowerCaseManagerTestsMixin` — shared behavioural tests that any real model
+   using the manager can opt into by subclassing `(mixin, TestCase)`, setting
+   `model`, and implementing `make_instance`. `test_all_models_covered`
    guards that every model with the manager has such a subclass.
 """
 
+from unittest import expectedFailure
+
 from django.apps import apps
 from django.db import connection, models
+from django.db.models import Q, Value
 from django.test import TestCase
 
 from hostpolicy.models import HostPolicyAtom, HostPolicyRole
@@ -37,9 +42,6 @@ def models_with_lowercase_manager() -> list[type[models.Model]]:
     return result
 
 
-# --- Layer 1: isolated test-only model -------------------------------------
-
-
 class LowerCaseModel(models.Model):
     """Test-only model with one lowercased field and one plain field."""
 
@@ -53,6 +55,7 @@ class LowerCaseModel(models.Model):
 
 
 class LowerCaseManagerTestCase(TestCase):
+    """Test cases for LowerCaseManager using a test-only model."""
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -91,22 +94,39 @@ class LowerCaseManagerTestCase(TestCase):
         # Lower-casing lives on the queryset, so a chained call also lowercases.
         self.assertTrue(LowerCaseModel.objects.all().filter(lower="ABC").exists())
 
+    # --- Known gaps: the manager only lowercases plain str keyword values, so
+    # these forms slip through. Tests assert the *desired* behaviour and are
+    # marked expectedFailure; if the manager is fixed they turn into unexpected
+    # successes (a failure), prompting removal of the decorator. See also
+    # LowerCaseManagerRelatedLookupTestCase for the related-lookup gap.
 
-# --- Layer 2: shared tests for real models ---------------------------------
+    @expectedFailure
+    def test_q_object_value_lowercased(self):
+        # Q(...) is passed positionally, so it's never inspected.
+        self.assertTrue(LowerCaseModel.objects.filter(Q(lower="ABC")).exists())
+
+    @expectedFailure
+    def test_in_lookup_values_lowercased(self):
+        # List values aren't str, so their elements aren't lowercased.
+        self.assertTrue(LowerCaseModel.objects.filter(lower__in=["ABC"]).exists())
+
+    @expectedFailure
+    def test_expression_value_lowercased(self):
+        # Value(...) is an expression, not a str.
+        self.assertTrue(LowerCaseModel.objects.filter(lower=Value("ABC")).exists())
 
 
 class LowerCaseManagerTestsMixin:
-    """Shared behavioural tests for a real model using LowerCaseManager.
+    """Mixin that enables shared tests for any model using LowerCaseManager.
 
-    Subclass together with ``TestCase``, set ``model``, and implement
-    ``make_instance``. Not a TestCase itself, so the runner never collects it
-    on its own (which would run every test with ``model`` unset).
+    Ideally this would have been an ABC instead of a mixin, but I'm not sure
+    if Django supports creating a `TestCase` class that is also an ABC.
     """
 
-    model: type[models.Model]
+    model: type[models.Model] = models.Model  # override in subclass
 
     def make_instance(self, **overrides: object) -> models.Model:
-        """Create and return a saved, valid instance of ``self.model``.
+        """Create and return a saved, valid instance of `self.model`.
 
         Lowercased fields must be given values containing letters so the
         manager's lowercasing is observable. Each subclass knows its own
@@ -277,12 +297,17 @@ class HostPolicyRoleLowerCaseTests(LowerCaseManagerTestsMixin, TestCase):
         return HostPolicyRole.objects.create(**{"name": "lowered", "description": "d", **overrides})
 
 
-# --- Coverage guard --------------------------------------------------------
+class LowerCaseManagerRelatedLookupTestCase(TestCase):
+    """Known gap: lowercasing doesn't follow relations to a related lowercase field."""
 
-# Models that use LowerCaseManager but don't yet have a Layer-2 subclass.
-# Add a subclass above when covering one; the test below fails if it drifts
-# (a new uncovered model appears, or an entry here is stale/now covered).
-KNOWN_UNCOVERED: set[str] = set()
+    @expectedFailure
+    def test_related_lookup_value_lowercased(self):
+        # key.split("__")[0] is "atoms" (a relation), so HostPolicyAtom.name is
+        # never recognised as a lowercase field and "ATOM" isn't normalised.
+        atom = HostPolicyAtom.objects.create(name="atom", description="d")
+        role = HostPolicyRole.objects.create(name="role", description="d")
+        role.atoms.add(atom)
+        self.assertTrue(HostPolicyRole.objects.filter(atoms__name="ATOM").exists())
 
 
 class LowerCaseManagerCoverageTestCase(TestCase):
@@ -292,7 +317,7 @@ class LowerCaseManagerCoverageTestCase(TestCase):
             for cls in LowerCaseManagerTestsMixin.__subclasses__()
         }
         all_labels = {m._meta.label for m in models_with_lowercase_manager()}
-        missing = all_labels - covered - KNOWN_UNCOVERED
+        missing = all_labels - covered
         
         # Compare to empty set - fails with a list of missing models if any are found
         self.assertEqual(
