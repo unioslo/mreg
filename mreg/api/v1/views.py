@@ -427,7 +427,7 @@ class HostList(HostPermissionsListCreateAPIView):
 
         if "name" in request.data:
             if self.queryset.filter(name=request.data["name"]).exists():
-                raise Conflict("name already in use")
+                raise Conflict(f"Host name '{request.data['name']}' already in use")
 
         if "ipaddress" in request.data and "network" in request.data:
             raise ValidationError({
@@ -478,7 +478,7 @@ class HostList(HostPermissionsListCreateAPIView):
                 ip = network.get_first_unused()
 
             if not ip:
-                raise Conflict("no available IP in network")
+                raise Conflict(f"no available IP in network {network_key}")
 
             hostdata["ipaddress"] = ip
 
@@ -547,7 +547,7 @@ class HostDetail(HostPermissionsUpdateDestroy,
     def patch(self, request, *args, **kwargs):
         if "name" in request.data:
             if self.get_queryset().filter(name=request.data["name"]).exists():
-                raise Conflict("name already in use")
+                raise Conflict(f"Host name '{request.data['name']}' already in use")
 
         return super().patch(request, *args, **kwargs)
 

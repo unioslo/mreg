@@ -80,8 +80,9 @@ class HostGroupList(HostGroupLogMixin, LowerCaseLookupMixin, MregListCreateAPIVi
     lookup_field = 'name'
 
     def post(self, request, *args, **kwargs):
-        if self.get_object_from_request(request):
-            raise Conflict('hostgroup name already in use')
+        existing = self.get_object_from_request(request)
+        if existing:
+            raise Conflict(f"hostgroup name '{existing.name}' already in use")
         return super().post(request, *args, **kwargs)
 
 

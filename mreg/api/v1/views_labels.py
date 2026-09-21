@@ -19,8 +19,9 @@ class LabelList(MregListCreateAPIView, LowerCaseLookupMixin):
     location_lookup_field = "pk"
 
     def post(self, request, *args, **kwargs):
-        if self.get_object_from_request(request):
-            raise Conflict("Label name already in use")
+        existing = self.get_object_from_request(request)
+        if existing:
+            raise Conflict(f"Label name '{existing.name}' already in use")
         return super().post(request, *args, **kwargs)
 
 

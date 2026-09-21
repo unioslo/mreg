@@ -32,7 +32,7 @@ class BACnetIDList(MregListCreateAPIView):
             # if an ID value was supplied, and it is already in use, return 409 conflict
             # instead of the default 400 bad request
             if BACnetID.objects.filter(id=data["id"]).exists():
-                raise Conflict("BACnet ID already in use.")
+                raise Conflict(f"BACnet ID {data['id']} already in use.")
 
         try:
             # allow clients to supply a hostname instead of a host id
@@ -45,7 +45,7 @@ class BACnetIDList(MregListCreateAPIView):
             # if a host was supplied and that host already has a BACnet ID, return 409 conflict
             # instead of the default 400 bad request
             if host and hasattr(host, "bacnetid"):
-                raise Conflict("The host already has a BACnet ID.")
+                raise Conflict(f"Host '{host.name}' already has a BACnet ID.")
         except Host.DoesNotExist:
             raise ValidationError({"host": "The host does not exist."})
 

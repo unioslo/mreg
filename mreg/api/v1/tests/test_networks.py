@@ -411,7 +411,8 @@ class NetworksTestCase(MregAPITestCase):
         }
         self.assert_post('/networks/', data)
         ret = self.assert_post_and_409('/hosts/', {'name': 'hostcreateconflictfullnetwork.example.org', 'network': data['network']})
-        self.assertEqual(ret.json()['errors'][0]['detail'], 'no available IP in network')
+        self.assertEqual(ret.json()['errors'][0]['detail'],
+                         'no available IP in network %s' % data['network'])
 
     def test_networks_get_random_unused_200_ok(self):
         """GET on /networks/<ip/mask>/random_unused should return 200 ok and data."""

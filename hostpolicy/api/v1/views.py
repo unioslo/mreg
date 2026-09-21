@@ -109,8 +109,9 @@ class HostPolicyAtomList(HostPolicyAtomLogMixin, LowerCaseLookupMixin, MregListC
     filterset_class = HostPolicyAtomFilterSet
 
     def post(self, request, *args, **kwargs):
-        if self.get_object_from_request(request):
-            raise Conflict("name already in use")
+        existing = self.get_object_from_request(request)
+        if existing:
+            raise Conflict(f"Atom name '{existing.name}' already in use")
 
         return super().post(request, *args, **kwargs)
 
@@ -139,8 +140,9 @@ class HostPolicyRoleList(HostPolicyRoleLogMixin, LowerCaseLookupMixin, MregListC
     filterset_class = HostPolicyRoleFilterSet
 
     def post(self, request, *args, **kwargs):
-        if self.get_object_from_request(request):
-            raise Conflict("name already in use")
+        existing = self.get_object_from_request(request)
+        if existing:
+            raise Conflict(f"Role name '{existing.name}' already in use")
         return super().post(request, *args, **kwargs)
 
 

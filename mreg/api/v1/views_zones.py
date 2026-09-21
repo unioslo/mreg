@@ -100,7 +100,7 @@ class ZoneList(generics.ListCreateAPIView):
     def post(self, request: Request, *args, **kwargs):
         qs = self.get_queryset()
         if qs.filter(name=request.data["name"]).exists():
-            raise Conflict('Zone name already in use')
+            raise Conflict(f"Zone name '{request.data['name']}' already in use")
         # A copy is required since the original is immutable
         nameservers = _get_request_nameservers(request)
         _validate_nameservers(nameservers)
@@ -155,7 +155,7 @@ class ZoneDelegationList(generics.ListCreateAPIView):
     def post(self, request: Request, *args, **kwargs):
         qs = self.get_queryset()
         if qs.filter(name=request.data[self.lookup_field]).exists():
-            raise Conflict('Zone name already in use')
+            raise Conflict(f"Zone name '{request.data['name']}' already in use")
         nameservers = _get_request_nameservers(request, "nameservers")
         _validate_nameservers(nameservers)
         data = request.data.copy()
