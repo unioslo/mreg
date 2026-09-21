@@ -1,7 +1,7 @@
-from rest_framework import status
-from rest_framework.response import Response
+from rest_framework.exceptions import MethodNotAllowed, ValidationError
 
-from mreg.api.responses import created_response, error_response
+from mreg.api.errors import Conflict
+from mreg.api.responses import created_response
 from mreg.api.v1.views import (
     MregListCreateAPIView,
     MregRetrieveUpdateDestroyAPIView,
@@ -32,7 +32,7 @@ class BACnetIDList(MregListCreateAPIView):
             # if an ID value was supplied, and it is already in use, return 409 conflict
             # instead of the default 400 bad request
             if BACnetID.objects.filter(id=data["id"]).exists():
-                return Response(status=status.HTTP_409_CONFLICT)
+                raise Conflict("BACnet ID already in use.")
 
         try:
             # allow clients to supply a hostname instead of a host id
@@ -45,9 +45,9 @@ class BACnetIDList(MregListCreateAPIView):
             # if a host was supplied and that host already has a BACnet ID, return 409 conflict
             # instead of the default 400 bad request
             if host and hasattr(host, "bacnetid"):
-                return error_response("The host already has a BACnet ID.", status.HTTP_409_CONFLICT)
+                raise Conflict("The host already has a BACnet ID.")
         except Host.DoesNotExist:
-            return error_response("The host does not exist.", status.HTTP_400_BAD_REQUEST)
+            raise ValidationError({"host": "The host does not exist."})
 
         # validate the data
         obj = BACnetID()
@@ -70,7 +70,7 @@ class BACnetIDDetail(MregRetrieveUpdateDestroyAPIView):
 
     # Don't allow patch or put requests
     def patch(self, request, *args, **kwargs):
-        return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+        raise MethodNotAllowed(request.method)
 
     def put(self, request, *args, **kwargs):
-        return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+        raise MethodNotAllowed(request.method)

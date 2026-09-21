@@ -27,11 +27,3 @@ def created_response(
         serializer,
         location_for(request.path, lookup_value, safe=safe),
     )
-
-
-def error_body(message: str) -> dict[str, str]:
-    return {"error": message}
-
-
-def error_response(message: str, status: int) -> Response:
-    return Response(error_body(message), status=status)

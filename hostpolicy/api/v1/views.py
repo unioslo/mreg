@@ -1,12 +1,11 @@
 from django.db.models import Prefetch
-from rest_framework import status
 
 from django_filters import rest_framework as filters
 from rest_framework import filters as rest_filters
 
 from hostpolicy.api.permissions import IsSuperOrHostPolicyAdminOrReadOnly
 from hostpolicy.models import HostPolicyAtom, HostPolicyRole
-from mreg.api.responses import error_response
+from mreg.api.errors import Conflict
 from mreg.api.v1.history import HistoryLog
 from mreg.api.v1.serializers import HostNameSerializer
 from mreg.api.v1.views import (
@@ -111,7 +110,7 @@ class HostPolicyAtomList(HostPolicyAtomLogMixin, LowerCaseLookupMixin, MregListC
 
     def post(self, request, *args, **kwargs):
         if self.get_object_from_request(request):
-            return error_response("name already in use", status.HTTP_409_CONFLICT)
+            raise Conflict("name already in use")
 
         return super().post(request, *args, **kwargs)
 
@@ -141,7 +140,7 @@ class HostPolicyRoleList(HostPolicyRoleLogMixin, LowerCaseLookupMixin, MregListC
 
     def post(self, request, *args, **kwargs):
         if self.get_object_from_request(request):
-            return error_response("name already in use", status.HTTP_409_CONFLICT)
+            raise Conflict("name already in use")
         return super().post(request, *args, **kwargs)
 
 
