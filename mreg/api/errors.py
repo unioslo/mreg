@@ -2,8 +2,6 @@ from enum import Enum
 
 from rest_framework import (exceptions, status)
 
-import sys
-
 
 class ErrorCode(str, Enum):
     """Error code for DRF exceptions.
