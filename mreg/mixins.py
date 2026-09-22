@@ -26,17 +26,17 @@ class DetailViewProtocol(Protocol):
 
 
 class LowerCaseLookupMixin:
-    """A mixin to make DRF detail view lookup case insensitive."""
+    """Shared detail and request lookups; model fields handle case normalization."""
 
     def get_object(self: DetailViewProtocol) -> Any:
         """Returns the object the view is displaying.
         
-        This method is overridden to make the lookup case insensitive.
+        Field-specific lookups handle case normalization.
 
         :returns: The object the view is displaying.
         """
         queryset = self.filter_queryset(self.get_queryset())
-        filter_kwargs = {self.lookup_field: self.kwargs[self.lookup_field].lower()}
+        filter_kwargs = {self.lookup_field: self.kwargs[self.lookup_field]}
 
         obj = get_object_or_404(queryset, **filter_kwargs)
 
@@ -53,8 +53,7 @@ class LowerCaseLookupMixin:
         The object is found in the queryset by querying with field = request.data[field]. If the field
         is not defined, and the view offers a self.lookup_field, that field is used as a fallback.
 
-        Note: This is part of the LowerCaseLookupMixin, so the value of the field in request.data will
-        be lowercased when querying.
+        Field-specific lookups handle case normalization of request values.
 
         :param request: The request object.
         :param field: The field to use for the lookup. If None, the view's lookup_field is used. 
@@ -75,6 +74,6 @@ class LowerCaseLookupMixin:
             return None
         
         queryset = self.filter_queryset(self.get_queryset())
-        filter_kwargs: Dict[str, str] = {lfield: request.data[lfield].lower()}
+        filter_kwargs: Dict[str, str] = {lfield: request.data[lfield]}
 
         return queryset.filter(**filter_kwargs).first()

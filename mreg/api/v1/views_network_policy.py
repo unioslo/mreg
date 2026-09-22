@@ -155,7 +155,7 @@ class NetworkCommunityList(JSONContentTypeMixin, CommunityLogMixin, generics.Lis
         except Network.DoesNotExist:  # pragma: no cover
             raise exceptions.NotFound("Network not found.")
 
-        # We do not have to worry about case sensitivity here, as the LowerCaseManager for the model will handle that.
+        # The model's LowerCaseCharField handles case normalization in lookups.
         if Community.objects.filter(name=name, network=network).exists():
             raise Conflict(detail=f"Community with the name '{name}' already exists.")
 
