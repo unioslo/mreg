@@ -223,4 +223,4 @@ class HostGroupOwnersDetail(HostGroupM2MDetail):
         Overridden to remove check for global Group existence when determining
         404 error message.
         """
-        return NotFound("'{lookup_value}' is not an owner of '{self.object.name}'.")
+        return NotFound(f"'{lookup_value}' is not an owner of '{self.object.name}'.")
