@@ -105,7 +105,7 @@ class ModelHostCommunitiesTestCase(TestCase):
         # Create networks
         self.network1 = Network.objects.create(network="10.0.1.0/24", description="Test Network 1")
         self.network2 = Network.objects.create(network="10.0.2.0/24", description="Test Network 2")
-        
+
         # Create communities
         self.community1_net1 = Community.objects.create(
             name="community1", description="Community 1 on Network 1", network=self.network1
@@ -116,7 +116,7 @@ class ModelHostCommunitiesTestCase(TestCase):
         self.community1_net2 = Community.objects.create(
             name="community1", description="Community 1 on Network 2", network=self.network2
         )
-        
+
         # Create host with multiple IPs
         self.host = Host.objects.create(name="testhost.example.org")
         self.ip1 = Ipaddress.objects.create(host=self.host, ipaddress="10.0.1.10", macaddress="aa:bb:cc:dd:ee:01")
@@ -125,7 +125,7 @@ class ModelHostCommunitiesTestCase(TestCase):
     def test_add_to_community_with_community_instance_and_ip(self):
         """Test adding host to community using Community instance with explicit IP."""
         self.host.add_to_community(self.community1_net1, self.ip1)
-        
+
         mapping = HostCommunityMapping.objects.get(host=self.host, ipaddress=self.ip1)
         self.assertEqual(mapping.community, self.community1_net1)
 
@@ -133,9 +133,9 @@ class ModelHostCommunitiesTestCase(TestCase):
         """Test adding host to community using Community instance without IP (single network match)."""
         # Remove second IP so only one IP matches
         self.ip2.delete()
-        
+
         self.host.add_to_community(self.community1_net1)
-        
+
         mapping = HostCommunityMapping.objects.get(host=self.host, ipaddress=self.ip1)
         self.assertEqual(mapping.community, self.community1_net1)
 
@@ -144,7 +144,7 @@ class ModelHostCommunitiesTestCase(TestCase):
         # Create a community on a different network
         network3 = Network.objects.create(network="10.0.3.0/24", description="Test Network 3")
         community3 = Community.objects.create(name="community3", description="Community 3", network=network3)
-        
+
         with self.assertRaises(NotAcceptable) as context:
             self.host.add_to_community(community3)
         self.assertIn("No IP address on host matches the community's network", str(context.exception))
@@ -153,7 +153,7 @@ class ModelHostCommunitiesTestCase(TestCase):
         """Test error when multiple IPs match community network (ambiguous)."""
         # Add another IP on the same network
         _ip3 = Ipaddress.objects.create(host=self.host, ipaddress="10.0.1.11", macaddress="aa:bb:cc:dd:ee:03")
-        
+
         with self.assertRaises(NotAcceptable) as context:
             self.host.add_to_community(self.community1_net1)
         self.assertIn("Multiple IP addresses match the community's network", str(context.exception))
@@ -162,7 +162,7 @@ class ModelHostCommunitiesTestCase(TestCase):
         """Test error when provided IP doesn't belong to host."""
         other_host = Host.objects.create(name="other.example.org")
         other_ip = Ipaddress.objects.create(host=other_host, ipaddress="10.0.1.20", macaddress="aa:bb:cc:dd:ee:04")
-        
+
         with self.assertRaises(NotAcceptable) as context:
             self.host.add_to_community(self.community1_net1, other_ip)
         self.assertIn("Provided IP address does not belong to this host", str(context.exception))
@@ -176,7 +176,7 @@ class ModelHostCommunitiesTestCase(TestCase):
     def test_add_to_community_with_string_and_ip(self):
         """Test adding host to community using string name with explicit IP."""
         self.host.add_to_community("community1", self.ip1)
-        
+
         mapping = HostCommunityMapping.objects.get(host=self.host, ipaddress=self.ip1)
         self.assertEqual(mapping.community, self.community1_net1)
 
@@ -184,9 +184,9 @@ class ModelHostCommunitiesTestCase(TestCase):
         """Test adding host to community using string name without IP (single network match)."""
         # Remove second IP so only one IP matches
         self.ip2.delete()
-        
+
         self.host.add_to_community("community1")
-        
+
         mapping = HostCommunityMapping.objects.get(host=self.host, ipaddress=self.ip1)
         self.assertEqual(mapping.community, self.community1_net1)
 
@@ -194,7 +194,7 @@ class ModelHostCommunitiesTestCase(TestCase):
         """Test error when provided IP doesn't belong to host (string community)."""
         other_host = Host.objects.create(name="other.example.org")
         other_ip = Ipaddress.objects.create(host=other_host, ipaddress="10.0.1.20", macaddress="aa:bb:cc:dd:ee:04")
-        
+
         with self.assertRaises(NotAcceptable) as context:
             self.host.add_to_community("community1", other_ip)
         self.assertIn("Provided IP address does not belong to this host", str(context.exception))
@@ -203,7 +203,7 @@ class ModelHostCommunitiesTestCase(TestCase):
         """Test error when IP has no network (string community)."""
         # Create IP outside of any network
         orphan_ip = Ipaddress.objects.create(host=self.host, ipaddress="192.168.255.1", macaddress="aa:bb:cc:dd:ee:05")
-        
+
         with self.assertRaises(NotAcceptable) as context:
             self.host.add_to_community("community1", orphan_ip)
         self.assertIn("No network found for the provided IP address", str(context.exception))
@@ -219,7 +219,7 @@ class ModelHostCommunitiesTestCase(TestCase):
         # Create a community on a different network
         network3 = Network.objects.create(network="10.0.3.0/24", description="Test Network 3")
         Community.objects.create(name="community3", description="Community 3", network=network3)
-        
+
         with self.assertRaises(NotAcceptable) as context:
             self.host.add_to_community("community3")
         self.assertIn("No community named 'community3' found on any IP network for this host", str(context.exception))
@@ -233,7 +233,7 @@ class ModelHostCommunitiesTestCase(TestCase):
     def test_add_to_community_with_string_ip_as_string(self):
         """Test adding with community name and IP as string."""
         self.host.add_to_community("community1", "10.0.1.10")
-        
+
         mapping = HostCommunityMapping.objects.get(host=self.host, ipaddress=self.ip1)
         self.assertEqual(mapping.community, self.community1_net1)
 
@@ -246,7 +246,7 @@ class ModelHostCommunitiesTestCase(TestCase):
     def test_add_to_community_no_ips(self):
         """Test error when host has no IP addresses."""
         empty_host = Host.objects.create(name="empty.example.org")
-        
+
         with self.assertRaises(NotAcceptable) as context:
             empty_host.add_to_community(self.community1_net1)
         self.assertIn("Host has no IP addresses, cannot add to community", str(context.exception))
@@ -256,7 +256,7 @@ class ModelHostCommunitiesTestCase(TestCase):
         """Test error when MAC address is required but missing."""
         # Create IP without MAC
         ip_no_mac = Ipaddress.objects.create(host=self.host, ipaddress="10.0.1.12")
-        
+
         with self.assertRaises(NotAcceptable) as context:
             self.host.add_to_community(self.community1_net1, ip_no_mac)
         self.assertIn("The IP must have a MAC address to bind it to a community", str(context.exception))
@@ -265,7 +265,7 @@ class ModelHostCommunitiesTestCase(TestCase):
     def test_add_to_community_mac_required_present(self):
         """Test successful add when MAC address is required and present."""
         self.host.add_to_community(self.community1_net1, self.ip1)
-        
+
         mapping = HostCommunityMapping.objects.get(host=self.host, ipaddress=self.ip1)
         self.assertEqual(mapping.community, self.community1_net1)
 
@@ -273,10 +273,10 @@ class ModelHostCommunitiesTestCase(TestCase):
         """Test that adding to a new community replaces existing mapping on same network."""
         # First add to community1
         self.host.add_to_community(self.community1_net1, self.ip1)
-        
+
         # Now add to community2 on the same network
         self.host.add_to_community(self.community2_net1, self.ip1)
-        
+
         # Should only have one mapping for this IP
         mappings = HostCommunityMapping.objects.filter(host=self.host, ipaddress=self.ip1)
         self.assertEqual(mappings.count(), 1)
@@ -285,9 +285,9 @@ class ModelHostCommunitiesTestCase(TestCase):
     def test_remove_from_community_success(self):
         """Test successfully removing host from community."""
         self.host.add_to_community(self.community1_net1, self.ip1)
-        
+
         self.host.remove_from_community(self.community1_net1, self.ip1)
-        
+
         mapping_exists = HostCommunityMapping.objects.filter(
             host=self.host, ipaddress=self.ip1, community=self.community1_net1
         ).exists()
@@ -302,9 +302,9 @@ class ModelHostCommunitiesTestCase(TestCase):
     def test_remove_from_community_with_string(self):
         """Test removing host from community using string name."""
         self.host.add_to_community("community1", self.ip1)
-        
+
         self.host.remove_from_community("community1", self.ip1)
-        
+
         mapping_exists = HostCommunityMapping.objects.filter(
             host=self.host, ipaddress=self.ip1, community=self.community1_net1
         ).exists()
@@ -332,7 +332,7 @@ class ModelHostCommunitiesTestCase(TestCase):
         """Test when IP is not in any network (Community instance case)."""
         # Create IP outside of any network
         orphan_ip = Ipaddress.objects.create(host=self.host, ipaddress="192.168.255.1", macaddress="aa:bb:cc:dd:ee:05")
-        
+
         with self.assertRaises(NotAcceptable) as context:
             self.host.add_to_community(self.community1_net1, orphan_ip)
         self.assertIn("No network found for the provided IP address", str(context.exception))
@@ -343,10 +343,10 @@ class ModelHostCommunitiesTestCase(TestCase):
         _orphan_ip = Ipaddress.objects.create(host=self.host, ipaddress="192.168.255.1", macaddress="aa:bb:cc:dd:ee:05")
         # Remove ip2 so we only have ip1 in network1
         self.ip2.delete()
-        
+
         # Should still work because ip1 is in network1
         self.host.add_to_community(self.community1_net1)
-        
+
         mapping = HostCommunityMapping.objects.get(host=self.host, ipaddress=self.ip1)
         self.assertEqual(mapping.community, self.community1_net1)
 
@@ -356,10 +356,10 @@ class ModelHostCommunitiesTestCase(TestCase):
         _orphan_ip = Ipaddress.objects.create(host=self.host, ipaddress="192.168.255.1", macaddress="aa:bb:cc:dd:ee:05")
         # Remove ip2 so we only have ip1 in network1
         self.ip2.delete()
-        
+
         # Should still work because ip1 is in network1
         self.host.add_to_community("community1")
-        
+
         mapping = HostCommunityMapping.objects.get(host=self.host, ipaddress=self.ip1)
         self.assertEqual(mapping.community, self.community1_net1)
 
@@ -388,11 +388,11 @@ class ModelBACnetIDTestCase(TestCase):
         host1 = Host.objects.create(name="host1.example.org")
         host2 = Host.objects.create(name="host2.example.org")
         host3 = Host.objects.create(name="host3.example.org")
-        
+
         BACnetID.objects.create(id=0, host=host1)
         BACnetID.objects.create(id=1, host=host2)
         BACnetID.objects.create(id=2, host=host3)
-        
+
         first_id = BACnetID.first_unused_id()
         self.assertEqual(first_id, 3)
 
@@ -401,12 +401,12 @@ class ModelBACnetIDTestCase(TestCase):
         host1 = Host.objects.create(name="host1.example.org")
         host2 = Host.objects.create(name="host2.example.org")
         host3 = Host.objects.create(name="host3.example.org")
-        
+
         BACnetID.objects.create(id=0, host=host1)
         BACnetID.objects.create(id=1, host=host2)
         # Skip 2
         BACnetID.objects.create(id=3, host=host3)
-        
+
         first_id = BACnetID.first_unused_id()
         self.assertEqual(first_id, 2)
 
@@ -414,9 +414,9 @@ class ModelBACnetIDTestCase(TestCase):
         """Test finding first unused ID when gap is at the start."""
         host1 = Host.objects.create(name="host1.example.org")
         host2 = Host.objects.create(name="host2.example.org")
-        
+
         BACnetID.objects.create(id=5, host=host1)
         BACnetID.objects.create(id=10, host=host2)
-        
+
         first_id = BACnetID.first_unused_id()
         self.assertEqual(first_id, 0)

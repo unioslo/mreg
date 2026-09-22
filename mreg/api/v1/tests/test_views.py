@@ -224,7 +224,7 @@ class HostListPostTest(MregAPITestCase):
         """Set up test fixtures."""
         super().setUp()
         self.set_client_format_json()
-        
+
         # Create a network for testing
         self.network = Network.objects.create(  # type: ignore[attr-defined]
             network="10.0.0.0/24",
@@ -292,7 +292,7 @@ class HostDetailPatchTest(MregAPITestCase):
         """Set up test fixtures."""
         super().setUp()
         self.set_client_format_json()
-        
+
         # Create networks for testing
         self.network1 = Network.objects.create(  # type: ignore[attr-defined]
             network="10.0.0.0/24",
@@ -312,7 +312,7 @@ class HostDetailPatchTest(MregAPITestCase):
             description="Test community",
             network=self.network1,
         )
-        
+
         # Create a host with IP in network1 and add to community
         host = Host.objects.create(name="test.example.com")  # type: ignore[attr-defined]
         ip = Ipaddress.objects.create(  # type: ignore[attr-defined]
@@ -322,7 +322,7 @@ class HostDetailPatchTest(MregAPITestCase):
         )
         # Add host to community using the add_to_community method with the IP
         host.add_to_community(community, ip)
-        
+
         # Try to change IP to network2 (should fail due to community membership)
         response = self.client.patch(
             f"/api/v1/ipaddresses/{ip.pk}",
@@ -341,7 +341,7 @@ class HostDetailPatchTest(MregAPITestCase):
             description="Test community",
             network=self.network1,
         )
-        
+
         # Create a host with IP in network1 and add to community
         host = Host.objects.create(name="test.example.com")  # type: ignore[attr-defined]
         ip = Ipaddress.objects.create(  # type: ignore[attr-defined]
@@ -350,7 +350,7 @@ class HostDetailPatchTest(MregAPITestCase):
             macaddress="aa:bb:cc:dd:ee:ff",
         )
         host.add_to_community(community, ip)
-        
+
         # Change IP to another IP in the SAME network (should succeed)
         response = self.client.patch(
             f"/api/v1/ipaddresses/{ip.pk}",
@@ -367,7 +367,7 @@ class NetworkDetailPatchTest(MregAPITestCase):
         """Set up test fixtures."""
         super().setUp()
         self.set_client_format_json()
-        
+
         # Create a network for testing
         self.network = Network.objects.create(  # type: ignore[attr-defined]
             network="10.0.0.0/24",

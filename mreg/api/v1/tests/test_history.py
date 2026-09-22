@@ -9,19 +9,19 @@ class TestDjangoJSONModelEncoder(TestCase):
     def test_encode_unexpected_type(self):
         """Test encoding an unexpected type triggers warning and fallback."""
         encoder = DjangoJSONModelEncoder()
-        
+
         # Test with a simple object (not Model, not datetime)
         class CustomObject:
             pass
-        
+
         obj = CustomObject()
-        
+
         # This should trigger the warning and fall back to parent's default
         # which will raise TypeError since CustomObject is not JSON serializable
         with self.assertLogs('mreg.history', level='WARNING') as cm:
             with self.assertRaises(TypeError):
                 encoder.default(obj)
-        
+
         self.assertIn('unexpected type', cm.output[0])
 
 

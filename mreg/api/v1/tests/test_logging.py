@@ -342,7 +342,7 @@ class TestLoggingMiddleware(MregAPITestCase):
             request.user = get_user_model().objects.get(username="superuser")
             # Don't set x-correlation-id header
             response = middleware(request)
-            
+
             # Verify that correlation_id is not in request log
             self.assertNotIn("correlation_id", cap_logs[0])
             # Verify that X-Correlation-ID header is not in response
@@ -366,7 +366,7 @@ class TestLoggingMiddleware(MregAPITestCase):
         # Call _get_request_header - should use META fallback
         user_agent = middleware._get_request_header(request, "user-agent", "HTTP_USER_AGENT")
         self.assertEqual(user_agent, "TestAgent/1.0")
-        
+
         request_id = middleware._get_request_header(request, "x-request-id", "HTTP_X_REQUEST_ID")
         self.assertEqual(request_id, "test-request-id")
 
@@ -388,9 +388,9 @@ class TestLoggingMiddleware(MregAPITestCase):
         # Ensure request has headers attribute pointing to META
         from django.http.request import HttpHeaders
         request.headers = HttpHeaders(request.META)
-        
+
         response = middleware(request)
-        
+
             # Verify that X-Correlation-ID header is in the response.
         self.assertEqual(response["X-Correlation-ID"], "test-correlation-id")
 

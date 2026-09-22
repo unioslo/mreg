@@ -374,13 +374,13 @@ class APITestInternals(MregAPITestCase):
         with self.temporary_client_as_superuser():
             # Should yield immediately since user is already superuser
             self.assertTrue(self.user.is_mreg_superuser)
-        
+
         # Test policy admin context manager when user is already policy admin
         self.client = self.get_token_client(superuser=False, policyadmin=True)
         with self.temporary_client_as_policy_admin():
             # Should yield immediately since user is already policy admin
             self.assertTrue(self.user.is_mreg_hostpolicy_admin)
-        
+
         # Test network admin context manager when user is already network admin
         self.client = self.get_token_client(superuser=False, networkadmin=True)
         with self.temporary_client_as_network_admin():
@@ -391,13 +391,13 @@ class APITestInternals(MregAPITestCase):
         """Test client format context managers."""
         self.set_client_format_json()
         self.assertEqual(self.format, ClientTestFormat.JSON)
-        
+
         with self.client_format_json():
             self.assertEqual(self.format, ClientTestFormat.JSON)
-        
+
         with self.client_format_multipart():
             self.assertEqual(self.format, ClientTestFormat.MULTIPART)
-        
+
         # Format should be restored
         self.assertEqual(self.format, ClientTestFormat.JSON)
 

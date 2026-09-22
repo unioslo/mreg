@@ -364,7 +364,7 @@ class ReservedAddressPermissionsTestCase(MregAPITestCase):
         request = get_mock_request(user, mock_user_from_request)
 
         view = mock.Mock()
-        
+
         serializer = mock.Mock()
         # Set an invalid IP address - should return True and let serializer handle validation
         serializer.validated_data = {"ipaddress": "not-an-ip-address"}
@@ -374,7 +374,7 @@ class ReservedAddressPermissionsTestCase(MregAPITestCase):
         # Should return True because the permission class lets the serializer validate the IP
         result = permission.has_update_permission(request, view, serializer)
         self.assertTrue(result)
-        
+
     @mock.patch('mreg.api.permissions.User.from_request')
     def test_has_create_permission_with_invalid_ip(
         self,
@@ -385,7 +385,7 @@ class ReservedAddressPermissionsTestCase(MregAPITestCase):
         request = get_mock_request(user, mock_user_from_request)
 
         view = mock.Mock()
-        
+
         serializer = mock.Mock()
         # Set an invalid IP address - should return True and let serializer handle validation
         serializer.validated_data = {"ipaddress": "not-an-ip-address"}
@@ -542,22 +542,22 @@ class ReservedAddressPermissionsTestCase(MregAPITestCase):
         # Test each admin type individually to cover all branches
         user_superuser = get_mock_user(superuser=True)
         self.assertTrue(user_superuser.is_mreg_superuser)
-        
+
         user_admin = get_mock_user(admin=True)
         self.assertTrue(user_admin.is_mreg_admin)
-        
+
         user_network_admin = get_mock_user(network_admin=True)
         self.assertTrue(user_network_admin.is_mreg_network_admin)
-        
+
         user_hostgroup_admin = get_mock_user(hostgroup_admin=True)
         self.assertTrue(user_hostgroup_admin.is_mreg_hostgroup_admin)
-        
+
         user_dns_wildcard = get_mock_user(dns_wildcard_admin=True)
         self.assertTrue(user_dns_wildcard.is_mreg_dns_wildcard_admin)
-        
+
         user_underscore = get_mock_user(underscore_admin=True)
         self.assertTrue(user_underscore.is_mreg_dns_underscore_admin)
-        
+
         user_policy = get_mock_user(hostpolicy_admin=True)
         self.assertTrue(user_policy.is_mreg_hostpolicy_admin)
 
@@ -568,14 +568,14 @@ class IsSuperGroupMemberTestCase(MregAPITestCase):
         """Test that unauthenticated users are denied access."""
         from mreg.api.permissions import IsSuperGroupMember
         from django.contrib.auth.models import AnonymousUser
-        
+
         # Create an unauthenticated request
         request = RequestFactory().get('/')
         request.user = AnonymousUser()
-        
+
         view = mock.Mock()
         permission = IsSuperGroupMember()
-        
+
         # Should return False for unauthenticated user
         result = permission.has_permission(request, view)
         self.assertFalse(result)
