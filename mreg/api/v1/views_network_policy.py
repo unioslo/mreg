@@ -19,7 +19,7 @@ from mreg.api.v1.filters import (
     HostFilterSet,
 )
 
-from mreg.api.errors import ValidationError409
+from mreg.api.errors import Conflict
 from mreg.api.responses import created_response_at_url
 
 from mreg.api.v1.views import JSONContentTypeMixin, HistoryLog
@@ -63,7 +63,7 @@ class NetworkPolicyList(JSONContentTypeMixin, generics.ListCreateAPIView):
 
         try:
             NetworkPolicy.objects.get(name=name)
-            raise ValidationError409(detail=f"NetworkPolicy with the name '{name}' already exists.")
+            raise Conflict(detail=f"NetworkPolicy with the name '{name}' already exists.")
         except NetworkPolicy.DoesNotExist:
             pass
 
@@ -107,7 +107,7 @@ class NetworkPolicyAttributeList(JSONContentTypeMixin, generics.ListCreateAPIVie
         
         try:
             NetworkPolicyAttribute.objects.get(name=name)
-            raise ValidationError409(detail=f"NetworkPolicyAttribute with the name '{name}' already exists.")
+            raise Conflict(detail=f"NetworkPolicyAttribute with the name '{name}' already exists.")
         except NetworkPolicyAttribute.DoesNotExist:
             pass
 
@@ -157,7 +157,7 @@ class NetworkCommunityList(JSONContentTypeMixin, CommunityLogMixin, generics.Lis
 
         # We do not have to worry about case sensitivity here, as the LowerCaseManager for the model will handle that.
         if Community.objects.filter(name=name, network=network).exists():
-            raise ValidationError409(detail=f"Community with the name '{name}' already exists.")
+            raise Conflict(detail=f"Community with the name '{name}' already exists.")
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)

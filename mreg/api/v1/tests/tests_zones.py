@@ -89,22 +89,22 @@ class ForwardZonesTestCase(MregAPITestCase):
         new_data = self.assert_get(response['Location']).data
         self.assertLess(old_data['serialno_updated_at'], new_data['serialno_updated_at'])
 
-    def test_zones_patch_403_forbidden_name(self):
-        """"Trying to patch the name of an entry should return 403"""
+    def test_zones_patch_400_forbidden_name(self):
+        """"Trying to patch the name of an entry should return 400"""
         response = self.assert_get('/zones/forward/%s' % self.zone_one.name)
-        self.assert_patch_and_403('/zones/forward/%s' % self.zone_one.name,
+        self.assert_patch_and_400('/zones/forward/%s' % self.zone_one.name,
                                   {'name': response.data['name']})
 
-    def test_zones_patch_403_forbidden_primary_ns(self):
-        """Trying to patch the primary_ns to be a nameserver that isn't in the nameservers list should return 403"""
+    def test_zones_patch_400_forbidden_primary_ns(self):
+        """Trying to patch the primary_ns to be a nameserver that isn't in the nameservers list should return 400"""
         self.assert_post('/zones/forward/', self.post_data_two)
-        self.assert_patch_and_403('/zones/forward/%s' % self.post_data_two['name'],
+        self.assert_patch_and_400('/zones/forward/%s' % self.post_data_two['name'],
                                   {'primary_ns': self.host_three.name})
 
-    def test_zones_patch_403_forbidden_nameservers(self):
+    def test_zones_patch_400_forbidden_nameservers(self):
         """Trying to patch the nameservers directly is not allowed."""
         self.assert_post('/zones/forward/', self.post_data_two)
-        self.assert_patch_and_403('/zones/forward/%s' % self.post_data_two['name'],
+        self.assert_patch_and_400('/zones/forward/%s' % self.post_data_two['name'],
                                   {'nameservers': self.host_three.name})
 
     def test_zones_patch_404_not_found(self):
@@ -122,10 +122,10 @@ class ForwardZonesTestCase(MregAPITestCase):
         self.host_two.delete()
         self.assert_delete('/zones/forward/%s' % self.zone_one.name)
 
-    def test_zones_delete_with_hosts_403_forbidden(self):
-        """"Deleting an existing zone with Hosts should return 403"""
+    def test_zones_delete_with_hosts_409_conflict(self):
+        """"Deleting an existing zone with Hosts should return 409"""
         self.assert_post('/hosts/', {'name': 'host.example.org'})
-        self.assert_delete_and_403('/zones/forward/%s' % self.zone_one.name)
+        self.assert_delete_and_409('/zones/forward/%s' % self.zone_one.name)
 
     def test_zones_404_not_found(self):
         """"Deleting a non-existing entry should return 404"""
@@ -218,22 +218,22 @@ class ReverseZonesTestCase(MregAPITestCase):
         self.assertEqual(response_one.data['serialno'], response_two.data['serialno'])
         self.assertEqual(response_one.data['serialno'], create_serialno())
 
-    def test_zones_patch_403_forbidden_name(self):
-        """"Trying to patch the name of an entry should return 403"""
+    def test_zones_patch_400_forbidden_name(self):
+        """"Trying to patch the name of an entry should return 400"""
         response = self.assert_get(self.basepath + self.zone_one.name)
-        self.assert_patch_and_403(self.basepath + self.zone_one.name,
+        self.assert_patch_and_400(self.basepath + self.zone_one.name,
                                   {'name': response.data['name']})
 
-    def test_zones_patch_403_forbidden_primary_ns(self):
-        """Trying to patch the primary_ns to be a nameserver that isn't in the nameservers list should return 403"""
+    def test_zones_patch_400_forbidden_primary_ns(self):
+        """Trying to patch the primary_ns to be a nameserver that isn't in the nameservers list should return 400"""
         self.assert_post(self.basepath, self.post_data_two)
-        self.assert_patch_and_403(self.basepath + self.post_data_two['name'],
+        self.assert_patch_and_400(self.basepath + self.post_data_two['name'],
                                   {'primary_ns': self.host_three.name})
 
-    def test_zones_patch_403_forbidden_nameservers(self):
+    def test_zones_patch_400_forbidden_nameservers(self):
         """Trying to patch the nameservers directly is not allowed."""
         self.assert_post(self.basepath, self.post_data_two)
-        self.assert_patch_and_403(self.basepath + self.post_data_two['name'],
+        self.assert_patch_and_400(self.basepath + self.post_data_two['name'],
                                   {'nameservers': self.host_three.name})
 
     def test_zones_patch_404_not_found(self):
@@ -301,13 +301,13 @@ class ZonesForwardDelegationTestCase(MregAPITestCase):
         self.test_delegate_forward_201_ok()
         self.assert_get('/zonefiles/example.org')
 
-    def test_delegate_forward_patch_403_only_path_comment(self):
+    def test_delegate_forward_patch_400_only_path_comment(self):
         path = self.del_path('example.org')
         data = {'name': 'delegated.example.org',
                 'nameservers': ['ns1.example.org', 'ns1.delegated.example.org']}
         response = self.assert_post(path, data)
         self.assert_patch(response['Location'], {'comment': 'new comment'})
-        self.assert_patch_and_403(response['Location'], {'name': 'notallowed.example.org'})
+        self.assert_patch_and_400(response['Location'], {'name': 'notallowed.example.org'})
 
     def test_delegate_forward_badname_400_bad_request(self):
         path = self.del_path('example.org')
