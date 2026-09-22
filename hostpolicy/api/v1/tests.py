@@ -89,7 +89,11 @@ class HostPolicyRoleTestCase(MregAPITestCase):
         post_data = {'name': 'test', 'description': 'desc'}
         self.assert_post(self.basepath, post_data)
         post_data = {'name': 'TEST', 'description': 'desc'}
-        self.assert_post_and_409(self.basepath, post_data)
+        response = self.assert_post_and_409(self.basepath, post_data)
+        
+        error = response.json()
+        self.assertEqual(error["type"], "client_error")
+        self.assertIn("name 'test' already in use", error["errors"][0]["detail"])
 
     def test_rename_to_name_in_use_400_bad_request(self):
         """Rename to a name in use should return 400"""
