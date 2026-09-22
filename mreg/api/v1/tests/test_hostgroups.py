@@ -97,8 +97,17 @@ class APIHostGroupGroupsTestCase(MregAPITestCase):
                                  {'name': self.hostgroup_two.name})
 
     def test_groups_add_missing_name_group_400_forbidden(self):
-        self.assert_post_and_400(f'/hostgroups/{self.hostgroup_one.name}/groups/',
-                                 {'name2': 'something'})
+        response = self.assert_post_and_400(f'/hostgroups/{self.hostgroup_one.name}/groups/',
+                                 {"name2": "something"})
+        error = response.json()
+        self.assertEqual(error["type"], "validation_error")
+
+        errors = error["errors"]
+        name_error = next((e for e in errors if e.get("attr") == "name"), None)
+        self.assertIsNotNone(name_error)
+        self.assertIn("No name provided", name_error["detail"])
+        self.assertEqual("name", name_error["attr"])
+        self.assertEqual("invalid", name_error["code"])
 
     def test_group_list_with_content_200_ok(self):
         self.test_groups_add_group_to_group_201_ok()

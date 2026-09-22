@@ -6,12 +6,11 @@ from rest_framework import status
 from rest_framework.exceptions import NotFound
 from typing_extensions import override
 
-from mreg.api.responses import error_response
+from mreg.api.errors import Conflict
 from mreg.api.permissions import (HostGroupPermission,
                                   IsSuperOrGroupAdminOrReadOnly)
 from mreg.models.host import Host, HostGroup
 from mreg.models.auth import User
-
 from mreg.mixins import LowerCaseLookupMixin
 
 from . import serializers
@@ -84,8 +83,9 @@ class HostGroupList(HostGroupLogMixin, LowerCaseLookupMixin, MregListCreateAPIVi
     lookup_field = 'name'
 
     def post(self, request, *args, **kwargs):
-        if self.get_object_from_request(request):
-            return error_response('hostgroup name already in use', status.HTTP_409_CONFLICT)
+        existing = self.get_object_from_request(request)
+        if existing:
+            raise Conflict(f"hostgroup name '{existing.name}' already in use")
         return super().post(request, *args, **kwargs)
 
 
@@ -223,4 +223,4 @@ class HostGroupOwnersDetail(HostGroupM2MDetail):
         Overridden to remove check for global Group existence when determining
         404 error message.
         """
-        return NotFound(detail=f"'{lookup_value}' is not an owner of '{self.object.name}'.")
+        return NotFound("'{lookup_value}' is not an owner of '{self.object.name}'.")

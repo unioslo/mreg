@@ -6,7 +6,6 @@ from rest_framework import exceptions
 from rest_framework.permissions import IsAuthenticated as DRFIsAuthenticated, SAFE_METHODS
 from rest_framework.request import Request
 
-from mreg.api.responses import error_body
 from mreg.api.v1.serializers import HostSerializer
 from mreg.models.host import HostGroup
 from mreg.models.network import NetGroupRegexPermission, Network
@@ -373,7 +372,7 @@ class IsGrantedReservedAddressPermission(IsAuthenticated):
         else:
             if ipaddr in (network.network.broadcast_address, network.network.network_address):
                 raise exceptions.PermissionDenied(
-                    error_body("Setting a network or broadcast address on a host requires network admin privileges.")
+                    "Setting a network or broadcast address on a host requires network admin privileges."
                 )
         return True
 

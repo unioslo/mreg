@@ -1,10 +1,11 @@
 from django.shortcuts import get_object_or_404
 
 from rest_framework import status
-from rest_framework.exceptions import MethodNotAllowed, NotFound
+from rest_framework.exceptions import MethodNotAllowed, NotFound, ValidationError
 from rest_framework.response import Response
 
-from mreg.api.responses import created_response, error_response
+from mreg.api.errors import Conflict
+from mreg.api.responses import created_response
 
 
 class M2MPermissions:
@@ -44,8 +45,8 @@ class M2MDetail:
     def member_not_found(self, model, lookup_value) -> NotFound:
         """Build the 404 error for a member that isn't in this relation."""
         if model.objects.filter(name=lookup_value).exists():
-            return NotFound(detail=f"'{lookup_value}' is not a member of '{self.object.name}'.")
-        return NotFound(detail=f"No {model.__name__} named '{lookup_value}' exists.")
+            return NotFound(f"'{lookup_value}' is not a member of '{self.object.name}'.")
+        return NotFound(f"No {model.__name__} named '{lookup_value}' exists.")
 
     def get_queryset(self):
         if 'name' not in self.kwargs:
@@ -88,14 +89,14 @@ class M2MList:
         if "name" in request.data:
             name = request.data['name']
             if qs.filter(name=name).exists():
-                return error_response(f'{name} already in {self.m2m_field}', status.HTTP_409_CONFLICT)
+                raise Conflict(f'{name} already in {self.m2m_field}')
             if self.m2m_create_if_missing:
                 instance, created = self.m2m_object.objects.get_or_create(name=name)
             else:
                 try:
                     instance = self.m2m_object.objects.get(name=name)
                 except self.m2m_object.DoesNotExist:
-                    return error_response(f'"{name}" does not exist', status.HTTP_404_NOT_FOUND)
+                    raise NotFound(f'"{name}" does not exist')
             self.perform_m2m_alteration(self.m2mrelation.add, instance)
             return created_response(
                 request,
@@ -103,4 +104,4 @@ class M2MList:
                 instance.name,
             )
         else:
-            return error_response('No name provided', status.HTTP_400_BAD_REQUEST)
+            raise ValidationError({"name": "No name provided"})
