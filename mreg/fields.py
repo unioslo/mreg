@@ -1,15 +1,21 @@
 import django.contrib.postgres.fields as pgfields
 import django.db.models as models
 
+from .lookups import LOWERCASE_LOOKUPS
 from .validators import validate_hostname
 
 class LowerCaseCharField(models.CharField):
-    """A CharField where the value is stored in lower case."""
+    """Store lowercase text and normalize literal values in text lookups."""
 
     def get_db_prep_save(self, value, connection):
         if isinstance(value, str):
             value = value.lower()
         return super().get_db_prep_save(value, connection)
+
+
+for lookup in LOWERCASE_LOOKUPS:
+    LowerCaseCharField.register_lookup(lookup)
+
 
 class LCICharField(pgfields.CICharField):
     """A pgfields.CICharField where the value is stored in lower case.  """
