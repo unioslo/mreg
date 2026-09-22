@@ -222,6 +222,34 @@ docker run --network host \
 
 ## Local Settings
 
+The application supports setting the aforementioned settings persistently via a `.env` file.
+
+### `.env`
+
+To override entries in `mregsite/settings.py`, create a file `.env` or rename `.env.example` to `.env`.
+
+Example `.env` file:
+
+```bash
+DJANGO_SETTINGS_MODULE=mregsite.settings
+MREG_DB_NAME=mreg_sample
+MREG_DB_USER=mreg_user
+MREG_DB_PASSWORD=mregdbpass
+MREG_DB_HOST=localhost
+MREG_DB_PORT=5432
+```
+
+The default database setup in `settings.py` uses Django's postgres connection pool, but if you want to disable pooling for local development, you can set `MREG_DB_POOL_ENABLED` to `0` or `false` in `.env`:
+
+```bash
+MREG_DB_POOL_ENABLED=0 # or false
+```
+
+### `local_settings.py` (deprecated)
+
+> [!WARNING]
+> `local_settings.py` is deprecated. Prefer using a `.env` file for local configuration. `local_settings.py` allows arbitrary Python code, which can lead to security and maintainability issues.
+
 To override entries in `mregsite/settings.py`, create a file `mregsite/local_settings.py` and add the entries there.
 
 ```python
@@ -232,26 +260,11 @@ MREG_DB_HOST = "localhost"
 MREG_DB_PORT = "5432"
 ```
 
-Equivalent shell commands:
-
-```bash
-export MREG_DB_NAME=mreg_sample
-export MREG_DB_USER=mreg_user
-export MREG_DB_PASSWORD=mregdbpass
-export MREG_DB_HOST=localhost
-export MREG_DB_PORT=5432
-```
 
 The default database setup in `settings.py` uses Django's postgres connection pool, but if you want to disable pooling for local development, you can set `MREG_DB_POOL_ENABLED` to `False` in `local_settings.py`:
 
 ```python
 MREG_DB_POOL_ENABLED = False
-```
-
-or via environment variable:
-
-```bash
-export MREG_DB_POOL_ENABLED=False # or 0
 ```
 
 ## Profiling
