@@ -1,10 +1,11 @@
 from django.shortcuts import get_object_or_404
 
 from rest_framework import status
-from rest_framework.exceptions import MethodNotAllowed
+from rest_framework.exceptions import MethodNotAllowed, NotFound, ValidationError
 from rest_framework.response import Response
 
-from mreg.api.responses import error_response
+from mreg.api.errors import Conflict
+from mreg.api.responses import created_response
 
 
 class M2MPermissions:
@@ -78,16 +79,19 @@ class M2MList:
         if "name" in request.data:
             name = request.data['name']
             if qs.filter(name=name).exists():
-                return error_response(f'{name} already in {self.m2m_field}', status.HTTP_409_CONFLICT)
+                raise Conflict(f'{name} already in {self.m2m_field}')
             if self.m2m_create_if_missing:
                 instance, created = self.m2m_object.objects.get_or_create(name=name)
             else:
                 try:
                     instance = self.m2m_object.objects.get(name=name)
                 except self.m2m_object.DoesNotExist:
-                    return error_response(f'"{name}" does not exist', status.HTTP_404_NOT_FOUND)
+                    raise NotFound(f'"{name}" does not exist')
             self.perform_m2m_alteration(self.m2mrelation.add, instance)
-            location = request.path + instance.name
-            return Response(status=status.HTTP_201_CREATED, headers={'Location': location})
+            return created_response(
+                request,
+                self.get_serializer(instance),
+                instance.name,
+            )
         else:
-            return error_response('No name provided', status.HTTP_400_BAD_REQUEST)
+            raise ValidationError({"name": "No name provided"})

@@ -17,7 +17,7 @@ from mreg.models.network import Network, NetGroupRegexPermission, NetworkExclude
 
 from mreg.utils import (nonify, normalize_mac)
 from mreg.validators import (validate_keys, validate_normalizeable_mac_address)
-from mreg.api.errors import ValidationError409
+from mreg.api.errors import Conflict
 
 
 class ValidationMixin:
@@ -28,10 +28,6 @@ class ValidationMixin:
         validate_keys(self)
         data = {key: nonify(value) for key, value in data.items()}
         return data
-
-
-class ErrorResponseSerializer(serializers.Serializer):
-    error = serializers.CharField(required=False)
 
 
 class CommunitySerializer(serializers.ModelSerializer):
@@ -174,7 +170,7 @@ class IpaddressSerializer(ValidationMixin, serializers.ModelSerializer):
             if inuse_set.exists():
                 ips = inuse_set.values_list('ipaddress', flat=True)
                 msg = "macaddress already in use by: " + ", ".join(ips)
-                raise ValidationError409(msg)
+                raise Conflict(msg)
 
         data = super().validate(data)
         _validate_ip_not_in_network_excluded_range(data.get('ipaddress'))
@@ -393,9 +389,9 @@ class HostSerializer(ForwardZoneMixin, serializers.ModelSerializer):
         name = data.get('name')
         if name:
             if Cname.objects.filter(name=name).exists():
-                raise ValidationError409("CNAME record exists for {}".format(name))
+                raise Conflict("CNAME record exists for {}".format(name))
             if Host.objects.filter(name=name).exists():
-                raise ValidationError409("Host already exists with name {}".format(name))
+                raise Conflict("Host already exists with name {}".format(name))
 
         # Don't pop 'contact' here - let create/update handle it from validated_data
         # since it's a defined field that DRF will deserialize properly

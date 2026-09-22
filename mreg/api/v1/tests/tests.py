@@ -16,6 +16,7 @@ from django_auth_ldap.backend import LDAPBackend
 
 from rest_framework.test import APIClient, APITestCase
 
+from mreg.api.errors import ErrorCode
 from mreg.models.auth import User, MregAdminGroup
 from mreg.models.base import ExpiringToken
 from mreg.models.network import Network, NetGroupRegexPermission
@@ -1146,7 +1147,7 @@ class APIHostsTestCase(MregAPITestCase):
         self.format = ClientTestFormat.JSON
         response = self.assert_post_and_400('/hosts/%s/contacts/' % self.host_one.name, {})
         self.format = original_format
-        self.assertIn('error', response.json())
+        self.assertIn('errors', response.json())
     
     def test_hosts_contacts_action_delete_no_emails(self):
         """"DELETE /hosts/{name}/contacts/ without emails should clear all contacts"""
@@ -1182,17 +1183,15 @@ class APIHostsTestCase(MregAPITestCase):
             data = {'emails': ['invalid email']}
             response = self.assert_post_and_400('/hosts/%s/contacts/' % self.host_one.name, data)
             result = response.json()
-            self.assertIn('error', result)
-            self.assertIn('Invalid email', result['error'])
-    
+            self.assertIn('Invalid email', result['errors'][0]['detail'])
+
     def test_hosts_contacts_action_add_400_invalid_email_mixed(self):
         """"POST /hosts/{name}/contacts/ with mixed valid/invalid emails should return 400"""
         with self.client_format_json():
             data = {'emails': ['valid@example.com', 'invalid email', 'also@bad']}
             response = self.assert_post_and_400('/hosts/%s/contacts/' % self.host_one.name, data)
             result = response.json()
-            self.assertIn('error', result)
-            self.assertIn('Invalid email', result['error'])
+            self.assertIn('Invalid email', result['errors'][0]['detail'])
 
     def test_hosts_post_400_invalid_ip(self):
         """"Posting a new host with an invalid IP should return 400"""
@@ -1200,6 +1199,33 @@ class APIHostsTestCase(MregAPITestCase):
                      'contacts': ['fail@example.org']}
         self.assert_post_and_400('/hosts/', post_data)
         self.assert_get_and_404('/hosts/failing.example.org')
+
+    def test_hosts_post_400_ipaddress_and_network_mutually_exclusive(self):
+        """Posting with both 'ipaddress' and 'network' should return 400 with a
+        per-field error for each of the two mutually exclusive fields."""
+        post_data = {'name': 'excl.example.org', 'ipaddress': '10.0.0.5',
+                     'network': '10.0.0.0/24'}
+        response = self.assert_post_and_400('/hosts/', post_data)
+        errors = response.json()['errors']
+        by_attr = {e['attr']: e for e in errors}
+        self.assertEqual(set(by_attr), {'ipaddress', 'network'})
+        self.assertEqual(by_attr['ipaddress']['code'], ErrorCode.INVALID)
+        self.assertEqual(by_attr['ipaddress']['detail'],
+                         "Field is mutually exclusive with 'network'")
+        self.assertEqual(by_attr['network']['detail'],
+                         "Field is mutually exclusive with 'ipaddress'")
+        self.assert_get_and_404('/hosts/excl.example.org')
+
+    def test_hosts_post_400_allocation_method_without_network(self):
+        """Posting with 'allocation_method' but no 'network' should return 400 with
+        an error on 'allocation_method' and a 'required' error on the missing 'network'."""
+        post_data = {'name': 'alloc.example.org', 'allocation_method': 'first'}
+        response = self.assert_post_and_400('/hosts/', post_data)
+        by_attr = {e['attr']: e for e in response.json()['errors']}
+        self.assertEqual(set(by_attr), {'allocation_method', 'network'})
+        self.assertEqual(by_attr['allocation_method']['code'], ErrorCode.INVALID)
+        self.assertEqual(by_attr['network']['code'], ErrorCode.REQUIRED)
+        self.assert_get_and_404('/hosts/alloc.example.org')
 
     def test_hosts_post_409_conflict_name(self):
         """"Posting a new host with a name already in use should return 409"""

@@ -3,7 +3,7 @@ from unittest import mock
 from django.test import SimpleTestCase, TestCase, override_settings
 from rest_framework import serializers
 
-from mreg.api.errors import ValidationError409
+from mreg.api.errors import Conflict
 from mreg.api.v1.serializers import (
     CommunitySerializer,
     HostSerializer,
@@ -137,7 +137,7 @@ class HostSerializerTests(TestCase):
         host = Host.objects.create(name="host.example")
         serializer = HostSerializer(data={"name": host.name})
 
-        with self.assertRaises(ValidationError409):
+        with self.assertRaises(Conflict):
             serializer.validate({"name": host.name})
 
     def test_create_uses_deprecated_contact_and_invalid_ip_raises(self):

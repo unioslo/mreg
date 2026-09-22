@@ -1,7 +1,5 @@
-from rest_framework import status
-
 from .views import MregListCreateAPIView, MregRetrieveUpdateDestroyAPIView
-from mreg.api.responses import error_response
+from mreg.api.errors import Conflict
 from mreg.models.base import Label
 from mreg.api.permissions import IsSuperOrAdminOrReadOnly
 
@@ -17,10 +15,13 @@ class LabelList(MregListCreateAPIView, LowerCaseLookupMixin):
     permission_classes = (IsSuperOrAdminOrReadOnly,)
     filterset_class = LabelFilterSet
     lookup_field = "name"
+    # The detail endpoint (labels/<pk>) keys on pk, not name, so Location must too.
+    location_lookup_field = "pk"
 
-    def post(self, request, *args, **kwargs):        
-        if self.get_object_from_request(request):
-            return error_response("Label name already in use", status.HTTP_409_CONFLICT)
+    def post(self, request, *args, **kwargs):
+        existing = self.get_object_from_request(request)
+        if existing:
+            raise Conflict(f"Label name '{existing.name}' already in use")
         return super().post(request, *args, **kwargs)
 
 
