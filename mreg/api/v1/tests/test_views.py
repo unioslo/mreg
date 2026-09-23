@@ -34,8 +34,7 @@ class ContentTypeProtectedView(JSONContentTypeMixin, APIView):
 
 class ContentTypeMixinUnitTests(SimpleTestCase):
     def test_valid_content_type_reaches_view(self):
-        request = APIRequestFactory().generic(
-            "DELETE",
+        request = APIRequestFactory().delete(
             "/",
             data=b"{}",
             content_type="application/json",
@@ -46,8 +45,7 @@ class ContentTypeMixinUnitTests(SimpleTestCase):
         self.assertEqual(response.status_code, 204)
 
     def test_exception_is_rendered_as_unsupported_media_type(self):
-        request = APIRequestFactory().generic(
-            "DELETE",
+        request = APIRequestFactory().delete(
             "/",
             data=b"body",
             content_type="text/plain",
@@ -146,8 +144,7 @@ class ContentTypeEnforcerTest(MregAPITestCase):
         """DELETE with a body and non-JSON content type is rejected."""
         policy = NetworkPolicy.objects.create(name="test-policy")
 
-        response = self.client.generic(
-            "DELETE",
+        response = self.client.delete(
             f"/api/v1/networkpolicies/{policy.pk}",
             data=b"some body content",
             content_type="text/html",
