@@ -46,6 +46,7 @@ from mreg.models.network_policy import (
     NetworkPolicyAttributeValue,
 )
 from mreg.models.resource_records import Cname, Hinfo, Loc, Mx, Naptr, Srv, Sshfp, Txt
+from mreg.models.snapshot import SnapshotThrottleState
 from mreg.models.zone import (
     ForwardZone,
     ForwardZoneDelegation,
@@ -112,18 +113,26 @@ class SnapshotNotAcceptable(SnapshotRequestError):
 
 
 class SnapshotRateThrottle(SimpleRateThrottle):
-    """Apply a narrow per-principal rate limit to expensive snapshot requests."""
+    """Serialize per-principal rate decisions in PostgreSQL across all workers."""
 
     scope = "snapshot"
 
     def get_rate(self) -> str:
         return settings.MREG_SNAPSHOT_THROTTLE_RATE
 
-    def get_cache_key(self, request, view) -> str | None:
-        if not request.user or not request.user.is_authenticated:
-            return None
-        identity = getattr(request.user, "pk", None) or request.user.username
-        return self.cache_format % {"scope": self.scope, "ident": identity}
+    def allow_request(self, request, view) -> bool:
+        if self.rate is None or not request.user or not request.user.is_authenticated:
+            return True
+        with transaction.atomic():
+            state, _ = SnapshotThrottleState.objects.select_for_update().get_or_create(user_id=request.user.pk)
+            self.now = self.timer()
+            self.history = [timestamp for timestamp in state.history if timestamp > self.now - self.duration]
+            if len(self.history) >= self.num_requests:
+                return False
+            self.history.insert(0, self.now)
+            state.history = self.history
+            state.save(update_fields=["history"])
+        return True
 
 
 @contextmanager
@@ -392,7 +401,14 @@ def _attachment_items(index: NetworkIndex, wildcards: set[int], chunk_size: int)
 
 
 def _ip_items(index: NetworkIndex, wildcards: set[int], chunk_size: int) -> Iterator[dict[str, Any]]:
-    duplicate = Ipaddress.objects.values("ipaddress").annotate(count=Count("pk")).filter(count__gt=1).order_by("ipaddress").first()
+    duplicate = (
+        Ipaddress.objects.exclude(host_id__in=wildcards)
+        .values("ipaddress")
+        .annotate(count=Count("pk"))
+        .filter(count__gt=1)
+        .order_by("ipaddress")
+        .first()
+    )
     if duplicate:
         raise SnapshotError(f"IP address {duplicate['ipaddress']} is assigned more than once", model="Ipaddress")
     for obj in _ip_rows(chunk_size):
@@ -677,6 +693,19 @@ def _relationship_items(index: NetworkIndex, wildcards: set[int], chunk_size: in
                 "community_name_ref": _ref("community", obj.community_id),
             },
         )
+
+    # An attachment-level assignment must not also enroll IPs that have no
+    # legacy community membership. Unassigned IPs are absent from mappings.
+    if seen:
+        unassigned = Ipaddress.objects.exclude(host_id__in=wildcards).filter(hostcommunitymapping__isnull=True).order_by("pk")
+        for obj in unassigned.iterator(chunk_size=chunk_size):
+            match = index.match(obj.ipaddress)
+            if match is not None and _attachment_ref(obj.host_id, match[0], _normalized_mac(obj.macaddress)) in seen:
+                raise SnapshotError(
+                    "One attachment mixes assigned and unassigned IP addresses",
+                    model="Ipaddress",
+                    object_id=obj.pk,
+                )
 
 
 def _topological_group_order(group_ids: set[int], parent_links: list[tuple[int, int]]) -> tuple[list[int], dict[int, set[int]]]:
@@ -1063,7 +1092,7 @@ def _build_archive(
             mtime=int(created_at.timestamp()),
         ) as compressed,
     ):
-        with tarfile.open(fileobj=compressed, mode="w", format=tarfile.USTAR_FORMAT) as archive:
+        with tarfile.open(fileobj=compressed, mode="w", format=tarfile.PAX_FORMAT) as archive:
             _add_bytes_to_archive(archive, "manifest.json", manifest_bytes, created_at)
             _add_data_file_to_archive(archive, data.items, created_at, budget)
             _add_data_file_to_archive(archive, data.deferred_records, created_at, budget)
