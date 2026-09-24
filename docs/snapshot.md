@@ -15,10 +15,12 @@ Accept: application/vnd.uio.mreg-snapshot+tar
 Accept-Encoding: gzip
 ```
 
-The response is a gzip-compressed tar archive containing `manifest.json`,
+The response is a gzip-compressed PAX tar archive containing `manifest.json`,
 `items.ndjson`, and `deferred-records.ndjson`. Each line in `items.ndjson`
 is a dependency-ordered import item. The manifest records the source,
 consistent database timestamp, item counts, and checksums.
+PAX extended headers support individual members of 8 GiB or more, subject to
+the configured temporary-storage budget.
 
 Wildcard HINFO, LOC, and SSHFP records are valid source data, but cannot be
 represented by the version 1 import contract because those record types require
@@ -58,7 +60,14 @@ included. Legacy netgroup-regex permission rules are optional. Host and network
 policy domain objects are always included. Generated A, AAAA, PTR, and zone NS
 records are omitted because the restored MREG state derives them from
 structural objects. Wildcard host DNS data is converted to explicit record
-items.
+items and may share an address with a regular host or another wildcard.
+
+IP addresses on the same host, network, and MAC address become one attachment.
+Since community assignments apply to that whole attachment, snapshots reject
+attachments with conflicting communities or a mixture of assigned and
+unassigned IPs. This also applies to MAC-less IPs when
+`MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY=false`. Resolve those memberships
+before exporting; the exporter never implicitly enrolls an unassigned IP.
 
 ## Operation
 
@@ -72,10 +81,19 @@ controls ORM iterator batches and defaults to 2000.
 Only one artifact is generated at a time across application workers sharing
 the PostgreSQL cluster. Additional concurrent attempts receive `429 Too Many
 Requests`; a separate per-principal throttle defaults to two attempts per hour.
+Throttle history is stored in PostgreSQL and updated under a row lock, so the
+limit is shared across workers and survives restarts. Apply database migrations
+before deploying this endpoint. This operational state is excluded from exports.
 `MREG_SNAPSHOT_MAX_BYTES` limits peak temporary storage per generation and
 defaults to 10 GiB, while `MREG_SNAPSHOT_MAX_DURATION_SECONDS` defaults to 900
 seconds. These limits should be sized for the installation before enabling
 snapshot access.
+
+The shipped Gunicorn configuration sets both worker and graceful shutdown
+timeouts to the effective snapshot duration budget plus 60 seconds (960 seconds
+by default). Custom deployments should load `python:mregsite.gunicorn` or set
+compatible timeouts themselves. Reverse-proxy and client timeouts must also allow
+for generation and download; larger downloads may require additional time.
 
 The database transaction is closed before the artifact is downloaded. A client
 disconnect therefore does not leave a snapshot transaction open, and temporary

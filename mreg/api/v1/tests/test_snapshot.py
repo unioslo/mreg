@@ -5,6 +5,9 @@ import json
 import tarfile
 import tempfile
 from contextlib import nullcontext
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
+from threading import Barrier
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -14,7 +17,7 @@ import psycopg
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
-from django.db import DatabaseError, connection
+from django.db import DatabaseError, connection, connections
 from django.test import SimpleTestCase, TestCase, TransactionTestCase, override_settings
 from rest_framework.request import Request
 from rest_framework.test import APIClient, APIRequestFactory, force_authenticate
@@ -68,6 +71,7 @@ from mreg.models.network_policy import (
     NetworkPolicyAttributeValue,
 )
 from mreg.models.resource_records import Cname, Hinfo, Loc, Mx, Naptr, Srv, Sshfp, Txt
+from mreg.models.snapshot import SnapshotThrottleState
 from mreg.models.zone import ForwardZone, ForwardZoneDelegation, ReverseZone, ReverseZoneDelegation
 from mreg.api.v1.tests.tests import MregAPITestCase
 
@@ -184,6 +188,34 @@ class SnapshotArtifactTests(ParametrizedTestCase, SimpleTestCase):
                 [json.loads(line) for line in deferred_bytes.splitlines()],
                 DEFERRED_RECORDS,
             )
+        finally:
+            artifact.cleanup()
+
+    def test_archive_accepts_members_at_the_ustar_size_limit(self):
+        large_size = 8 * 1024**3
+        copyfileobj = tarfile.copyfileobj
+
+        def large_data(*args, **kwargs):
+            data = fake_write_snapshot_data(*args, **kwargs)
+            return replace(data, items=replace(data.items, size=large_size))
+
+        def copy_without_large_payload(source, destination, length=None, **kwargs):
+            # Exercise real tar header encoding without writing an 8 GiB body.
+            if length != large_size:
+                return copyfileobj(source, destination, length, **kwargs)
+
+        with (
+            mock.patch("mreg.api.v1.snapshot._write_snapshot_data", side_effect=large_data),
+            mock.patch("tarfile.copyfileobj", side_effect=copy_without_large_payload),
+        ):
+            artifact = create_snapshot_artifact(ARCHIVE_FORMAT, "snapshotter", "mreg.example.org")
+        try:
+            with tarfile.open(artifact.path, mode="r:gz") as archive:
+                self.assertEqual(archive.next().name, "manifest.json")
+                member = archive.next()
+                self.assertEqual(member.name, "items.ndjson")
+                self.assertEqual(member.size, large_size)
+                self.assertEqual(member.pax_headers["size"], str(large_size))
         finally:
             artifact.cleanup()
 
@@ -445,6 +477,7 @@ class SnapshotTranslationValidationTests(ParametrizedTestCase, SimpleTestCase):
 
     def ipaddress_model(self, *, duplicate=None, exists=False):
         manager = mock.MagicMock()
+        manager.exclude.return_value = manager
         duplicate_query = manager.values.return_value.annotate.return_value.filter.return_value.order_by.return_value
         duplicate_query.first.return_value = duplicate
         manager.filter.return_value.exists.return_value = exists
@@ -595,15 +628,6 @@ class SnapshotRequestTests(ParametrizedTestCase, SimpleTestCase):
         self.assertFalse(_header_allows("gzip;q=2", "gzip"))
         self.assertFalse(_header_allows("br", "gzip"))
 
-    @override_settings(MREG_SNAPSHOT_THROTTLE_RATE="1/hour")
-    def test_snapshot_throttle_is_per_principal(self):
-        request = self.request("/api/v1/snapshot")
-        request.user = SimpleNamespace(pk=987654321, username="rate-limited", is_authenticated=True)
-        first = SnapshotRateThrottle()
-        second = SnapshotRateThrottle()
-        self.assertTrue(first.allow_request(request, mock.Mock()))
-        self.assertFalse(second.allow_request(request, mock.Mock()))
-
 
 @override_settings(
     MREG_SNAPSHOT_TMPDIR=None,
@@ -616,6 +640,9 @@ class SnapshotViewTests(ParametrizedTestCase, SimpleTestCase):
         lock = mock.patch("mreg.api.v1.snapshot.snapshot_generation_lock", return_value=nullcontext())
         lock.start()
         self.addCleanup(lock.stop)
+        throttle = mock.patch("mreg.api.v1.snapshot.SnapshotRateThrottle.allow_request", return_value=True)
+        throttle.start()
+        self.addCleanup(throttle.stop)
 
     def request(self, *, allowed, admin=False, path="/api/v1/snapshot", **headers):
         request = self.factory.get(path, **headers)
@@ -775,6 +802,59 @@ class SnapshotMiddlewareIntegrationTests(MregAPITestCase):
             response.close()
 
 
+@override_settings(MREG_SNAPSHOT_THROTTLE_RATE="2/hour")
+class SnapshotRateThrottleTests(TransactionTestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="rate-limited")
+        self.request = SimpleNamespace(user=self.user)
+
+    def test_limit_survives_new_connections_and_is_per_principal(self):
+        with mock.patch.object(SnapshotRateThrottle, "timer", return_value=1000):
+            self.assertTrue(SnapshotRateThrottle().allow_request(self.request, None))
+            self.assertTrue(SnapshotRateThrottle().allow_request(self.request, None))
+            connection.close()
+            throttle = SnapshotRateThrottle()
+            self.assertFalse(throttle.allow_request(self.request, None))
+            self.assertEqual(throttle.wait(), 3600)
+            other_user = get_user_model().objects.create_user(username="other-snapshotter")
+            self.assertTrue(SnapshotRateThrottle().allow_request(SimpleNamespace(user=other_user), None))
+        self.assertEqual(SnapshotThrottleState.objects.get(user=self.user).history, [1000, 1000])
+
+    def test_expired_attempts_are_removed(self):
+        with mock.patch.object(SnapshotRateThrottle, "timer", side_effect=[1000, 1001, 1002, 4600]):
+            self.assertTrue(SnapshotRateThrottle().allow_request(self.request, None))
+            self.assertTrue(SnapshotRateThrottle().allow_request(self.request, None))
+            throttle = SnapshotRateThrottle()
+            self.assertFalse(throttle.allow_request(self.request, None))
+            self.assertEqual(throttle.wait(), 3598)
+            self.assertTrue(SnapshotRateThrottle().allow_request(self.request, None))
+        self.assertEqual(SnapshotThrottleState.objects.get(user=self.user).history, [4600, 1001])
+
+    def test_concurrent_connections_share_an_atomic_limit(self):
+        barrier = Barrier(4)
+
+        def attempt():
+            try:
+                barrier.wait(timeout=10)
+                return SnapshotRateThrottle().allow_request(self.request, None)
+            finally:
+                connections.close_all()
+
+        with ThreadPoolExecutor(max_workers=4) as workers:
+            attempts = [workers.submit(attempt) for _ in range(4)]
+            self.assertEqual(sum(future.result(timeout=20) for future in attempts), 2)
+        self.assertEqual(len(SnapshotThrottleState.objects.get(user=self.user).history), 2)
+
+    def test_anonymous_requests_do_not_create_state(self):
+        with self.assertNumQueries(0):
+            self.assertTrue(SnapshotRateThrottle().allow_request(SimpleNamespace(user=None), None))
+
+    @override_settings(MREG_SNAPSHOT_THROTTLE_RATE=None)
+    def test_disabled_throttle_does_not_create_state(self):
+        with self.assertNumQueries(0):
+            self.assertTrue(SnapshotRateThrottle().allow_request(self.request, None))
+
+
 @override_settings(MREG_SNAPSHOT_TMPDIR=None, MREG_SNAPSHOT_THROTTLE_RATE="1000/minute")
 class SnapshotDatabaseIntegrationTests(ParametrizedTestCase, TransactionTestCase):
     """Exercise real snapshot transactions and locks, including pooled connections."""
@@ -824,7 +904,7 @@ class SnapshotDatabaseIntegrationTests(ParametrizedTestCase, TransactionTestCase
         self.assertFalse(response.artifact.path.exists())
 
 
-class SnapshotItemTranslationTests(TestCase):
+class SnapshotItemTranslationTests(ParametrizedTestCase, TestCase):
     """Exercise the complete successful legacy-to-snapshot translation graph."""
 
     @classmethod
@@ -1034,3 +1114,67 @@ class SnapshotItemTranslationTests(TestCase):
 
         with self.assertRaisesMessage(SnapshotError, "MX owner has no forward zone"):
             list(_host_dns_record_items(set(), 10, deferred=False))
+
+    @parametrize("mac", [param("", id="macless"), param("aa:bb:cc:dd:ee:ff", id="shared_mac")])
+    @override_settings(MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY=False)
+    def test_mixed_assigned_and_unassigned_attachment_is_rejected(self, mac):
+        self.ip.macaddress = mac
+        self.ip.save(update_fields=["macaddress"])
+        unassigned = Ipaddress.objects.create(host=self.host, ipaddress="192.0.2.21", macaddress=mac)
+        with self.assertRaisesMessage(SnapshotError, "mixes assigned and unassigned IP addresses") as raised:
+            list(iter_import_items(10))
+        self.assertEqual(raised.exception.model, "Ipaddress")
+        self.assertEqual(raised.exception.object_id, unassigned.pk)
+
+    @override_settings(MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY=False)
+    def test_matching_community_memberships_can_share_an_attachment(self):
+        self.ip.macaddress = ""
+        self.ip.save(update_fields=["macaddress"])
+        second = Ipaddress.objects.create(host=self.host, ipaddress="192.0.2.21")
+        HostCommunityMapping.objects.create(host=self.host, ipaddress=second, community=self.community)
+        items = list(iter_import_items(10))
+        self.assertEqual(sum(item["kind"] == "attachment_community_assignment" for item in items), 1)
+        self.assertEqual(sum(item["kind"] == "ip_address" for item in items), 2)
+
+    def test_unassigned_ip_on_a_different_attachment_is_preserved(self):
+        second = Ipaddress.objects.create(host=self.host, ipaddress="192.0.2.21", macaddress="aa:bb:cc:dd:ee:00")
+        items = list(iter_import_items(10))
+        assignment = next(item for item in items if item["kind"] == "attachment_community_assignment")
+        address = next(item for item in items if item["ref"] == f"ip_address:{second.pk}")
+        self.assertNotEqual(assignment["attributes"]["attachment_id_ref"], address["attributes"]["attachment_id_ref"])
+
+    def test_conflicting_communities_on_one_attachment_are_rejected(self):
+        second = Ipaddress.objects.create(host=self.host, ipaddress="192.0.2.21", macaddress=self.ip.macaddress)
+        community = Community.objects.create(name="other", network=self.network)
+        HostCommunityMapping.objects.create(host=self.host, ipaddress=second, community=community)
+        with self.assertRaisesMessage(SnapshotError, "conflicting legacy communities"):
+            list(iter_import_items(10))
+
+    @parametrize(
+        ("address", "record_type"),
+        [param("192.0.2.20", "A", id="ipv4"), param("2001:db8::20", "AAAA", id="ipv6")],
+    )
+    def test_wildcard_records_can_share_allocated_addresses(self, address, record_type):
+        if record_type == "AAAA":
+            Network.objects.create(network="2001:db8::/64")
+            Ipaddress.objects.create(host=self.host, ipaddress=address)
+        for name in ("*.one.example.org", "*.two.example.org"):
+            wildcard = Host.objects.create(name=name, zone=self.forward_zone)
+            Ipaddress.objects.create(host=wildcard, ipaddress=address)
+        items = list(iter_import_items(10))
+        allocations = [item for item in items if item["kind"] == "ip_address" and item["attributes"]["address"] == address]
+        records = [
+            item
+            for item in items
+            if item["kind"] == "record"
+            and item["attributes"]["type_name"] == record_type
+            and item["attributes"]["data"]["address"] == address
+        ]
+        self.assertEqual(len(allocations), 1)
+        self.assertEqual(len(records), 2)
+
+    def test_duplicate_regular_allocations_are_still_rejected(self):
+        host = Host.objects.create(name="duplicate.example.org", zone=self.forward_zone)
+        Ipaddress.objects.create(host=host, ipaddress=self.ip.ipaddress)
+        with self.assertRaisesMessage(SnapshotError, "assigned more than once"):
+            list(iter_import_items(10))
