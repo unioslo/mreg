@@ -10,16 +10,20 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
+import psycopg
+from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
-from django.db import DatabaseError
-from django.test import SimpleTestCase, TestCase, override_settings
+from django.db import DatabaseError, connection
+from django.test import SimpleTestCase, TestCase, TransactionTestCase, override_settings
 from rest_framework.request import Request
-from rest_framework.test import APIRequestFactory, force_authenticate
+from rest_framework.test import APIClient, APIRequestFactory, force_authenticate
 from unittest_parametrize import ParametrizedTestCase, param, parametrize
 
 from mreg.api.v1.snapshot import (
     ARCHIVE_FORMAT,
     JSON_FORMAT,
+    SNAPSHOT_ADVISORY_LOCK_ID,
     NetworkIndex,
     SnapshotArtifact,
     SnapshotData,
@@ -769,6 +773,55 @@ class SnapshotMiddlewareIntegrationTests(MregAPITestCase):
             self.assertTrue(gzip.decompress(b"".join(response.streaming_content)).startswith(b'{"requested_by":'))
         finally:
             response.close()
+
+
+@override_settings(MREG_SNAPSHOT_TMPDIR=None, MREG_SNAPSHOT_THROTTLE_RATE="1000/minute")
+class SnapshotDatabaseIntegrationTests(ParametrizedTestCase, TransactionTestCase):
+    """Exercise real snapshot transactions and locks, including pooled connections."""
+
+    def setUp(self):
+        user = get_user_model().objects.create_user(username="database-snapshotter")
+        user.groups.add(Group.objects.create(name=settings.SNAPSHOT_GROUP))
+        self.client = APIClient()
+        self.client.force_authenticate(user)
+        Network.objects.create(network="192.0.2.0/24")
+        self.host = Host.objects.create(name="snapshot.example.org")
+        self.address = Ipaddress.objects.create(host=self.host, ipaddress="192.0.2.10")
+
+    @parametrize(
+        ("snapshot_format", "media_type"),
+        [
+            param(ARCHIVE_FORMAT, "application/vnd.uio.mreg-snapshot+tar", id="archive"),
+            param(JSON_FORMAT, "application/json", id="json"),
+        ],
+    )
+    def test_download_releases_transaction_and_lock_before_streaming(self, snapshot_format, media_type):
+        response = self.client.get(
+            f"/api/v1/snapshot?format={snapshot_format}",
+            HTTP_ACCEPT=media_type,
+            HTTP_ACCEPT_ENCODING="gzip",
+        )
+        try:
+            self.assertEqual(response.status_code, 200)
+            self.assertFalse(connection.in_atomic_block)
+            self.assertTrue(connection.get_autocommit())
+            with psycopg.connect(**connection.get_connection_params(), autocommit=True) as other_connection:
+                with other_connection.cursor() as cursor:
+                    cursor.execute("SELECT pg_try_advisory_lock(%s)", [SNAPSHOT_ADVISORY_LOCK_ID])
+                    self.assertTrue(cursor.fetchone()[0])
+            compressed = b"".join(response.streaming_content)
+            self.assertEqual(hashlib.sha256(compressed).hexdigest(), response.artifact.digest_hex)
+            if snapshot_format == ARCHIVE_FORMAT:
+                with tarfile.open(fileobj=io.BytesIO(compressed), mode="r:gz") as archive:
+                    items = [json.loads(line) for line in archive.extractfile("items.ndjson")]
+            else:
+                items = json.loads(gzip.decompress(compressed))["items"]
+            by_ref = {item["ref"]: item for item in items}
+            self.assertEqual(by_ref[f"host:{self.host.pk}"]["attributes"]["name"], self.host.name)
+            self.assertEqual(by_ref[f"ip_address:{self.address.pk}"]["attributes"]["address"], self.address.ipaddress)
+        finally:
+            response.close()
+        self.assertFalse(response.artifact.path.exists())
 
 
 class SnapshotItemTranslationTests(TestCase):

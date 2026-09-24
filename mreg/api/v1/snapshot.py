@@ -25,6 +25,7 @@ from django.conf import settings
 from django.db import DatabaseError, connection, transaction
 from django.db.models import Count, Prefetch, Q
 from django.http import FileResponse
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, OpenApiTypes, extend_schema
 from rest_framework.exceptions import PermissionDenied, Throttled
 from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
@@ -1295,6 +1296,46 @@ class SnapshotView(APIView):
             return response
         return super().handle_exception(exc)
 
+    @extend_schema(
+        description=(
+            "Create a consistent portable snapshot. Requires membership in the configured "
+            "snapshot group, or MREG administrator or superuser access. Both representations "
+            "are downloaded with gzip content encoding."
+        ),
+        parameters=[
+            OpenApiParameter(
+                "format",
+                OpenApiTypes.STR,
+                enum=[ARCHIVE_FORMAT, JSON_FORMAT],
+                default=ARCHIVE_FORMAT,
+                description="Snapshot representation; the Accept header must allow the selected media type.",
+            ),
+            OpenApiParameter(
+                "include_permissions",
+                OpenApiTypes.STR,
+                enum=["false", "true"],
+                default="false",
+                description="Include legacy permission rules. Only supported by the archive representation.",
+            ),
+            *[OpenApiParameter(name, OpenApiTypes.STR, enum=[value], default=value) for name, value in SUPPORTED_OPTIONS.items()],
+            OpenApiParameter("Content-Encoding", OpenApiTypes.STR, OpenApiParameter.HEADER, enum=["gzip"], response=[200]),
+            OpenApiParameter(
+                "Content-Digest",
+                OpenApiTypes.STR,
+                OpenApiParameter.HEADER,
+                description="SHA-256 digest of the compressed response bytes.",
+                response=[200],
+            ),
+        ],
+        responses={
+            (200, ARCHIVE_MEDIA_TYPE): OpenApiResponse(
+                OpenApiTypes.BINARY, description="Gzip-compressed tar archive with manifest and NDJSON data."
+            ),
+            (200, JSON_MEDIA_TYPE): OpenApiResponse(
+                OpenApiTypes.BINARY, description="Gzip-compressed JSON import document with items and deferred_records."
+            ),
+        },
+    )
     def get(self, request):
         started_at = monotonic()
         try:
