@@ -97,7 +97,9 @@ class M2MList:
                 try:
                     instance = self.m2m_object.objects.get(name=name)
                 except self.m2m_object.DoesNotExist:
-                    raise NotFound(f'"{name}" does not exist')
+                    raise NotFound(
+                        f"No {display_name(self.m2m_object)} named '{name}' exists."
+                    )
             self.perform_m2m_alteration(self.m2mrelation.add, instance)
             return created_response(
                 request,
