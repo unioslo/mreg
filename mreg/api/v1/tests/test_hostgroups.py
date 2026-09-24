@@ -127,6 +127,22 @@ class APIHostGroupGroupsTestCase(MregAPITestCase):
         self.hostgroup_two.refresh_from_db()
         self.assertEqual(self.hostgroup_one.groups.count(), 0)
 
+    def test_remove_nonexistent_group_404_not_found(self):
+        """Test removing a group that does not exist returns a clear 404 error."""
+        member_name = 'nonexistent_group'
+        response = self.assert_delete_and_404(f'/hostgroups/{self.hostgroup_one.name}/groups/{member_name}')
+        detail = response.json()['errors'][0]['detail']
+        self.assertIn(member_name, detail)
+        self.assertEqual(detail, f"No Host Group named '{member_name}' exists.")
+
+    def test_remove_non_member_group_404_not_found(self):
+        """Test removing a group that exists but is not a member returns a clear 404 error."""
+        member_name = self.hostgroup_two.name
+        response = self.assert_delete_and_404(f'/hostgroups/{self.hostgroup_one.name}/groups/{member_name}')
+        detail = response.json()['errors'][0]['detail']
+        self.assertIn(member_name, detail)
+        self.assertEqual(detail, f"'{member_name}' is not a member of '{self.hostgroup_one.name}'.")
+
 
 class APIHostGroupHostsTestCase(MregAPITestCase):
     """Various test for hosts members in a HostGroup"""

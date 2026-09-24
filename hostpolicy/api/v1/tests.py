@@ -179,6 +179,7 @@ class HostPolicyRoleAtoms(MregAPITestCase):
     basepath = '/api/v1/hostpolicy/roles/'
     m2m_field = 'atoms'
     membercls = HostPolicyAtom
+    member_display_name = "Atom"
 
     def baseurl(self, middle: str) -> str:
         return f"{self.basepath}{middle}/{self.m2m_field}/"
@@ -232,8 +233,7 @@ class HostPolicyRoleAtoms(MregAPITestCase):
         response = self.assert_delete_and_404(self.m2m_url + member_name)
         detail = response.json()['errors'][0]['detail']
         self.assertIn(member_name, detail)
-        
-        self.assertEqual(detail, f"No {self.membercls.__name__} named '{member_name}' exists.")
+        self.assertEqual(detail, f"No {self.member_display_name} named '{member_name}' exists.")
 
     def test_remove_non_member_404_not_found(self):
         """Trying to remove a Host or Atom that is not a member of a role raises a clear 404 error."""
@@ -252,6 +252,7 @@ class HostPolicyRoleAtomsAsAdmin(HostPolicyRoleAtoms,
 class HostPolicyRoleHosts(HostPolicyRoleAtoms):
     m2m_field = 'hosts'
     membercls = Host
+    member_display_name = "Host"
 
 
 class HostPolicyRoleHostsAsAdmin(HostPolicyRoleHosts,

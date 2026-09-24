@@ -6,6 +6,7 @@ from rest_framework.response import Response
 
 from mreg.api.errors import Conflict
 from mreg.api.responses import created_response
+from mreg.utils import display_name
 
 
 class M2MPermissions:
@@ -46,7 +47,7 @@ class M2MDetail:
         """Build the 404 error for a member that isn't in this relation."""
         if model.objects.filter(name=lookup_value).exists():
             return NotFound(f"'{lookup_value}' is not a member of '{self.object.name}'.")
-        return NotFound(f"No {model.__name__} named '{lookup_value}' exists.")
+        return NotFound(f"No {display_name(model)} named '{lookup_value}' exists.")
 
     def get_queryset(self):
         if 'name' not in self.kwargs:

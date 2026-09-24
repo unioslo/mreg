@@ -5,6 +5,22 @@ import time
 import idna
 
 from django.conf import settings
+from django.db.models import Model
+
+
+def display_name(model: type[Model]) -> str:
+    """Human-readable name for a model class.
+
+    Uses Django's `verbose_name` attribute of the model's meta class.
+
+    Args:
+        model (type[Model]): The model class to name.
+
+    Returns:
+        str: The title-cased verbose name.
+    """
+    return model._meta.verbose_name.title()
+
 
 def get_protected_policy_attribute_names() -> set:
     """
