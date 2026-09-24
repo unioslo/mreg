@@ -233,7 +233,7 @@ class HostPolicyRoleAtoms(MregAPITestCase):
         response = self.assert_delete_and_404(self.m2m_url + member_name)
         detail = response.json()['errors'][0]['detail']
         self.assertIn(member_name, detail)
-        self.assertEqual(detail, f"No {self.member_display_name} named '{member_name}' exists.")
+        self.assertEqual(detail, f"{self.member_display_name} '{member_name}' does not exist.")
 
     def test_remove_non_member_404_not_found(self):
         """Trying to remove a Host or Atom that is not a member of a role raises a clear 404 error."""

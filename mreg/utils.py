@@ -17,9 +17,9 @@ def display_name(model: type[Model]) -> str:
         model (type[Model]): The model class to name.
 
     Returns:
-        str: The title-cased verbose name.
+        str: The model's verbose name with the first letter capitalized.
     """
-    return model._meta.verbose_name.title()
+    return model._meta.verbose_name.capitalize()
 
 
 def get_protected_policy_attribute_names() -> set:

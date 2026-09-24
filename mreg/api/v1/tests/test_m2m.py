@@ -27,11 +27,11 @@ def _concrete_m2m_detail_views():
 class DisplayNameTests(SimpleTestCase):
 
     def test_display_name(self):
-        """display_name title-cases each model's verbose_name."""
+        """display_name sentence-cases each model's verbose_name."""
         self.assertEqual(display_name(HostPolicyAtom), "Atom")
         self.assertEqual(display_name(HostPolicyRole), "Role")
         self.assertEqual(display_name(Host), "Host")
-        self.assertEqual(display_name(HostGroup), "Host Group")
+        self.assertEqual(display_name(HostGroup), "Host group")
 
     def test_every_m2m_detail_subclass_has_expected_member_name(self):
         """Every concrete M2MDetail subclass maps to a known member name.
@@ -45,7 +45,7 @@ class DisplayNameTests(SimpleTestCase):
         expected = {
             "HostPolicyRoleAtomsDetail": "Atom",
             "HostPolicyRoleHostsDetail": "Host",
-            "HostGroupGroupsDetail": "Host Group",
+            "HostGroupGroupsDetail": "Host group",
             "HostGroupHostsDetail": "Host",
             "HostGroupOwnersDetail": "Group",
         }
