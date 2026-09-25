@@ -1,6 +1,5 @@
 """Test logging middleware and logging output."""
 
-
 import io
 import logging
 from types import SimpleNamespace
@@ -8,7 +7,7 @@ from typing import List
 from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
-from django.http import HttpRequest, HttpResponse
+from django.http import FileResponse, HttpRequest, HttpResponse
 from django.test import SimpleTestCase
 from structlog import get_logger
 from structlog.testing import capture_logs
@@ -67,6 +66,21 @@ class SensitiveDataProcessorTests(SimpleTestCase):
 
 
 class LoggingMiddlewareUnitTests(SimpleTestCase):
+    def test_streaming_json_response_body_is_not_read(self) -> None:
+        """Streaming JSON responses must not be consumed by response logging."""
+        response = FileResponse(io.BytesIO(b"{}"), content_type="application/json")
+        middleware = LoggingMiddleware(lambda _: response)
+        request = HttpRequest()
+        request._body = b""
+        request.user = SimpleNamespace(username="test-user")
+
+        try:
+            returned = middleware(request)
+        finally:
+            response.close()
+
+        self.assertIs(returned, response)
+
     def test_response_exception_is_logged_and_reraised(self):
         error = RuntimeError("response failed")
         middleware = LoggingMiddleware(MagicMock(side_effect=error))
@@ -164,9 +178,7 @@ class TestLoggingInternals(MregAPITestCase):
         ]
 
         for source_dict, expected_dict in zip(source_dicts, expected_dicts):
-            self.assertEqual(
-                filter_sensitive_data(None, None, source_dict), expected_dict
-            )
+            self.assertEqual(filter_sensitive_data(None, None, source_dict), expected_dict)
 
     def test_binary_request_body(self) -> None:
         """Test logging of a request with a binary body."""
