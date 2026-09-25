@@ -90,11 +90,12 @@ class DisplayNameTests(TestCaseWithModels):
     def test_every_m2m_detail_subclass_has_expected_member_name(self):
         """Every concrete M2MDetail subclass maps to a known member name.
 
-        Pins the 404 wording with explicit literals, and fails if a subclass is
-        added or removed, or a member model's verbose_name changes.
+        Pins the wording of the model display name used in 404 errors with 
+        explicit literals, and fails if a subclass is added or removed, 
+        or a member model's `verbose_name` changes.
 
-        HostGroupOwnersDetail overrides member_not_found and doesn't actually use
-        display_name, but is listed here for completeness of the subclass set.
+        `HostGroupOwnersDetail` overrides `member_not_found()` and doesn't actually use
+        `display_name()`, but is listed here for completeness of the subclass set.
         """
         expected = {
             "HostPolicyRoleAtomsDetail": "Atom",
