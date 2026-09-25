@@ -1,6 +1,8 @@
 
+from abc import ABC
+
 from django.contrib.auth.models import Group
-from django.db.models import Prefetch
+from django.db.models import Model, Prefetch
 
 from rest_framework import status
 from rest_framework.exceptions import NotFound
@@ -106,14 +108,12 @@ class HostGroupDetail(LowerCaseLookupMixin, HostGroupPermissionsUpdateDestroy):
     lookup_field = 'name'
 
 
-class HostGroupM2MList(M2MList, HostGroupPermissionsListCreateAPIView):
-
+class HostGroupM2MList(M2MList, HostGroupPermissionsListCreateAPIView, ABC):
     lookup_field = 'name'
     cls = HostGroup
 
 
-class HostGroupM2MDetail(M2MDetail, HostGroupPermissionsUpdateDestroy):
-
+class HostGroupM2MDetail(M2MDetail, HostGroupPermissionsUpdateDestroy, ABC):
     cls = HostGroup
 
 

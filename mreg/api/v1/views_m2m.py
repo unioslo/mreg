@@ -1,3 +1,7 @@
+from abc import ABC, abstractmethod
+from typing import ClassVar
+
+from django.db.models import Model
 from django.shortcuts import get_object_or_404
 
 from rest_framework import status
@@ -20,8 +24,20 @@ class M2MPermissions:
             if not permission.has_m2m_change_permission(request, self):
                 self.permission_denied(request)
 
+# NOTE: in the absence of abstract class vars in Python, we simply mark
+# these classes as ABC to signal that they are abstract and should not be 
+# instantiated directly. There is nothing on runtime that prevents this,
+# but it lets us check for the presence of ABC in tests to ensure that
+# class vars are set correctly on all subclasses.
 
-class M2MDetail:
+class M2MBase(ABC):
+    cls: ClassVar[type[Model]]
+    lookup_field: ClassVar[str]
+    m2m_field: ClassVar[str]
+    lookup_url_kwarg: ClassVar[str | None] = None
+
+
+class M2MDetail(M2MBase, ABC):
     """
     get:
     Returns details for the specified m2mrelation member.
@@ -35,7 +51,7 @@ class M2MDetail:
 
     def get_object(self):
         queryset = self.filter_queryset(self.get_queryset())
-        lookup_url_kwarg = getattr(self, "lookup_url_kwarg", None) or self.lookup_field
+        lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
         lookup_value = self.kwargs[lookup_url_kwarg]
         model = queryset.model
         try:
@@ -72,9 +88,13 @@ class M2MDetail:
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class M2MList:
+class M2MList(M2MBase, ABC):
+    
+    m2m_create_if_missing: bool = False
+    """Create the related object if it doesn't exist."""
 
-    m2m_create_if_missing = False
+    m2m_object: type[Model]
+
 
     def get_queryset(self):
         lookup_url_kwarg = getattr(self, "lookup_url_kwarg", None) or self.lookup_field
