@@ -27,6 +27,7 @@ dependencies = [
     # For testing inside Docker image
     "unittest-parametrize",
     "prometheus-client>=0.20",
+    "tblib>=3.2.2",
 ]
 dynamic = ["version"]
 
