@@ -5,7 +5,7 @@ from rest_framework.request import Request
 from django.db.models import QuerySet
 
 
-class DetailViewProtocol(Protocol):
+class DetailViewProtocol(Protocol):  # pragma: no cover
     """Protocol that defines the expected methods and attributes for the mixin."""
 
     request: HttpRequest
@@ -14,15 +14,15 @@ class DetailViewProtocol(Protocol):
 
     def get_queryset(self) -> QuerySet[Any]:
         """Method to get the queryset."""
-        ...
+        ...  # pragma: no cover
 
     def filter_queryset(self, queryset: QuerySet[Any]) -> QuerySet[Any]:
         """Method to filter the queryset."""
-        ...
+        ...  # pragma: no cover
 
-    def check_object_permissions(self, request: HttpRequest, obj: Any) -> None:
+    def check_object_permissions(self, request: Union[HttpRequest, Request], obj: Any) -> None:
         """Method to check object permissions."""
-        ...
+        ...  # pragma: no cover
 
 
 class LowerCaseLookupMixin:

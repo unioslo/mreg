@@ -116,7 +116,7 @@ class PrometheusRequestMiddleware:
             return match.view_name or match.route or "unresolved"
         except Resolver404:
             # Return marker instead of raw path to prevent cardinality explosion
-            return "unresolved"  # pragma: no cover
+            return "unresolved"
         except Exception:  # pragma: no cover - defensive
             return "unresolved"
 
@@ -124,7 +124,7 @@ class PrometheusRequestMiddleware:
         # Do not instrument the metrics endpoint itself (tolerant of trailing slashes)
         metrics_path = getattr(settings, "METRICS_PATH", "/api/meta/metrics")
         if request.path_info.rstrip("/") == metrics_path.rstrip("/"):
-            return self.get_response(request)  # pragma: no cover - tested separately
+            return self.get_response(request)
 
         start = monotonic()
         path_label = self._normalize_path(request)
