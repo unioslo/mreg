@@ -8,6 +8,8 @@ An associated project for a command line interface using the mreg API is availab
 
 ### Prerequisites
 
+The default Docker image and Python 3.12+ installations use Django 6.1, which requires PostgreSQL 15 or newer.
+
 If you want to set up your own PostgreSQL server by installing the necessary packages manually, you might need to install dependencies for setting up the citext extension. On Fedora, the package is called [`postgresql-contrib`](https://packages.fedoraproject.org/pkgs/postgresql/postgresql-contrib/).
 
 ### Installing

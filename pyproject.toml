@@ -7,7 +7,7 @@ name = "mreg"
 requires-python = ">=3.10"
 dependencies = [
     "Django>=5.2",
-    "djangorestframework>=3.16.0,<3.17",
+    "djangorestframework>=3.18.1,<3.19",
     "django-auth-ldap>=5.2.0",
     "django-logging-json>=1.15",
     "django-netfields>=1.3.2",
@@ -23,7 +23,7 @@ dependencies = [
     "drf-standardized-errors>=0.15",
     # For OpenAPI schema generation
     # Pinned to prevent breaking changes: https://drf-spectacular.readthedocs.io/en/latest/readme.html#release-management
-    "drf-spectacular[sidecar]==0.29.0",
+    "drf-spectacular[sidecar]==0.30.0",
     # For testing inside Docker image
     "unittest-parametrize",
     "prometheus-client>=0.20",
@@ -51,12 +51,14 @@ ci = [
 profile = ["django-silk[formatting]>=5.5.0"]
 django52 = ["Django>=5.2,<5.3"]
 django60 = ["Django>=6.0,<6.1; python_version >= '3.12'"]
+django61 = ["Django>=6.1,<6.2; python_version >= '3.12'"]
 
 [tool.uv]
 conflicts = [
     [
         { group = "django52" },
         { group = "django60" },
+        { group = "django61" },
     ],
 ]
 
