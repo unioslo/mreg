@@ -2,9 +2,8 @@
 from abc import ABC
 
 from django.contrib.auth.models import Group
-from django.db.models import Model, Prefetch
+from django.db.models import Prefetch
 
-from rest_framework import status
 from rest_framework.exceptions import NotFound
 from typing_extensions import override
 
