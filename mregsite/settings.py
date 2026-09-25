@@ -17,9 +17,12 @@ import sys
 from typing import Literal, TypeVar
 
 import structlog
+from dotenv import load_dotenv
 
 import mreg.log_processors
 import mreg.__about__
+
+load_dotenv() # load .env file
 
 
 DefaultT = TypeVar("DefaultT", str, int, float, bool)

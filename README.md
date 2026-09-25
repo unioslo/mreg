@@ -143,6 +143,7 @@ The `coverage combine` step is required to merge coverage data from all parallel
 
 mreg supports configuration via environment variables with the `MREG_` prefix. These can be used to override default settings without modifying `settings.py` or creating a `local_settings.py` file. This is especially useful when running mreg in containers or deployment environments.
 
+
 ### Database Configuration
 
 | Variable | Default | Description |
@@ -195,6 +196,16 @@ mreg supports configuration via environment variables with the `MREG_` prefix. T
 | `MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY` | `True` | Require MAC address for an IP to be added to a community |
 | `MREG_REQUIRE_VLAN_FOR_NETWORK_TO_HAVE_COMMUNITY` | `False` | Require VLAN to be set for a network for it to have communities |
 
+### Django Configuration for VS Code
+
+Running tests via the VS Code test runner (or other methods that otherwise bypass `manage.py`) requires setting the `DJANGO_SETTINGS_MODULE` environment variable to point to the mreg's Django settings module. Rename `.env.example` to `.env` to let VS Code automatically source the correct environment variables.
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `DJANGO_SETTINGS_MODULE` | `""` | Django settings module. Required when not running via `manage.py`|
+
+
+
 ### Example Usage
 
 ```bash
@@ -211,6 +222,34 @@ docker run --network host \
 
 ## Local Settings
 
+The application supports setting the aforementioned settings persistently via a `.env` file.
+
+### `.env`
+
+To override entries in `mregsite/settings.py`, create a file `.env` or rename `.env.example` to `.env`.
+
+Example `.env` file:
+
+```bash
+DJANGO_SETTINGS_MODULE=mregsite.settings
+MREG_DB_NAME=mreg_sample
+MREG_DB_USER=mreg_user
+MREG_DB_PASSWORD=mregdbpass
+MREG_DB_HOST=localhost
+MREG_DB_PORT=5432
+```
+
+The default database setup in `settings.py` uses Django's postgres connection pool, but if you want to disable pooling for local development, you can set `MREG_DB_POOL_ENABLED` to `0` or `false` in `.env`:
+
+```bash
+MREG_DB_POOL_ENABLED=0 # or false
+```
+
+### `local_settings.py` (deprecated)
+
+> [!WARNING]
+> `local_settings.py` is deprecated. Prefer using a `.env` file for local configuration. `local_settings.py` allows arbitrary Python code, which can lead to security and maintainability issues.
+
 To override entries in `mregsite/settings.py`, create a file `mregsite/local_settings.py` and add the entries there.
 
 ```python
@@ -221,16 +260,11 @@ MREG_DB_HOST = "localhost"
 MREG_DB_PORT = "5432"
 ```
 
-The default database setup in `settings.py` uses Django's postgres connection pool, but if you want to disable pooling for local development, you can set `MREG_DB_USE_POOL` to `False` in `local_settings.py`:
+
+The default database setup in `settings.py` uses Django's postgres connection pool, but if you want to disable pooling for local development, you can set `MREG_DB_POOL_ENABLED` to `False` in `local_settings.py`:
 
 ```python
-MREG_DB_USE_POOL = False
-```
-
-or via environment variable:
-
-```bash
-export MREG_DB_USE_POOL=False
+MREG_DB_POOL_ENABLED = False
 ```
 
 ## Profiling
