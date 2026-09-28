@@ -127,6 +127,22 @@ class APIHostGroupGroupsTestCase(MregAPITestCase):
         self.hostgroup_two.refresh_from_db()
         self.assertEqual(self.hostgroup_one.groups.count(), 0)
 
+    def test_remove_nonexistent_group_404_not_found(self):
+        """Test removing a group that does not exist returns a clear 404 error."""
+        member_name = 'nonexistent_group'
+        response = self.assert_delete_and_404(f'/hostgroups/{self.hostgroup_one.name}/groups/{member_name}')
+        detail = response.json()['errors'][0]['detail']
+        self.assertIn(member_name, detail)
+        self.assertEqual(detail, f"Host group '{member_name}' does not exist.")
+
+    def test_remove_non_member_group_404_not_found(self):
+        """Test removing a group that exists but is not a member returns a clear 404 error."""
+        member_name = self.hostgroup_two.name
+        response = self.assert_delete_and_404(f'/hostgroups/{self.hostgroup_one.name}/groups/{member_name}')
+        detail = response.json()['errors'][0]['detail']
+        self.assertIn(member_name, detail)
+        self.assertEqual(detail, f"'{member_name}' is not a member of '{self.hostgroup_one.name}'.")
+
 
 class APIHostGroupHostsTestCase(MregAPITestCase):
     """Various test for hosts members in a HostGroup"""
@@ -164,6 +180,21 @@ class APIHostGroupHostsTestCase(MregAPITestCase):
         self.host_one.refresh_from_db()
         self.assertEqual(self.hostgroup_one.hosts.count(), 0)
 
+    def test_remove_nonexistent_host_404_not_found(self):
+        """Test removing a host that does not exist returns a clear 404 error."""
+        member_name = 'nonexistent_host'
+        response = self.assert_delete_and_404(f'/hostgroups/{self.hostgroup_one.name}/hosts/{member_name}')
+        detail = response.json()['errors'][0]['detail']
+        self.assertIn(member_name, detail)
+        self.assertEqual(detail, f"Host '{member_name}' does not exist.")
+
+    def test_remove_non_member_host_404_not_found(self):
+        """Test removing a host that exists but is not a member of the group returns a clear 404 error."""
+        member_name = self.host_one.name
+        response = self.assert_delete_and_404(f'/hostgroups/{self.hostgroup_one.name}/hosts/{member_name}')
+        detail = response.json()['errors'][0]['detail']
+        self.assertIn(member_name, detail)
+        self.assertEqual(detail, f"'{member_name}' is not a member of '{self.hostgroup_one.name}'.")
 
 class APIHostGroupOwnersTestCase(MregAPITestCase):
     """Various test for owners of a HostGroup"""
@@ -211,6 +242,14 @@ class APIHostGroupOwnersTestCase(MregAPITestCase):
         data = self.assert_post(f'/hostgroups/{self.hostgroup_one.name}/owners/',
                                 {'name': self.owner_one.name})
         self.assert_patch_and_405(data['Location'], {'name': 'newgroupname'})
+
+    def test_remove_non_owner_404_not_found(self):
+        """Removing a non-owner reports it as not associated, not as a missing Group."""
+        owner_name = 'notanowner'
+        response = self.assert_delete_and_404(
+            f'/hostgroups/{self.hostgroup_one.name}/owners/{owner_name}')
+        detail = response.json()['errors'][0]['detail']
+        self.assertEqual(detail, f"'{owner_name}' is not an owner of '{self.hostgroup_one.name}'.")
 
 
 class GroupAdminTestCase(APIHostGroupsTestCase, APIHostGroupHostsTestCase,

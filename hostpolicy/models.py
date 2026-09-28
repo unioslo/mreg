@@ -37,6 +37,7 @@ class HostPolicyAtom(HostPolicyComponent):
     class Meta:
         db_table = 'hostpolicy_atom'
         ordering = ('name',)
+        verbose_name = "atom"
 
 
 def _validate_role_name(name):
@@ -57,3 +58,4 @@ class HostPolicyRole(HostPolicyComponent):
     class Meta:
         db_table = 'hostpolicy_role'
         ordering = ('name',)
+        verbose_name = "role"
