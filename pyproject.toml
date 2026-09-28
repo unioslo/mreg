@@ -38,6 +38,7 @@ dev = [
     "coverage[toml]",
     "pytest",
     "pytest-django",
+    "pytest-cov",
     "syrupy",
     "uv>=0.9",
     {include-group = "profile"},
