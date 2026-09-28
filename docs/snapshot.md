@@ -109,10 +109,12 @@ override names the target host; an absent target must not be interpreted as a
 request to suppress reverse DNS.
 
 This is not an unconditional export of every legacy shape. Wildcard hosts with
-comments, contacts, groups, policy memberships, BACnet IDs, MAC addresses, or
-PTR overrides still fail validation, as do the ambiguous community mappings
-described above. These cases require separate source-data handling before this
-version can export them. Malformed MAC/LOC data and cyclic host groups also fail
+comments, contacts, groups, policy memberships, BACnet IDs, MAC addresses, PTR
+overrides, or no DNS data still fail validation, as do the ambiguous community
+mappings described above. Communities without a network policy, mappings to a
+different or missing IP network, and MX owners without a forward zone are also
+rejected. These cases require separate source-data handling before this version
+can export them. Malformed MAC/LOC data and cyclic host groups also fail
 validation. Validate the production dataset before planning a cutover.
 
 Object creation/update timestamps and zone update bookkeeping are not retained.
