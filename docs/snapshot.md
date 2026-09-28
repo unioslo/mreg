@@ -25,8 +25,9 @@ the configured temporary-storage budget.
 Wildcard HINFO, LOC, and SSHFP records are valid source data, but cannot be
 represented by the version 1 import contract because those record types require
 hostname owners. They are preserved, with their source references and data, in
-`deferred-records.ndjson`. Each entry includes a `deferred` reason and must be
-handled manually by a consumer. The manifest's
+`deferred-records.ndjson`. Each entry includes `deferred.reasons` and
+`requires_manual_handling=true`. The original single `deferred.reason` field is
+also retained for record consumers. The manifest's
 `semantics.fully_importable` value is false when either deferred file contains entries.
 
 Ordinary hosts may share an IP address, and addresses need not belong to a
@@ -34,9 +35,11 @@ registered network in Django MREG. Such assignments are preserved in
 `deferred-items.ndjson`, together with their PTR overrides, instead of failing
 the snapshot. Every source assignment retains its own `ref`, `host_name_ref`,
 address, and MAC address when present. Shared assignments in registered networks
-also retain `attachment_id_ref`; addresses outside registered networks do not
+also retain `attachment_id_ref` when their MAC can be translated; addresses outside registered networks do not
 cause synthetic networks or attachments to be created. An address may have both
-deferral reasons. References in deferred items resolve against `items.ndjson`.
+deferral reasons. References in deferred entries can resolve against either
+`items.ndjson` or a deferred section. Only `items.ndjson` is dependency-ordered;
+deferred relationships can contain cycles.
 
 ```json
 {"ref":"ip_address:42","kind":"ip_address","operation":"create","attributes":{"host_name_ref":"host:7","address":"198.51.100.20","mac_address":"aa:bb:cc:dd:ee:ff"},"deferred":{"reasons":["ip_address_outside_registered_networks"],"requires_manual_handling":true}}
@@ -84,11 +87,11 @@ structural objects. Wildcard host DNS data is converted to explicit record
 items and may share an address with a regular host or another wildcard.
 
 IP addresses on the same host, network, and MAC address become one attachment.
-Since community assignments apply to that whole attachment, snapshots reject
-attachments with conflicting communities or a mixture of assigned and
-unassigned IPs. This also applies to MAC-less IPs when
-`MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY=false`. Resolve those memberships
-before exporting; the exporter never implicitly enrolls an unassigned IP.
+Community assignments apply to that whole attachment. If an attachment has
+conflicting communities, or a mixture of assigned and unassigned IPs, its
+original per-IP mappings are deferred instead. This also applies to MAC-less
+IPs when `MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY=false`. The exporter never
+chooses one community or implicitly enrolls an unassigned IP.
 
 ## Data coverage and mapping
 
@@ -108,14 +111,43 @@ separate `negative_ttl` and `soa_record_ttl` fields must map both values. A PTR
 override names the target host; an absent target must not be interpreted as a
 request to suppress reverse DNS.
 
-This is not an unconditional export of every legacy shape. Wildcard hosts with
-comments, contacts, groups, policy memberships, BACnet IDs, MAC addresses, PTR
-overrides, or no DNS data still fail validation, as do the ambiguous community
-mappings described above. Communities without a network policy, mappings to a
-different or missing IP network, and MX owners without a forward zone are also
-rejected. These cases require separate source-data handling before this version
-can export them. Malformed MAC/LOC data and cyclic host groups also fail
-validation. Validate the production dataset before planning a cutover.
+## Deferred source information
+
+Deferred sections preserve source information that cannot safely become an
+automatically applied import item. They are non-authoritative for restoration:
+consumers must inspect, translate, repair, or explicitly retain them as
+information before applying them. The source values and relationships remain
+available; deferral does not modify the source database or silently discard the
+problematic data. A `create` operation in a deferred item's envelope is not an
+instruction to apply it without that handling.
+
+The following cases succeed as snapshots and set `fully_importable=false`:
+
+| Source data | Preserved representation |
+| --- | --- |
+| Wildcard hosts, including hosts without DNS data | Deferred `host` with its name, zone reference, TTL, and comment; addresses, MACs, BACnet IDs, PTR overrides, and memberships are retained separately. Translatable wildcard DNS records remain in `items.ndjson`. |
+| Wildcard contact, group, and policy memberships | Deferred `host_contact_host`, `host_group_host`, and `host_policy_role_host` entries retain both ends of each relationship. Contacts, ordinary group memberships, and policy definitions remain in normal items. |
+| Communities without a network policy | Deferred `community` with its original network, name, and description; no policy is invented. |
+| Ambiguous or inconsistent community mappings | Deferred `host_community_mapping` entries preserve every original host/IP/community reference, including mismatching hosts, missing or different IP networks, and mappings whose IP assignments are themselves deferred. No attachment-level community assignment is emitted for an affected attachment. |
+| MX owners without a forward zone | Deferred record with the owner name, source host reference, TTL, preference, and exchange. |
+| Malformed MAC addresses | Deferred IP assignment with the exact original string in `mac_address`; no attachment is constructed from the invalid MAC. Related PTR overrides are also deferred. |
+| Untranslatable LOC values | Deferred record with the exact original text in `attributes.data.raw_loc`, its owner, source host reference, and TTL. |
+| Cyclic host groups and groups depending on those cycles | Deferred `host_group` entries retain descriptions, all parent links, hosts, and owner-group names. Unaffected groups remain dependency-ordered normal items. |
+
+Every deferred entry has a stable source-derived `ref`, one or more
+`deferred.reasons`, and `requires_manual_handling=true`. Reasons can accumulate;
+for example, one IP can be shared, outside registered networks, and have an
+invalid MAC. Deferred attributes may contain raw invalid values or source
+relationships that differ from the normal import contract. Consumers must not
+validate them as ordinary import items or discard an entire snapshot because
+of them.
+
+All wildcard inventory hosts are retained in the deferred section, even when
+their DNS data translates completely. Thus `fully_importable=false` can mean
+additional inventory information needs handling, not necessarily that DNS
+records are missing. Consumers must process both deferred sections and resolve
+references across the complete snapshot before considering a migration
+complete. The listed cases do not require source cleanup before export.
 
 Object creation/update timestamps and zone update bookkeeping are not retained.
 User accounts, credentials, authorization memberships, and audit/history remain

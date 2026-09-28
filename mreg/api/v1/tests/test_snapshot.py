@@ -51,7 +51,6 @@ from mreg.api.v1.snapshot import (
     _parse_request,
     _split_dns_character_strings,
     _topological_group_order,
-    _validate_wildcard_hosts,
     _write_snapshot_data,
     create_snapshot_artifact,
     iter_deferred_record_items,
@@ -318,6 +317,28 @@ class SnapshotArtifactTests(ParametrizedTestCase, SimpleTestCase):
         with self.assertRaisesMessage(SnapshotError, "contains no snapshot items"):
             create_snapshot_artifact(ARCHIVE_FORMAT, "snapshotter", "mreg.example.org")
 
+    @parametrize("snapshot_format", [param(ARCHIVE_FORMAT, id="archive"), param(JSON_FORMAT, id="json")])
+    def test_snapshot_with_only_deferred_data_is_not_empty(self, snapshot_format):
+        def deferred_only(directory, chunk_size, **kwargs):
+            data = fake_write_snapshot_data(directory, chunk_size, **kwargs)
+            return replace(data, items=write_values(data.items.path, []))
+
+        with mock.patch("mreg.api.v1.snapshot._write_snapshot_data", side_effect=deferred_only):
+            artifact = create_snapshot_artifact(snapshot_format, "snapshotter", "mreg.example.org")
+        try:
+            if snapshot_format == ARCHIVE_FORMAT:
+                with tarfile.open(artifact.path, mode="r:gz") as archive:
+                    manifest = json.load(archive.extractfile("manifest.json"))
+                self.assertEqual(manifest["items"]["count"], 0)
+                self.assertFalse(manifest["semantics"]["fully_importable"])
+                self.assertEqual(manifest["deferred_items"]["count"], len(DEFERRED_ITEMS))
+            else:
+                data = json.loads(gzip.decompress(artifact.path.read_bytes()))
+                self.assertEqual(data["items"], [])
+                self.assertEqual(data["deferred_items"], DEFERRED_ITEMS)
+        finally:
+            artifact.cleanup()
+
     @override_settings(MREG_SNAPSHOT_MAX_BYTES=1)
     @mock.patch("mreg.api.v1.snapshot._write_snapshot_data", side_effect=fake_write_snapshot_data)
     def test_rejects_artifact_over_storage_limit(self, _write_snapshot_data):
@@ -466,13 +487,10 @@ class SnapshotTranslationValidationTests(ParametrizedTestCase, SimpleTestCase):
             macaddress=macaddress,
         )
 
-    def test_wildcard_ip_assignment_rejects_mac_address(self):
+    def test_wildcard_ip_does_not_invent_an_attachment(self):
         row = self.ip_row(macaddress="aa:bb:cc:dd:ee:ff")
-        with (
-            mock.patch("mreg.api.v1.snapshot._ip_rows", return_value=[row]),
-            self.assertRaisesMessage(SnapshotError, "Wildcard IP assignment has a MAC address"),
-        ):
-            list(_attachment_items(mock.Mock(), {row.host_id}, 10))
+        with mock.patch("mreg.api.v1.snapshot._ip_rows", return_value=[row]):
+            self.assertEqual(list(_attachment_items(mock.Mock(), {row.host_id}, 10)), [])
 
     def test_unregistered_ip_does_not_invent_an_attachment(self):
         row = self.ip_row()
@@ -506,52 +524,8 @@ class SnapshotTranslationValidationTests(ParametrizedTestCase, SimpleTestCase):
         self.assertEqual(item["attributes"], {"host_name_ref": "host:1", "address": row.ipaddress, "mac_address": row.macaddress})
         self.assertEqual(item["deferred"]["reasons"], ["ip_address_outside_registered_networks"])
 
-    def model_with_manager(self, *, host_rows=(), host_ids=(), related_ids=()):
-        manager = mock.MagicMock()
-        filtered = manager.filter.return_value
-        filtered.values_list.return_value = host_ids
-        filtered.filter.return_value.values_list.return_value = related_ids
-        filtered.order_by.return_value.values_list.return_value.iterator.return_value = host_rows
-        return SimpleNamespace(objects=manager)
-
-    def test_wildcard_host_requires_dns_data(self):
-        host_model = self.model_with_manager(host_rows=[(1, "")])
-        empty_model = self.model_with_manager()
-        specifications = ((empty_model, "TEST", mock.Mock(), mock.Mock()),)
-        with (
-            mock.patch("mreg.api.v1.snapshot.Host", host_model),
-            mock.patch("mreg.api.v1.snapshot.Ipaddress", empty_model),
-            mock.patch("mreg.api.v1.snapshot.BACnetID", empty_model),
-            mock.patch("mreg.api.v1.snapshot.HostCommunityMapping", empty_model),
-            mock.patch("mreg.api.v1.snapshot._HOST_RECORD_SPECIFICATIONS", specifications),
-            self.assertRaisesMessage(SnapshotError, "has no translatable DNS data"),
-        ):
-            _validate_wildcard_hosts({1}, 10)
-
-    @parametrize(
-        ("comment", "has_bacnet_id"),
-        [
-            param("documented", False, id="comment"),
-            param("", True, id="bacnet_id"),
-        ],
-    )
-    def test_wildcard_host_rejects_non_dns_relationships(self, comment, has_bacnet_id):
-        with (
-            mock.patch("mreg.api.v1.snapshot.Host", self.model_with_manager(host_rows=[(1, comment)])),
-            mock.patch("mreg.api.v1.snapshot.Ipaddress", self.model_with_manager(host_ids=[1])),
-            mock.patch(
-                "mreg.api.v1.snapshot.BACnetID",
-                self.model_with_manager(host_ids=[1] if has_bacnet_id else []),
-            ),
-            mock.patch("mreg.api.v1.snapshot.HostCommunityMapping", self.model_with_manager()),
-            mock.patch("mreg.api.v1.snapshot._HOST_RECORD_SPECIFICATIONS", ()),
-            self.assertRaisesMessage(SnapshotError, "has non-DNS relationships"),
-        ):
-            _validate_wildcard_hosts({1}, 10)
-
-    def test_host_group_cycles_are_rejected(self):
-        with self.assertRaisesMessage(SnapshotError, "contain a cycle"):
-            _topological_group_order({1}, [(1, 1)])
+    def test_host_group_cycles_are_left_out_of_topological_order(self):
+        self.assertEqual(_topological_group_order({1, 2, 3}, [(1, 1), (2, 1)]), ([3], {1: {1}, 2: {1}, 3: set()}))
 
 
 class SnapshotRequestTests(ParametrizedTestCase, SimpleTestCase):
@@ -906,6 +880,78 @@ class SnapshotDatabaseIntegrationTests(ParametrizedTestCase, TransactionTestCase
             response.close()
         self.assertFalse(response.artifact.path.exists())
 
+    @parametrize("snapshot_format", [param(ARCHIVE_FORMAT, id="archive"), param(JSON_FORMAT, id="json")])
+    def test_download_preserves_untranslatable_source_data(self, snapshot_format):
+        wildcard = Host.objects.create(name="*.legacy.example.org", comment="Keep this comment")
+        ip = Ipaddress.objects.create(host=wildcard, ipaddress="203.0.113.50", macaddress="broken MAC")
+        ptr = PtrOverride.objects.create(host=wildcard, ipaddress=ip.ipaddress)
+        loc = Loc.objects.create(host=wildcard, loc="unparseable LOC")
+        mx = Mx.objects.create(host=self.host, priority=10, mx="mail.example.org")
+        contact = HostContact.objects.create(email="legacy@example.org")
+        contact.hosts.add(wildcard)
+        role = HostPolicyRole.objects.create(name="legacy", description="Role description")
+        role.hosts.add(wildcard)
+        BACnetID.objects.create(id=1200, host=wildcard)
+        group = HostGroup.objects.create(name="cyclic", description="Group description")
+        # Historical corruption can exist below the current signal validation.
+        HostGroup.parent.through.objects.create(from_hostgroup_id=group.pk, to_hostgroup_id=group.pk)
+        group.hosts.add(wildcard)
+        policy = NetworkPolicy.objects.create(name="legacy")
+        network = Network.objects.get(network="192.0.2.0/24")
+        network.policy = policy
+        network.save(update_fields=["policy"])
+        community = Community.objects.create(name="legacy", network=network, description="Community description")
+        mapping = HostCommunityMapping.objects.create(host=wildcard, ipaddress=ip, community=community)
+        Network.objects.filter(pk=network.pk).update(policy=None)
+        response = self.client.get(f"/api/v1/snapshot?format={snapshot_format}", HTTP_ACCEPT_ENCODING="gzip")
+        try:
+            self.assertEqual(response.status_code, 200)
+            compressed = b"".join(response.streaming_content)
+            if snapshot_format == ARCHIVE_FORMAT:
+                with tarfile.open(fileobj=io.BytesIO(compressed), mode="r:gz") as archive:
+                    manifest = json.load(archive.extractfile("manifest.json"))
+                    sections = {}
+                    for key in ("items", "deferred_items", "deferred_records"):
+                        raw = archive.extractfile(manifest[key]["path"]).read()
+                        sections[key] = [json.loads(line) for line in raw.splitlines()]
+                        self.assertEqual(manifest[key]["count"], len(sections[key]))
+                        self.assertEqual(manifest[key]["bytes"], len(raw))
+                        self.assertEqual(manifest[key]["sha256"], hashlib.sha256(raw).hexdigest())
+                self.assertFalse(manifest["semantics"]["fully_importable"])
+            else:
+                sections = json.loads(gzip.decompress(compressed))
+            deferred = {item["ref"]: item for item in sections["deferred_items"] + sections["deferred_records"]}
+            expected = {
+                f"host:{wildcard.pk}",
+                f"ip_address:{ip.pk}",
+                f"ptr_override:{ptr.pk}",
+                f"record_loc:{loc.pk}",
+                f"record_mx:{mx.pk}",
+                f"host_group:{group.pk}",
+                f"host_contact_host:{contact.pk}:{wildcard.pk}",
+                f"host_policy_role_host:{role.pk}:{wildcard.pk}",
+                "bacnet_id:1200",
+                f"community:{community.pk}",
+                f"host_community_mapping:{mapping.pk}",
+            }
+            self.assertEqual(set(deferred), expected)
+            self.assertEqual(deferred[f"ip_address:{ip.pk}"]["attributes"]["mac_address"], "broken MAC")
+            self.assertEqual(deferred[f"record_loc:{loc.pk}"]["attributes"]["data"], {"raw_loc": "unparseable LOC"})
+            self.assertEqual(deferred[f"host:{wildcard.pk}"]["attributes"]["comment"], "Keep this comment")
+            self.assertEqual(deferred[f"host_community_mapping:{mapping.pk}"]["attributes"]["ip_address_ref"], f"ip_address:{ip.pk}")
+            normal_refs = {item["ref"] for item in sections["items"]}
+            self.assertFalse(normal_refs & expected)
+            self.assertTrue(all(set(snapshot_references(item)) <= normal_refs for item in sections["items"]))
+            self.assertTrue(all(set(snapshot_references(item)) <= normal_refs | expected for item in deferred.values()))
+            self.assertTrue(all(item["deferred"]["requires_manual_handling"] for item in deferred.values()))
+            # Reading the snapshot must not repair or normalize the source rows.
+            self.assertEqual(Ipaddress.objects.get(pk=ip.pk).macaddress, "broken MAC")
+            self.assertEqual(Loc.objects.get(pk=loc.pk).loc, "unparseable LOC")
+            self.assertTrue(group.parent.filter(pk=group.pk).exists())
+        finally:
+            response.close()
+        self.assertFalse(response.artifact.path.exists())
+
     @parametrize(
         ("snapshot_format", "media_type"),
         [
@@ -1146,23 +1192,28 @@ class SnapshotItemTranslationTests(ParametrizedTestCase, TestCase):
 
         self.assertEqual(item["attributes"]["hosts"], [f"host:{first.pk}", f"host:{second.pk}"])
 
-    def test_mx_record_requires_a_forward_zone(self):
+    def test_mx_without_forward_zone_is_deferred(self):
         host = Host.objects.create(name="orphan.example.org")
-        Mx.objects.create(host=host, priority=10, mx="mail.example.org")
-
-        with self.assertRaisesMessage(SnapshotError, "MX owner has no forward zone"):
-            list(_host_dns_record_items(set(), 10, deferred=False))
+        record = Mx.objects.create(host=host, priority=10, mx="mail.example.org")
+        reference = f"record_mx:{record.pk}"
+        self.assertNotIn(reference, {item["ref"] for item in _host_dns_record_items(set(), 10, deferred=False)})
+        item = next(item for item in iter_deferred_record_items(10) if item["ref"] == reference)
+        self.assertEqual(item["attributes"]["data"], {"preference": 10, "exchange": "mail.example.org"})
+        self.assertEqual(item["source_host_ref"], f"host:{host.pk}")
+        self.assertEqual(item["deferred"]["reasons"], ["mx_owner_without_forward_zone"])
 
     @parametrize("mac", [param("", id="macless"), param("aa:bb:cc:dd:ee:ff", id="shared_mac")])
     @override_settings(MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY=False)
-    def test_mixed_assigned_and_unassigned_attachment_is_rejected(self, mac):
+    def test_mixed_assigned_and_unassigned_attachment_is_deferred(self, mac):
         self.ip.macaddress = mac
         self.ip.save(update_fields=["macaddress"])
         unassigned = Ipaddress.objects.create(host=self.host, ipaddress="192.0.2.21", macaddress=mac)
-        with self.assertRaisesMessage(SnapshotError, "mixes assigned and unassigned IP addresses") as raised:
-            list(iter_import_items(10))
-        self.assertEqual(raised.exception.model, "Ipaddress")
-        self.assertEqual(raised.exception.object_id, unassigned.pk)
+        self.assertFalse(any(item["kind"] == "attachment_community_assignment" for item in iter_import_items(10)))
+        mappings = [item for item in iter_deferred_items(10) if item["kind"] == "host_community_mapping"]
+        self.assertEqual(len(mappings), 1)
+        self.assertEqual(mappings[0]["attributes"]["ip_address_ref"], f"ip_address:{self.ip.pk}")
+        self.assertNotEqual(mappings[0]["attributes"]["ip_address_ref"], f"ip_address:{unassigned.pk}")
+        self.assertEqual(mappings[0]["deferred"]["reasons"], ["attachment_mixes_assigned_and_unassigned_ips"])
 
     @override_settings(MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY=False)
     def test_matching_community_memberships_can_share_an_attachment(self):
@@ -1181,12 +1232,16 @@ class SnapshotItemTranslationTests(ParametrizedTestCase, TestCase):
         address = next(item for item in items if item["ref"] == f"ip_address:{second.pk}")
         self.assertNotEqual(assignment["attributes"]["attachment_id_ref"], address["attributes"]["attachment_id_ref"])
 
-    def test_conflicting_communities_on_one_attachment_are_rejected(self):
+    def test_conflicting_communities_on_one_attachment_are_deferred(self):
         second = Ipaddress.objects.create(host=self.host, ipaddress="192.0.2.21", macaddress=self.ip.macaddress)
         community = Community.objects.create(name="other", network=self.network)
         HostCommunityMapping.objects.create(host=self.host, ipaddress=second, community=community)
-        with self.assertRaisesMessage(SnapshotError, "conflicting legacy communities"):
-            list(iter_import_items(10))
+        self.assertFalse(any(item["kind"] == "attachment_community_assignment" for item in iter_import_items(10)))
+        mappings = [item for item in iter_deferred_items(10) if item["kind"] == "host_community_mapping"]
+        self.assertEqual(
+            {item["attributes"]["community_name_ref"] for item in mappings}, {f"community:{self.community.pk}", f"community:{community.pk}"}
+        )
+        self.assertTrue(all(item["deferred"]["reasons"] == ["attachment_has_conflicting_communities"] for item in mappings))
 
     @parametrize(
         ("address", "record_type"),
@@ -1222,7 +1277,7 @@ class SnapshotItemTranslationTests(ParametrizedTestCase, TestCase):
         second = Ipaddress.objects.create(host=host, ipaddress=address, macaddress="aa:bb:cc:dd:ee:01")
         items = list(iter_import_items(10))
         deferred = list(iter_deferred_items(10))
-        allocations = [item for item in deferred if item["kind"] == "ip_address"]
+        allocations = [item for item in deferred if item["kind"] == "ip_address" and item["attributes"]["address"] == address]
         self.assertEqual(
             {(item["ref"], item["attributes"]["host_name_ref"], item["attributes"]["mac_address"]) for item in allocations},
             {
@@ -1230,7 +1285,7 @@ class SnapshotItemTranslationTests(ParametrizedTestCase, TestCase):
                 (f"ip_address:{second.pk}", f"host:{host.pk}", second.macaddress),
             },
         )
-        self.assertTrue(all(item["deferred"]["reasons"] == ["ip_address_shared_by_multiple_hosts"] for item in deferred))
+        self.assertTrue(all(item["deferred"]["reasons"] == ["ip_address_shared_by_multiple_hosts"] for item in allocations))
         self.assertFalse(any(item["kind"] == "ip_address" and item["attributes"]["address"] == address for item in items))
         references = {item["ref"] for item in items}
         self.assertTrue(all(item["attributes"]["attachment_id_ref"] in references for item in allocations))
@@ -1259,10 +1314,218 @@ class SnapshotItemTranslationTests(ParametrizedTestCase, TestCase):
                 "address": address,
             },
         )
-        self.assertTrue(all(item["deferred"]["reasons"] == ["ip_address_outside_registered_networks"] for item in deferred.values()))
+        self.assertTrue(
+            all(
+                deferred[reference]["deferred"]["reasons"] == ["ip_address_outside_registered_networks"]
+                for reference in (f"ip_address:{ip.pk}", f"ptr_override:{ptr.pk}")
+            )
+        )
         self.assertFalse(any(item["ref"] in deferred for item in items))
 
     def test_unattached_contacts_are_preserved(self):
         contact = HostContact.objects.create(email="unattached@example.org")
         item = next(item for item in iter_import_items(10) if item["ref"] == f"host_contact:{contact.pk}")
         self.assertEqual(item["attributes"], {"email": contact.email, "hosts": []})
+
+
+def snapshot_references(value):
+    """References can cross deferred sections, but normal items must stand alone."""
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if key.endswith("_ref"):
+                yield child
+            elif key in {"hosts", "nameservers", "parent_groups"}:
+                yield from child
+            else:
+                yield from snapshot_references(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from snapshot_references(child)
+
+
+class SnapshotDeferredDataTests(ParametrizedTestCase, TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.policy = NetworkPolicy.objects.create(name="legacy", description="Legacy policy")
+        cls.network = Network.objects.create(network="192.0.2.0/24", policy=cls.policy)
+        cls.community = Community.objects.create(name="legacy", network=cls.network, description="Preserve this description")
+        cls.host = Host.objects.create(name="ordinary.example.org", comment="Ordinary host")
+
+    def snapshot(self):
+        normal = list(iter_import_items(1))
+        deferred_records = list(iter_deferred_record_items(1))
+        deferred = list(iter_deferred_items(1))
+        all_items = normal + deferred_records + deferred
+        references = {item["ref"] for item in all_items}
+        self.assertEqual(len(references), len(all_items))
+        seen = set()
+        for item in normal:
+            self.assertTrue(set(snapshot_references(item)) <= seen, item)
+            seen.add(item["ref"])
+        for item in deferred_records + deferred:
+            self.assertTrue(set(snapshot_references(item)) <= references, item)
+            self.assertTrue(item["deferred"]["requires_manual_handling"])
+            self.assertTrue(item["deferred"]["reasons"])
+        return {item["ref"]: item for item in normal}, {item["ref"]: item for item in deferred_records + deferred}
+
+    def test_wildcard_inventory_and_relationships_survive_alongside_dns_records(self):
+        host = Host.objects.create(name="*.example.org", comment="Legacy wildcard", ttl=123)
+        ip = Ipaddress.objects.create(host=host, ipaddress="192.0.2.40", macaddress="aa:bb:cc:dd:ee:ff")
+        ptr = PtrOverride.objects.create(host=host, ipaddress=ip.ipaddress)
+        BACnetID.objects.create(id=1200, host=host)
+        contact = HostContact.objects.create(email="wildcard@example.org")
+        contact.hosts.add(host, self.host)
+        group = HostGroup.objects.create(name="legacy", description="Legacy group")
+        group.hosts.add(host, self.host)
+        role = HostPolicyRole.objects.create(name="legacy", description="Legacy role")
+        role.hosts.add(host, self.host)
+        mapping = HostCommunityMapping.objects.create(host=host, ipaddress=ip, community=self.community)
+
+        normal, deferred = self.snapshot()
+
+        self.assertEqual(deferred[f"host:{host.pk}"]["attributes"], {"name": host.name, "ttl": 123, "comment": host.comment})
+        self.assertEqual(
+            deferred[f"ip_address:{ip.pk}"]["attributes"],
+            {"address": ip.ipaddress, "host_name_ref": f"host:{host.pk}", "mac_address": ip.macaddress},
+        )
+        self.assertEqual(deferred[f"ptr_override:{ptr.pk}"]["attributes"]["host_name_ref"], f"host:{host.pk}")
+        self.assertEqual(deferred["bacnet_id:1200"]["attributes"], {"bacnet_id": 1200, "host_name_ref": f"host:{host.pk}"})
+        self.assertEqual(
+            deferred[f"host_contact_host:{contact.pk}:{host.pk}"]["attributes"],
+            {"contact_ref": f"host_contact:{contact.pk}", "host_name_ref": f"host:{host.pk}"},
+        )
+        self.assertEqual(
+            deferred[f"host_group_host:{group.pk}:{host.pk}"]["attributes"],
+            {"group_ref": f"host_group:{group.pk}", "host_name_ref": f"host:{host.pk}"},
+        )
+        self.assertEqual(
+            deferred[f"host_policy_role_host:{role.pk}:{host.pk}"]["attributes"],
+            {"role_name_ref": f"host_policy_role:{role.pk}", "host_name_ref": f"host:{host.pk}"},
+        )
+        self.assertEqual(
+            deferred[f"host_community_mapping:{mapping.pk}"]["attributes"],
+            {
+                "host_name_ref": f"host:{host.pk}",
+                "ip_address_ref": f"ip_address:{ip.pk}",
+                "community_name_ref": f"community:{self.community.pk}",
+            },
+        )
+        self.assertEqual(normal[f"record_ip_address:{ip.pk}"]["attributes"]["data"], {"address": ip.ipaddress})
+        self.assertEqual(normal[f"host_contact:{contact.pk}"]["attributes"]["hosts"], [f"host:{self.host.pk}"])
+        self.assertEqual(normal[f"host_group:{group.pk}"]["attributes"]["hosts"], [f"host:{self.host.pk}"])
+
+    def test_wildcard_without_dns_data_is_preserved(self):
+        host = Host.objects.create(name="*.empty.example.org")
+        _, deferred = self.snapshot()
+        self.assertEqual(deferred[f"host:{host.pk}"]["attributes"], {"name": host.name, "comment": ""})
+
+    def test_all_reasons_are_retained_for_shared_unregistered_ip_with_invalid_mac(self):
+        other = Host.objects.create(name="other.example.org")
+        ip = Ipaddress.objects.create(host=self.host, ipaddress="203.0.113.50", macaddress="broken MAC")
+        Ipaddress.objects.create(host=other, ipaddress=ip.ipaddress)
+        _, deferred = self.snapshot()
+        self.assertEqual(
+            deferred[f"ip_address:{ip.pk}"]["deferred"]["reasons"],
+            ["ip_address_shared_by_multiple_hosts", "ip_address_outside_registered_networks", "invalid_mac_address"],
+        )
+
+    @parametrize("mac", [param("not-a-mac", id="text"), param("AA:BB:CC", id="short"), param("aa!!bb!!cc!!dd", id="punctuation")])
+    def test_malformed_mac_is_preserved_without_an_attachment(self, mac):
+        ip = Ipaddress.objects.create(host=self.host, ipaddress="192.0.2.50", macaddress=mac)
+        ptr = PtrOverride.objects.create(host=self.host, ipaddress=ip.ipaddress)
+        mapping = HostCommunityMapping.objects.create(host=self.host, ipaddress=ip, community=self.community)
+        normal, deferred = self.snapshot()
+        self.assertFalse(any(item["kind"] == "host_attachment" for item in normal.values()))
+        self.assertEqual(
+            deferred[f"ip_address:{ip.pk}"]["attributes"],
+            {"address": ip.ipaddress, "host_name_ref": f"host:{self.host.pk}", "mac_address": mac},
+        )
+        self.assertEqual(deferred[f"ip_address:{ip.pk}"]["deferred"]["reasons"], ["invalid_mac_address"])
+        self.assertEqual(deferred[f"ptr_override:{ptr.pk}"]["deferred"]["reasons"], ["ip_assignment_has_invalid_mac_address"])
+        self.assertEqual(deferred[f"host_community_mapping:{mapping.pk}"]["deferred"]["reasons"], ["invalid_mac_address"])
+
+    @parametrize(
+        "value",
+        [
+            param("original unparseable value", id="text"),
+            param("42 N 71 W", id="missing_altitude"),
+            param("NaN N 71 W 0m", id="nan"),
+            param("42 N 71 W inf", id="infinity"),
+            param("91 N 71 W 0m", id="latitude"),
+            param("42 60 0 N 71 W 0m", id="minutes"),
+            param("42 N 71 W 0m 1m 2m 3m 4m", id="extra_precision"),
+        ],
+    )
+    def test_malformed_loc_retains_exact_source_text(self, value):
+        loc = Loc.objects.create(host=self.host, loc=value)
+        normal, deferred = self.snapshot()
+        reference = f"record_loc:{loc.pk}"
+        self.assertNotIn(reference, normal)
+        self.assertEqual(deferred[reference]["attributes"]["data"], {"raw_loc": value})
+        self.assertEqual(deferred[reference]["source_host_ref"], f"host:{self.host.pk}")
+        self.assertEqual(deferred[reference]["deferred"]["reasons"], ["untranslatable_loc_value"])
+        json.dumps(deferred, allow_nan=False)
+
+    def test_community_without_policy_preserves_description_and_memberships(self):
+        ip = Ipaddress.objects.create(host=self.host, ipaddress="192.0.2.50")
+        mapping = HostCommunityMapping.objects.create(host=self.host, ipaddress=ip, community=self.community)
+        Network.objects.filter(pk=self.network.pk).update(policy=None)
+        normal, deferred = self.snapshot()
+        self.assertNotIn(f"community:{self.community.pk}", normal)
+        self.assertEqual(
+            deferred[f"community:{self.community.pk}"]["attributes"],
+            {"network_cidr_ref": f"network:{self.network.pk}", "name": self.community.name, "description": self.community.description},
+        )
+        self.assertEqual(deferred[f"host_community_mapping:{mapping.pk}"]["deferred"]["reasons"], ["community_network_without_policy"])
+
+    @parametrize(
+        ("address", "reason"),
+        [
+            param("198.51.100.50", "community_does_not_match_ip_network", id="different_network"),
+            param("203.0.113.50", "ip_address_outside_registered_networks", id="no_network"),
+        ],
+    )
+    def test_community_mapping_to_another_or_no_network_is_preserved(self, address, reason):
+        Network.objects.create(network="198.51.100.0/24")
+        ip = Ipaddress.objects.create(host=self.host, ipaddress=address)
+        mapping = HostCommunityMapping.objects.create(host=self.host, ipaddress=ip, community=self.community)
+        normal, deferred = self.snapshot()
+        self.assertFalse(any(item["kind"] == "attachment_community_assignment" for item in normal.values()))
+        item = deferred[f"host_community_mapping:{mapping.pk}"]
+        self.assertEqual(item["deferred"]["reasons"], [reason])
+        self.assertEqual(item["attributes"]["ip_address_ref"], f"ip_address:{ip.pk}")
+        self.assertEqual(item["attributes"]["community_name_ref"], f"community:{self.community.pk}")
+
+    def test_mismatching_community_host_is_preserved_without_reassigning_ip(self):
+        other = Host.objects.create(name="different.example.org")
+        ip = Ipaddress.objects.create(host=self.host, ipaddress="192.0.2.50")
+        mapping = HostCommunityMapping.objects.create(host=other, ipaddress=ip, community=self.community)
+        normal, deferred = self.snapshot()
+        self.assertFalse(any(item["kind"] == "attachment_community_assignment" for item in normal.values()))
+        item = deferred[f"host_community_mapping:{mapping.pk}"]
+        self.assertEqual(item["attributes"]["host_name_ref"], f"host:{other.pk}")
+        self.assertEqual(item["attributes"]["ip_address_ref"], f"ip_address:{ip.pk}")
+        self.assertEqual(item["deferred"]["reasons"], ["community_host_does_not_match_ip_host"])
+
+    def test_cycles_and_dependent_groups_preserve_all_edges_and_metadata(self):
+        first = HostGroup.objects.create(name="cycle-first", description="First description")
+        second = HostGroup.objects.create(name="cycle-second", description="Second description")
+        descendant = HostGroup.objects.create(name="dependent", description="Dependent description")
+        root = HostGroup.objects.create(name="unaffected")
+        first.parent.add(second, root)
+        second.parent.add(first)
+        descendant.parent.add(second)
+        first.hosts.add(self.host)
+        owner = Group.objects.create(name="operators")
+        first.owners.add(owner)
+        normal, deferred = self.snapshot()
+        self.assertIn(f"host_group:{root.pk}", normal)
+        for group in (first, second, descendant):
+            reference = f"host_group:{group.pk}"
+            self.assertNotIn(reference, normal)
+            self.assertEqual(deferred[reference]["attributes"]["description"], group.description)
+            self.assertEqual(
+                set(deferred[reference]["attributes"]["parent_groups"]), {f"host_group:{parent.pk}" for parent in group.parent.all()}
+            )
+        self.assertEqual(deferred[f"host_group:{first.pk}"]["attributes"]["owner_groups"], ["operators"])
+        self.assertEqual(deferred[f"host_group:{first.pk}"]["attributes"]["hosts"], [f"host:{self.host.pk}"])
