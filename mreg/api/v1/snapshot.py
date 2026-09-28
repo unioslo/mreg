@@ -9,12 +9,14 @@ import ipaddress
 import io
 import json
 import heapq
+import math
 import tarfile
 import tempfile
 from collections import defaultdict
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from itertools import groupby
 from pathlib import Path
 from string import hexdigits
 from time import monotonic
@@ -23,7 +25,7 @@ from typing import Any, BinaryIO, Iterable, Iterator
 import structlog
 from django.conf import settings
 from django.db import DatabaseError, connection, transaction
-from django.db.models import Count, Prefetch, Q
+from django.db.models import Count, Prefetch
 from django.http import FileResponse
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, OpenApiTypes, extend_schema
 from rest_framework.exceptions import PermissionDenied, Throttled
@@ -283,24 +285,32 @@ def _network_zone_items(chunk_size: int) -> Iterator[dict[str, Any]]:
                 "description": "",
             },
         )
-    communities = Community.objects.select_related("network").order_by("pk")
-    for obj in communities.iterator(chunk_size=chunk_size):
-        if obj.network.policy_id is None:
-            raise SnapshotError("Community references a network without a policy", model="Community", object_id=obj.pk)
-        yield _item(
-            _ref("community", obj.pk),
-            "community",
-            {
-                "policy_name_ref": _ref("network_policy", obj.network.policy_id),
-                "network_cidr_ref": _ref("network", obj.network_id),
-                "name": obj.name,
-                "description": obj.description,
-            },
-        )
+    yield from _community_items(chunk_size)
     yield from _zone_items(ForwardZone, "forward_zone", chunk_size)
     yield from _zone_items(ReverseZone, "reverse_zone", chunk_size)
     yield from _delegation_items(ForwardZoneDelegation, "forward_zone_delegation", "forward_zone", chunk_size)
     yield from _delegation_items(ReverseZoneDelegation, "reverse_zone_delegation", "reverse_zone", chunk_size)
+
+
+def _community_items(chunk_size: int, *, deferred: bool = False) -> Iterator[dict[str, Any]]:
+    communities = Community.objects.select_related("network").order_by("pk")
+    for obj in communities.iterator(chunk_size=chunk_size):
+        reasons = ["community_network_without_policy"] if obj.network.policy_id is None else []
+        if bool(reasons) != deferred:
+            continue
+        item = _item(
+            _ref("community", obj.pk),
+            "community",
+            _without_none(
+                {
+                    "policy_name_ref": _ref("network_policy", obj.network.policy_id) if obj.network.policy_id else None,
+                    "network_cidr_ref": _ref("network", obj.network_id),
+                    "name": obj.name,
+                    "description": obj.description,
+                }
+            ),
+        )
+        yield _deferred_item(item, reasons) if deferred else item
 
 
 def _zone_items(model, kind: str, chunk_size: int) -> Iterator[dict[str, Any]]:
@@ -342,10 +352,11 @@ def _wildcard_ids() -> set[int]:
     return set(Host.objects.filter(name__contains="*").values_list("pk", flat=True))
 
 
-def _host_items(wildcards: set[int], chunk_size: int) -> Iterator[dict[str, Any]]:
-    queryset = Host.objects.exclude(pk__in=wildcards).order_by("pk")
+def _host_items(wildcards: set[int], chunk_size: int, *, deferred: bool = False) -> Iterator[dict[str, Any]]:
+    queryset = Host.objects.filter(pk__in=wildcards) if deferred else Host.objects.exclude(pk__in=wildcards)
+    queryset = queryset.order_by("pk")
     for obj in queryset.iterator(chunk_size=chunk_size):
-        yield _item(
+        item = _item(
             _ref("host", obj.pk),
             "host",
             _without_none(
@@ -357,6 +368,7 @@ def _host_items(wildcards: set[int], chunk_size: int) -> Iterator[dict[str, Any]
                 }
             ),
         )
+        yield _deferred_item(item, ["wildcard_host_not_supported_by_import_contract"]) if deferred else item
 
 
 def _ip_rows(chunk_size: int):
@@ -368,12 +380,6 @@ def _attachment_items(index: NetworkIndex, wildcards: set[int], chunk_size: int)
     current_host = None
     for obj in _ip_rows(chunk_size):
         if obj.host_id in wildcards:
-            if obj.macaddress:
-                raise SnapshotError(
-                    "Wildcard IP assignment has a MAC address that cannot be represented",
-                    model="Ipaddress",
-                    object_id=obj.pk,
-                )
             continue
         if current_host != obj.host_id:
             current_host = obj.host_id
@@ -384,7 +390,11 @@ def _attachment_items(index: NetworkIndex, wildcards: set[int], chunk_size: int)
             # inventing an attachment to a network that does not exist.
             continue
         network_id, network = match
-        mac = _normalized_mac(obj.macaddress)
+        try:
+            mac = _normalized_mac(obj.macaddress)
+        except SnapshotError:
+            # Keep the source assignment deferred rather than losing its MAC.
+            continue
         reference = _attachment_ref(obj.host_id, network_id, mac)
         if reference in seen_for_host:
             continue
@@ -426,19 +436,28 @@ def _deferred_item(item: dict[str, Any], reasons: list[str]) -> dict[str, Any]:
     return item
 
 
+def _ip_translation(obj, index: NetworkIndex, wildcards: set[int], shared: set[str]) -> tuple[str | None, str | None, list[str]]:
+    match = index.match(obj.ipaddress)
+    reasons = _ip_deferred_reasons(obj.ipaddress, match, shared)
+    if obj.host_id in wildcards:
+        reasons.append("wildcard_host_not_supported_by_import_contract")
+    try:
+        mac = _normalized_mac(obj.macaddress)
+    except SnapshotError:
+        return None, obj.macaddress, [*reasons, "invalid_mac_address"]
+    attachment = _attachment_ref(obj.host_id, match[0], mac) if match and obj.host_id not in wildcards else None
+    return attachment, mac, reasons
+
+
 def _ip_items(index: NetworkIndex, wildcards: set[int], chunk_size: int, *, deferred: bool = False) -> Iterator[dict[str, Any]]:
     shared = _shared_ip_addresses(wildcards)
     for obj in _ip_rows(chunk_size):
-        if obj.host_id in wildcards:
-            continue
-        match = index.match(obj.ipaddress)
-        reasons = _ip_deferred_reasons(obj.ipaddress, match, shared)
+        attachment, mac, reasons = _ip_translation(obj, index, wildcards, shared)
         if bool(reasons) != deferred:
             continue
-        mac = _normalized_mac(obj.macaddress)
         attributes = {"address": obj.ipaddress}
-        if match is not None:
-            attributes["attachment_id_ref"] = _attachment_ref(obj.host_id, match[0], mac)
+        if attachment is not None:
+            attributes["attachment_id_ref"] = attachment
         if deferred:
             attributes.update(_without_none({"host_name_ref": _ref("host", obj.host_id), "mac_address": mac}))
         item = _item(_ref("ip_address", obj.pk), "ip_address", attributes)
@@ -475,6 +494,10 @@ def _parse_loc(value: str, *, pk: Any) -> dict[str, float]:
 
         def coordinate(parts: list[str], direction: str) -> float:
             numbers = [float(part) for part in parts]
+            if not 1 <= len(numbers) <= 3 or any(not math.isfinite(number) or number < 0 for number in numbers):
+                raise ValueError("invalid coordinate")
+            if any(number >= 60 for number in numbers[1:]):
+                raise ValueError("invalid coordinate minutes or seconds")
             result = numbers[0]
             if len(numbers) > 1:
                 result += numbers[1] / 60
@@ -483,8 +506,8 @@ def _parse_loc(value: str, *, pk: Any) -> dict[str, float]:
             return -result if direction in {"S", "W"} else result
 
         remaining = [float(token.removesuffix("m")) for token in tokens[lon_end + 1 :]]
-        if not remaining:
-            raise ValueError("missing altitude")
+        if not 1 <= len(remaining) <= 4 or not all(math.isfinite(number) for number in remaining):
+            raise ValueError("invalid altitude or precision")
         result = {
             "latitude": coordinate(tokens[:lat_end], tokens[lat_end]),
             "longitude": coordinate(tokens[lon_start:lon_end], tokens[lon_end]),
@@ -492,6 +515,8 @@ def _parse_loc(value: str, *, pk: Any) -> dict[str, float]:
         }
         for key, number in zip(("size_m", "horizontal_precision_m", "vertical_precision_m"), remaining[1:], strict=False):
             result[key] = number
+        if abs(result["latitude"]) > 90 or abs(result["longitude"]) > 180 or any(number < 0 for number in remaining[1:]):
+            raise ValueError("out-of-range LOC value")
         return result
     except (ValueError, IndexError) as error:
         raise SnapshotError("LOC value cannot be translated", model="Loc", object_id=pk) from error
@@ -571,34 +596,43 @@ def _host_dns_record_items(
         queryset = model.objects.select_related("host").order_by("pk")
         for obj in queryset.iterator(chunk_size=chunk_size):
             wildcard = obj.host_id in wildcards
-            is_deferred = wildcard and type_name in DEFERRED_WILDCARD_RECORD_TYPES
-            if is_deferred != deferred:
-                continue
+            reasons = (
+                ["wildcard_owner_not_supported_by_import_contract"] if wildcard and type_name in DEFERRED_WILDCARD_RECORD_TYPES else []
+            )
             if type_name == "MX" and not wildcard:
                 owner_kind = "forward_zone"
                 anchor_ref = _ref("forward_zone", obj.host.zone_id) if obj.host.zone_id else None
                 if anchor_ref is None:
-                    raise SnapshotError("MX owner has no forward zone", model="Mx", object_id=obj.pk)
+                    reasons.append("mx_owner_without_forward_zone")
             else:
                 owner_kind = None if wildcard else "host"
                 anchor_ref = None if wildcard else _ref("host", obj.host_id)
+            try:
+                data = data_factory(obj)
+            except SnapshotError:
+                if model is not Loc:
+                    raise
+                data = {"raw_loc": obj.loc}
+                reasons.append("untranslatable_loc_value")
+            if bool(reasons) != deferred:
+                continue
             item = _item(
                 _ref(f"record_{model._meta.model_name}", obj.pk),
                 "record",
                 _record_attributes(
                     type_name,
                     obj.host.name,
-                    data_factory(obj),
+                    data,
                     ttl=ttl_factory(obj),
                     owner_kind=owner_kind,
                     anchor_ref=anchor_ref,
                 ),
             )
-            if is_deferred:
-                item["deferred"] = {
-                    "reason": "wildcard_owner_not_supported_by_import_contract",
-                    "requires_manual_handling": True,
-                }
+            if deferred:
+                _deferred_item(item, reasons)
+                # Keep the original single-reason field for existing consumers.
+                item["deferred"]["reason"] = reasons[0]
+                item["source_host_ref"] = _ref("host", obj.host_id)
             yield item
 
 
@@ -625,27 +659,6 @@ def _standalone_dns_record_items(chunk_size: int) -> Iterator[dict[str, Any]]:
             )
 
 
-def _validate_wildcard_hosts(wildcards: set[int], chunk_size: int) -> None:
-    if not wildcards:
-        return
-    dns_host_ids = set(Ipaddress.objects.filter(host_id__in=wildcards).values_list("host_id", flat=True))
-    for model, *_ in _HOST_RECORD_SPECIFICATIONS:
-        dns_host_ids.update(model.objects.filter(host_id__in=wildcards).values_list("host_id", flat=True))
-    related_host_ids = set(
-        Host.objects.filter(pk__in=wildcards)
-        .filter(Q(contacts__isnull=False) | Q(hostgroups__isnull=False) | Q(hostpolicyroles__isnull=False))
-        .values_list("pk", flat=True)
-    )
-    related_host_ids.update(BACnetID.objects.filter(host_id__in=wildcards).values_list("host_id", flat=True))
-    related_host_ids.update(HostCommunityMapping.objects.filter(host_id__in=wildcards).values_list("host_id", flat=True))
-    hosts = Host.objects.filter(pk__in=wildcards).order_by("pk").values_list("pk", "comment")
-    for host_id, comment in hosts.iterator(chunk_size=chunk_size):
-        if host_id not in dns_host_ids:
-            raise SnapshotError("Wildcard host has no translatable DNS data", model="Host", object_id=host_id)
-        if comment or host_id in related_host_ids:
-            raise SnapshotError("Wildcard host has non-DNS relationships", model="Host", object_id=host_id)
-
-
 def _dns_record_items(wildcards: set[int], chunk_size: int) -> Iterator[dict[str, Any]]:
     yield from _wildcard_address_record_items(wildcards, chunk_size)
     yield from _host_dns_record_items(wildcards, chunk_size, deferred=False)
@@ -658,11 +671,20 @@ def _deferred_dns_record_items(wildcards: set[int], chunk_size: int) -> Iterator
 
 def _ptr_override_items(index: NetworkIndex, wildcards: set[int], chunk_size: int, *, deferred: bool = False) -> Iterator[dict[str, Any]]:
     shared = _shared_ip_addresses(wildcards)
+    invalid_mac_addresses = set()
+    assignments = Ipaddress.objects.exclude(host_id__in=wildcards).exclude(macaddress="").order_by("pk")
+    for address, mac in assignments.values_list("ipaddress", "macaddress").iterator(chunk_size=chunk_size):
+        try:
+            _normalized_mac(mac)
+        except SnapshotError:
+            invalid_mac_addresses.add(address)
     ptrs = PtrOverride.objects.order_by("pk")
     for obj in ptrs.iterator(chunk_size=chunk_size):
-        if obj.host_id in wildcards:
-            raise SnapshotError("Wildcard PTR override cannot be translated", model="PtrOverride", object_id=obj.pk)
         reasons = _ip_deferred_reasons(obj.ipaddress, index.match(obj.ipaddress), shared)
+        if obj.ipaddress in invalid_mac_addresses:
+            reasons.append("ip_assignment_has_invalid_mac_address")
+        if obj.host_id in wildcards:
+            reasons.append("wildcard_ptr_target")
         if bool(reasons) != deferred:
             continue
         item = _item(
@@ -673,65 +695,106 @@ def _ptr_override_items(index: NetworkIndex, wildcards: set[int], chunk_size: in
         yield _deferred_item(item, reasons) if deferred else item
 
 
-def _relationship_items(index: NetworkIndex, wildcards: set[int], chunk_size: int) -> Iterator[dict[str, Any]]:
-    yield from _ptr_override_items(index, wildcards, chunk_size)
+def _relationship_items(index: NetworkIndex, wildcards: set[int], chunk_size: int, *, deferred: bool = False) -> Iterator[dict[str, Any]]:
+    yield from _ptr_override_items(index, wildcards, chunk_size, deferred=deferred)
     for obj in BACnetID.objects.order_by("pk").iterator(chunk_size=chunk_size):
-        if obj.host_id in wildcards:
+        if (obj.host_id in wildcards) != deferred:
             continue
-        yield _item(
+        item = _item(
             _ref("bacnet_id", obj.pk),
             "bacnet_id",
             {"bacnet_id": obj.pk, "host_name_ref": _ref("host", obj.host_id)},
         )
+        yield _deferred_item(item, ["wildcard_host_not_supported_by_import_contract"]) if deferred else item
     contacts = HostContact.objects.prefetch_related(Prefetch("hosts", queryset=Host.objects.order_by("pk"))).order_by("pk")
     for obj in contacts.iterator(chunk_size=chunk_size):
-        hosts = [_ref("host", host.pk) for host in obj.hosts.all() if host.pk not in wildcards]
-        yield _item(_ref("host_contact", obj.pk), "host_contact", {"email": obj.email, "hosts": hosts})
-    yield from _host_group_items(wildcards, chunk_size)
+        if deferred:
+            for host in obj.hosts.all():
+                if host.pk in wildcards:
+                    yield _deferred_item(
+                        _item(
+                            f"host_contact_host:{obj.pk}:{host.pk}",
+                            "host_contact_host",
+                            {"contact_ref": _ref("host_contact", obj.pk), "host_name_ref": _ref("host", host.pk)},
+                        ),
+                        ["wildcard_host_not_supported_by_import_contract"],
+                    )
+        else:
+            hosts = [_ref("host", host.pk) for host in obj.hosts.all() if host.pk not in wildcards]
+            yield _item(_ref("host_contact", obj.pk), "host_contact", {"email": obj.email, "hosts": hosts})
+    yield from _host_group_items(wildcards, chunk_size, deferred=deferred)
+    yield from _community_assignment_items(index, wildcards, chunk_size, deferred=deferred)
 
-    mappings = HostCommunityMapping.objects.select_related("ipaddress", "community__network").order_by("pk")
-    seen: dict[str, int] = {}
-    for obj in mappings.iterator(chunk_size=chunk_size):
-        if obj.host_id in wildcards:
-            continue
-        match = index.match(obj.ipaddress.ipaddress)
-        if match is None:
-            raise SnapshotError("Community IP is not contained in a network", model="HostCommunityMapping", object_id=obj.pk)
-        network_id, _ = match
-        mac = _normalized_mac(obj.ipaddress.macaddress)
-        attachment = _attachment_ref(obj.host_id, network_id, mac)
-        if obj.community.network_id != network_id:
-            raise SnapshotError("Community does not match the IP network", model="HostCommunityMapping", object_id=obj.pk)
-        previous = seen.get(attachment)
-        if previous is not None and previous != obj.community_id:
-            raise SnapshotError("One attachment maps to conflicting legacy communities", model="HostCommunityMapping", object_id=obj.pk)
-        if previous is not None:
-            continue
-        seen[attachment] = obj.community_id
-        policy_id = obj.community.network.policy_id
-        if policy_id is None:
-            raise SnapshotError("Community network has no policy", model="HostCommunityMapping", object_id=obj.pk)
-        yield _item(
-            _ref("attachment_community_assignment", obj.pk),
-            "attachment_community_assignment",
-            {
-                "attachment_id_ref": attachment,
-                "policy_name_ref": _ref("network_policy", policy_id),
-                "community_name_ref": _ref("community", obj.community_id),
-            },
-        )
 
-    # An attachment-level assignment must not also enroll IPs that have no
-    # legacy community membership. Unassigned IPs are absent from mappings.
-    if seen:
-        unassigned = Ipaddress.objects.exclude(host_id__in=wildcards).filter(hostcommunitymapping__isnull=True).order_by("pk")
-        for obj in unassigned.iterator(chunk_size=chunk_size):
-            match = index.match(obj.ipaddress)
-            if match is not None and _attachment_ref(obj.host_id, match[0], _normalized_mac(obj.macaddress)) in seen:
-                raise SnapshotError(
-                    "One attachment mixes assigned and unassigned IP addresses",
-                    model="Ipaddress",
-                    object_id=obj.pk,
+def _community_assignment_items(
+    index: NetworkIndex, wildcards: set[int], chunk_size: int, *, deferred: bool = False
+) -> Iterator[dict[str, Any]]:
+    """Translate only unanimous, complete per-IP memberships to an attachment.
+
+    Inspect every row on an attachment before emitting anything for it. Ambiguous
+    memberships retain their original host/IP/community edges in deferred items.
+    The working set is bounded to a single host, plus iterator prefetch batches.
+    """
+    shared = _shared_ip_addresses(wildcards)
+    mappings = HostCommunityMapping.objects.select_related("community__network").order_by("pk")
+    ips = Ipaddress.objects.prefetch_related(Prefetch("hostcommunitymapping_set", queryset=mappings)).order_by("host_id", "pk")
+    for _host_id, host_ips in groupby(ips.iterator(chunk_size=chunk_size), key=lambda obj: obj.host_id):
+        attachments = defaultdict(list)
+        for ip in host_ips:
+            attachment, _mac, reasons = _ip_translation(ip, index, wildcards, shared)
+            attachments[attachment or _ref("ip_address", ip.pk)].append((ip, attachment, reasons))
+        for rows in attachments.values():
+            reasons = set()
+            memberships = []
+            has_unassigned = False
+            for ip, attachment, ip_reasons in rows:
+                reasons.update(ip_reasons)
+                ip_mappings = list(ip.hostcommunitymapping_set.all())
+                has_unassigned |= not ip_mappings
+                match = index.match(ip.ipaddress)
+                for mapping in ip_mappings:
+                    memberships.append((mapping, ip, attachment))
+                    if mapping.host_id != ip.host_id:
+                        reasons.add("community_host_does_not_match_ip_host")
+                    if match is not None and mapping.community.network_id != match[0]:
+                        reasons.add("community_does_not_match_ip_network")
+                    if mapping.community.network.policy_id is None:
+                        reasons.add("community_network_without_policy")
+            if not memberships:
+                continue
+            if has_unassigned:
+                reasons.add("attachment_mixes_assigned_and_unassigned_ips")
+            if len({mapping.community_id for mapping, _, _ in memberships}) > 1:
+                reasons.add("attachment_has_conflicting_communities")
+            if bool(reasons) != deferred:
+                continue
+            if deferred:
+                for mapping, ip, attachment in memberships:
+                    yield _deferred_item(
+                        _item(
+                            _ref("host_community_mapping", mapping.pk),
+                            "host_community_mapping",
+                            _without_none(
+                                {
+                                    "host_name_ref": _ref("host", mapping.host_id),
+                                    "ip_address_ref": _ref("ip_address", ip.pk),
+                                    "community_name_ref": _ref("community", mapping.community_id),
+                                    "attachment_id_ref": attachment,
+                                }
+                            ),
+                        ),
+                        sorted(reasons),
+                    )
+            else:
+                mapping, _ip, attachment = min(memberships, key=lambda member: member[0].pk)
+                yield _item(
+                    _ref("attachment_community_assignment", mapping.pk),
+                    "attachment_community_assignment",
+                    {
+                        "attachment_id_ref": attachment,
+                        "policy_name_ref": _ref("network_policy", mapping.community.network.policy_id),
+                        "community_name_ref": _ref("community", mapping.community_id),
+                    },
                 )
 
 
@@ -752,13 +815,12 @@ def _topological_group_order(group_ids: set[int], parent_links: list[tuple[int, 
             remaining_parent_count[child_id] -= 1
             if remaining_parent_count[child_id] == 0:
                 heapq.heappush(ready, child_id)
-    if len(ordered) != len(group_ids):
-        cyclic_id = min(group_ids - set(ordered))
-        raise SnapshotError("Host group parent relationships contain a cycle", model="HostGroup", object_id=cyclic_id)
+    # The remainder contains cycles and their dependants. Preserve those groups
+    # separately; the normal stream keeps a complete, acyclic dependency graph.
     return ordered, parents_by_child
 
 
-def _host_group_items(wildcards: set[int], chunk_size: int) -> Iterator[dict[str, Any]]:
+def _host_group_items(wildcards: set[int], chunk_size: int, *, deferred: bool = False) -> Iterator[dict[str, Any]]:
     groups = {
         pk: (name, description) for pk, name, description in HostGroup.objects.order_by("pk").values_list("pk", "name", "description")
     }
@@ -771,6 +833,9 @@ def _host_group_items(wildcards: set[int], chunk_size: int) -> Iterator[dict[str
         )
     )
     ordered, parents_by_child = _topological_group_order(set(groups), parent_links)
+    blocked = set(groups) - set(ordered)
+    if deferred:
+        ordered += sorted(blocked)
 
     host_field = HostGroup._meta.get_field("hosts")
     host_source = host_field.m2m_field_name()
@@ -783,7 +848,6 @@ def _host_group_items(wildcards: set[int], chunk_size: int) -> Iterator[dict[str
         hosts_by_group: dict[int, list[int]] = defaultdict(list)
         host_links = (
             host_field.remote_field.through.objects.filter(**{f"{host_source}_id__in": batch})
-            .exclude(**{f"{host_target}_id__in": wildcards})
             .order_by(f"{host_source}_id", f"{host_target}_id")
             .values_list(f"{host_source}_id", f"{host_target}_id")
         )
@@ -799,30 +863,57 @@ def _host_group_items(wildcards: set[int], chunk_size: int) -> Iterator[dict[str
             owners_by_group[group_id].append(owner_name)
         for group_id in batch:
             name, description = groups[group_id]
-            yield _item(
+            if deferred and group_id not in blocked:
+                for host_id in hosts_by_group[group_id]:
+                    if host_id in wildcards:
+                        yield _deferred_item(
+                            _item(
+                                f"host_group_host:{group_id}:{host_id}",
+                                "host_group_host",
+                                {"group_ref": _ref("host_group", group_id), "host_name_ref": _ref("host", host_id)},
+                            ),
+                            ["wildcard_host_not_supported_by_import_contract"],
+                        )
+                continue
+            item = _item(
                 _ref("host_group", group_id),
                 "host_group",
                 {
                     "name": name,
                     "description": description,
-                    "hosts": [_ref("host", host_id) for host_id in hosts_by_group[group_id]],
+                    "hosts": [_ref("host", host_id) for host_id in hosts_by_group[group_id] if deferred or host_id not in wildcards],
                     "parent_groups": [_ref("host_group", parent_id) for parent_id in sorted(parents_by_child[group_id])],
                     "owner_groups": owners_by_group[group_id],
                 },
             )
+            yield _deferred_item(item, ["host_group_parent_cycle_or_dependency"]) if deferred else item
 
 
-def _host_policy_items(wildcards: set[int], chunk_size: int) -> Iterator[dict[str, Any]]:
-    for obj in HostPolicyAtom.objects.order_by("pk").iterator(chunk_size=chunk_size):
-        yield _item(_ref("host_policy_atom", obj.pk), "host_policy_atom", {"name": obj.name, "description": obj.description})
+def _host_policy_items(wildcards: set[int], chunk_size: int, *, deferred: bool = False) -> Iterator[dict[str, Any]]:
+    if not deferred:
+        for obj in HostPolicyAtom.objects.order_by("pk").iterator(chunk_size=chunk_size):
+            yield _item(_ref("host_policy_atom", obj.pk), "host_policy_atom", {"name": obj.name, "description": obj.description})
     roles = HostPolicyRole.objects.prefetch_related(
         Prefetch("atoms", queryset=HostPolicyAtom.objects.order_by("pk")),
         Prefetch("hosts", queryset=Host.objects.order_by("pk")),
         Prefetch("labels", queryset=Label.objects.order_by("pk")),
     ).order_by("pk")
-    for obj in roles.iterator(chunk_size=chunk_size):
-        yield _item(_ref("host_policy_role", obj.pk), "host_policy_role", {"name": obj.name, "description": obj.description})
+    if not deferred:
+        for obj in roles.iterator(chunk_size=chunk_size):
+            yield _item(_ref("host_policy_role", obj.pk), "host_policy_role", {"name": obj.name, "description": obj.description})
     for role in roles.iterator(chunk_size=chunk_size):
+        if deferred:
+            for host in role.hosts.all():
+                if host.pk in wildcards:
+                    yield _deferred_item(
+                        _item(
+                            f"host_policy_role_host:{role.pk}:{host.pk}",
+                            "host_policy_role_host",
+                            {"role_name_ref": _ref("host_policy_role", role.pk), "host_name_ref": _ref("host", host.pk)},
+                        ),
+                        ["wildcard_host_not_supported_by_import_contract"],
+                    )
+            continue
         for atom in role.atoms.all():
             yield _item(
                 f"host_policy_role_atom:{role.pk}:{atom.pk}",
@@ -846,7 +937,6 @@ def _host_policy_items(wildcards: set[int], chunk_size: int) -> Iterator[dict[st
 
 def iter_import_items(chunk_size: int) -> Iterator[dict[str, Any]]:
     wildcards = _wildcard_ids()
-    _validate_wildcard_hosts(wildcards, chunk_size)
     index = NetworkIndex()
     yield from _base_items(chunk_size)
     yield from _network_zone_items(chunk_size)
@@ -859,16 +949,19 @@ def iter_import_items(chunk_size: int) -> Iterator[dict[str, Any]]:
 
 
 def iter_deferred_record_items(chunk_size: int) -> Iterator[dict[str, Any]]:
-    """Yield valid source records whose automatic import must be deferred."""
+    """Preserve records that cannot safely be translated, including raw values."""
     yield from _deferred_dns_record_items(_wildcard_ids(), chunk_size)
 
 
 def iter_deferred_items(chunk_size: int) -> Iterator[dict[str, Any]]:
-    """Preserve legacy assignments that require a destination-specific mapper."""
+    """Preserve source objects and relationships requiring consumer handling."""
     wildcards = _wildcard_ids()
     index = NetworkIndex()
+    yield from _community_items(chunk_size, deferred=True)
+    yield from _host_items(wildcards, chunk_size, deferred=True)
     yield from _ip_items(index, wildcards, chunk_size, deferred=True)
-    yield from _ptr_override_items(index, wildcards, chunk_size, deferred=True)
+    yield from _relationship_items(index, wildcards, chunk_size, deferred=True)
+    yield from _host_policy_items(wildcards, chunk_size, deferred=True)
 
 
 @dataclass(frozen=True)
@@ -1202,7 +1295,7 @@ def create_snapshot_artifact(
             include_permissions=include_permissions,
             budget=budget,
         )
-        if data.items.count == 0:
+        if data.items.count + data.deferred_records.count + data.deferred_items.count == 0:
             raise SnapshotError("The source contains no snapshot items")
         timestamp = created_at.strftime("%Y%m%dT%H%M%SZ")
         digest = hashlib.sha256()
@@ -1371,7 +1464,9 @@ class SnapshotView(APIView):
         description=(
             "Create a consistent portable snapshot. Requires membership in the configured "
             "snapshot group, or MREG administrator or superuser access. Both representations "
-            "are downloaded with gzip content encoding."
+            "are downloaded with gzip content encoding. Data that cannot safely be translated "
+            "is preserved as non-authoritative source information in deferred_records and "
+            "deferred_items. Consumers must handle both sections explicitly."
         ),
         parameters=[
             OpenApiParameter(
