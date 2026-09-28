@@ -18,9 +18,7 @@ def display_name(model: type[Model], capitalize: bool = False) -> str:
         model (type[Model]): The model class to name.
         capitalize (bool): If True, upper-case the first character only,
             leaving the remaining characters unchanged. 
-            For example:
-                - "host" -> "Host"
-                - "BACNet ID" -> "BACNet ID" # unchanged
+            For example: "host" -> "Host", "BACnet ID" -> "BACnet ID"
     Returns:
         str: The model's verbose name, optionally with its first character upper-cased.
     """
