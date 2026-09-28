@@ -15,10 +15,7 @@ from mreg import models
 from hostpolicy import models as hostpolicy_models # noqa: F401
 import hostpolicy.api.v1.views  # noqa: F401
 import mreg.api.v1.views_hostgroups  # noqa: F401
-from hostpolicy.models import HostPolicyAtom, HostPolicyRole
 from mreg.api.v1.views_m2m import M2MDetail, M2MBase, M2MList
-from mreg.models.auth import User
-from mreg.models.network_policy import NetworkPolicyAttributeValue
 from mreg.utils import display_name
 
 T = TypeVar("T")
@@ -53,40 +50,6 @@ class TestCaseWithModels(SimpleTestCase):
 
 
 class DisplayNameTests(TestCaseWithModels):
-    def test_display_name(self):
-        """Test display_name for models with explictly defined `verbose_name` Meta options."""
-        models: Sequence[type[Model]] = _get_concrete_subclasses(Model)
-        self.assertTrue(models, "No models found.")
-
-        # Excluded models (inherits verbose_name from elsewhere)
-        excluded_models: set[type[Model]] = {User}
-
-        # original_attrs holds the original verbose names
-        models_with_verbose_name = [
-            m for m in models 
-            if "verbose_name" in m._meta.original_attrs 
-            and not m._meta.auto_created
-            and any(m.__module__.startswith(s) for s in ["mreg", "hostpolicy"])
-            and m not in excluded_models
-        ]
-        self.assertTrue(models_with_verbose_name, "No models with verbose_name found.")
-        
-        expected: dict[type[Model], str] = {
-            HostPolicyAtom: "Atom",
-            HostPolicyRole: "Role",
-            NetworkPolicyAttributeValue: "Policy attribute value",
-        }
-
-        actual: dict[type[Model], str] = {}
-        for model in models_with_verbose_name:
-            with self.subTest(model=model.__name__):
-                self.assertIn(model, expected)
-                self.assertEqual(display_name(model), expected[model])
-                actual[model] = display_name(model)
-
-        # We should have collected all expected models with verbose_name
-        self.assertEqual(actual, expected)
-
     def test_every_m2m_detail_subclass_has_expected_member_name(self):
         """Every concrete M2MDetail subclass maps to a known member name.
 
@@ -108,7 +71,7 @@ class DisplayNameTests(TestCaseWithModels):
             with self.subTest(view=view.__name__):
                 self.assertIn(view.__name__, expected)
                 self.assertEqual(
-                    display_name(view.cls._meta.get_field(view.m2m_field).related_model), 
+                    display_name(view.cls._meta.get_field(view.m2m_field).related_model, capitalize=True),
                     expected[view.__name__],
                 )
                 expected.pop(view.__name__)

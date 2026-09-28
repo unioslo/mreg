@@ -8,18 +8,26 @@ from django.conf import settings
 from django.db.models import Model
 
 
-def display_name(model: type[Model]) -> str:
+def display_name(model: type[Model], capitalize: bool = False) -> str:
     """Human-readable name for a model class.
 
-    Uses Django's `verbose_name` attribute of the model's meta class.
+    Returns Django's `verbose_name` for the model verbatim, so callers don't need
+    to reach into the `_meta` namespace themselves.
 
     Args:
         model (type[Model]): The model class to name.
-
+        capitalize (bool): If True, upper-case the first character only,
+            leaving the remaining characters unchanged. 
+            For example:
+                - "host" -> "Host"
+                - "BACNet ID" -> "BACNet ID" # unchanged
     Returns:
-        str: The model's verbose name with the first letter capitalized.
+        str: The model's verbose name, optionally with its first character upper-cased.
     """
-    return model._meta.verbose_name.capitalize()
+    name = str(model._meta.verbose_name)
+    if capitalize and name:
+        name = name[0].upper() + name[1:]
+    return name
 
 
 def get_protected_policy_attribute_names() -> set:

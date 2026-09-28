@@ -29,6 +29,7 @@ class HostContact(BaseModel):
     
     class Meta:
         db_table = "host_contact"
+        verbose_name = "host contact"
         
     def __str__(self):
         return self.email
@@ -70,6 +71,7 @@ class Host(ForwardZoneMember):
 
     class Meta:
         db_table = "host"
+        verbose_name = "host"
 
     def __str__(self):
         return str(self.name)
@@ -360,6 +362,8 @@ class Ipaddress(BaseModel):
     class Meta:
         db_table = "ipaddress"
         unique_together = (("host", "ipaddress"),)
+        verbose_name = "IP address"
+        verbose_name_plural = "IP addresses"
 
     def __str__(self):
         return "{} -> {}".format(str(self.ipaddress), str(self.macaddress) or "None")
@@ -377,6 +381,7 @@ class PtrOverride(BaseModel):
 
     class Meta:
         db_table = "ptr_override"
+        verbose_name = "PTR override"
 
     def __str__(self):
         return "{} -> {}".format(str(self.ipaddress), str(self.host.name))
@@ -396,6 +401,7 @@ class HostGroup(BaseModel):
     class Meta:
         db_table = "hostgroup"
         ordering = ("name",)
+        verbose_name = "host group"
 
     def __str__(self):
         return "%s" % self.name
@@ -407,6 +413,7 @@ class BACnetID(models.Model):
 
     class Meta:
         db_table = "bacnetid"
+        verbose_name = "BACnet ID"
 
     @property
     def hostname(self):

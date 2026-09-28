@@ -139,6 +139,14 @@ coverage report -m
 
 The `coverage combine` step is required to merge coverage data from all parallel processes.
 
+### Updating test snapshots
+
+Some tests may generate snapshot files that need to be updated when the expected output changes. Snapshot tests are currently run via pytest (and are automatically executed with `tox`). To update the snapshots only, you can run:
+
+```bash
+pytest --snapshot-update
+```
+
 ## Environment Variables
 
 mreg supports configuration via environment variables with the `MREG_` prefix. These can be used to override default settings without modifying `settings.py` or creating a `local_settings.py` file. This is especially useful when running mreg in containers or deployment environments.
