@@ -55,6 +55,7 @@ from mreg.api.v1.snapshot import (
     _write_snapshot_data,
     create_snapshot_artifact,
     iter_deferred_record_items,
+    iter_deferred_items,
     iter_import_items,
     iter_permission_items,
     snapshot_generation_lock,
@@ -127,6 +128,16 @@ DEFERRED_RECORDS = [
     }
 ]
 
+DEFERRED_ITEMS = [
+    {
+        "ref": "ip_address:42",
+        "kind": "ip_address",
+        "operation": "create",
+        "attributes": {"host_name_ref": "host:7", "address": "198.51.100.20", "mac_address": "aa:bb:cc:dd:ee:ff"},
+        "deferred": {"reasons": ["ip_address_outside_registered_networks"], "requires_manual_handling": True},
+    }
+]
+
 
 def write_values(path, values):
     digest = hashlib.sha256()
@@ -148,6 +159,7 @@ def fake_write_snapshot_data(directory, chunk_size, *, include_permissions, budg
     return SnapshotData(
         items=items,
         deferred_records=deferred_records,
+        deferred_items=write_values(directory / "deferred-items.ndjson", DEFERRED_ITEMS),
         permissions=permissions,
         database_timestamp=datetime(2026, 7, 12, 10, 14, 58, tzinfo=timezone.utc),
     )
@@ -166,11 +178,12 @@ class SnapshotArtifactTests(ParametrizedTestCase, SimpleTestCase):
             with tarfile.open(fileobj=io.BytesIO(compressed), mode="r:gz") as archive:
                 self.assertEqual(
                     archive.getnames(),
-                    ["manifest.json", "items.ndjson", "deferred-records.ndjson"],
+                    ["manifest.json", "items.ndjson", "deferred-records.ndjson", "deferred-items.ndjson"],
                 )
                 manifest = json.load(archive.extractfile("manifest.json"))
                 item_bytes = archive.extractfile("items.ndjson").read()
                 deferred_bytes = archive.extractfile("deferred-records.ndjson").read()
+                deferred_item_bytes = archive.extractfile("deferred-items.ndjson").read()
             self.assertEqual(manifest["format"], "no.uio.mreg.snapshot")
             self.assertEqual(manifest["format_version"], 1)
             self.assertTrue(manifest["snapshot"]["consistent"])
@@ -178,6 +191,9 @@ class SnapshotArtifactTests(ParametrizedTestCase, SimpleTestCase):
             self.assertEqual(manifest["items"]["bytes"], len(item_bytes))
             self.assertEqual(manifest["items"]["sha256"], hashlib.sha256(item_bytes).hexdigest())
             self.assertFalse(manifest["semantics"]["fully_importable"])
+            self.assertEqual(manifest["deferred_items"]["count"], len(DEFERRED_ITEMS))
+            self.assertEqual(manifest["deferred_items"]["sha256"], hashlib.sha256(deferred_item_bytes).hexdigest())
+            self.assertEqual([json.loads(line) for line in deferred_item_bytes.splitlines()], DEFERRED_ITEMS)
             self.assertEqual(manifest["deferred_records"]["count"], 1)
             self.assertEqual(
                 manifest["deferred_records"]["sha256"],
@@ -231,6 +247,7 @@ class SnapshotArtifactTests(ParametrizedTestCase, SimpleTestCase):
                     "requested_by": "snapshotter",
                     "items": ITEMS,
                     "deferred_records": DEFERRED_RECORDS,
+                    "deferred_items": DEFERRED_ITEMS,
                 },
             )
         finally:
@@ -252,6 +269,7 @@ class SnapshotArtifactTests(ParametrizedTestCase, SimpleTestCase):
                         "manifest.json",
                         "items.ndjson",
                         "deferred-records.ndjson",
+                        "deferred-items.ndjson",
                         "permissions.ndjson",
                     ],
                 )
@@ -292,6 +310,7 @@ class SnapshotArtifactTests(ParametrizedTestCase, SimpleTestCase):
         write_snapshot_data.return_value = SnapshotData(
             items=empty_file,
             deferred_records=empty_file,
+            deferred_items=empty_file,
             permissions=None,
             database_timestamp=datetime(2026, 7, 12, 10, 14, 58, tzinfo=timezone.utc),
         )
@@ -376,12 +395,14 @@ class SnapshotDataWritingTests(SimpleTestCase):
             mock.patch("mreg.api.v1.snapshot.transaction.atomic", return_value=nullcontext()),
             mock.patch("mreg.api.v1.snapshot.iter_import_items", return_value=ITEMS),
             mock.patch("mreg.api.v1.snapshot.iter_deferred_record_items", return_value=DEFERRED_RECORDS),
+            mock.patch("mreg.api.v1.snapshot.iter_deferred_items", return_value=DEFERRED_ITEMS),
             mock.patch("mreg.api.v1.snapshot.iter_permission_items", return_value=PERMISSIONS),
         ):
             data = _write_snapshot_data(Path(directory), 10, include_permissions=True)
 
         self.assertEqual(data.items.count, len(ITEMS))
         self.assertEqual(data.deferred_records.count, len(DEFERRED_RECORDS))
+        self.assertEqual(data.deferred_items.count, len(DEFERRED_ITEMS))
         self.assertEqual(data.permissions.count, len(PERMISSIONS))
         self.assertEqual(
             [call.args[0] for call in cursor.execute.call_args_list],
@@ -453,15 +474,12 @@ class SnapshotTranslationValidationTests(ParametrizedTestCase, SimpleTestCase):
         ):
             list(_attachment_items(mock.Mock(), {row.host_id}, 10))
 
-    def test_attachment_requires_a_matching_network(self):
+    def test_unregistered_ip_does_not_invent_an_attachment(self):
         row = self.ip_row()
         index = mock.Mock()
         index.match.return_value = None
-        with (
-            mock.patch("mreg.api.v1.snapshot._ip_rows", return_value=[row]),
-            self.assertRaisesMessage(SnapshotError, "IP address is not contained in a network"),
-        ):
-            list(_attachment_items(index, set(), 10))
+        with mock.patch("mreg.api.v1.snapshot._ip_rows", return_value=[row]):
+            self.assertEqual(list(_attachment_items(index, set(), 10)), [])
 
     def test_duplicate_attachment_is_emitted_once(self):
         rows = [
@@ -475,32 +493,18 @@ class SnapshotTranslationValidationTests(ParametrizedTestCase, SimpleTestCase):
 
         self.assertEqual(len(attachments), 1)
 
-    def ipaddress_model(self, *, duplicate=None, exists=False):
-        manager = mock.MagicMock()
-        manager.exclude.return_value = manager
-        duplicate_query = manager.values.return_value.annotate.return_value.filter.return_value.order_by.return_value
-        duplicate_query.first.return_value = duplicate
-        manager.filter.return_value.exists.return_value = exists
-        return SimpleNamespace(objects=manager)
-
-    def test_duplicate_ip_address_is_rejected(self):
-        ipaddress_model = self.ipaddress_model(duplicate={"ipaddress": "192.0.2.10"})
-        with (
-            mock.patch("mreg.api.v1.snapshot.Ipaddress", ipaddress_model),
-            self.assertRaisesMessage(SnapshotError, "assigned more than once"),
-        ):
-            list(_ip_items(mock.Mock(), set(), 10))
-
-    def test_ip_address_requires_a_matching_network(self):
-        row = self.ip_row()
+    def test_unregistered_ip_preserves_its_host_and_mac(self):
+        row = self.ip_row(macaddress="aa:bb:cc:dd:ee:ff")
         index = mock.Mock()
         index.match.return_value = None
         with (
-            mock.patch("mreg.api.v1.snapshot.Ipaddress", self.ipaddress_model()),
+            mock.patch("mreg.api.v1.snapshot._shared_ip_addresses", return_value=set()),
             mock.patch("mreg.api.v1.snapshot._ip_rows", return_value=[row]),
-            self.assertRaisesMessage(SnapshotError, "IP address is not contained in a network"),
         ):
-            list(_ip_items(index, set(), 10))
+            self.assertEqual(list(_ip_items(index, set(), 10)), [])
+            item = list(_ip_items(index, set(), 10, deferred=True))[0]
+        self.assertEqual(item["attributes"], {"host_name_ref": "host:1", "address": row.ipaddress, "mac_address": row.macaddress})
+        self.assertEqual(item["deferred"]["reasons"], ["ip_address_outside_registered_networks"])
 
     def model_with_manager(self, *, host_rows=(), host_ids=(), related_ids=()):
         manager = mock.MagicMock()
@@ -868,6 +872,40 @@ class SnapshotDatabaseIntegrationTests(ParametrizedTestCase, TransactionTestCase
         self.host = Host.objects.create(name="snapshot.example.org")
         self.address = Ipaddress.objects.create(host=self.host, ipaddress="192.0.2.10")
 
+    @parametrize("snapshot_format", [param(ARCHIVE_FORMAT, id="archive"), param(JSON_FORMAT, id="json")])
+    def test_download_preserves_shared_and_unregistered_assignments(self, snapshot_format):
+        second = Host.objects.create(name="second.example.org", comment="Shared service address")
+        duplicate = Ipaddress.objects.create(host=second, ipaddress=self.address.ipaddress, macaddress="aa:bb:cc:dd:ee:ff")
+        outside = Ipaddress.objects.create(host=self.host, ipaddress="198.51.100.20", macaddress="aa:bb:cc:dd:ee:00")
+        PtrOverride.objects.create(host=self.host, ipaddress=outside.ipaddress)
+        response = self.client.get(f"/api/v1/snapshot?format={snapshot_format}", HTTP_ACCEPT_ENCODING="gzip")
+        try:
+            self.assertEqual(response.status_code, 200)
+            compressed = b"".join(response.streaming_content)
+            if snapshot_format == ARCHIVE_FORMAT:
+                with tarfile.open(fileobj=io.BytesIO(compressed), mode="r:gz") as archive:
+                    manifest = json.load(archive.extractfile("manifest.json"))
+                    raw = archive.extractfile("deferred-items.ndjson").read()
+                    deferred = [json.loads(line) for line in raw.splitlines()]
+                self.assertFalse(manifest["semantics"]["fully_importable"])
+                self.assertEqual(manifest["deferred_records"]["count"], 0)
+                self.assertEqual(manifest["deferred_items"]["count"], 5)
+                self.assertEqual(manifest["deferred_items"]["sha256"], hashlib.sha256(raw).hexdigest())
+            else:
+                deferred = json.loads(gzip.decompress(compressed))["deferred_items"]
+            self.assertEqual(
+                {item["ref"] for item in deferred if item["kind"] == "ip_address"},
+                {
+                    f"ip_address:{self.address.pk}",
+                    f"ip_address:{duplicate.pk}",
+                    f"ip_address:{outside.pk}",
+                },
+            )
+            self.assertEqual(sum(item["kind"] == "ptr_override" for item in deferred), 2)
+        finally:
+            response.close()
+        self.assertFalse(response.artifact.path.exists())
+
     @parametrize(
         ("snapshot_format", "media_type"),
         [
@@ -1173,8 +1211,58 @@ class SnapshotItemTranslationTests(ParametrizedTestCase, TestCase):
         self.assertEqual(len(allocations), 1)
         self.assertEqual(len(records), 2)
 
-    def test_duplicate_regular_allocations_are_still_rejected(self):
-        host = Host.objects.create(name="duplicate.example.org", zone=self.forward_zone)
-        Ipaddress.objects.create(host=host, ipaddress=self.ip.ipaddress)
-        with self.assertRaisesMessage(SnapshotError, "assigned more than once"):
-            list(iter_import_items(10))
+    @parametrize("address", [param("192.0.2.20", id="ipv4"), param("2001:db8::20", id="ipv6")])
+    def test_shared_allocations_preserve_every_owner_and_ptr_target(self, address):
+        if ":" in address:
+            Network.objects.create(network="2001:db8::/64")
+            first = Ipaddress.objects.create(host=self.host, ipaddress=address, macaddress="aa:bb:cc:dd:ee:ff")
+        else:
+            first = self.ip
+        host = Host.objects.create(name="duplicate.example.org", zone=self.forward_zone, comment="Secondary owner")
+        second = Ipaddress.objects.create(host=host, ipaddress=address, macaddress="aa:bb:cc:dd:ee:01")
+        items = list(iter_import_items(10))
+        deferred = list(iter_deferred_items(10))
+        allocations = [item for item in deferred if item["kind"] == "ip_address"]
+        self.assertEqual(
+            {(item["ref"], item["attributes"]["host_name_ref"], item["attributes"]["mac_address"]) for item in allocations},
+            {
+                (f"ip_address:{first.pk}", f"host:{self.host.pk}", first.macaddress),
+                (f"ip_address:{second.pk}", f"host:{host.pk}", second.macaddress),
+            },
+        )
+        self.assertTrue(all(item["deferred"]["reasons"] == ["ip_address_shared_by_multiple_hosts"] for item in deferred))
+        self.assertFalse(any(item["kind"] == "ip_address" and item["attributes"]["address"] == address for item in items))
+        references = {item["ref"] for item in items}
+        self.assertTrue(all(item["attributes"]["attachment_id_ref"] in references for item in allocations))
+        ptr = next(item for item in deferred if item["kind"] == "ptr_override")
+        self.assertEqual(ptr["attributes"], {"host_name_ref": f"host:{self.host.pk}", "address": address})
+        self.assertEqual(next(item for item in items if item["ref"] == f"host:{host.pk}")["attributes"]["comment"], "Secondary owner")
+
+    @parametrize("address", [param("198.51.100.20", id="ipv4"), param("2001:db8::20", id="ipv6")])
+    def test_unregistered_allocations_and_ptrs_are_preserved(self, address):
+        ip = Ipaddress.objects.create(host=self.host, ipaddress=address, macaddress="aa:bb:cc:dd:ee:01")
+        ptr = PtrOverride.objects.create(host=self.host, ipaddress=address)
+        items = list(iter_import_items(10))
+        deferred = {item["ref"]: item for item in iter_deferred_items(10)}
+        self.assertEqual(
+            deferred[f"ip_address:{ip.pk}"]["attributes"],
+            {
+                "host_name_ref": f"host:{self.host.pk}",
+                "address": address,
+                "mac_address": ip.macaddress,
+            },
+        )
+        self.assertEqual(
+            deferred[f"ptr_override:{ptr.pk}"]["attributes"],
+            {
+                "host_name_ref": f"host:{self.host.pk}",
+                "address": address,
+            },
+        )
+        self.assertTrue(all(item["deferred"]["reasons"] == ["ip_address_outside_registered_networks"] for item in deferred.values()))
+        self.assertFalse(any(item["ref"] in deferred for item in items))
+
+    def test_unattached_contacts_are_preserved(self):
+        contact = HostContact.objects.create(email="unattached@example.org")
+        item = next(item for item in iter_import_items(10) if item["ref"] == f"host_contact:{contact.pk}")
+        self.assertEqual(item["attributes"], {"email": contact.email, "hosts": []})
