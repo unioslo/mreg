@@ -48,7 +48,7 @@ class TestUtils(unittest.TestCase):
         expect = {
             Ipaddress: "Ipaddress",
             PtrOverride: "Ptr override",
-            BACnetID: "BACnet ID",
+            BACnetID: "Ba cnet id",
             HostGroup: "Host group"
         }
         for model, expected_name in expect.items():
