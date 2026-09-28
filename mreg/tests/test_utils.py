@@ -6,6 +6,7 @@ import unittest
 from mreg import models
 from hostpolicy import models as hostpolicy_models
 from mreg.models.base import BaseModel
+from mreg.models.host import BACnetID, HostGroup, Ipaddress, PtrOverride
 from mreg.utils import display_name
 
 
@@ -35,3 +36,21 @@ class TestUtils(unittest.TestCase):
             with self.subTest(display_name(model), model=model.__name__):
                 # ensure we can call display_name on all models in the project
                 self.assertIsInstance(display_name(model), str)
+
+    def test_display_name_odd(self):
+        """Test display_name for models with odd names.
+        
+        "Odd" meaning any type of idiosyncrasies such as:
+            - acronyms
+            - unusual capitalization
+            - composite names
+        """
+        expect = {
+            Ipaddress: "Ipaddress",
+            PtrOverride: "Ptr override",
+            BACnetID: "BACnet ID",
+            HostGroup: "Host group"
+        }
+        for model, expected_name in expect.items():
+            with self.subTest(model=model.__name__):
+                self.assertEqual(display_name(model), expected_name)
