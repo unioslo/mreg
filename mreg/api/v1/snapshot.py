@@ -380,7 +380,9 @@ def _attachment_items(index: NetworkIndex, wildcards: set[int], chunk_size: int)
             seen_for_host.clear()
         match = index.match(obj.ipaddress)
         if match is None:
-            raise SnapshotError("IP address is not contained in a network", model="Ipaddress", object_id=obj.pk)
+            # Preserve the original assignment in deferred-items rather than
+            # inventing an attachment to a network that does not exist.
+            continue
         network_id, network = match
         mac = _normalized_mac(obj.macaddress)
         reference = _attachment_ref(obj.host_id, network_id, mac)
@@ -400,30 +402,47 @@ def _attachment_items(index: NetworkIndex, wildcards: set[int], chunk_size: int)
         )
 
 
-def _ip_items(index: NetworkIndex, wildcards: set[int], chunk_size: int) -> Iterator[dict[str, Any]]:
-    duplicate = (
+def _shared_ip_addresses(wildcards: set[int]) -> set[str]:
+    return set(
         Ipaddress.objects.exclude(host_id__in=wildcards)
         .values("ipaddress")
         .annotate(count=Count("pk"))
         .filter(count__gt=1)
-        .order_by("ipaddress")
-        .first()
+        .values_list("ipaddress", flat=True)
     )
-    if duplicate:
-        raise SnapshotError(f"IP address {duplicate['ipaddress']} is assigned more than once", model="Ipaddress")
+
+
+def _ip_deferred_reasons(address: str, match: tuple[int, str] | None, shared: set[str]) -> list[str]:
+    reasons = []
+    if address in shared:
+        reasons.append("ip_address_shared_by_multiple_hosts")
+    if match is None:
+        reasons.append("ip_address_outside_registered_networks")
+    return reasons
+
+
+def _deferred_item(item: dict[str, Any], reasons: list[str]) -> dict[str, Any]:
+    item["deferred"] = {"reasons": reasons, "requires_manual_handling": True}
+    return item
+
+
+def _ip_items(index: NetworkIndex, wildcards: set[int], chunk_size: int, *, deferred: bool = False) -> Iterator[dict[str, Any]]:
+    shared = _shared_ip_addresses(wildcards)
     for obj in _ip_rows(chunk_size):
         if obj.host_id in wildcards:
             continue
         match = index.match(obj.ipaddress)
-        if match is None:
-            raise SnapshotError("IP address is not contained in a network", model="Ipaddress", object_id=obj.pk)
-        network_id, _ = match
+        reasons = _ip_deferred_reasons(obj.ipaddress, match, shared)
+        if bool(reasons) != deferred:
+            continue
         mac = _normalized_mac(obj.macaddress)
-        yield _item(
-            _ref("ip_address", obj.pk),
-            "ip_address",
-            {"attachment_id_ref": _attachment_ref(obj.host_id, network_id, mac), "address": obj.ipaddress},
-        )
+        attributes = {"address": obj.ipaddress}
+        if match is not None:
+            attributes["attachment_id_ref"] = _attachment_ref(obj.host_id, match[0], mac)
+        if deferred:
+            attributes.update(_without_none({"host_name_ref": _ref("host", obj.host_id), "mac_address": mac}))
+        item = _item(_ref("ip_address", obj.pk), "ip_address", attributes)
+        yield _deferred_item(item, reasons) if deferred else item
 
 
 def _record_attributes(
@@ -637,16 +656,25 @@ def _deferred_dns_record_items(wildcards: set[int], chunk_size: int) -> Iterator
     yield from _host_dns_record_items(wildcards, chunk_size, deferred=True)
 
 
-def _relationship_items(index: NetworkIndex, wildcards: set[int], chunk_size: int) -> Iterator[dict[str, Any]]:
+def _ptr_override_items(index: NetworkIndex, wildcards: set[int], chunk_size: int, *, deferred: bool = False) -> Iterator[dict[str, Any]]:
+    shared = _shared_ip_addresses(wildcards)
     ptrs = PtrOverride.objects.order_by("pk")
     for obj in ptrs.iterator(chunk_size=chunk_size):
         if obj.host_id in wildcards:
             raise SnapshotError("Wildcard PTR override cannot be translated", model="PtrOverride", object_id=obj.pk)
-        yield _item(
+        reasons = _ip_deferred_reasons(obj.ipaddress, index.match(obj.ipaddress), shared)
+        if bool(reasons) != deferred:
+            continue
+        item = _item(
             _ref("ptr_override", obj.pk),
             "ptr_override",
             {"host_name_ref": _ref("host", obj.host_id), "address": obj.ipaddress},
         )
+        yield _deferred_item(item, reasons) if deferred else item
+
+
+def _relationship_items(index: NetworkIndex, wildcards: set[int], chunk_size: int) -> Iterator[dict[str, Any]]:
+    yield from _ptr_override_items(index, wildcards, chunk_size)
     for obj in BACnetID.objects.order_by("pk").iterator(chunk_size=chunk_size):
         if obj.host_id in wildcards:
             continue
@@ -658,8 +686,7 @@ def _relationship_items(index: NetworkIndex, wildcards: set[int], chunk_size: in
     contacts = HostContact.objects.prefetch_related(Prefetch("hosts", queryset=Host.objects.order_by("pk"))).order_by("pk")
     for obj in contacts.iterator(chunk_size=chunk_size):
         hosts = [_ref("host", host.pk) for host in obj.hosts.all() if host.pk not in wildcards]
-        if hosts:
-            yield _item(_ref("host_contact", obj.pk), "host_contact", {"email": obj.email, "hosts": hosts})
+        yield _item(_ref("host_contact", obj.pk), "host_contact", {"email": obj.email, "hosts": hosts})
     yield from _host_group_items(wildcards, chunk_size)
 
     mappings = HostCommunityMapping.objects.select_related("ipaddress", "community__network").order_by("pk")
@@ -836,6 +863,14 @@ def iter_deferred_record_items(chunk_size: int) -> Iterator[dict[str, Any]]:
     yield from _deferred_dns_record_items(_wildcard_ids(), chunk_size)
 
 
+def iter_deferred_items(chunk_size: int) -> Iterator[dict[str, Any]]:
+    """Preserve legacy assignments that require a destination-specific mapper."""
+    wildcards = _wildcard_ids()
+    index = NetworkIndex()
+    yield from _ip_items(index, wildcards, chunk_size, deferred=True)
+    yield from _ptr_override_items(index, wildcards, chunk_size, deferred=True)
+
+
 @dataclass(frozen=True)
 class SnapshotArtifact:
     path: Path
@@ -879,6 +914,7 @@ class SnapshotDataFile:
 class SnapshotData:
     items: SnapshotDataFile
     deferred_records: SnapshotDataFile
+    deferred_items: SnapshotDataFile
     permissions: SnapshotDataFile | None
     database_timestamp: datetime
 
@@ -997,6 +1033,7 @@ def _write_snapshot_data(
                 iter_deferred_record_items(chunk_size),
                 budget,
             )
+            deferred_items = _write_ndjson(directory / "deferred-items.ndjson", iter_deferred_items(chunk_size), budget)
             permissions = (
                 _write_ndjson(directory / "permissions.ndjson", iter_permission_items(chunk_size), budget) if include_permissions else None
             )
@@ -1007,6 +1044,7 @@ def _write_snapshot_data(
     return SnapshotData(
         items=items,
         deferred_records=deferred_records,
+        deferred_items=deferred_items,
         permissions=permissions,
         database_timestamp=database_timestamp,
     )
@@ -1046,6 +1084,8 @@ def _build_json_artifact(
         _write_json_array(output, data.items.path, budget)
         output.write(b'],"deferred_records":[')
         _write_json_array(output, data.deferred_records.path, budget)
+        output.write(b'],"deferred_items":[')
+        _write_json_array(output, data.deferred_items.path, budget)
         output.write(b"]}\n")
 
 
@@ -1096,6 +1136,7 @@ def _build_archive(
             _add_bytes_to_archive(archive, "manifest.json", manifest_bytes, created_at)
             _add_data_file_to_archive(archive, data.items, created_at, budget)
             _add_data_file_to_archive(archive, data.deferred_records, created_at, budget)
+            _add_data_file_to_archive(archive, data.deferred_items, created_at, budget)
             if data.permissions is not None:
                 _add_data_file_to_archive(archive, data.permissions, created_at, budget)
 
@@ -1113,6 +1154,7 @@ def _build_manifest(data: SnapshotData, created_at: datetime, instance: str) -> 
         },
         "items": data.items.manifest_entry(),
         "deferred_records": data.deferred_records.manifest_entry(),
+        "deferred_items": data.deferred_items.manifest_entry(),
         "permissions": data.permissions.manifest_entry() if data.permissions is not None else None,
         "semantics": {
             "dependency_ordered": True,
@@ -1125,13 +1167,13 @@ def _build_manifest(data: SnapshotData, created_at: datetime, instance: str) -> 
             "audit_included": False,
             "permissions_included": permissions_included,
             "redacted": False,
-            "fully_importable": data.deferred_records.count == 0,
+            "fully_importable": data.deferred_records.count == 0 and data.deferred_items.count == 0,
         },
     }
 
 
 def _remove_snapshot_data_files(data: SnapshotData) -> None:
-    files = [data.items, data.deferred_records]
+    files = [data.items, data.deferred_records, data.deferred_items]
     if data.permissions is not None:
         files.append(data.permissions)
     for data_file in files:
@@ -1361,7 +1403,7 @@ class SnapshotView(APIView):
                 OpenApiTypes.BINARY, description="Gzip-compressed tar archive with manifest and NDJSON data."
             ),
             (200, JSON_MEDIA_TYPE): OpenApiResponse(
-                OpenApiTypes.BINARY, description="Gzip-compressed JSON import document with items and deferred_records."
+                OpenApiTypes.BINARY, description="Gzip-compressed JSON document with items, deferred_records, and deferred_items."
             ),
         },
     )

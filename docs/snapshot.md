@@ -16,7 +16,7 @@ Accept-Encoding: gzip
 ```
 
 The response is a gzip-compressed PAX tar archive containing `manifest.json`,
-`items.ndjson`, and `deferred-records.ndjson`. Each line in `items.ndjson`
+`items.ndjson`, `deferred-records.ndjson`, and `deferred-items.ndjson`. Each line in `items.ndjson`
 is a dependency-ordered import item. The manifest records the source,
 consistent database timestamp, item counts, and checksums.
 PAX extended headers support individual members of 8 GiB or more, subject to
@@ -27,7 +27,28 @@ represented by the version 1 import contract because those record types require
 hostname owners. They are preserved, with their source references and data, in
 `deferred-records.ndjson`. Each entry includes a `deferred` reason and must be
 handled manually by a consumer. The manifest's
-`semantics.fully_importable` value is false when this file contains records.
+`semantics.fully_importable` value is false when either deferred file contains entries.
+
+Ordinary hosts may share an IP address, and addresses need not belong to a
+registered network in Django MREG. Such assignments are preserved in
+`deferred-items.ndjson`, together with their PTR overrides, instead of failing
+the snapshot. Every source assignment retains its own `ref`, `host_name_ref`,
+address, and MAC address when present. Shared assignments in registered networks
+also retain `attachment_id_ref`; addresses outside registered networks do not
+cause synthetic networks or attachments to be created. An address may have both
+deferral reasons. References in deferred items resolve against `items.ndjson`.
+
+```json
+{"ref":"ip_address:42","kind":"ip_address","operation":"create","attributes":{"host_name_ref":"host:7","address":"198.51.100.20","mac_address":"aa:bb:cc:dd:ee:ff"},"deferred":{"reasons":["ip_address_outside_registered_networks"],"requires_manual_handling":true}}
+```
+
+The other assignment reason is `ip_address_shared_by_multiple_hosts`. All
+ordinary assignments of a shared address are deferred; the exporter does not
+choose one owner. A PTR override's `host_name_ref` identifies its original DNS
+target. A mapper must process these entries explicitly, choosing how to preserve
+shared DNS ownership and represent addresses without an IPAM network. Importing
+only `items.ndjson` when either deferred file is nonempty produces an incomplete
+migration.
 
 Set `include_permissions=true` to add a separately checksummed
 `permissions.ndjson` member. It contains the legacy netgroup-regex authorization
@@ -42,8 +63,8 @@ consumers can translate or inspect the legacy authorization model explicitly.
 To produce a single JSON import file rather than a tar archive, request
 `format=mreg-import-json-v1` with `Accept: application/json`. The response is a
 gzip-compressed JSON document containing `{ "requested_by": ..., "items": [...],
-"deferred_records": [...] }`. The `items` array contains the dependency-ordered
-import payload; consumers must inspect `deferred_records` separately.
+"deferred_records": [...], "deferred_items": [...] }`. The `items` array contains the dependency-ordered
+import payload; consumers must inspect both deferred arrays separately.
 `include_permissions=true` is not supported for this JSON representation.
 
 Version 1 only accepts these option values:
@@ -68,6 +89,36 @@ attachments with conflicting communities or a mixture of assigned and
 unassigned IPs. This also applies to MAC-less IPs when
 `MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY=false`. Resolve those memberships
 before exporting; the exporter never implicitly enrolls an unassigned IP.
+
+## Data coverage and mapping
+
+Descriptions are retained for labels, networks, network policies and their
+attributes, communities, host groups, and host-policy atoms and roles. Host
+comments and delegation comments are retained. Contacts are included even when
+they have no attached hosts. The source has no description field for excluded
+ranges and no display-name field for contacts; a destination requiring these
+fields must supply its own defaults.
+
+DNS TTLs, SOA values, nameservers, delegations, explicit records, addresses,
+MAC addresses, PTR targets, host-group ownership, host policies, and network
+community assignments are included. Generated records must be reconstructed
+from those objects by the destination. In Django MREG, `soa_ttl` is the negative
+cache value and the SOA record's TTL inherits `default_ttl`. A destination with
+separate `negative_ttl` and `soa_record_ttl` fields must map both values. A PTR
+override names the target host; an absent target must not be interpreted as a
+request to suppress reverse DNS.
+
+This is not an unconditional export of every legacy shape. Wildcard hosts with
+comments, contacts, groups, policy memberships, BACnet IDs, MAC addresses, or
+PTR overrides still fail validation, as do the ambiguous community mappings
+described above. These cases require separate source-data handling before this
+version can export them. Malformed MAC/LOC data and cyclic host groups also fail
+validation. Validate the production dataset before planning a cutover.
+
+Object creation/update timestamps and zone update bookkeeping are not retained.
+User accounts, credentials, authorization memberships, and audit/history remain
+outside this domain snapshot. Optional legacy permission rules do not include
+their users or memberships. Keep a SQL backup for these excluded data.
 
 ## Operation
 
