@@ -20,6 +20,9 @@ class NetworkPolicyAttribute(BaseModel):
     name = LowerCaseCharField(max_length=100, unique=True)
     description = models.TextField(blank=True, help_text="Description of the attribute.")
 
+    class Meta:
+        verbose_name = "network policy attribute"
+
     def save(self, *args, **kwargs):
         if self.pk:
             original = NetworkPolicyAttribute.objects.filter(pk=self.pk).first()
@@ -87,6 +90,10 @@ class NetworkPolicy(BaseModel):
                 )
 
 
+    class Meta:
+        verbose_name = "network policy"
+        verbose_name_plural = "network policies"
+
     def __str__(self):
         return self.name
 
@@ -104,8 +111,8 @@ class NetworkPolicyAttributeValue(models.Model):
 
     class Meta:
         unique_together = ("policy", "attribute")
-        verbose_name = "Policy Attribute Value"
-        verbose_name_plural = "Policy Attribute Values"
+        verbose_name = "network policy attribute value"
+        verbose_name_plural = "network policy attribute values"
 
     def __str__(self):
         return f"{self.policy.name} - {self.attribute.name}: {self.value}"
@@ -172,6 +179,8 @@ class Community(BaseModel):
     class Meta:
         ordering = ("name",)
         unique_together = ("name", "network")
+        verbose_name = "community"
+        verbose_name_plural = "communities"
 
 class HostCommunityMapping(BaseModel):
     host = models.ForeignKey('Host', on_delete=models.CASCADE)
@@ -181,6 +190,7 @@ class HostCommunityMapping(BaseModel):
     class Meta:
         unique_together = ("host", "ipaddress", "community")
         db_table = "host_community_mapping"
+        verbose_name = "host community mapping"
 
     def __str__(self):
         return f"{self.host} - {self.ipaddress} -> {self.community}"

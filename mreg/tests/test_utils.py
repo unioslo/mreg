@@ -46,10 +46,10 @@ class TestUtils(unittest.TestCase):
             - composite names
         """
         expect = {
-            Ipaddress: "Ipaddress",
-            PtrOverride: "Ptr override",
-            BACnetID: "Ba cnet id",
-            HostGroup: "Host group"
+            Ipaddress: "IP address",
+            PtrOverride: "PTR override",
+            BACnetID: "BACnet ID",
+            HostGroup: "host group"
         }
         for model, expected_name in expect.items():
             with self.subTest(model=model.__name__):

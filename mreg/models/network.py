@@ -37,6 +37,7 @@ class Network(BaseModel):
     class Meta:
         db_table = "network"
         ordering = ("network",)
+        verbose_name = "network"
 
     def __str__(self):
         return str(self.network)
@@ -241,6 +242,7 @@ class NetworkExcludedRange(BaseModel):
     class Meta:
         db_table = "network_exluded_range"
         ordering = ("start_ip",)
+        verbose_name = "network excluded range"
 
     def __str__(self):
         return f"{self.network.network} -> [{self.start_ip} -> [{self.end_ip}]"
@@ -266,6 +268,7 @@ class NetGroupRegexPermission(BaseModel):
             "range",
             "regex",
         )
+        verbose_name = "netgroup regex permission"
 
     def __str__(self):
         return f"group {self.group}, range {self.range}, regex {self.regex}"

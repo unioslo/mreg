@@ -63,7 +63,7 @@ class M2MDetail(M2MBase, ABC):
         """Build the 404 error for a member that isn't in this relation."""
         if model.objects.filter(name=lookup_value).exists():
             return NotFound(f"'{lookup_value}' is not a member of '{self.object.name}'.")
-        return NotFound(f"{display_name(model)} '{lookup_value}' does not exist.")
+        return NotFound(f"{display_name(model, capitalize=True)} '{lookup_value}' does not exist.")
 
     def get_queryset(self):
         if 'name' not in self.kwargs:
@@ -118,7 +118,7 @@ class M2MList(M2MBase, ABC):
                     instance = self.m2m_object.objects.get(name=name)
                 except self.m2m_object.DoesNotExist:
                     raise NotFound(
-                        f"{display_name(self.m2m_object)} '{name}' does not exist."
+                        f"{display_name(self.m2m_object, capitalize=True)} '{name}' does not exist."
                     )
             self.perform_m2m_alteration(self.m2mrelation.add, instance)
             return created_response(

@@ -96,6 +96,7 @@ class ForwardZone(BaseZone):
 
     class Meta:
         db_table = "forward_zone"
+        verbose_name = "forward zone"
 
     @staticmethod
     def get_zone_by_hostname(name):
@@ -133,6 +134,7 @@ class ReverseZone(BaseZone):
 
     class Meta:
         db_table = "reverse_zone"
+        verbose_name = "reverse zone"
 
     def save(self, *args, **kwargs):
         self.network = get_network_from_zonename(self.name)
@@ -239,6 +241,7 @@ class ForwardZoneDelegation(BaseModel, ZoneHelpers):
 
     class Meta:
         db_table = "forward_zone_delegation"
+        verbose_name = "forward zone delegation"
 
     def __str__(self):
         return f"{self.zone.name} {self.name}"
@@ -257,6 +260,7 @@ class ReverseZoneDelegation(BaseModel, ZoneHelpers):
 
     class Meta:
         db_table = "reverse_zone_delegation"
+        verbose_name = "reverse zone delegation"
 
     def __str__(self):
         return f"{self.zone.name} {self.name}"
