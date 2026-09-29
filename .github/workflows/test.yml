@@ -35,10 +35,6 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         python-version:
-          - "3.10"
-          - "3.11"
-          - "3.12"
-          - "3.13"
           - "3.14"
     steps:
       - name: Checkout
@@ -68,7 +64,6 @@ jobs:
           export MREG_DB_NAME=mreg MREG_DB_USER=mreg MREG_DB_PASSWORD=postgres
           uv run manage.py spectacular --validate --file openapi.yml
       - name: Upload OpenAPI schema
-        if: matrix.python-version == '3.10'
         uses: actions/upload-artifact@v7.0.1
         with:
           name: openapi.yml
@@ -90,10 +85,6 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         python-version:
-          - "3.10"
-          - "3.11"
-          - "3.12"
-          - "3.13"
           - "3.14"
     steps:
       - name: Checkout
