@@ -1,3 +1,5 @@
+from abc import ABC
+
 from django.db.models import Prefetch
 
 from django_filters import rest_framework as filters
@@ -158,14 +160,14 @@ class HostPolicyRoleDetail(HostPolicyRoleLogMixin, LowerCaseLookupMixin, MregRet
 
 
 class HostPolicyM2MList(HostPolicyRoleLogMixin, M2MList,
-                        HostPolicyPermissionsListCreateAPIView):
+                        HostPolicyPermissionsListCreateAPIView, ABC):
 
     lookup_field = 'name'
     cls = HostPolicyRole
 
 
 class HostPolicyM2MDetail(HostPolicyRoleLogMixin, M2MDetail,
-                          HostPolicyPermissionsUpdateDestroy):
+                          HostPolicyPermissionsUpdateDestroy, ABC):
 
     cls = HostPolicyRole
 

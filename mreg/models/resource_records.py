@@ -20,6 +20,7 @@ class Loc(BaseModel):
 
     class Meta:
         db_table = "loc"
+        verbose_name = "LOC record"
 
     def __str__(self):
         return f"{self.host.name} -> {self.loc}"
@@ -36,6 +37,7 @@ class Sshfp(BaseModel):
 
     class Meta:
         db_table = "sshfp"
+        verbose_name = "SSHFP record"
         unique_together = (("host", "algorithm", "hash_type", "fingerprint"),)
 
     def __str__(self):
@@ -52,6 +54,7 @@ class Hinfo(BaseModel):
 
     class Meta:
         db_table = "hinfo"
+        verbose_name = "HINFO record"
 
     def __str__(self):
         return f"cpu: {self.cpu} os: {self.os}"
@@ -66,6 +69,7 @@ class Mx(BaseModel):
 
     class Meta:
         db_table = "mx"
+        verbose_name = "MX record"
         unique_together = ("host", "priority", "mx")
 
     def __str__(self):
@@ -80,6 +84,7 @@ class Txt(BaseModel):
 
     class Meta:
         db_table = "txt"
+        verbose_name = "TXT record"
         unique_together = ("host", "txt")
 
     def __str__(self):
@@ -97,6 +102,7 @@ class Cname(ForwardZoneMember):
 
     class Meta:
         db_table = "cname"
+        verbose_name = "CNAME record"
         ordering = ("name",)
 
     def __str__(self):
@@ -118,6 +124,7 @@ class Naptr(BaseModel):
 
     class Meta:
         db_table = "naptr"
+        verbose_name = "NAPTR record"
         unique_together = (
             "host",
             "preference",
@@ -155,6 +162,7 @@ class Srv(ForwardZoneMember):
 
     class Meta:
         db_table = "srv"
+        verbose_name = "SRV record"
         unique_together = ("name", "priority", "weight", "port", "host")
         ordering = ("name", "priority", "weight", "port", "host")
 

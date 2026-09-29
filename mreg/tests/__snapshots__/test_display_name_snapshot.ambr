@@ -1,0 +1,211 @@
+# serializer version: 1
+# name: test_display_name_capitalize_snapshot
+  dict({
+    'hostpolicy.HostPolicyAtom': 'Atom',
+    'hostpolicy.HostPolicyRole': 'Role',
+    'mreg.BACnetID': 'BACnet ID',
+    'mreg.Cname': 'CNAME record',
+    'mreg.Community': 'Community',
+    'mreg.ExpiringToken': 'Token',
+    'mreg.ForwardZone': 'Forward zone',
+    'mreg.ForwardZoneDelegation': 'Forward zone delegation',
+    'mreg.Hinfo': 'HINFO record',
+    'mreg.History': 'History entry',
+    'mreg.Host': 'Host',
+    'mreg.HostCommunityMapping': 'Host community mapping',
+    'mreg.HostContact': 'Host contact',
+    'mreg.HostGroup': 'Host group',
+    'mreg.Ipaddress': 'IP address',
+    'mreg.Label': 'Label',
+    'mreg.Loc': 'LOC record',
+    'mreg.Mx': 'MX record',
+    'mreg.NameServer': 'Nameserver',
+    'mreg.Naptr': 'NAPTR record',
+    'mreg.NetGroupRegexPermission': 'Netgroup regex permission',
+    'mreg.Network': 'Network',
+    'mreg.NetworkExcludedRange': 'Network excluded range',
+    'mreg.NetworkPolicy': 'Network policy',
+    'mreg.NetworkPolicyAttribute': 'Network policy attribute',
+    'mreg.NetworkPolicyAttributeValue': 'Network policy attribute value',
+    'mreg.PtrOverride': 'PTR override',
+    'mreg.ReverseZone': 'Reverse zone',
+    'mreg.ReverseZoneDelegation': 'Reverse zone delegation',
+    'mreg.Srv': 'SRV record',
+    'mreg.Sshfp': 'SSHFP record',
+    'mreg.Txt': 'TXT record',
+    'mreg.User': 'User',
+  })
+# ---
+# name: test_display_name_snapshot
+  dict({
+    'hostpolicy.HostPolicyAtom': 'atom',
+    'hostpolicy.HostPolicyRole': 'role',
+    'mreg.BACnetID': 'BACnet ID',
+    'mreg.Cname': 'CNAME record',
+    'mreg.Community': 'community',
+    'mreg.ExpiringToken': 'token',
+    'mreg.ForwardZone': 'forward zone',
+    'mreg.ForwardZoneDelegation': 'forward zone delegation',
+    'mreg.Hinfo': 'HINFO record',
+    'mreg.History': 'history entry',
+    'mreg.Host': 'host',
+    'mreg.HostCommunityMapping': 'host community mapping',
+    'mreg.HostContact': 'host contact',
+    'mreg.HostGroup': 'host group',
+    'mreg.Ipaddress': 'IP address',
+    'mreg.Label': 'label',
+    'mreg.Loc': 'LOC record',
+    'mreg.Mx': 'MX record',
+    'mreg.NameServer': 'nameserver',
+    'mreg.Naptr': 'NAPTR record',
+    'mreg.NetGroupRegexPermission': 'netgroup regex permission',
+    'mreg.Network': 'network',
+    'mreg.NetworkExcludedRange': 'network excluded range',
+    'mreg.NetworkPolicy': 'network policy',
+    'mreg.NetworkPolicyAttribute': 'network policy attribute',
+    'mreg.NetworkPolicyAttributeValue': 'network policy attribute value',
+    'mreg.PtrOverride': 'PTR override',
+    'mreg.ReverseZone': 'reverse zone',
+    'mreg.ReverseZoneDelegation': 'reverse zone delegation',
+    'mreg.Srv': 'SRV record',
+    'mreg.Sshfp': 'SSHFP record',
+    'mreg.Txt': 'TXT record',
+    'mreg.User': 'user',
+  })
+# ---
+# name: test_verbose_name_snapshot
+  dict({
+    'hostpolicy.HostPolicyAtom': dict({
+      'verbose_name': 'atom',
+      'verbose_name_plural': 'atoms',
+    }),
+    'hostpolicy.HostPolicyRole': dict({
+      'verbose_name': 'role',
+      'verbose_name_plural': 'roles',
+    }),
+    'mreg.BACnetID': dict({
+      'verbose_name': 'BACnet ID',
+      'verbose_name_plural': 'BACnet IDs',
+    }),
+    'mreg.Cname': dict({
+      'verbose_name': 'CNAME record',
+      'verbose_name_plural': 'CNAME records',
+    }),
+    'mreg.Community': dict({
+      'verbose_name': 'community',
+      'verbose_name_plural': 'communities',
+    }),
+    'mreg.ExpiringToken': dict({
+      'verbose_name': 'token',
+      'verbose_name_plural': 'tokens',
+    }),
+    'mreg.ForwardZone': dict({
+      'verbose_name': 'forward zone',
+      'verbose_name_plural': 'forward zones',
+    }),
+    'mreg.ForwardZoneDelegation': dict({
+      'verbose_name': 'forward zone delegation',
+      'verbose_name_plural': 'forward zone delegations',
+    }),
+    'mreg.Hinfo': dict({
+      'verbose_name': 'HINFO record',
+      'verbose_name_plural': 'HINFO records',
+    }),
+    'mreg.History': dict({
+      'verbose_name': 'history entry',
+      'verbose_name_plural': 'history entries',
+    }),
+    'mreg.Host': dict({
+      'verbose_name': 'host',
+      'verbose_name_plural': 'hosts',
+    }),
+    'mreg.HostCommunityMapping': dict({
+      'verbose_name': 'host community mapping',
+      'verbose_name_plural': 'host community mappings',
+    }),
+    'mreg.HostContact': dict({
+      'verbose_name': 'host contact',
+      'verbose_name_plural': 'host contacts',
+    }),
+    'mreg.HostGroup': dict({
+      'verbose_name': 'host group',
+      'verbose_name_plural': 'host groups',
+    }),
+    'mreg.Ipaddress': dict({
+      'verbose_name': 'IP address',
+      'verbose_name_plural': 'IP addresses',
+    }),
+    'mreg.Label': dict({
+      'verbose_name': 'label',
+      'verbose_name_plural': 'labels',
+    }),
+    'mreg.Loc': dict({
+      'verbose_name': 'LOC record',
+      'verbose_name_plural': 'LOC records',
+    }),
+    'mreg.Mx': dict({
+      'verbose_name': 'MX record',
+      'verbose_name_plural': 'MX records',
+    }),
+    'mreg.NameServer': dict({
+      'verbose_name': 'nameserver',
+      'verbose_name_plural': 'nameservers',
+    }),
+    'mreg.Naptr': dict({
+      'verbose_name': 'NAPTR record',
+      'verbose_name_plural': 'NAPTR records',
+    }),
+    'mreg.NetGroupRegexPermission': dict({
+      'verbose_name': 'netgroup regex permission',
+      'verbose_name_plural': 'netgroup regex permissions',
+    }),
+    'mreg.Network': dict({
+      'verbose_name': 'network',
+      'verbose_name_plural': 'networks',
+    }),
+    'mreg.NetworkExcludedRange': dict({
+      'verbose_name': 'network excluded range',
+      'verbose_name_plural': 'network excluded ranges',
+    }),
+    'mreg.NetworkPolicy': dict({
+      'verbose_name': 'network policy',
+      'verbose_name_plural': 'network policies',
+    }),
+    'mreg.NetworkPolicyAttribute': dict({
+      'verbose_name': 'network policy attribute',
+      'verbose_name_plural': 'network policy attributes',
+    }),
+    'mreg.NetworkPolicyAttributeValue': dict({
+      'verbose_name': 'network policy attribute value',
+      'verbose_name_plural': 'network policy attribute values',
+    }),
+    'mreg.PtrOverride': dict({
+      'verbose_name': 'PTR override',
+      'verbose_name_plural': 'PTR overrides',
+    }),
+    'mreg.ReverseZone': dict({
+      'verbose_name': 'reverse zone',
+      'verbose_name_plural': 'reverse zones',
+    }),
+    'mreg.ReverseZoneDelegation': dict({
+      'verbose_name': 'reverse zone delegation',
+      'verbose_name_plural': 'reverse zone delegations',
+    }),
+    'mreg.Srv': dict({
+      'verbose_name': 'SRV record',
+      'verbose_name_plural': 'SRV records',
+    }),
+    'mreg.Sshfp': dict({
+      'verbose_name': 'SSHFP record',
+      'verbose_name_plural': 'SSHFP records',
+    }),
+    'mreg.Txt': dict({
+      'verbose_name': 'TXT record',
+      'verbose_name_plural': 'TXT records',
+    }),
+    'mreg.User': dict({
+      'verbose_name': 'user',
+      'verbose_name_plural': 'users',
+    }),
+  })
+# ---
