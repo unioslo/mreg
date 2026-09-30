@@ -612,6 +612,7 @@ ci = [
     { name = "inline-snapshot" },
     { name = "pytest" },
     { name = "pytest-django" },
+    { name = "ruff" },
     { name = "tox-gh-actions" },
     { name = "tox-uv" },
     { name = "uv" },
@@ -622,6 +623,7 @@ dev = [
     { name = "inline-snapshot" },
     { name = "pytest" },
     { name = "pytest-django" },
+    { name = "ruff" },
     { name = "tox-uv" },
     { name = "uv" },
 ]
@@ -664,6 +666,7 @@ ci = [
     { name = "inline-snapshot", specifier = ">=0.35.4" },
     { name = "pytest" },
     { name = "pytest-django" },
+    { name = "ruff", specifier = ">=0.16.9" },
     { name = "tox-gh-actions" },
     { name = "tox-uv", specifier = ">=1.29" },
     { name = "uv", specifier = ">=0.9" },
@@ -674,6 +677,7 @@ dev = [
     { name = "inline-snapshot", specifier = ">=0.35.4" },
     { name = "pytest" },
     { name = "pytest-django" },
+    { name = "ruff", specifier = ">=0.16.9" },
     { name = "tox-uv", specifier = ">=1.29" },
     { name = "uv", specifier = ">=0.9" },
 ]
