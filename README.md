@@ -126,7 +126,7 @@ uv run manage.py test --parallel
 uv run manage.py test --parallel=4
 ```
 
-This will significantly reduce test execution time (from 10-12 minutes to 2-4 minutes typically). Django creates separate test databases for each parallel process, and tests still use transaction rollback for isolation.
+This will significantly reduce test execution time (from 10-12 minutes to 2-4 minutes typically). Django creates separate test databases for each parallel process, and tests still use transaction rollback for isolation. Tox runs the tests in parallel mode by default.
 
 **Running with coverage:**
 
@@ -141,10 +141,22 @@ The `coverage combine` step is required to merge coverage data from all parallel
 
 ### Updating test snapshots
 
-Some tests may generate snapshot files that need to be updated when the expected output changes. Snapshot tests are currently run via pytest (and are automatically executed with `tox`). To update the snapshots only, you can run:
+Some tests may generate snapshot files that need to be updated when the expected output changes. Snapshot tests are currently run via pytest (and are automatically executed with `tox`). If snapshot tests fail, you can update the snapshots interactively by running:
 
 ```bash
-pytest --snapshot-update
+uv run pytest --inline-snapshot=review
+```
+
+Or to just update all snapshots without reviewing:
+
+```bash
+uv run pytest --inline-snapshot=update
+```
+
+New snapshots can be created via:
+
+```bash
+uv run pytest --inline-snapshot=create
 ```
 
 ## Environment Variables
