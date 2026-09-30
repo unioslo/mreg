@@ -223,11 +223,12 @@ mreg supports configuration via environment variables with the `MREG_` prefix. T
 
 ### Django Configuration for VS Code
 
-Running tests via the VS Code test runner (or other methods that otherwise bypass `manage.py`) requires setting the `DJANGO_SETTINGS_MODULE` environment variable to point to the mreg's Django settings module. 
+Running tests via the VS Code test runner (or other methods that otherwise bypass `manage.py`) requires setting the `MANAGE_PY_PATH` environment variable to point to the `manage.py` file of the Django project. `DJANGO_SETTINGS_MODULE` is also available to override for specific local needs.
 
 | Variable | Default | Description |
 | -------- | ------- | ----------- |
 | `DJANGO_SETTINGS_MODULE` | `""` | Django settings module. Required when not running via `manage.py`|
+| `MANAGE_PY_PATH` | `""` | Path to the `manage.py` file of the Django project. Required when running via VS Code test runner or other methods that bypass `manage.py`|
 
 Copy the bundled `.env.example` file to `.env` to make VS Code automatically source the default settings module.
 

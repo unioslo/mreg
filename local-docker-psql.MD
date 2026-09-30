@@ -20,12 +20,16 @@ ALTER USER mreg CREATEDB;
 EOF
 ```
 
-Finally add settings to django::
+Finally add settings to django:
 ```
-cat >> mregsite/local_settings.py << EOF
-MREG_DB_NAME = "mreg"
-MREG_DB_USER = "mreg"
-MREG_DB_PASSWORD = "mregpass"
-MREG_DB_HOST = "localhost"
+cat >> .env << EOF
+MANAGE_PY_PATH=manage.py
+DJANGO_SETTINGS_MODULE=mregsite.settings
+
+MREG_DB_NAME=mreg
+MREG_DB_USER=mreg
+MREG_DB_PASSWORD=mregpass
+MREG_DB_HOST=localhost
+MREG_DB_PORT=5432
 EOF
 ```
