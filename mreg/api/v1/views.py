@@ -374,7 +374,12 @@ def _host_prefetcher(qs):
         "srvs", "naptrs", "sshfp_set", "hostgroups", "hostpolicyroles", "contacts",
     ).prefetch_related(
         Prefetch("ipaddresses", queryset=Ipaddress.objects.order_by("ipaddress")),
-        Prefetch("hostcommunitymapping_set", queryset=HostCommunityMapping.objects.select_related("community")),
+        Prefetch(
+            "hostcommunitymapping_set",
+            # community__network is needed because CommunitySerializer
+            # serializes the network CIDR for every mapping.
+            queryset=HostCommunityMapping.objects.select_related("community__network"),
+        ),
     )
 
 

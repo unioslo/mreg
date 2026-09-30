@@ -326,6 +326,24 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         get_res = self.assert_get(f"networks/{network.network}/communities/{community_id}")
         self.assertEqual(get_res.json()["network_cidr"], "10.0.0.0/24")
 
+    @override_settings(MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY=False)
+    def test_host_endpoints_include_community_network_cidr(self):
+        """Host detail and list responses include the community's network CIDR."""
+        net = Network.objects.create(network="10.0.0.0/24", description="test_network")
+        community = self._create_community("cidrcomm", "community desc", net)
+
+        data = {"name": "hostwithcommunity.example.com", "network_community": community.pk, "network": net.network}
+        ret = self.assert_post_and_201("/api/v1/hosts/", data=data)
+        detail_res = self.assert_get(ret.headers["Location"])
+        self.assertEqual(detail_res.json()["communities"][0]["community"]["network_cidr"], "10.0.0.0/24")
+
+        list_res = self.assert_get("hosts/")
+        host = next(h for h in list_res.json()["results"] if h["name"] == "hostwithcommunity.example.com")
+        self.assertEqual(host["communities"][0]["community"]["network_cidr"], "10.0.0.0/24")
+
+        Host.objects.get(pk=detail_res.json()["id"]).delete()
+        net.delete()
+
     def test_create_community_no_name_400(self):
         """Test creating a community without a name."""
         network = Network.objects.create(network="10.0.0.0/24", description="test_network")
