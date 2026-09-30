@@ -14,63 +14,14 @@ import logging.config
 import os
 from pathlib import Path
 import sys
-from typing import Literal, TypeVar
+from typing import Literal
 
 import structlog
-from dotenv import load_dotenv
 
 import mreg.log_processors
 import mreg.__about__
+from mreg.env import envvar, parse_protected_policy_attrs
 
-load_dotenv() # load .env file
-
-
-DefaultT = TypeVar("DefaultT", str, int, float, bool)
-
-_TRUE = {"1", "true", "t", "yes", "y", "on"}
-_FALSE = {"0", "false", "f", "no", "n", "off"}
-
-def envvar(var: str, default: DefaultT) -> DefaultT:
-    """Get the value of an environment variable as a specific type.
-
-    The type of the default value specifies the return type.
-    Boolean defaults are parsed from common true/false strings.
-    """
-    raw = os.environ.get(var)
-    if raw is None:
-        return default
-
-    if isinstance(default, bool):
-        s = raw.strip().lower()
-        if s in _TRUE:
-            return True
-        if s in _FALSE:
-            return False
-        return default
-
-    try:
-        return type(default)(raw) 
-    except (ValueError, TypeError):
-        return default
-
-def parse_protected_attrs(raw: str) -> list[dict[str, str]]:
-    out: list[dict[str, str]] = []
-    for part in raw.split(","):
-        part = part.strip()
-        if not part:
-            continue
-
-        key, value = (part.split("=", 1) + [""])[:2]
-        key = key.strip()
-        value = value.strip()
-
-        if not key:
-            # Either skip silently or raise; skipping is safer for prod.
-            continue
-
-        desc = value if value else f"Protected attribute {key}."
-        out.append({"name": key, "description": desc})
-    return out
 
 TESTING = len(sys.argv) > 1 and sys.argv[1] == "test"
 
@@ -110,7 +61,7 @@ if no_protected or raw == "NONE":
     _protected = []
 elif raw:
     # Explicit env replaces defaults
-    _protected = parse_protected_attrs(raw)
+    _protected = parse_protected_policy_attrs(raw)
 else:
     # Unset => defaults apply
     _protected = list(MREG_PROTECTED_POLICY_ATTRIBUTES_DEFAULT)

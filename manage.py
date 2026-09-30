@@ -3,6 +3,12 @@ import os
 import sys
 
 if __name__ == "__main__":
+    from dotenv import load_dotenv
+    from mreg.env import envvar
+
+    load_dotenv(os.getenv("MREG_DOTENV_PATH"), override=envvar("MREG_DOTENV_OVERRIDE", False))
+
+    # use default settings module if dotenv doesn't override it
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "mregsite.settings")
     try:
         from django.core.management import execute_from_command_line

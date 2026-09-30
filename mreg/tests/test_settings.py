@@ -8,6 +8,7 @@ from unittest.mock import patch
 from django.test import SimpleTestCase
 
 import mregsite.settings as app_settings
+from mreg.env import envvar, parse_protected_policy_attrs
 
 
 class SettingsTestCase(SimpleTestCase):
@@ -31,13 +32,13 @@ class SettingsHelpersTests(SimpleTestCase):
         original = os.environ.get("MREG_TEST_BOOL")
         try:
             os.environ["MREG_TEST_BOOL"] = "true"
-            self.assertTrue(app_settings.envvar("MREG_TEST_BOOL", False))
+            self.assertTrue(envvar("MREG_TEST_BOOL", False))
 
             os.environ["MREG_TEST_BOOL"] = "false"
-            self.assertFalse(app_settings.envvar("MREG_TEST_BOOL", True))
+            self.assertFalse(envvar("MREG_TEST_BOOL", True))
 
             os.environ["MREG_TEST_BOOL"] = "maybe"
-            self.assertTrue(app_settings.envvar("MREG_TEST_BOOL", True))
+            self.assertTrue(envvar("MREG_TEST_BOOL", True))
         finally:
             if original is None:
                 os.environ.pop("MREG_TEST_BOOL", None)  # pragma: no cover
@@ -48,7 +49,7 @@ class SettingsHelpersTests(SimpleTestCase):
         original_int = os.environ.get("MREG_TEST_INT")
         try:
             os.environ["MREG_TEST_INT"] = "not-an-int"
-            self.assertEqual(app_settings.envvar("MREG_TEST_INT", 5), 5)
+            self.assertEqual(envvar("MREG_TEST_INT", 5), 5)
         finally:
             if original_int is None:
                 os.environ.pop("MREG_TEST_INT", None)  # pragma: no cover
@@ -56,7 +57,7 @@ class SettingsHelpersTests(SimpleTestCase):
                 os.environ["MREG_TEST_INT"] = original_int
 
     def test_parse_protected_attrs(self):
-        result = app_settings.parse_protected_attrs(" ,=ignored,foo=,bar=baz ")
+        result = parse_protected_policy_attrs(" ,=ignored,foo=,bar=baz ")
         self.assertEqual(
             result,
             [

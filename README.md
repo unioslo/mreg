@@ -149,7 +149,12 @@ pytest --snapshot-update
 
 ## Environment Variables
 
-mreg supports configuration via environment variables with the `MREG_` prefix. These can be used to override default settings without modifying `settings.py` or creating a `local_settings.py` file. This is especially useful when running mreg in containers or deployment environments.
+mreg supports configuration via environment variables with the `MREG_` prefix. These can be used to override default settings without modifying `settings.py` or creating a `local_settings.py` file. This is especially useful when running mreg in containers or deployment environments. The applications supports reading from a dotenv file (`.env`) to set environment variables. The path to the dotenv file can be overridden by setting the `MREG_DOTENV_PATH` environment variable.
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `MREG_DOTENV_PATH` | `.env` | Path to the dotenv file.|
+| `MREG_DOTENV_OVERRIDE` | `False` | Override existing environment variables with values from the dotenv file. Makes the .env file the authoritative source for environment variables.|
 
 
 ### Database Configuration
@@ -206,15 +211,19 @@ mreg supports configuration via environment variables with the `MREG_` prefix. T
 
 ### Django Configuration for VS Code
 
-Running tests via the VS Code test runner (or other methods that otherwise bypass `manage.py`) requires setting the `DJANGO_SETTINGS_MODULE` environment variable to point to the mreg's Django settings module. Rename `.env.example` to `.env` to let VS Code automatically source the correct environment variables.
+Running tests via the VS Code test runner (or other methods that otherwise bypass `manage.py`) requires setting the `DJANGO_SETTINGS_MODULE` environment variable to point to the mreg's Django settings module. 
 
 | Variable | Default | Description |
 | -------- | ------- | ----------- |
 | `DJANGO_SETTINGS_MODULE` | `""` | Django settings module. Required when not running via `manage.py`|
 
+Copy the bundled `.env.example` file to `.env` to make VS Code automatically source the default settings module.
 
+```bash
+cp .env.example .env
+```
 
-### Example Usage
+### Example Environment Variables Usage With Docker
 
 ```bash
 # Using environment variables with Docker
