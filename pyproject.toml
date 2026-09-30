@@ -62,7 +62,7 @@ format-command="ruff check --fix-only --stdin-filename {filename} | ruff format 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "mregsite.settings"
 # Add/remove specific pytest test paths as needed
-testpaths = ["mreg/tests/test_display_name_snapshot.py", "mreg/tests/test_dotenv.py"]
+testpaths = ["mreg/tests/pytest_tests/**"]
 
 [tool.ruff]
 line-length = 140
