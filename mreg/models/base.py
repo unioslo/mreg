@@ -44,6 +44,7 @@ class NameServer(BaseModel):
     class Meta:
         db_table = "ns"
         ordering = ("name",)
+        verbose_name = "nameserver"
 
     def __str__(self):
         return str(self.name)
@@ -115,6 +116,7 @@ class Label(BaseModel):
     class Meta:
         db_table = "label"
         ordering = ("name",)
+        verbose_name = "label"
 
     def __str__(self):
         return str(self.name)
@@ -136,6 +138,10 @@ class History(models.Model):
     action = models.CharField(max_length=64)
     data = models.JSONField()
 
+    class Meta:
+        verbose_name = "history entry"
+        verbose_name_plural = "history entries"
+
     def __str__(self):
         return f"{self.name}, {self.model}, {self.action}, {self.timestamp}"
 
@@ -151,6 +157,9 @@ class ForwardZoneMember(BaseModel):
 
 class ExpiringToken(Token):
     last_used = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "token"
 
     @classmethod
     def expire_time_in_hours(cls) -> int:

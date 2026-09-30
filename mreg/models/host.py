@@ -29,6 +29,7 @@ class HostContact(BaseModel):
     
     class Meta:
         db_table = "host_contact"
+        verbose_name = "host contact"
         
     def __str__(self):
         return self.email
@@ -70,6 +71,7 @@ class Host(ForwardZoneMember):
 
     class Meta:
         db_table = "host"
+        verbose_name = "host"
 
     def __str__(self):
         return str(self.name)
@@ -220,7 +222,8 @@ class Host(ForwardZoneMember):
                     comm_inst = Community.objects.get(name=community, network=net)
                 except Community.DoesNotExist:
                     raise NotAcceptable(f"No community named '{community}' found for network {net}.")
-                except Community.MultipleObjectsReturned:
+                except Community.MultipleObjectsReturned:  # pragma: no cover
+                    # Cannot test: Community has unique constraint on (name, network)
                     raise NotAcceptable(f"Multiple communities found for network {net} with name '{community}'.")
                 return ip, comm_inst
             else:
@@ -237,7 +240,8 @@ class Host(ForwardZoneMember):
                         matches.append((ipaddr, comm_inst))
                     except Community.DoesNotExist:
                         continue
-                    except Community.MultipleObjectsReturned:
+                    except Community.MultipleObjectsReturned:  # pragma: no cover
+                        # Cannot test: Community has unique constraint on (name, network)
                         raise NotAcceptable(f"Multiple communities found for network {net} with name '{community}'.")
                 if not matches:
                     raise NotAcceptable(f"No community named '{community}' found on any IP network for this host.")
@@ -279,7 +283,9 @@ class Host(ForwardZoneMember):
         resolved_ip, resolved_comm = self._resolve_community_mapping(community, ipaddress)
         try:
             net = Network.objects.get(network__net_contains=resolved_ip.ipaddress)
-        except Network.DoesNotExist:
+        except Network.DoesNotExist:  # pragma: no cover
+            # Cannot test: Defensive check for race condition where network is deleted
+            # between resolution in _resolve_community_mapping and this lookup
             raise NotAcceptable("No network found for the provided IP address.")
 
         mac_required = getattr(settings, "MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY", False)
@@ -356,6 +362,8 @@ class Ipaddress(BaseModel):
     class Meta:
         db_table = "ipaddress"
         unique_together = (("host", "ipaddress"),)
+        verbose_name = "IP address"
+        verbose_name_plural = "IP addresses"
 
     def __str__(self):
         return "{} -> {}".format(str(self.ipaddress), str(self.macaddress) or "None")
@@ -373,6 +381,7 @@ class PtrOverride(BaseModel):
 
     class Meta:
         db_table = "ptr_override"
+        verbose_name = "PTR override"
 
     def __str__(self):
         return "{} -> {}".format(str(self.ipaddress), str(self.host.name))
@@ -392,6 +401,7 @@ class HostGroup(BaseModel):
     class Meta:
         db_table = "hostgroup"
         ordering = ("name",)
+        verbose_name = "host group"
 
     def __str__(self):
         return "%s" % self.name
@@ -403,6 +413,7 @@ class BACnetID(models.Model):
 
     class Meta:
         db_table = "bacnetid"
+        verbose_name = "BACnet ID"
 
     @property
     def hostname(self):

@@ -8,6 +8,8 @@ An associated project for a command line interface using the mreg API is availab
 
 ### Prerequisites
 
+The default Docker image and Python 3.14+ installations use Django 6.1, which requires PostgreSQL 15 or newer.
+
 If you want to set up your own PostgreSQL server by installing the necessary packages manually, you might need to install dependencies for setting up the citext extension. On Fedora, the package is called [`postgresql-contrib`](https://packages.fedoraproject.org/pkgs/postgresql/postgresql-contrib/).
 
 ### Installing
@@ -136,6 +138,14 @@ coverage report -m
 ```
 
 The `coverage combine` step is required to merge coverage data from all parallel processes.
+
+### Updating test snapshots
+
+Some tests may generate snapshot files that need to be updated when the expected output changes. Snapshot tests are currently run via pytest (and are automatically executed with `tox`). To update the snapshots only, you can run:
+
+```bash
+pytest --snapshot-update
+```
 
 ## Environment Variables
 

@@ -1,5 +1,5 @@
 # build stage
-FROM python:3.12-alpine AS builder
+FROM python:3.14-alpine AS builder
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
@@ -12,7 +12,7 @@ RUN apk update \
 # COPY will unpack the contents of source directories into the target directory,
 # and we need to keep the .git directory intact.
 # The workaround is to copy everything, but limit it with .dockerignore.
-COPY --from=ghcr.io/astral-sh/uv:0.12.0 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.12.19 /uv /uvx /bin/
 COPY . .
 # Build and install dependencies
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -21,7 +21,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 ENTRYPOINT [ "/bin/sh" ]
 
 # final stage
-FROM python:3.12-alpine
+FROM python:3.14-alpine
 EXPOSE 8000
 
 WORKDIR /app
@@ -40,7 +40,7 @@ COPY entrypoint* manage.py /app/
 COPY mreg /app/mreg/
 COPY mregsite /app/mregsite/
 COPY hostpolicy /app/hostpolicy/
-COPY --from=ghcr.io/astral-sh/uv:0.12.0 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.12.19 /uv /uvx /bin/
 RUN apk update && apk upgrade \
     && apk add libldap vim findutils \
     && rm -rf /var/cache/apk/* \

@@ -118,3 +118,6 @@ mreg/.idea
 
 # Visual Studio Code
 .vscode
+
+# coverage files
+.coverage*
