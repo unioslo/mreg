@@ -1,24 +1,38 @@
-"""Query-profile regression tests for the host list and detail endpoints.
+"""
+NOTE
+---
 
-GET /hosts/ serializes each host on the page with every related collection
-in HostSerializer: ip addresses, the resource records (cnames, mxs, txts,
-srvs, naptrs, sshfps, ptr overrides, hinfo, loc, bacnet id), hostgroups,
-policy roles, contacts and community mappings.  _host_prefetcher in
-mreg/api/v1/views.py exists to keep all of that at a constant number of
-queries per page.  Any related object the serializers touch that the
-prefetcher does not cover (an unfetched FK or reverse relation) becomes one
-extra query per serialized object instead, which is how N+1 regressions
-creep in.  These tests pin the exact number of queries executed for a
-deterministic dataset that populates every prefetched relation, so such
-regressions fail loudly instead of slipping through review.
+This is an almost 100% AI-generated module by GLM 5.3. 
+Some manual cleanup has been applied, but the core structure and logic
+is fully AI-generated.
 
-The dataset is one full page (StandardResultsSetPagination.page_size) of
-hosts, each with a representative set of resource records and community
-mappings.
+---
 
-Note that the pinned list count is dominated by
-CommunitySerializer.get_hosts, which issues one query per serialized
-community mapping even with perfect prefetching.
+Module to pin the number of SQL queries the host endpoints execute.
+
+GET /hosts/ and /hosts/<name> serialize each host with all its related
+objects, and every relation the view does not prefetch costs one extra
+query per serialized object.  These tests make a GET against each endpoint
+on a fixed dataset -- one full page of hosts where every relation has
+data, plus one host detail -- count the SQL queries the request executes,
+and fail if the count differs from the pinned number.
+
+When a test fails, the message lists the queries per table with a sample of
+each; a count that matches the number of serialized objects points at the
+missing prefetch.  If the new count is intentional, update the pinned
+number in the same commit.
+
+This module can run in 2 different modes:
+
+- Test mode: verify the query count against the pinned number. 
+- Benchmark mode: measure and record the query profile without asserting the count.
+
+Test mode:
+    Running this module as part of the regular test suite will verify that
+    the endpoints continue to execute the expected number of SQL queries.
+    Used as part of the regular test suite. Asserts and fails if the query
+    count changes, requiring an update to the pinned number if intentional,
+    and/or a review of the query profile to identify missing prefetches.
 
 Benchmark mode:
     Run with MREG_BENCH_OUT=/path/to/bench.json to skip the assertions and
@@ -34,14 +48,34 @@ Benchmark mode:
         MREG_BENCH_OUT=branch.json uv run manage.py test \
             mreg.api.v1.tests.test_host_query_profile
 
-Diagnosing a failure:
-    The assertion message includes a per-table attribution of the
-    executed queries.  A table with a per-object count (many identical
-    queries, one sample) points at an unfetched relation; a table that
-    appears once is a prefetch for a relation that was added to the
-    serializer.  To inspect the actual SQL statements, re-run the same
-    test with MREG_BENCH_OUT=<path>; benchmark mode skips the assertions
-    and writes the full attribution with sample SQL per table.
+
+Sample output on query count mismatch:
+
+```
+AssertionError: 2206 != 221 : GET /hosts/ (100 hosts, 200 community mappings): expected 221 queries, got 2206. [...]
+Query attribution (count, table, db time, sample SQL):
+   202x host                   (  502.0ms) SELECT COUNT(*) AS "__count" FROM "host"
+   200x host_contact           (  400.0ms) SELECT "host_contact"."id", "host_contact"."created_at", ...
+   200x network                (  353.0ms) SELECT "network"."id", "network"."created_at", ...
+   200x mreg_community         (  317.0ms) SELECT "mreg_community"."id", "mreg_community"."created_at", ...
+   100x srv                    (  215.0ms) SELECT "srv"."id", "srv"."created_at", ...
+   100x txt                    (  213.0ms) SELECT "txt"."id", "txt"."created_at", ...
+   100x hinfo                  (  194.0ms) SELECT "hinfo"."created_at", ...
+   100x naptr                  (  192.0ms) SELECT "naptr"."id", "naptr"."created_at", ...
+   100x sshfp                  (  192.0ms) SELECT "sshfp"."id", "sshfp"."created_at", ...
+   100x hostpolicy_role        (  188.0ms) SELECT "hostpolicy_role"."id", ...
+   100x bacnetid               (  188.0ms) SELECT "bacnetid"."id", "bacnetid"."host_id" FROM "bacnetid" WHERE ...
+   100x host_community_mapping (  188.0ms) SELECT "host_community_mapping"."id", ...
+   100x mx                     (  183.0ms) SELECT "mx"."id", "mx"."created_at", ...
+   100x loc                    (  181.0ms) SELECT "loc"."created_at", ...
+   100x ptr_override           (  157.0ms) SELECT "ptr_override"."id", ...
+   100x hostgroup              (  157.0ms) SELECT "hostgroup"."id", ...
+   100x ipaddress              (  137.0ms) SELECT "ipaddress"."id", ...
+   100x cname                  (  134.0ms) SELECT "cname"."id", "cname"."created_at", ...
+     1x mreg_expiringtoken     (    1.0ms) SELECT "authtoken_token"."key", ...
+     1x mreg_user              (    1.0ms) SELECT "mreg_user"."id", ...
+Hint: a per-object count (>1) on a table means an unfetched relation; re-run with MREG_BENCH_OUT=<path> for the full attribution and SQL.
+```
 """
 
 import json
@@ -138,13 +172,8 @@ def _format_attribution(tables: dict[str, TableStats]) -> str:
     return "\n".join(lines)
 
 
-# Pinned query counts for the dataset above.  The list count covers auth,
-# pagination count, the host list, one prefetch query per related
-# collection, and one query per community mapping from
-# CommunitySerializer.get_hosts.  The detail count is for a single host with
-# the full set of related objects and two community mappings.  If a change
-# here is intentional, update the number in the same commit and say why in
-# the test output message.
+# Pinned query counts for the dataset above.  If a change is intentional,
+# update the number in the same commit and say why.
 PINNED_HOST_LIST_QUERIES = 221
 PINNED_HOST_DETAIL_QUERIES = 22
 
