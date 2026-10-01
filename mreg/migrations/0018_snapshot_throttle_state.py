@@ -8,7 +8,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('mreg', '0016_host_contacts'),
+        ('mreg', '0017_model_verbose_names'),
     ]
 
     operations = [
