@@ -82,7 +82,8 @@ import json
 import os
 import re
 import time
-from typing import Any, NamedTuple
+from dataclasses import asdict, dataclass
+from typing import Any
 
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
@@ -113,7 +114,8 @@ _TABLE_RE = re.compile(r"\b(?:FROM|JOIN)\s+[\"']?([a-zA-Z_][a-zA-Z_0-9]*)")
 _SAMPLE_LIMIT = 3
 
 
-class TableStats(NamedTuple):
+@dataclass(frozen=True, slots=True)
+class TableStats:
     """Query statistics for one database table.
 
     Attributes:
@@ -129,7 +131,8 @@ class TableStats(NamedTuple):
     samples: list[str]
 
 
-class Measurement(NamedTuple):
+@dataclass(frozen=True, slots=True)
+class Measurement:
     """Measurements for one GET request against an endpoint.
 
     Attributes:
@@ -305,23 +308,9 @@ class HostQueryProfileTestCase(MregAPITestCase):
 
     def _record(self, endpoint: str, measurement: Measurement, pinned_count: int) -> None:
         if BENCH_OUT:
-            self._bench_measurements.append(
-                {
-                    "endpoint": endpoint,
-                    "query_count": measurement.query_count,
-                    "median_seconds": round(measurement.median_seconds, 6),
-                    "query_tables": {
-                        # Serialize explicitly; a NamedTuple would be dumped
-                        # as a JSON array.
-                        table: {
-                            "count": stats.count,
-                            "time_seconds": stats.time_seconds,
-                            "samples": stats.samples,
-                        }
-                        for table, stats in measurement.tables.items()
-                    },
-                }
-            )
+            data = asdict(measurement)
+            data["median_seconds"] = round(data["median_seconds"], 6)
+            self._bench_measurements.append({"endpoint": endpoint, **data})
         else:
             self.assertEqual(
                 measurement.query_count,
