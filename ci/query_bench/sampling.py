@@ -111,9 +111,18 @@ def measure(case, definition, suite, checkout):
 
     if not isinstance(case.client, Client):
         raise TypeError("Benchmarks require a synchronous Django/DRF test client")
+
+    def route_for(path):
+        try:
+            return resolve(urlsplit(path).path).route or "/"
+        except Resolver404 as exc:
+            raise MissingBenchmark(f"No route for {urlsplit(path).path}") from exc
+
     values = vars(case).copy()
     for name, lookup in definition.get("parameters", {}).items():
-        response = case.client.get(lookup["path"].format_map(values))
+        lookup_path = lookup["path"].format_map(values)
+        route_for(lookup_path)
+        response = case.client.get(lookup_path)
         case.assertEqual(response.status_code, 200, "Benchmark parameter lookup failed")
         value = response.json()
         for key in lookup["json"]:
@@ -121,10 +130,7 @@ def measure(case, definition, suite, checkout):
         values[name] = value
     path = definition["path"].format_map(values)
     url = urlsplit(path)
-    try:
-        route = resolve(url.path).route or "/"
-    except Resolver404 as exc:
-        raise MissingBenchmark(f"No route for {url.path}") from exc
+    route = route_for(path)
 
     expected_shape = None
 
@@ -216,6 +222,8 @@ def main(argv=None):
     try:
         if not (checkout / "manage.py").is_file():
             report.update(status="missing", reason="This revision has no Django test entrypoint (manage.py).")
+            report["benchmarks"] = [{"label": case["label"], "status": "missing", "reason": report["reason"]}
+                                    for case in suite["benchmarks"]]
             return 0
         os.chdir(checkout)
         sys.path.insert(0, str(checkout))
@@ -234,6 +242,7 @@ def main(argv=None):
                     return unittest.TestSuite(cases)
 
             result = int(bool(BenchmarkRunner(verbosity=2, interactive=False, parallel=1).run_tests([]))) if cases else 0
+        result = int(bool(result or any(case["status"] == "error" for case in report["benchmarks"])))
         report["status"] = "error" if result else "ok" if report["samples"] else "missing"
     except Exception:
         traceback.print_exc()

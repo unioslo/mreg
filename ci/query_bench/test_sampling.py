@@ -145,5 +145,8 @@ class MeasurementTests(TestCase):
         with self.assertRaises(MissingBenchmark):
             measure(self, definition, suite, Path.cwd())
         definition.update(path="/objects/{id}", parameters={"id": {"path": "/absent/", "json": ["id"]}})
-        with self.assertRaises(AssertionError):
+        with self.assertRaises(MissingBenchmark):
+            measure(self, definition, suite, Path.cwd())
+        definition["parameters"]["id"]["path"] = "/objects/"
+        with self.assertRaises(KeyError):
             measure(self, definition, suite, Path.cwd())
