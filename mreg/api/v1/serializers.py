@@ -41,7 +41,8 @@ class CommunitySerializer(serializers.ModelSerializer):
         return str(obj.network.network)
 
     def get_hosts(self, obj) -> list[str]:
-        return list(obj.hosts.values_list("name", flat=True))
+        # values_list() would bypass the prefetched membership queryset.
+        return [host.name for host in obj.hosts.all()]
 
     def get_global_name(self, obj) -> str | None:
         # Only map if the setting is enabled.
