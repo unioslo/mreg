@@ -1,5 +1,87 @@
 # Testing Guide
 
+## Comparing API query counts
+
+The `API query profiles` workflow runs the existing API tests on the PR head
+and the PR's target commit. For a PR targeting a branch other than `master`,
+it also samples `unioslo/mreg`'s current `master`. The report records the exact
+commits used. Each revision uses its own tests, dependencies, and test database.
+
+An external wrapper intercepts synchronous Django `Client` and DRF `APIClient`
+requests. No endpoint-specific profiling code, decorator, application setting,
+or changes to existing functional tests are needed. Every request made inside
+a selected test method is sampled; fixture setup and teardown are excluded.
+Requests execute once, including POST/PATCH/DELETE. SQL execute calls are counted
+across the configured database connections in the request's thread.
+
+Run the wrapper from the repository root:
+
+```bash
+uv run python ci/profile_tests.py --output /tmp/head-queries.json -- mreg.api hostpolicy.api
+
+# Restrict sampling using normal Django test labels.
+uv run python ci/profile_tests.py --output /tmp/hosts.json -- mreg.api.v1.tests.test_host_query_profile
+
+# The output path can also come from the environment.
+MREG_QUERY_PROFILE_OUT=/tmp/head-queries.json uv run python ci/profile_tests.py -- mreg.api
+```
+
+The wrapper forces serial test execution to preserve request ordering. It
+captures the HTTP method, resolved route, query parameters, request occurrence,
+test ID, response status/result count, SQL count and attribution, and elapsed
+time. Dynamic path IDs do not create different endpoint identities. Request
+bodies, response bodies, and SQL parameters are not stored.
+
+Use the same wrapper to sample an older checkout; it does not need to contain
+the profiling tool:
+
+```bash
+uv run --project /path/to/parent python /path/to/head/ci/profile_tests.py \
+    --checkout /path/to/parent --output /tmp/parent-queries.json -- mreg.api hostpolicy.api
+
+python ci/compare_query_profiles.py \
+    --head /tmp/head-queries.json \
+    --baseline parent=/tmp/parent-queries.json \
+    --baseline master=/tmp/master-queries.json \
+    --summary /tmp/query-summary.md --json /tmp/query-comparison.json
+```
+
+Omit the `master` argument for a PR targeting `master`. Keep the test selection
+the same for all revisions. Baseline sampling must use baseline dependencies;
+do not copy new tests or application code into a baseline checkout.
+
+### What the report means
+
+- Matching request identities are compared individually. An increased query
+  count fails CI; improvements elsewhere cannot cancel out a regression.
+- A request seen only on one revision is **missing** on the other. Missing
+  measurements are never counted as zero or reported as improvements. New
+  endpoints gain measurements as soon as existing functional tests exercise them.
+- Changed local test/fixture modules or different response statuses/result
+  counts are marked **incomparable**. The source check includes the test class's
+  module and local inherited test-class modules. This is deliberately conservative:
+  adding a test to a module also marks that module's other samples incomparable.
+  It does not prove equivalence of external fixtures or services; review fixture
+  changes when interpreting a report.
+- Installation, database, and test failures are **errors**, not missing baselines.
+  A head run with no samples also fails the comparison.
+- The endpoint table sums only paired, comparable requests. Detailed JSON retains
+  all observations, source fingerprints, missing cases, and SQL attribution.
+- Timings are informational observations with profiling overhead, not a latency
+  threshold or a replacement for repeated controlled benchmarks.
+
+Only exercised endpoints are measured. `RequestFactory`, async clients, live
+HTTP clients, worker-thread queries, and streaming response bodies are outside
+the current capture boundary; streaming responses are marked incomparable.
+There are no hard-coded endpoint query budgets. The populated host/community
+tests additionally check that increasing page size or community membership does
+not increase query counts.
+
+This design follows [rust-pr-bench](https://github.com/terjekv/rust-pr-bench):
+isolated revision runs, comparisons over matching measurement identities, and
+explicit missing results. The request profiler is specific to Django and does
+not depend on the Rust action.
+
 ## Running Tests
 
 ### Basic Test Execution

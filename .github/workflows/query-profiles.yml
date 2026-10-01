@@ -1,0 +1,109 @@
+name: API query profiles
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  sample:
+    name: Sample ${{ matrix.revision }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        revision: ${{ fromJSON(github.base_ref == 'master' && '["head", "parent"]' || '["head", "parent", "master"]') }}
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: mreg
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd "pg_isready --username=mreg"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - name: Check out the shared profiling tool
+        uses: actions/checkout@v7.0.1
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: driver
+          persist-credentials: false
+      - name: Check out the revision to sample
+        uses: actions/checkout@v7.0.1
+        with:
+          repository: ${{ matrix.revision == 'master' && 'unioslo/mreg' || matrix.revision == 'head' && github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ matrix.revision == 'master' && 'master' || matrix.revision == 'head' && github.event.pull_request.head.sha || github.event.pull_request.base.sha }}
+          path: revision
+          persist-credentials: false
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install libsasl2-dev libldap2-dev
+      - name: Sample existing API tests
+        env:
+          MREG_DB_HOST: localhost
+          MREG_DB_USER: mreg
+          MREG_DB_PASSWORD: postgres
+        run: |
+          uv sync --frozen --project revision
+          uv run --no-sync --project revision python driver/ci/profile_tests.py \
+            --checkout revision --output "$RUNNER_TEMP/profile.json" \
+            -- mreg.api hostpolicy.api 2>&1 | tee "$RUNNER_TEMP/profile.log"
+      - name: Upload measurements and test log
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: query-profile-${{ matrix.revision }}
+          path: |
+            ${{ runner.temp }}/profile.json
+            ${{ runner.temp }}/profile.log
+
+  compare:
+    name: Compare query counts
+    if: always()
+    needs: sample
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@v8.0.1
+        with:
+          pattern: query-profile-*
+          path: profiles
+      - name: Compare matching requests
+        env:
+          BASE_BRANCH: ${{ github.base_ref }}
+        run: |
+          baselines=(--baseline parent=profiles/query-profile-parent/profile.json)
+          if [[ "$BASE_BRANCH" != master ]]; then
+            baselines+=(--baseline master=profiles/query-profile-master/profile.json)
+          fi
+          python ci/compare_query_profiles.py \
+            --head profiles/query-profile-head/profile.json "${baselines[@]}" \
+            --summary profiles/summary.md --json profiles/comparison.json
+      - name: Publish job summary
+        if: always()
+        run: |
+          if [[ -f profiles/summary.md ]]; then
+            cat profiles/summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload comparison
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: query-profile-comparison
+          path: profiles/
