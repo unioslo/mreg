@@ -30,6 +30,7 @@
     'mreg.PtrOverride': 'PTR override',
     'mreg.ReverseZone': 'Reverse zone',
     'mreg.ReverseZoneDelegation': 'Reverse zone delegation',
+    'mreg.SnapshotThrottleState': 'Snapshot throttle state',
     'mreg.Srv': 'SRV record',
     'mreg.Sshfp': 'SSHFP record',
     'mreg.Txt': 'TXT record',
@@ -67,6 +68,7 @@
     'mreg.PtrOverride': 'PTR override',
     'mreg.ReverseZone': 'reverse zone',
     'mreg.ReverseZoneDelegation': 'reverse zone delegation',
+    'mreg.SnapshotThrottleState': 'snapshot throttle state',
     'mreg.Srv': 'SRV record',
     'mreg.Sshfp': 'SSHFP record',
     'mreg.Txt': 'TXT record',
@@ -190,6 +192,10 @@
     'mreg.ReverseZoneDelegation': dict({
       'verbose_name': 'reverse zone delegation',
       'verbose_name_plural': 'reverse zone delegations',
+    }),
+    'mreg.SnapshotThrottleState': dict({
+      'verbose_name': 'snapshot throttle state',
+      'verbose_name_plural': 'snapshot throttle states',
     }),
     'mreg.Srv': dict({
       'verbose_name': 'SRV record',
