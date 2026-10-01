@@ -50,16 +50,16 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get -y install libsasl2-dev libldap2-dev
-      - name: Sample existing API tests
+      - name: Benchmark selected API requests
         env:
           MREG_DB_HOST: localhost
           MREG_DB_USER: mreg
           MREG_DB_PASSWORD: postgres
         run: |
           uv sync --frozen --project revision
-          uv run --no-sync --project revision python driver/ci/profile_tests.py \
+          uv run --no-sync --project revision python driver/ci/query_bench sample \
             --checkout revision --output "$RUNNER_TEMP/profile.json" \
-            -- mreg.api hostpolicy.api 2>&1 | tee "$RUNNER_TEMP/profile.log"
+            --suite driver/ci/query-benchmarks.json 2>&1 | tee "$RUNNER_TEMP/profile.log"
       - name: Upload measurements and test log
         if: always()
         uses: actions/upload-artifact@v7.0.1
@@ -92,7 +92,7 @@ jobs:
           if [[ "$BASE_BRANCH" != master ]]; then
             baselines+=(--baseline master=profiles/query-profile-master/profile.json)
           fi
-          python ci/compare_query_profiles.py \
+          python ci/query_bench compare \
             --head profiles/query-profile-head/profile.json "${baselines[@]}" \
             --summary profiles/summary.md --json profiles/comparison.json
       - name: Publish job summary

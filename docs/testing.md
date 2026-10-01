@@ -1,86 +1,114 @@
 # Testing Guide
 
-## Comparing API query counts
+## Selected API benchmarks
 
-The `API query profiles` workflow runs the existing API tests on the PR head
-and the PR's target commit. For a PR targeting a branch other than `master`,
-it also samples `unioslo/mreg`'s current `master`. The report records the exact
-commits used. Each revision uses its own tests, dependencies, and test database.
+CI benchmarks a small, named set of GET requests from
+[`ci/query-benchmarks.json`](../ci/query-benchmarks.json), using the single
+`ci/query_bench` tool. It does not profile the whole test suite. Each case names
+an existing Django test fixture class and a request; application endpoints and
+functional tests need no benchmark instrumentation.
 
-An external wrapper intercepts synchronous Django `Client` and DRF `APIClient`
-requests. No endpoint-specific profiling code, decorator, application setting,
-or changes to existing functional tests are needed. Every request made inside
-a selected test method is sampled; fixture setup and teardown are excluded.
-Requests execute once, including POST/PATCH/DELETE. SQL execute calls are counted
-across the configured database connections in the request's thread.
-
-Run the wrapper from the repository root:
-
-```bash
-uv run python ci/profile_tests.py --output /tmp/head-queries.json -- mreg.api hostpolicy.api
-
-# Restrict sampling using normal Django test labels.
-uv run python ci/profile_tests.py --output /tmp/hosts.json -- mreg.api.v1.tests.test_host_query_profile
-
-# The output path can also come from the environment.
-MREG_QUERY_PROFILE_OUT=/tmp/head-queries.json uv run python ci/profile_tests.py -- mreg.api
-```
-
-The wrapper forces serial test execution to preserve request ordering. It
-captures the HTTP method, resolved route, query parameters, request occurrence,
-test ID, response status/result count, SQL count and attribution, and elapsed
-time. Dynamic path IDs do not create different endpoint identities. Request
-bodies, response bodies, and SQL parameters are not stored.
-
-Use the same wrapper to sample an older checkout; it does not need to contain
-the profiling tool:
+The PR head supplies the same runner and manifest for head, parent, and (for a
+stacked PR) master. Each checkout supplies its own application, dependencies,
+and fixture code. The benchmark runner invokes that fixture's normal Django
+setup/teardown, without executing its test methods or their assertions.
+The selected request gets three discarded warm-ups, one separate SQL-count
+run, and fifteen timed runs. Timing capture does not enable SQL logging or
+query-count wrappers. Fixture setup, parameter lookups, response validation,
+and teardown are outside the measured interval.
 
 ```bash
-uv run --project /path/to/parent python /path/to/head/ci/profile_tests.py \
-    --checkout /path/to/parent --output /tmp/parent-queries.json -- mreg.api hostpolicy.api
+# Run the selected suite.
+uv run python ci/query_bench sample \
+    --suite ci/query-benchmarks.json --output /tmp/head.json
 
-python ci/compare_query_profiles.py \
-    --head /tmp/head-queries.json \
-    --baseline parent=/tmp/parent-queries.json \
-    --baseline master=/tmp/master-queries.json \
-    --summary /tmp/query-summary.md --json /tmp/query-comparison.json
+# Select a subset by label; --case can be repeated.
+uv run python ci/query_bench sample \
+    --suite ci/query-benchmarks.json --case 'hosts/*' --output /tmp/hosts.json
+
+# Run the shared suite against a baseline with its own dependencies.
+uv run --project /path/to/parent python /path/to/head/ci/query_bench sample \
+    --suite /path/to/head/ci/query-benchmarks.json \
+    --checkout /path/to/parent --output /tmp/parent.json
+
+python ci/query_bench compare \
+    --head /tmp/head.json --baseline parent=/tmp/parent.json \
+    --baseline master=/tmp/master.json \
+    --summary /tmp/summary.md --json /tmp/comparison.json
 ```
 
-Omit the `master` argument for a PR targeting `master`. Keep the test selection
-the same for all revisions. Baseline sampling must use baseline dependencies;
-do not copy new tests or application code into a baseline checkout.
+Omit the `master` baseline for PRs targeting master. Timings are observations
+from an in-process Django test client, not production latency promises. CI
+revisions currently run on separate runners, so timing deltas are informational;
+only comparable query-count increases fail the check. The report shows median,
+p95 (nearest rank), timed run count, and discarded warm-up count. Every duration,
+min/max, sample standard deviation, and SQL attribution is retained in JSON.
 
-### What the report means
+### Opting a request in
 
-- Matching request identities are compared individually. An increased query
-  count fails CI; improvements elsewhere cannot cancel out a regression.
-- A request seen only on one revision is **missing** on the other. Missing
-  measurements are never counted as zero or reported as improvements. New
-  endpoints gain measurements as soon as existing functional tests exercise them.
-- Changed local test/fixture modules or different response statuses/result
-  counts are marked **incomparable**. The source check includes the test class's
-  module and local inherited test-class modules. This is deliberately conservative:
-  adding a test to a module also marks that module's other samples incomparable.
-  It does not prove equivalence of external fixtures or services; review fixture
-  changes when interpreting a report.
-- Installation, database, and test failures are **errors**, not missing baselines.
-  A head run with no samples also fails the comparison.
-- The endpoint table sums only paired, comparable requests. Detailed JSON retains
-  all observations, source fingerprints, missing cases, and SQL attribution.
-- Timings are informational observations with profiling overhead, not a latency
-  threshold or a replacement for repeated controlled benchmarks.
+Add a manifest entry with a stable, descriptive label of your choice:
 
-Only exercised endpoints are measured. `RequestFactory`, async clients, live
-HTTP clients, worker-thread queries, and streaming response bodies are outside
-the current capture boundary; streaming responses are marked incomparable.
-There are no hard-coded endpoint query budgets. The populated host/community
-tests additionally check that increasing page size or community membership does
-not increase query counts.
+```json
+{
+  "label": "hosts/detail/full",
+  "fixture": "mreg.api.v1.tests.test_host_query_profile.HostQueryProfileTestCase",
+  "path": "/api/v1/hosts/{first_host_name}"
+}
+```
 
-This design follows [rust-pr-bench](https://github.com/terjekv/rust-pr-bench):
-isolated revision runs, comparisons over matching measurement identities, and
-explicit missing results. The request profiler is specific to Django and does
-not depend on the Rust action.
+Path placeholders use attributes created by the fixture. Dynamic identifiers
+can also come from a preliminary GET, outside the measured interval:
+
+```json
+{
+  "label": "communities/hosts/50",
+  "fixture": "mreg.api.v1.tests.test_host_query_profile.HostQueryProfileTestCase",
+  "path": "/api/v1/networks/10.0.0.0/24/communities/{community_id}/hosts/",
+  "parameters": {
+    "community_id": {
+      "path": "/api/v1/networks/10.0.0.0/24/communities/",
+      "json": ["results", 0, "id"]
+    }
+  }
+}
+```
+
+The manifest also defines shared Django settings, warm-ups, and run count.
+Existing fixtures provide authentication and representative data. If no suitable
+fixture exists, it must be added explicitly; the runner does not invent one.
+Only synchronous, non-streaming GET requests are supported. Repeated calls
+share one fixture and warm database/application caches; choose read-only,
+repeatable endpoints. Normal tests still check endpoint correctness and query
+scaling independently.
+
+### Baseline compatibility and reporting
+
+A baseline does not need this tool or the manifest. Missing fixture modules,
+fixture classes, or URL routes are reported per label as **missing from that
+baseline**, without numbers or deltas. New fixtures are not copied into old
+checkouts. Missing dependencies, broken fixture setup, lookup failures, or a
+non-200 response from an existing route are **errors**, not missing benchmarks.
+
+Definitions, shared settings, and local fixture/inherited-class source modules
+are fingerprinted. A changed fixture, request/response workload, or measurement
+setting is **incomparable**: raw observations remain visible, but no delta is
+calculated and no query regression is inferred. The source check is conservative
+and includes the whole fixture module; it does not prove external service or
+fixture equivalence. Every selected label remains visible even when neither
+revision can run it. Missing measurements are never zero, and improvements
+cannot offset another benchmark's regression.
+
+The same compact report appears in the job summary and one updated bot comment
+on the PR, with links to the run and artifacts. A separate `workflow_run`
+reporter supports fork PRs: only default-branch code receives comment permission,
+and artifact JSON is read without extraction or execution. GitHub API metadata
+identifies the PR; outdated commits/runs cannot overwrite newer comments.
+Automatic comments begin once the reporter reaches the default branch, as
+required by [GitHub's workflow_run event](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_run).
+
+This follows [rust-pr-bench](https://github.com/terjekv/rust-pr-bench)'s selected
+cases, shared measurement identities, isolated revisions, and explicit missing
+results. It has no Rust runtime dependency.
 
 ## Running Tests
 
