@@ -59,10 +59,13 @@ def parse_protected_policy_attrs(raw: str) -> list[dict[str, str]]:
     return out
 
 
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+_DEFAULT_DOTENV_PATH = _PROJECT_ROOT / ".env"
+
+
 def configure_environment() -> None:
-    default_path = Path(__file__).resolve().parents[1] / ".env"
     load_dotenv(
-        os.getenv("MREG_DOTENV_PATH", str(default_path)),
+        os.getenv("MREG_DOTENV_PATH", _DEFAULT_DOTENV_PATH),
         override=envvar("MREG_DOTENV_OVERRIDE", False),
     )
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "mregsite.settings")
