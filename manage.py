@@ -1,15 +1,11 @@
 #!/usr/bin/env python
-import os
 import sys
 
 if __name__ == "__main__":
-    from dotenv import load_dotenv
-    from mreg.env import envvar
+    from mreg.env import configure_environment
 
-    load_dotenv(os.getenv("MREG_DOTENV_PATH"), override=envvar("MREG_DOTENV_OVERRIDE", False))
+    configure_environment()
 
-    # use default settings module if dotenv doesn't override it
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "mregsite.settings")
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:

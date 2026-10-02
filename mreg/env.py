@@ -1,5 +1,7 @@
 import os
 from typing import TypeVar
+from pathlib import Path
+from dotenv import load_dotenv
 
 DefaultT = TypeVar("DefaultT", str, int, float, bool)
 
@@ -55,3 +57,12 @@ def parse_protected_policy_attrs(raw: str) -> list[dict[str, str]]:
         desc = value if value else f"Protected attribute {key}."
         out.append({"name": key, "description": desc})
     return out
+
+
+def configure_environment() -> None:
+    default_path = Path(__file__).resolve().parents[1] / ".env"
+    load_dotenv(
+        os.getenv("MREG_DOTENV_PATH", str(default_path)),
+        override=envvar("MREG_DOTENV_OVERRIDE", False),
+    )
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "mregsite.settings")
