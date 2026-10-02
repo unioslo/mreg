@@ -1,0 +1,33 @@
+{
+  "warmups": 3,
+  "runs": 15,
+  "settings": {"MREG_MAP_GLOBAL_COMMUNITY_NAMES": false},
+  "benchmarks": [
+    {
+      "label": "hosts/list/100",
+      "fixture": "mreg.api.v1.tests.test_host_query_profile.HostQueryProfileTestCase",
+      "path": "/api/v1/hosts/"
+    },
+    {
+      "label": "hosts/detail/full",
+      "fixture": "mreg.api.v1.tests.test_host_query_profile.HostQueryProfileTestCase",
+      "path": "/api/v1/hosts/{first_host_name}"
+    },
+    {
+      "label": "communities/list/2",
+      "fixture": "mreg.api.v1.tests.test_host_query_profile.HostQueryProfileTestCase",
+      "path": "/api/v1/networks/10.0.0.0/24/communities/"
+    },
+    {
+      "label": "communities/hosts/50",
+      "fixture": "mreg.api.v1.tests.test_host_query_profile.HostQueryProfileTestCase",
+      "path": "/api/v1/networks/10.0.0.0/24/communities/{community_id}/hosts/",
+      "parameters": {
+        "community_id": {
+          "path": "/api/v1/networks/10.0.0.0/24/communities/",
+          "json": ["results", 0, "id"]
+        }
+      }
+    }
+  ]
+}

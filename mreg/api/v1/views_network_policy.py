@@ -1,4 +1,5 @@
 from django.db import transaction
+from django.db.models import Prefetch
 from django.urls import reverse
 from rest_framework import exceptions, generics, response, status
 
@@ -9,7 +10,7 @@ from mreg.api.permissions import IsGrantedNetGroupRegexPermission, IsSuperOrNetw
 from mreg.api.v1.endpoints import URL
 from mreg.api.v1.filters import CommunityFilterSet, HostFilterSet, NetworkPolicyAttributeFilterSet, NetworkPolicyFilterSet
 from mreg.api.v1.serializers import CommunitySerializer, HostSerializer, NetworkPolicyAttributeSerializer, NetworkPolicySerializer
-from mreg.api.v1.views import HistoryLog, JSONContentTypeMixin
+from mreg.api.v1.views import HistoryLog, JSONContentTypeMixin, _host_prefetcher
 from mreg.models.host import Host, Ipaddress
 from mreg.models.network import Network
 from mreg.models.network_policy import Community, HostCommunityMapping, NetworkPolicy, NetworkPolicyAttribute
@@ -128,7 +129,9 @@ class NetworkCommunityList(JSONContentTypeMixin, CommunityLogMixin, generics.Lis
 
     def get_queryset(self):
         network = self.kwargs.get("network")
-        return Community.objects.filter(network__network=network).order_by("id")
+        return Community.objects.filter(network__network=network).order_by("id").select_related("network").prefetch_related(
+            Prefetch("hosts", queryset=Host.objects.only("name")),
+        )
 
     def create(self, request, *args, **kwargs):
         network = self.kwargs.get("network")
@@ -172,7 +175,9 @@ class NetworkCommunityDetail(JSONContentTypeMixin, CommunityLogMixin, generics.R
 
     def get_queryset(self):
         network = self.kwargs.get("network")
-        return Community.objects.filter(network__network=network).order_by("id")
+        return Community.objects.filter(network__network=network).order_by("id").select_related("network").prefetch_related(
+            Prefetch("hosts", queryset=Host.objects.only("name")),
+        )
 
     def get_object(self):
         queryset = self.get_queryset()
@@ -212,7 +217,8 @@ class NetworkCommunityHostList(HostInCommunityMixin, generics.ListCreateAPIView)
             return Host.objects.none()
         _, community = self.get_policy_and_community()
         return HostFilterSet(
-            data=self.request.GET, queryset=Host.objects.filter(communities__in=[community]).order_by("id").distinct()
+            data=self.request.GET,
+            queryset=_host_prefetcher(Host.objects.filter(communities__in=[community]).order_by("id").distinct()),
         ).qs
 
     def create(self, request, *args, **kwargs):
@@ -267,8 +273,13 @@ class NetworkCommunityHostDetail(HostInCommunityMixin, generics.RetrieveDestroyA
         if "network" not in self.kwargs or "cpk" not in self.kwargs:
             return Host.objects.none()
         _, community = self.get_policy_and_community()
+        queryset = Host.objects.filter(communities__in=[community]).order_by("id").distinct()
+        # DELETE removes a mapping without serializing the host.
+        if self.request.method == "GET":
+            queryset = _host_prefetcher(queryset)
         return HostFilterSet(
-            data=self.request.GET, queryset=Host.objects.filter(communities__in=[community]).order_by("id").distinct()
+            data=self.request.GET,
+            queryset=queryset,
         ).qs
 
     def get_object(self):

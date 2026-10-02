@@ -378,7 +378,9 @@ def _host_prefetcher(qs):
             "hostcommunitymapping_set",
             # community__network is needed because CommunitySerializer
             # serializes the network CIDR for every mapping.
-            queryset=HostCommunityMapping.objects.select_related("community__network"),
+            queryset=HostCommunityMapping.objects.select_related("community__network").prefetch_related(
+                Prefetch("community__hosts", queryset=Host.objects.only("name")),
+            ),
         ),
     )
 

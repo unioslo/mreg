@@ -1,0 +1,32 @@
+name: Report API query profiles
+
+on:
+  workflow_run:
+    workflows: [API query profiles]
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: write
+
+concurrency:
+  group: query-profile-comment-${{ github.event.workflow_run.head_repository.full_name }}-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  report:
+    if: github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out the trusted reporter
+        uses: actions/checkout@v7.0.1
+        with:
+          # workflow_run uses the default branch, never the PR's code.
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Update the PR comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -I ci/query_bench comment

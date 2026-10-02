@@ -1,95 +1,16 @@
+"""Host/community query samples, with no fixed query-count budgets.
+
+The populated fixture originated in PR #635. The repeated membership-query
+problem was identified in https://github.com/unioslo/mreg/pull/635#issuecomment-5914275961.
+These tests assert that larger pages do not add queries. The external CI
+profiler captures their requests without endpoint-specific instrumentation.
 """
-NOTE
----
-
-This is an almost 100% AI-generated module by GLM 5.3. 
-Some manual cleanup has been applied, but the core structure and logic
-is fully AI-generated.
-
----
-
-Module to pin the number of SQL queries the host endpoints execute.
-
-GET /hosts/ and /hosts/<name> serialize each host with all its related
-objects, and every relation the view does not prefetch costs one extra
-query per serialized object.  These tests make a GET against each endpoint
-on a fixed dataset -- one full page of hosts where every relation has
-data, plus one host detail -- count the SQL queries the request executes,
-and fail if the count differs from the pinned number.
-
-When a test fails, the message lists the queries per table with a sample of
-each; a count that matches the number of serialized objects points at the
-missing prefetch.  If the new count is intentional, update the pinned
-number in the same commit.
-
-This module can run in 2 different modes:
-
-- Test mode: verify the query count against the pinned number. 
-- Benchmark mode: measure and record the query profile without asserting the count.
-
-Test mode:
-    Running this module as part of the regular test suite will verify that
-    the endpoints continue to execute the expected number of SQL queries.
-    Used as part of the regular test suite. Asserts and fails if the query
-    count changes, requiring an update to the pinned number if intentional,
-    and/or a review of the query profile to identify missing prefetches.
-
-Benchmark mode:
-    Run with MREG_BENCH_OUT=/path/to/bench.json to skip the assertions and
-    instead write measurements (query counts, per-table query attribution
-    and median wall time over MREG_BENCH_RUNS requests) to a JSON file.
-    This allows comparing the query profile between two revisions, e.g.
-    the branch under test and the commit it started from:
-
-        git worktree add ../mreg-base <base-commit>
-        # (uv sync in both worktrees, copy this file into the base worktree)
-        MREG_BENCH_OUT=base.json uv run manage.py test \
-            mreg.api.v1.tests.test_host_query_profile
-        MREG_BENCH_OUT=branch.json uv run manage.py test \
-            mreg.api.v1.tests.test_host_query_profile
-
-
-Sample output on query count mismatch:
-
-```
-AssertionError: 2206 != 221 : GET /hosts/ (100 hosts, 200 community mappings): expected 221 queries, got 2206. [...]
-Query attribution (count, table, db time, sample SQL):
-   202x host                   (  502.0ms) SELECT COUNT(*) AS "__count" FROM "host"
-   200x host_contact           (  400.0ms) SELECT "host_contact"."id", "host_contact"."created_at", ...
-   200x network                (  353.0ms) SELECT "network"."id", "network"."created_at", ...
-   200x mreg_community         (  317.0ms) SELECT "mreg_community"."id", "mreg_community"."created_at", ...
-   100x srv                    (  215.0ms) SELECT "srv"."id", "srv"."created_at", ...
-   100x txt                    (  213.0ms) SELECT "txt"."id", "txt"."created_at", ...
-   100x hinfo                  (  194.0ms) SELECT "hinfo"."created_at", ...
-   100x naptr                  (  192.0ms) SELECT "naptr"."id", "naptr"."created_at", ...
-   100x sshfp                  (  192.0ms) SELECT "sshfp"."id", "sshfp"."created_at", ...
-   100x hostpolicy_role        (  188.0ms) SELECT "hostpolicy_role"."id", ...
-   100x bacnetid               (  188.0ms) SELECT "bacnetid"."id", "bacnetid"."host_id" FROM "bacnetid" WHERE ...
-   100x host_community_mapping (  188.0ms) SELECT "host_community_mapping"."id", ...
-   100x mx                     (  183.0ms) SELECT "mx"."id", "mx"."created_at", ...
-   100x loc                    (  181.0ms) SELECT "loc"."created_at", ...
-   100x ptr_override           (  157.0ms) SELECT "ptr_override"."id", ...
-   100x hostgroup              (  157.0ms) SELECT "hostgroup"."id", ...
-   100x ipaddress              (  137.0ms) SELECT "ipaddress"."id", ...
-   100x cname                  (  134.0ms) SELECT "cname"."id", "cname"."created_at", ...
-     1x mreg_expiringtoken     (    1.0ms) SELECT "authtoken_token"."key", ...
-     1x mreg_user              (    1.0ms) SELECT "mreg_user"."id", ...
-Hint: a per-object count (>1) on a table means an unfetched relation; re-run with MREG_BENCH_OUT=<path> for the full attribution and SQL.
-```
-"""
-
-import json
-import os
-import re
-import time
-from dataclasses import asdict, dataclass
-from typing import Any
 
 from django.db import connection
+from django.test import override_settings
 from django.test.utils import CaptureQueriesContext
 
 from hostpolicy.models import HostPolicyRole
-
 from mreg.models.host import BACnetID, Host, HostContact, HostGroup, Ipaddress, PtrOverride
 from mreg.models.network import Network
 from mreg.models.network_policy import Community, HostCommunityMapping
@@ -97,115 +18,13 @@ from mreg.models.resource_records import Cname, Hinfo, Loc, Mx, Naptr, Srv, Sshf
 
 from .tests import MregAPITestCase
 
-# Benchmark mode: write measurements to this file instead of asserting.
-BENCH_OUT = os.environ.get("MREG_BENCH_OUT")
-BENCH_RUNS = int(os.environ.get("MREG_BENCH_RUNS", "5"))
-
-# Dataset shape.  One full page of hosts, every prefetched relation populated.
 NUM_NETWORKS = 2
 COMMUNITIES_PER_NETWORK = 2
 NUM_HOSTS = 100
-NUM_COMMUNITY_MAPPINGS = NUM_HOSTS * COMMUNITIES_PER_NETWORK
-
-# Crude per-table attribution of the captured SQL (first FROM/JOIN table).
-_TABLE_RE = re.compile(r"\b(?:FROM|JOIN)\s+[\"']?([a-zA-Z_][a-zA-Z_0-9]*)")
-
-# Number of distinct SQL statements kept per table as samples.
-_SAMPLE_LIMIT = 3
 
 
-@dataclass(frozen=True, slots=True)
-class TableStats:
-    """Query statistics for one database table.
-
-    Attributes:
-        count: Number of captured queries attributed to the table.
-        time_seconds: Cumulative database time of those queries.
-        samples: The first distinct SQL statements (at most _SAMPLE_LIMIT),
-            e.g. an unfetched relation shows up as many identical queries
-            with a single sample, which identifies the offending code path.
-    """
-
-    count: int
-    time_seconds: float
-    samples: list[str]
-
-
-@dataclass(frozen=True, slots=True)
-class Measurement:
-    """Measurements for one GET request against an endpoint.
-
-    Attributes:
-        query_count: Number of SQL queries the request executed.
-        median_seconds: Median wall time of the request over BENCH_RUNS runs.
-        tables: Per-table attribution of the executed queries.
-    """
-
-    query_count: int
-    median_seconds: float
-    tables: dict[str, TableStats]
-
-
-def _table_attribution(captured_queries: list[dict[str, str]]) -> dict[str, TableStats]:
-    """Return the per-table attribution of the captured queries."""
-    stats: dict[str, TableStats] = {}
-    for query in captured_queries:
-        match = _TABLE_RE.search(query["sql"])
-        if match:
-            table = match.group(1)
-            prev = stats.get(table, TableStats(count=0, time_seconds=0.0, samples=[]))
-            samples = prev.samples
-            if len(samples) < _SAMPLE_LIMIT and query["sql"] not in samples:
-                samples = [*samples, query["sql"]]
-            stats[table] = TableStats(
-                count=prev.count + 1,
-                time_seconds=prev.time_seconds + float(query["time"]),
-                samples=samples,
-            )
-    return dict(sorted(stats.items(), key=lambda item: (-item[1].count, -item[1].time_seconds)))
-
-
-def _format_attribution(tables: dict[str, TableStats]) -> str:
-    """Format the attribution as one line per table: count, table, db time, sample."""
-    lines = []
-    for table, stats in tables.items():
-        sample = stats.samples[0] if stats.samples else ""
-        sample = (sample[:100] + " ...") if len(sample) > 100 else sample
-        lines.append(f"  {stats.count:>4}x {table:<22} ({stats.time_seconds * 1000:>7.1f}ms) {sample}")
-    return "\n".join(lines)
-
-
-# Pinned query counts for the dataset above.  If a change is intentional,
-# update the number in the same commit and say why.
-PINNED_HOST_LIST_QUERIES = 221
-PINNED_HOST_DETAIL_QUERIES = 22
-
-
+@override_settings(MREG_MAP_GLOBAL_COMMUNITY_NAMES=False)
 class HostQueryProfileTestCase(MregAPITestCase):
-    first_host_name: str = "HOST_NOT_CONFIGURED"
-
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls._bench_measurements: list[dict[str, Any]] = []
-        if BENCH_OUT:
-            cls.addClassCleanup(cls._write_bench, BENCH_OUT)
-
-    @classmethod
-    def _write_bench(cls, file: str):
-        payload = {
-            "dataset": {
-                "networks": NUM_NETWORKS,
-                "communities_per_network": COMMUNITIES_PER_NETWORK,
-                "hosts": NUM_HOSTS,
-                "community_mappings": NUM_COMMUNITY_MAPPINGS,
-                "bench_runs": BENCH_RUNS,
-            },
-            "measurements": cls._bench_measurements,
-        }
-        with open(file, "w") as fp:
-            json.dump(payload, fp, indent=2)
-
     def setUp(self):
         super().setUp()
         self.set_client_format_json()
@@ -282,61 +101,36 @@ class HostQueryProfileTestCase(MregAPITestCase):
                 mappings.append(HostCommunityMapping(host=host, ipaddress=ipaddresses[i], community=community))
         HostCommunityMapping.objects.bulk_create(mappings)
         self.first_host_name = hosts[0].name
+        self.first_community_id = communities[0].pk
 
-    def _measure_get(self, path: str) -> Measurement:
-        """Return the Measurement for GET on path."""
-        # Warm-up and timing runs (timings are only recorded in bench mode).
-        durations: list[float] = []
-        for _ in range(BENCH_RUNS):
-            start = time.perf_counter()
+    def _count_get(self, path: str, *, expected_results: int | None = None) -> int:
+        with CaptureQueriesContext(connection) as queries:
             response = self.client.get(self._create_path(path), format=self.format.value)
-            durations.append(time.perf_counter() - start)
-        self.assertEqual(response.status_code, 200, f"GET {path} did not return 200")
-        durations.sort()
-        median_seconds = durations[len(durations) // 2]
-
-        # Query counting on a separate run, so the capture itself cannot
-        # affect the timings.
-        with CaptureQueriesContext(connection) as ctx:
-            response = self.client.get(self._create_path(path), format=self.format.value)
-        self.assertEqual(response.status_code, 200, f"GET {path} did not return 200")
-        return Measurement(
-            query_count=len(ctx.captured_queries),
-            median_seconds=median_seconds,
-            tables=_table_attribution(ctx.captured_queries),
-        )
-
-    def _record(self, endpoint: str, measurement: Measurement, pinned_count: int) -> None:
-        if BENCH_OUT:
-            data = asdict(measurement)
-            data["median_seconds"] = round(data["median_seconds"], 6)
-            self._bench_measurements.append({"endpoint": endpoint, **data})
-        else:
-            self.assertEqual(
-                measurement.query_count,
-                pinned_count,
-                f"{endpoint}: expected {pinned_count} queries, got {measurement.query_count}. "
-                "The query profile of the host endpoints changed; if this is "
-                "intentional, update the pinned count in this test.\n"
-                "Query attribution (count, table, db time, sample SQL):\n"
-                f"{_format_attribution(measurement.tables)}\n"
-                "Hint: a per-object count (>1) on a table means an unfetched "
-                "relation; re-run with MREG_BENCH_OUT=<path> for the full "
-                "attribution and sample SQL of every table.",
-            )
+        self.assertEqual(response.status_code, 200)
+        if expected_results is not None:
+            self.assertEqual(len(response.json()["results"]), expected_results)
+        return len(queries)
 
     def test_host_list_query_count(self):
-        measurement = self._measure_get("hosts/")
-        self._record(
-            f"GET /hosts/ ({NUM_HOSTS} hosts, {NUM_COMMUNITY_MAPPINGS} community mappings)",
-            measurement,
-            PINNED_HOST_LIST_QUERIES,
-        )
+        small = self._count_get("hosts/?page_size=1", expected_results=1)
+        full = self._count_get("hosts/", expected_results=NUM_HOSTS)
+        self.assertLessEqual(full, small)
 
     def test_host_detail_query_count(self):
-        measurement = self._measure_get(f"hosts/{self.first_host_name}")
-        self._record(
-            f"GET /hosts/{self.first_host_name} (host with full related data)",
-            measurement,
-            PINNED_HOST_DETAIL_QUERIES,
-        )
+        path = f"hosts/{self.first_host_name}"
+        full = self._count_get(path)
+        HostCommunityMapping.objects.filter(host__name=self.first_host_name).first().delete()
+        small = self._count_get(path)
+        self.assertLessEqual(full, small)
+
+    def test_network_community_list_query_count(self):
+        path = "networks/10.0.0.0/24/communities/"
+        small = self._count_get(path + "?page_size=1", expected_results=1)
+        full = self._count_get(path, expected_results=COMMUNITIES_PER_NETWORK)
+        self.assertLessEqual(full, small)
+
+    def test_network_community_host_list_query_count(self):
+        path = f"networks/10.0.0.0/24/communities/{self.first_community_id}/hosts/"
+        small = self._count_get(path + "?page_size=1", expected_results=1)
+        full = self._count_get(path, expected_results=NUM_HOSTS // NUM_NETWORKS)
+        self.assertLessEqual(full, small)

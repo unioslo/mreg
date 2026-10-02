@@ -344,6 +344,48 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
         Host.objects.get(pk=detail_res.json()["id"]).delete()
         net.delete()
 
+    def test_prefetched_community_memberships_are_complete(self):
+        """Pagination must not truncate membership lists or collapse IP mappings."""
+        network = Network.objects.create(network="10.0.99.0/24", description="membership prefetch")
+        community = self._create_community("members", "", network)
+        empty_community = self._create_community("empty", "", network)
+        hosts = Host.objects.bulk_create(Host(name=f"member{i}.example.org") for i in range(3))
+        ips = Ipaddress.objects.bulk_create([
+            Ipaddress(host=host, ipaddress=f"10.0.99.{i + 2}")
+            for i, host in enumerate([hosts[0], hosts[0], hosts[1], hosts[2]])
+        ])
+        HostCommunityMapping.objects.bulk_create(
+            HostCommunityMapping(host_id=ip.host_id, ipaddress=ip, community=community) for ip in ips
+        )
+        # Existing responses contain a name per mapping, including hosts with
+        # multiple IPs in the same community. Preserve that representation.
+        expected_members = [hosts[0].name, hosts[0].name, hosts[1].name, hosts[2].name]
+        community_path = f"networks/{network.network}/communities/{community.pk}"
+
+        for path in ("hosts/?page_size=1", f"{community_path}/hosts/?page_size=1"):
+            with self.subTest(path=path):
+                data = self.assert_get(path).json()
+                self.assertEqual(data["count"], 3)
+                self.assertEqual(len(data["results"]), 1)
+                mappings = data["results"][0]["communities"]
+                self.assertEqual(len(mappings), 2)
+                for mapping in mappings:
+                    self.assertCountEqual(mapping["community"]["hosts"], expected_members)
+                    self.assertEqual(mapping["community"]["network_cidr"], str(network.network))
+
+        for path in (f"hosts/{hosts[0].name}", f"{community_path}/hosts/{hosts[0].pk}"):
+            with self.subTest(path=path):
+                mappings = self.assert_get(path).json()["communities"]
+                self.assertEqual(len(mappings), 2)
+                for mapping in mappings:
+                    self.assertCountEqual(mapping["community"]["hosts"], expected_members)
+
+        communities = self.assert_get(f"networks/{network.network}/communities/").json()["results"]
+        by_id = {item["id"]: item for item in communities}
+        self.assertCountEqual(by_id[community.pk]["hosts"], expected_members)
+        self.assertEqual(by_id[empty_community.pk]["hosts"], [])
+        self.assertCountEqual(self.assert_get(community_path).json()["hosts"], expected_members)
+
     def test_create_community_no_name_400(self):
         """Test creating a community without a name."""
         network = Network.objects.create(network="10.0.0.0/24", description="test_network")
