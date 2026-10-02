@@ -126,7 +126,7 @@ uv run manage.py test --parallel
 uv run manage.py test --parallel=4
 ```
 
-This will significantly reduce test execution time (from 10-12 minutes to 2-4 minutes typically). Django creates separate test databases for each parallel process, and tests still use transaction rollback for isolation.
+This will significantly reduce test execution time (from 10-12 minutes to 2-4 minutes typically). Django creates separate test databases for each parallel process, and tests still use transaction rollback for isolation. Tox runs the tests in parallel mode by default.
 
 **Running with coverage:**
 
@@ -141,15 +141,35 @@ The `coverage combine` step is required to merge coverage data from all parallel
 
 ### Updating test snapshots
 
-Some tests may generate snapshot files that need to be updated when the expected output changes. Snapshot tests are currently run via pytest (and are automatically executed with `tox`). To update the snapshots only, you can run:
+Some tests may generate snapshot files that need to be updated when the expected output changes. Snapshot tests are currently run via pytest (and are automatically executed with `tox`). If snapshot tests fail, you can update the snapshots interactively by running:
 
 ```bash
-pytest --snapshot-update
+uv run pytest --inline-snapshot=review
+```
+
+Or to just update all snapshots without reviewing:
+
+```bash
+uv run pytest --inline-snapshot=fix
+```
+
+New snapshots can be created via:
+
+```bash
+uv run pytest --inline-snapshot=create
 ```
 
 ## Environment Variables
 
-mreg supports configuration via environment variables with the `MREG_` prefix. These can be used to override default settings without modifying `settings.py` or creating a `local_settings.py` file. This is especially useful when running mreg in containers or deployment environments.
+mreg supports configuration via environment variables with the `MREG_` prefix. These can be used to override default settings without modifying `settings.py` or creating a `local_settings.py` file. This is especially useful when running mreg in containers or deployment environments. The applications supports reading from a dotenv file (`.env`) to set environment variables. The path to the dotenv file can be overridden by setting the `MREG_DOTENV_PATH` environment variable.
+
+By default, the dotenv file is expected to be located at the project root with the name `.env`.
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `MREG_DOTENV_PATH` | `.env` | Path to the dotenv file.|
+| `MREG_DOTENV_OVERRIDE` | `False` | Override existing environment variables with values from the dotenv file. Makes the .env file the authoritative source for environment variables.|
+
 
 ### Database Configuration
 
@@ -203,7 +223,22 @@ mreg supports configuration via environment variables with the `MREG_` prefix. T
 | `MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY` | `True` | Require MAC address for an IP to be added to a community |
 | `MREG_REQUIRE_VLAN_FOR_NETWORK_TO_HAVE_COMMUNITY` | `False` | Require VLAN to be set for a network for it to have communities |
 
-### Example Usage
+### Django Configuration for VS Code
+
+Running tests via the VS Code test runner (or other methods that otherwise bypass `manage.py`) requires setting the `MANAGE_PY_PATH` environment variable to point to the `manage.py` file of the Django project. `DJANGO_SETTINGS_MODULE` is also available to override for specific local needs.
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `DJANGO_SETTINGS_MODULE` | `""` | Django settings module. Required when not running via `manage.py`|
+| `MANAGE_PY_PATH` | `""` | Path to the `manage.py` file of the Django project. Required when running via VS Code test runner or other methods that bypass `manage.py`|
+
+Copy the bundled `.env.example` file to `.env` to make VS Code automatically source the default settings module.
+
+```bash
+cp .env.example .env
+```
+
+### Example Environment Variables Usage With Docker
 
 ```bash
 # Using environment variables with Docker
@@ -219,6 +254,34 @@ docker run --network host \
 
 ## Local Settings
 
+The application supports setting the aforementioned settings persistently via a `.env` file.
+
+### `.env`
+
+To override entries in `mregsite/settings.py`, create a file `.env` or rename `.env.example` to `.env`.
+
+Example `.env` file:
+
+```bash
+DJANGO_SETTINGS_MODULE=mregsite.settings
+MREG_DB_NAME=mreg_sample
+MREG_DB_USER=mreg_user
+MREG_DB_PASSWORD=mregdbpass
+MREG_DB_HOST=localhost
+MREG_DB_PORT=5432
+```
+
+The default database setup in `settings.py` uses Django's postgres connection pool, but if you want to disable pooling for local development, you can set `MREG_DB_POOL_ENABLED` to `0` or `false` in `.env`:
+
+```bash
+MREG_DB_POOL_ENABLED=0 # or false
+```
+
+### `local_settings.py` (deprecated)
+
+> [!WARNING]
+> `local_settings.py` is deprecated. Prefer using a `.env` file for local configuration. `local_settings.py` allows arbitrary Python code, which can lead to security and maintainability issues.
+
 To override entries in `mregsite/settings.py`, create a file `mregsite/local_settings.py` and add the entries there.
 
 ```python
@@ -229,16 +292,11 @@ MREG_DB_HOST = "localhost"
 MREG_DB_PORT = "5432"
 ```
 
-The default database setup in `settings.py` uses Django's postgres connection pool, but if you want to disable pooling for local development, you can set `MREG_DB_USE_POOL` to `False` in `local_settings.py`:
+
+The default database setup in `settings.py` uses Django's postgres connection pool, but if you want to disable pooling for local development, you can set `MREG_DB_POOL_ENABLED` to `False` in `local_settings.py`:
 
 ```python
-MREG_DB_USE_POOL = False
-```
-
-or via environment variable:
-
-```bash
-export MREG_DB_USE_POOL=False
+MREG_DB_POOL_ENABLED = False
 ```
 
 ## Profiling
