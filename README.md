@@ -163,6 +163,8 @@ uv run pytest --inline-snapshot=create
 
 mreg supports configuration via environment variables with the `MREG_` prefix. These can be used to override default settings without modifying `settings.py` or creating a `local_settings.py` file. This is especially useful when running mreg in containers or deployment environments. The applications supports reading from a dotenv file (`.env`) to set environment variables. The path to the dotenv file can be overridden by setting the `MREG_DOTENV_PATH` environment variable.
 
+By default, the dotenv file is expected to be located at the project root with the name `.env`.
+
 | Variable | Default | Description |
 | -------- | ------- | ----------- |
 | `MREG_DOTENV_PATH` | `.env` | Path to the dotenv file.|
