@@ -150,7 +150,7 @@ uv run pytest --inline-snapshot=review
 Or to just update all snapshots without reviewing:
 
 ```bash
-uv run pytest --inline-snapshot=update
+uv run pytest --inline-snapshot=fix
 ```
 
 New snapshots can be created via:
