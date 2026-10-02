@@ -1,4 +1,4 @@
-"""Tests for dotenv functionality.
+"""Tests for environment configuration.
 
 Each test boots Django in a subprocess via one of the entry points in
 BOOT_COMMANDS, with `MREG_DOTENV_PATH` pointed at a test .env file, and
