@@ -28,13 +28,15 @@ BOOT_COMMANDS = [
 ]
 
 
+_PROTECTED_ENV_VARS = {"MREG_LOG_LEVEL", "MREG_DOTENV_PATH", "MREG_DOTENV_OVERRIDE"}
+
 @pytest.fixture(name="env_file")
 def _env_file(tmp_path: Path) -> Path:
     """Return the path to a fresh .env file for the current test."""
     return tmp_path / ".env"
 
 
-def boot_and_read_log_level(boot_command: list[str], env_file: Path, extra_env: Mapping[str, str] = {}) -> str:
+def boot_and_read_log_level(boot_command: list[str], env_file: Path | None, extra_env: Mapping[str, str] | None = None) -> str:
     """Boot Django in a subprocess and return the printed LOG_LEVEL line.
 
     MREG_LOG_LEVEL is dropped from the inherited environment so its value can only come
@@ -48,10 +50,11 @@ def boot_and_read_log_level(boot_command: list[str], env_file: Path, extra_env: 
     Returns:
         The last line of the subprocess stdout, e.g. `settings.LOG_LEVEL='DEBUG'`.
     """
-    child_env = {k: v for k, v in os.environ.items() if k != "MREG_LOG_LEVEL"}
-    child_env["MREG_DOTENV_PATH"] = str(env_file)
-    child_env["MREG_DOTENV_OVERRIDE"] = "False"  # ensure test invoker does not pass override by default
-    child_env.update(extra_env)
+    child_env = {k: v for k, v in os.environ.items() if k not in _PROTECTED_ENV_VARS}
+    if env_file is not None:
+        child_env["MREG_DOTENV_PATH"] = str(env_file)
+
+    child_env.update(extra_env or {})
     result = subprocess.run(boot_command, env=child_env, cwd=REPO_ROOT, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
     return result.stdout.splitlines()[-1]
@@ -90,3 +93,15 @@ class TestDotenvLogLevel:
         # Change the .env file to see if it is reloaded in the next subprocess.
         env_file.write_text("MREG_LOG_LEVEL=ERROR\n")
         assert boot_and_read_log_level(boot_command, env_file) == snapshot("settings.LOG_LEVEL='ERROR'")
+
+    def test_env_file_does_not_exist_no_path_specified(self, env_file: Path, boot_command: list[str]) -> None:
+        """Behavior when the .env file does not exist and no path is specified."""
+        env_file.unlink(missing_ok=True)
+        level = boot_and_read_log_level(boot_command, None)
+        assert level == snapshot("settings.LOG_LEVEL='CRITICAL'")
+    
+    def test_env_file_does_not_exist_explicit_path(self, env_file: Path, boot_command: list[str]) -> None:
+        """Behavior when the .env file does not exist and is explicitly specified as env var."""
+        env_file.unlink(missing_ok=True)
+        level = boot_and_read_log_level(boot_command, None, extra_env={"MREG_DOTENV_PATH": str(env_file)})
+        assert level == snapshot("settings.LOG_LEVEL='CRITICAL'")
