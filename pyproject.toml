@@ -28,6 +28,7 @@ dependencies = [
     "unittest-parametrize",
     "prometheus-client>=0.20",
     "tblib>=3.2.2",
+    "python-dotenv>=1.2.3",
 ]
 dynamic = ["version"]
 
@@ -38,9 +39,10 @@ dev = [
     "coverage[toml]",
     "pytest",
     "pytest-django",
-    "syrupy",
     "uv>=0.9",
+    "inline-snapshot>=0.35.4",
     {include-group = "profile"},
+    {include-group = "lint"},
 ]
 ci = [
     # Explictly include dev group for non-uv package managers
@@ -50,11 +52,17 @@ ci = [
     "coveralls",
 ]
 profile = ["django-silk[formatting]>=5.5.0"]
+lint = [
+    "ruff>=0.16.9",
+]
+
+[tool.inline-snapshot]
+format-command="ruff check --fix-only --stdin-filename {filename} | ruff format --stdin-filename {filename}"
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "mregsite.settings"
-# Scoped to just the snapshot tests currently:
-testpaths = ["mreg/tests/test_display_name_snapshot.py"]
+# Add/remove specific pytest test paths as needed
+testpaths = ["mreg/tests/pytest_tests/**"]
 
 [tool.ruff]
 line-length = 140
