@@ -23,9 +23,6 @@ EOF
 Finally add settings to django:
 ```
 cat >> .env << EOF
-MANAGE_PY_PATH=manage.py
-DJANGO_SETTINGS_MODULE=mregsite.settings
-
 MREG_DB_NAME=mreg
 MREG_DB_USER=mreg
 MREG_DB_PASSWORD=mregpass
