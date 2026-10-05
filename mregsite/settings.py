@@ -244,7 +244,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = envvar("MREG_WSGI_APPLICATION", "mregsite.wsgi.application")
+WSGI_APPLICATION = "mregsite.wsgi.application"
 
 
 # Password validation
@@ -287,7 +287,7 @@ STATIC_ROOT = os.path.join(BASE_DIR, envvar("MREG_STATIC_ROOT", "static/"))
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/3.2/ref/settings/#default-auto-field
-DEFAULT_AUTO_FIELD = envvar("MREG_DEFAULT_AUTO_FIELD", "django.db.models.AutoField")
+DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
 
 
 REST_FRAMEWORK = {

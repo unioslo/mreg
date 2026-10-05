@@ -178,8 +178,6 @@ By default, the dotenv file is expected to be located at the project root with t
 | `MREG_DEBUG` | `True` if `CI` is set, else `False` | Django DEBUG mode. Never enable in production. |
 | `MREG_ALLOWED_HOSTS` | `127.0.0.1,localhost` | Comma-separated list of hosts the instance may serve. Ignored when DEBUG is `True`. |
 | `MREG_SECURE_PROXY_SSL_HEADER` | unset | `header,value` pair to trust from the reverse proxy, e.g. `HTTP_X_FORWARDED_PROTO,https`. Left unset by default due to the [security implications](https://docs.djangoproject.com/en/stable/ref/settings/#secure-proxy-ssl-header). |
-| `MREG_WSGI_APPLICATION` | `mregsite.wsgi.application` | WSGI application module. |
-| `MREG_DEFAULT_AUTO_FIELD` | `django.db.models.AutoField` | Default primary key field type. |
 | `MREG_LANGUAGE_CODE` | `en-us` | Django language code. |
 | `MREG_TIME_ZONE` | `Europe/Oslo` | Time zone (IANA name). |
 | `MREG_USE_I18N` | `True` | Enable Django translation. |
