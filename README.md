@@ -287,7 +287,7 @@ variables to the real group names.
 
 | Variable | Default | Description |
 | -------- | ------- | ----------- |
-| `MREG_TXT_AUTO_RECORDS` | `example.org=v=spf1 -all` | TXT records automatically added to hosts in the listed zones. Entries are on the form `zone=record1,record2`, separated by `;`, e.g. `uio.no=v=spf1 -all`. An unset or empty variable falls back to the default. |
+| `MREG_TXT_AUTO_RECORDS` | `example.org=v=spf1 -all` | TXT records automatically added to hosts in the listed zones. Entries are on the form `zone=record1,record2`, separated by `;`, e.g. `uio.no=v=spf1 -all`. An unset variable falls back to default. Set to an empty string to opt-out. |
 
 ### MQ Event Publishing (RabbitMQ)
 

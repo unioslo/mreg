@@ -327,7 +327,7 @@ SPECTACULAR_SETTINGS = {
 _record_raw = envvar("MREG_TXT_AUTO_RECORDS", "default")
 if _record_raw == "default":
     _record_raw = "example.org=v=spf1 -all"
-TXT_AUTO_RECORDS = parse_txt_auto_records(_record_raw) if _record_raw else {}
+TXT_AUTO_RECORDS = parse_txt_auto_records(_record_raw)
 
 
 # MQ (RabbitMQ) event publishing. Enabled only when MREG_MQ_HOST and the
