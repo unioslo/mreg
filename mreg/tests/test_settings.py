@@ -250,8 +250,12 @@ class SettingsEnvOverridesTests(SimpleTestCase):
         with reload_settings({"MREG_TXT_AUTO_RECORDS": "uio.no=v=spf1 -all"}) as reloaded:
             self.assertEqual(reloaded.TXT_AUTO_RECORDS, {"uio.no": ("v=spf1 -all",)})
 
-    def test_txt_auto_records_default_empty_when_unset(self):
+    def test_txt_auto_records_default_example_org_when_unset(self):
         with reload_settings() as reloaded:
+            self.assertEqual(reloaded.TXT_AUTO_RECORDS, {"example.org": ("v=spf1 -all",)})
+    
+    def test_txt_auto_records_opt_out_when_empty(self):
+        with reload_settings({"MREG_TXT_AUTO_RECORDS": ""}) as reloaded:
             self.assertEqual(reloaded.TXT_AUTO_RECORDS, {})
 
     def test_mq_disabled_without_host(self):
