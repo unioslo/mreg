@@ -170,6 +170,23 @@ By default, the dotenv file is expected to be located at the project root with t
 | `MREG_DOTENV_PATH` | `.env` | Path to the dotenv file.|
 | `MREG_DOTENV_OVERRIDE` | `False` | Override existing environment variables with values from the dotenv file. Makes the .env file the authoritative source for environment variables.|
 
+### Django Core Configuration
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `MREG_SECRET_KEY` | Bundled development key | Django secret key. Must be set to a unique value in production. |
+| `MREG_DEBUG` | `True` if `CI` is set, else `False` | Django DEBUG mode. Never enable in production. |
+| `MREG_ALLOWED_HOSTS` | `127.0.0.1,localhost` | Comma-separated list of hosts the instance may serve. Ignored when DEBUG is `True`. |
+| `MREG_SECURE_PROXY_SSL_HEADER` | unset | `header,value` pair to trust from the reverse proxy, e.g. `HTTP_X_FORWARDED_PROTO,https`. Left unset by default due to the [security implications](https://docs.djangoproject.com/en/stable/ref/settings/#secure-proxy-ssl-header). |
+| `MREG_WSGI_APPLICATION` | `mregsite.wsgi.application` | WSGI application module. |
+| `MREG_DEFAULT_AUTO_FIELD` | `django.db.models.AutoField` | Default primary key field type. |
+| `MREG_LANGUAGE_CODE` | `en-us` | Django language code. |
+| `MREG_TIME_ZONE` | `Europe/Oslo` | Time zone (IANA name). |
+| `MREG_USE_I18N` | `True` | Enable Django translation. |
+| `MREG_USE_TZ` | `True` | Store datetimes as UTC. |
+| `MREG_STATIC_URL` | `/static/` | URL prefix for static files. |
+| `MREG_STATIC_ROOT` | `static/` | Directory for collected static files, relative to `BASE_DIR` (absolute paths win). |
+
 
 ### Database Configuration
 
@@ -181,6 +198,7 @@ By default, the dotenv file is expected to be located at the project root with t
 | `MREG_DB_PASSWORD` | `""` | Database password |
 | `MREG_DB_HOST` | `localhost` | Database host |
 | `MREG_DB_PORT` | `5432` | Database port |
+| `MREG_DB_CONN_MAX_AGE` | `0` | Persistent database connection lifetime in seconds (`0` closes the connection after each request) |
 
 ### Database Connection Pooling (psycopg3)
 
@@ -207,6 +225,7 @@ By default, the dotenv file is expected to be located at the project root with t
 | `MREG_REQUESTS_LOG_LEVEL_SLOW` | `WARNING` | Log level for slow requests |
 | `MREG_REQUESTS_THRESHOLD_VERY_SLOW` | `5000` | Very slow request threshold (ms) |
 | `MREG_REQUESTS_LOG_LEVEL_VERY_SLOW` | `CRITICAL` | Log level for very slow requests |
+| `MREG_LOG_CONSOLE_ENABLED` | `True` | Log to the console (stderr) in addition to the log file |
 
 ### Network Policy Configuration
 
@@ -222,6 +241,77 @@ By default, the dotenv file is expected to be located at the project root with t
 | `MREG_COMMUNITY_TEMPLATE_PATTERN_MAX_LENGTH` | `100` | Max length for community patterns |
 | `MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY` | `True` | Require MAC address for an IP to be added to a community |
 | `MREG_REQUIRE_VLAN_FOR_NETWORK_TO_HAVE_COMMUNITY` | `False` | Require VLAN to be set for a network for it to have communities |
+
+### LDAP Configuration
+
+Variables for `django-auth-ldap`. The variables that default to *unset* are only
+passed to django-auth-ldap when they are actually set, since the library treats
+an unset setting differently from an empty one.
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `MREG_AUTH_LDAP_SERVER_URI` | `ldap://ldap.example.com` | LDAP server URI. |
+| `MREG_AUTH_LDAP_USER_DN_TEMPLATE` | `uid=%(user)s,ou=users,dc=example,dc=com` | DN template used to look up users. |
+| `MREG_AUTH_LDAP_START_TLS` | `True` | Negotiate TLS with the LDAP server. |
+| `MREG_AUTH_LDAP_CACHE_TIMEOUT` | `3600` | Cache timeout in seconds for LDAP lookups. |
+| `MREG_AUTH_LDAP_BIND_DN` | `""` | DN of the service account used for searches. |
+| `MREG_AUTH_LDAP_BIND_PASSWORD` | `""` | Password of the bind service account. |
+| `MREG_AUTH_LDAP_BIND_AS_AUTHENTICATING_USER` | `False` | Bind as the authenticating user instead of a service account. |
+| `MREG_AUTH_LDAP_ALWAYS_UPDATE_USER` | `True` | Update the Django user from LDAP on every login. |
+| `MREG_AUTH_LDAP_USER_ATTR_MAP` | `""` | Comma-separated `django_field=ldap_attribute` pairs, e.g. `first_name=givenName,last_name=sn`. |
+| `MREG_AUTH_LDAP_MIRROR_GROUPS` | unset | Comma-separated list of LDAP group names to mirror to Django groups. Unset means mirror all groups. |
+| `MREG_AUTH_LDAP_GLOBAL_OPTIONS` | unset | Comma-separated `OPTION=VALUE` pairs of global LDAP options, e.g. `OPT_X_TLS_REQUIRE_CERT=OPT_X_TLS_NEVER`. Names are resolved from the `ldap` module, values may also be plain integers. |
+| `MREG_AUTH_LDAP_GROUP_TYPE` | unset | Group type class from `django_auth_ldap.config`, e.g. `NestedActiveDirectoryGroupType`. |
+| `MREG_AUTH_LDAP_GROUP_SEARCH_BASE_DN` | unset | Base DN of the LDAP group search. Setting this variable enables the group search. |
+| `MREG_AUTH_LDAP_GROUP_SEARCH_SCOPE` | `SUBTREE` | Group search scope: `SUBTREE`, `ONELEVEL` or `BASE`. Requires the base DN to be set. |
+| `MREG_AUTH_LDAP_GROUP_SEARCH_FILTER` | `(objectClass=group)` | LDAP filter of the group search. Requires the base DN to be set. |
+| `MREG_LDAP_GROUP_ATTR` | `memberof` | LDAP attribute on users holding their group memberships. |
+| `MREG_LDAP_GROUP_RE` | `^cn=(?P<group_name>[\w\-]+),cn=netgroups,` | Regexp matched against group DNs; must contain the named group `group_name`. |
+
+### Permission Groups
+
+Group names used by mreg's permission system. The `default-*` names are
+placeholders for tests and CI; production deployments should set these
+variables to the real group names.
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `MREG_SUPERUSER_GROUP` | `default-super-group` | Members get full access to everything. |
+| `MREG_ADMINUSER_GROUP` | `default-admin-group` | Members get a high level of overall control. |
+| `MREG_GROUPADMINUSER_GROUP` | `default-groupadmin-group` | Members may administer hostgroups. |
+| `MREG_NETWORK_ADMIN_GROUP` | `default-networkadmin-group` | Members may administer networks. |
+| `MREG_HOSTPOLICYADMIN_GROUP` | `default-hostpolicyadmin-group` | Members may administer hostpolicy roles and atoms. |
+| `MREG_DNS_WILDCARD_GROUP` | `default-dns-wildcard-group` | Members may create wildcard DNS records. |
+| `MREG_DNS_UNDERSCORE_GROUP` | `default-dns-underscore-group` | Members may create DNS records with underscores. |
+
+### DNS Configuration
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `MREG_TXT_AUTO_RECORDS` | `example.org=v=spf1 -all` | TXT records automatically added to hosts in the listed zones. Entries are on the form `zone=record1,record2`, separated by `;`, e.g. `uio.no=v=spf1 -all`. An unset or empty variable falls back to the default. |
+
+### MQ Event Publishing (RabbitMQ)
+
+MQ event publishing is enabled only when `MREG_MQ_HOST` and the other required
+variables (`MREG_MQ_EXCHANGE`, `MREG_MQ_USERNAME`, `MREG_MQ_PASSWORD`) are all
+set. If `MREG_MQ_HOST` is set but a required variable is missing, mreg refuses
+to start. Without `MREG_MQ_HOST`, no events are published.
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `MREG_MQ_HOST` | unset | RabbitMQ host. Enables MQ event publishing when set together with the other required variables. |
+| `MREG_MQ_SSL` | `False` | Use TLS for the RabbitMQ connection. |
+| `MREG_MQ_VIRTUAL_HOST` | `/` | RabbitMQ virtual host. |
+| `MREG_MQ_EXCHANGE` | unset (required) | Exchange to publish events to. |
+| `MREG_MQ_DECLARE` | `False` | Declare the exchange (as a topic exchange) on connect. |
+| `MREG_MQ_USERNAME` | unset (required) | RabbitMQ username. |
+| `MREG_MQ_PASSWORD` | unset (required) | RabbitMQ password. |
+
+### Sentry Error Tracking
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `MREG_SENTRY_DSN` | unset | Sentry DSN. When set, Sentry is initialized with the Django integration. |
 
 ### Django Configuration for VS Code
 
