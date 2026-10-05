@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from typing import TypeVar
 
 from dotenv import load_dotenv
@@ -186,7 +186,7 @@ def parse_ldap_options(raw: str) -> dict[int, int]:
     for part in raw.split(","):
         part = part.strip()
         if not part:
-            continue
+            continue # pragma: no cover
         name, _, value = part.partition("=")
         name = name.strip()
         option = getattr(ldap, name, None)
@@ -203,7 +203,7 @@ def parse_ldap_options(raw: str) -> dict[int, int]:
     return out
 
 
-def make_ldap_group_type(name: str) -> "LDAPGroupType":
+def make_ldap_group_type(name: str, *args: Any) -> "LDAPGroupType":
     """Create a django-auth-ldap group type instance from a class name.
 
     The name must be a class from django_auth_ldap.config that subclasses
@@ -226,9 +226,9 @@ def make_ldap_group_type(name: str) -> "LDAPGroupType":
     if not isinstance(cls, type) or not issubclass(cls, ldap_config.LDAPGroupType):
         raise ValueError(f"Unsupported AUTH_LDAP_GROUP_TYPE: {name!r}")
     try:
-        return cls()
-    except TypeError as exc:
-        raise ValueError(f"Group type {name!r} cannot be constructed without arguments: {exc}") from exc
+        return cls(*args)
+    except Exception as exc:
+        raise RuntimeError(f"Failed to instantiate group {name!r} with arguments {args!r}") from exc
 
 
 def make_ldap_search(base_dn: str, scope: str, filterstr: str = "(objectClass=*)") -> "LDAPSearch":

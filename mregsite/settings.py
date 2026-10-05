@@ -114,17 +114,17 @@ if not os.path.exists(log_dir):  # pragma: no cover
     try:  # pragma: no cover
         os.makedirs(log_dir)
     except OSError as e:
-        print(f"Failed to create log directory {log_dir}: {e}")
+        logging.error(f"Failed to create log directory {log_dir}: {e}")
         sys.exit(1)
 
 # Check if the log file and directory is writable.
 if not os.access(log_dir, os.W_OK):  # pragma: no cover
-    print(f"Log directory {log_dir} is not writable")
+    logging.error(f"Log directory {log_dir} is not writable")
     sys.exit(1)
 
 # Check if LOG_FILE_NAME exists and if it is writable.
 if os.path.exists(LOG_FILE_NAME) and not os.access(LOG_FILE_NAME, os.W_OK):  # pragma: no cover
-    print(f"Log file {LOG_FILE_NAME} is not writable")
+    logging.error(f"Log file {LOG_FILE_NAME} is not writable")
     sys.exit(1)
 
 # SECURITY WARNING: don't run with debug turned on in production!
@@ -176,7 +176,8 @@ if _ldap_global_options:
 # "NestedActiveDirectoryGroupType".
 _ldap_group_type = envvar("MREG_AUTH_LDAP_GROUP_TYPE", "")
 if _ldap_group_type:
-    AUTH_LDAP_GROUP_TYPE = make_ldap_group_type(_ldap_group_type)
+    LDAP_GROUP_ARGS = envvar_list("MREG_AUTH_LDAP_GROUP_ARGS", [])
+    AUTH_LDAP_GROUP_TYPE = make_ldap_group_type(_ldap_group_type, *LDAP_GROUP_ARGS)
 
 # Group search; activated by setting the base DN, e.g.
 # "OU=filegroups,OU=someou,OU=machines,DC=example,DC=com".
@@ -344,7 +345,7 @@ if _mq_host:
         if not value
     ]
     if _mq_missing:
-        print(f"MREG_MQ_HOST is set, but these required MQ variables are missing or empty: {', '.join(_mq_missing)}")
+        logging.error(f"MREG_MQ_HOST is set, but these required MQ variables are missing or empty: {', '.join(_mq_missing)}")
         sys.exit(1)
     MQ_CONFIG = {
         "host": _mq_host,

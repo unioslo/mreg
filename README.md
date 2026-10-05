@@ -260,6 +260,7 @@ an unset setting differently from an empty one.
 | `MREG_AUTH_LDAP_MIRROR_GROUPS` | unset | Comma-separated list of LDAP group names to mirror to Django groups. Unset means mirror all groups. |
 | `MREG_AUTH_LDAP_GLOBAL_OPTIONS` | unset | Comma-separated `OPTION=VALUE` pairs of global LDAP options, e.g. `OPT_X_TLS_REQUIRE_CERT=OPT_X_TLS_NEVER`. Names are resolved from the `ldap` module, values may also be plain integers. |
 | `MREG_AUTH_LDAP_GROUP_TYPE` | unset | Group type class from `django_auth_ldap.config`, e.g. `NestedActiveDirectoryGroupType`. |
+| `MREG_AUTH_LDAP_GROUP_ARGS` | unset | Arguments for the LDAP group type class specified in `MREG_AUTH_LDAP_GROUP_TYPE`. |
 | `MREG_AUTH_LDAP_GROUP_SEARCH_BASE_DN` | unset | Base DN of the LDAP group search. Setting this variable enables the group search. |
 | `MREG_AUTH_LDAP_GROUP_SEARCH_SCOPE` | `SUBTREE` | Group search scope: `SUBTREE`, `ONELEVEL` or `BASE`. Requires the base DN to be set. |
 | `MREG_AUTH_LDAP_GROUP_SEARCH_FILTER` | `(objectClass=group)` | LDAP filter of the group search. Requires the base DN to be set. |

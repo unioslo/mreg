@@ -181,7 +181,14 @@ class EnvParserTests(SimpleTestCase):
         self.assertIsInstance(make_ldap_group_type("NestedActiveDirectoryGroupType"), NestedActiveDirectoryGroupType)
         with self.assertRaises(ValueError):
             make_ldap_group_type("NotAGroupType")
+    
+    def test_make_ldap_group_type_with_args(self):
+        from django_auth_ldap.config import MemberDNGroupType
 
+        self.assertIsInstance(make_ldap_group_type("MemberDNGroupType", "member_attr_arg", "name_attr_arg"), MemberDNGroupType)
+        with self.assertRaises(RuntimeError):
+            make_ldap_group_type("MemberDNGroupType") # fails because of missing argument (member_attr)
+    
     def test_make_ldap_search(self):
         import ldap
         from django_auth_ldap.config import LDAPSearch
@@ -308,6 +315,29 @@ class SettingsEnvOverridesTests(SimpleTestCase):
             self.assertEqual(reloaded.AUTH_LDAP_GROUP_SEARCH.scope, ldap.SCOPE_SUBTREE)
             self.assertEqual(reloaded.AUTH_LDAP_GROUP_SEARCH.filterstr, "(objectClass=group)")
             self.assertEqual(reloaded.AUTH_LDAP_USER_ATTR_MAP, {"first_name": "givenName"})
+
+    def test_ldap_group_with_args(self):
+        from django_auth_ldap.config import MemberDNGroupType
+
+        env = {
+            "MREG_AUTH_LDAP_GROUP_TYPE": "MemberDNGroupType",
+            "MREG_AUTH_LDAP_GROUP_ARGS": "member_attr_arg,name_attr_arg",
+        }
+        # Can instantiate the group type with the provided arguments
+        with reload_settings(env, drop=("AUTH_LDAP_GROUP_TYPE", "AUTH_LDAP_GROUP_ARGS")) as reloaded:
+            self.assertIsInstance(reloaded.AUTH_LDAP_GROUP_TYPE, MemberDNGroupType)
+
+    def test_ldap_group_without_args(self):
+        from django_auth_ldap.config import NestedActiveDirectoryGroupType
+
+        env = {
+            "MREG_AUTH_LDAP_GROUP_TYPE": "NestedActiveDirectoryGroupType",
+            "MREG_AUTH_LDAP_GROUP_ARGS": "",
+        }
+        # Can instantiate the group type with the provided arguments
+        with reload_settings(env, drop=("AUTH_LDAP_GROUP_TYPE", "AUTH_LDAP_GROUP_ARGS")) as reloaded:
+            self.assertIsInstance(reloaded.AUTH_LDAP_GROUP_TYPE, NestedActiveDirectoryGroupType)
+
 
     def test_ldap_mirror_groups_unset_not_defined(self):
         with reload_settings(drop=("AUTH_LDAP_MIRROR_GROUPS",)) as reloaded:
