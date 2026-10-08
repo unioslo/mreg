@@ -324,10 +324,9 @@ SPECTACULAR_SETTINGS = {
 # e.g. MREG_TXT_AUTO_RECORDS="uio.no=v=spf1 -all".
 # Unset variable will result in default record (legacy): "example.org=v=spf1 -all"
 # Opt-out by defining an empty MREG_TXT_AUTO_RECORDS variable.
-_record_raw = envvar("MREG_TXT_AUTO_RECORDS", "default")
-if _record_raw == "default":
-    _record_raw = "example.org=v=spf1 -all"
-TXT_AUTO_RECORDS = parse_txt_auto_records(_record_raw)
+TXT_AUTO_RECORDS = parse_txt_auto_records(
+    envvar("MREG_TXT_AUTO_RECORDS", "example.org=v=spf1 -all")
+)
 
 
 # MQ (RabbitMQ) event publishing. Enabled only when MREG_MQ_HOST and the
