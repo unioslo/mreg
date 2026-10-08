@@ -158,6 +158,24 @@ class SignalsTest(TestCase):
         with override_settings(TXT_AUTO_RECORDS=None):
             add_auto_txt_records_on_new_host(sender=Host, instance=h_no_setting, created=True)
             self.assertFalse(Txt.objects.filter(host=h_no_setting).exists())  # type: ignore[attr-defined]
+        
+        # test early return when TXT_AUTO_RECORDS is empty dict ({})
+        h_empty_dict = Host.objects.create(name="emptydict.example")
+        with override_settings(TXT_AUTO_RECORDS={}):
+            add_auto_txt_records_on_new_host(sender=Host, instance=h_empty_dict, created=True)
+            self.assertFalse(Txt.objects.filter(host=h_empty_dict).exists())  # type: ignore[attr-defined]
+        
+        # test early return when TXT_AUTO_RECORDS is dict with no TXT record data
+        h_no_txt_data = Host.objects.create(name="notxtdata.example")
+        with override_settings(TXT_AUTO_RECORDS={"notxtdata": []}):
+            add_auto_txt_records_on_new_host(sender=Host, instance=h_no_txt_data, created=True)
+            self.assertFalse(Txt.objects.filter(host=h_no_txt_data).exists())  # type: ignore[attr-defined]
+        
+        # test early return when TXT_AUTO_RECORDS is dict with no matching zone
+        h_wrong_zone = Host.objects.create(name="wrongzone.example")
+        with override_settings(TXT_AUTO_RECORDS={"example.org": ["v=spf1 -all"]}):
+            add_auto_txt_records_on_new_host(sender=Host, instance=h_wrong_zone, created=True)
+            self.assertFalse(Txt.objects.filter(host=h_wrong_zone).exists())  # type: ignore[attr-defined]
 
         # test early return when zone is None
         h_nozone = Host.objects.create(name="orphan.nowhere")

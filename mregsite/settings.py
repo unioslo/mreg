@@ -20,7 +20,17 @@ import structlog
 
 import mreg.log_processors
 import mreg.__about__
-from mreg.env import envvar, parse_protected_policy_attrs
+from mreg.env import (
+    envvar,
+    envvar_list,
+    envvar_pairs,
+    make_ldap_group_type,
+    make_ldap_search,
+    parse_header_pair,
+    parse_ldap_options,
+    parse_protected_policy_attrs,
+    parse_txt_auto_records,
+)
 
 
 TESTING = len(sys.argv) > 1 and sys.argv[1] == "test"
@@ -32,7 +42,9 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # See https://docs.djangoproject.com/en/2.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = ")e#67040xjxar=zl^y#@#b*zilv2dxtraj582$^(e6!wf++_n#"
+# The bundled default is a well-known development key; production
+# deployments must set MREG_SECRET_KEY.
+SECRET_KEY = envvar("MREG_SECRET_KEY", ")e#67040xjxar=zl^y#@#b*zilv2dxtraj582$^(e6!wf++_n#")
 
 LOG_LEVEL = envvar("MREG_LOG_LEVEL", "CRITICAL").upper()
 
@@ -46,9 +58,9 @@ LOGGING_MAX_BODY_LENGTH = envvar("MREG_LOGGING_MAX_BODY_LENGTH", 3000)
 
 LOG_FILE_SIZE = envvar("MREG_LOG_FILE_SIZE", 50 * 1024 * 1024)
 LOG_FILE_COUNT = envvar("MREG_LOG_FILE_COUNT", 10)
-LOG_FILE_NAME = os.path.join(
-    BASE_DIR, envvar("MREG_LOG_FILE_NAME", "logs/app.log")
-)
+LOG_FILE_NAME = os.path.join(BASE_DIR, envvar("MREG_LOG_FILE_NAME", "logs/app.log"))
+# Log to the console (stderr) in addition to the log file.
+LOG_CONSOLE_ENABLED = envvar("MREG_LOG_CONSOLE_ENABLED", True)
 
 MREG_PROTECTED_POLICY_ATTRIBUTES_DEFAULT = [
     {"name": "isolated", "description": "The network uses client isolation."},
@@ -69,14 +81,12 @@ else:
 MREG_PROTECTED_POLICY_ATTRIBUTES = _protected
 
 raw = (envvar("MREG_REQUIRED_POLICY_ATTRIBUTES", "") or "").strip()
-MREG_CREATING_COMMUNITY_REQUIRES_POLICY_WITH_ATTRIBUTES = [
-    a.strip() for a in raw.split(",") if a.strip()
-]
+MREG_CREATING_COMMUNITY_REQUIRES_POLICY_WITH_ATTRIBUTES = [a.strip() for a in raw.split(",") if a.strip()]
 
 MREG_MAX_COMMUNITES_PER_NETWORK = envvar("MREG_MAX_COMMUNITES_PER_NETWORK", 20)
 
 MREG_MAP_GLOBAL_COMMUNITY_NAMES = envvar("MREG_MAP_GLOBAL_COMMUNITY_NAMES", False)
-MREG_GLOBAL_COMMUNITY_TEMPLATE_PATTERN =  envvar("MREG_GLOBAL_COMMUNITY_TEMPLATE_PATTERN", "community")
+MREG_GLOBAL_COMMUNITY_TEMPLATE_PATTERN = envvar("MREG_GLOBAL_COMMUNITY_TEMPLATE_PATTERN", "community")
 MREG_COMMUNITY_TEMPLATE_PATTERN_ALLOWED_REGEX = envvar("MREG_COMMUNITY_TEMPLATE_PATTERN_ALLOWED_REGEX", r"^[a-zA-Z0-9_]+$")
 MREG_COMMUNITY_TEMPLATE_PATTERN_MAX_LENGTH = envvar("MREG_COMMUNITY_TEMPLATE_PATTERN_MAX_LENGTH", 100)
 MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY = envvar("MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY", True)
@@ -100,68 +110,109 @@ MREG_DB_PSYCOPG_OPTIONS = envvar("MREG_DB_PSYCOPG_OPTIONS", "-c statement_timeou
 
 # If the log directory doesn't exist, create it.
 log_dir = os.path.dirname(LOG_FILE_NAME)
-if not os.path.exists(log_dir): # pragma: no cover
-    try: # pragma: no cover
+if not os.path.exists(log_dir):  # pragma: no cover
+    try:  # pragma: no cover
         os.makedirs(log_dir)
     except OSError as e:
-        print(f"Failed to create log directory {log_dir}: {e}")
+        logging.error(f"Failed to create log directory {log_dir}: {e}")
         sys.exit(1)
 
 # Check if the log file and directory is writable.
-if not os.access(log_dir, os.W_OK): # pragma: no cover
-    print(f"Log directory {log_dir} is not writable")
+if not os.access(log_dir, os.W_OK):  # pragma: no cover
+    logging.error(f"Log directory {log_dir} is not writable")
     sys.exit(1)
 
 # Check if LOG_FILE_NAME exists and if it is writable.
-if os.path.exists(LOG_FILE_NAME) and not os.access(LOG_FILE_NAME, os.W_OK): # pragma: no cover
-    print(f"Log file {LOG_FILE_NAME} is not writable")
+if os.path.exists(LOG_FILE_NAME) and not os.access(LOG_FILE_NAME, os.W_OK):  # pragma: no cover
+    logging.error(f"Log file {LOG_FILE_NAME} is not writable")
     sys.exit(1)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True if "CI" in os.environ else False
+DEBUG = envvar("MREG_DEBUG", "CI" in os.environ)
 
 # The IP addresses that can access this instance.  Ignored if DEBUG
 # is True.
-ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
+ALLOWED_HOSTS = envvar_list("MREG_ALLOWED_HOSTS", ["127.0.0.1", "localhost"])
+
+# Trust a forwarded HTTPS header from the reverse proxy, e.g.
+# "HTTP_X_FORWARDED_PROTO,https". Only set when the env var is set.
+# NOTE: There are security implications involved in setting this, see
+# https://docs.djangoproject.com/en/stable/ref/settings/#secure-proxy-ssl-header
+_secure_proxy_ssl_header = envvar("MREG_SECURE_PROXY_SSL_HEADER", "")
+if _secure_proxy_ssl_header:
+    SECURE_PROXY_SSL_HEADER = parse_header_pair(_secure_proxy_ssl_header)
 
 AUTH_USER_MODEL = "mreg.User"
 
-AUTHENTICATION_BACKENDS = (
+AUTHENTICATION_BACKENDS = [
     "django_auth_ldap.backend.LDAPBackend",
     "django.contrib.auth.backends.ModelBackend",
-)
+]
 
-AUTH_LDAP_SERVER_URI = "ldap://ldap.example.com"
-AUTH_LDAP_USER_DN_TEMPLATE = "uid=%(user)s,ou=users,dc=example,dc=com"
-AUTH_LDAP_START_TLS = True
-AUTH_LDAP_CACHE_TIMEOUT = 3600
-AUTH_LDAP_BIND_DN = ""
-AUTH_LDAP_BIND_PASSWORD = ""
+AUTH_LDAP_SERVER_URI = envvar("MREG_AUTH_LDAP_SERVER_URI", "ldap://ldap.example.com")
+AUTH_LDAP_USER_DN_TEMPLATE = envvar("MREG_AUTH_LDAP_USER_DN_TEMPLATE", "uid=%(user)s,ou=users,dc=example,dc=com")
+AUTH_LDAP_START_TLS = envvar("MREG_AUTH_LDAP_START_TLS", True)
+AUTH_LDAP_CACHE_TIMEOUT = envvar("MREG_AUTH_LDAP_CACHE_TIMEOUT", 3600)
+AUTH_LDAP_BIND_DN = envvar("MREG_AUTH_LDAP_BIND_DN", "")
+AUTH_LDAP_BIND_PASSWORD = envvar("MREG_AUTH_LDAP_BIND_PASSWORD", "")
+AUTH_LDAP_BIND_AS_AUTHENTICATING_USER = envvar("MREG_AUTH_LDAP_BIND_AS_AUTHENTICATING_USER", False)
+AUTH_LDAP_ALWAYS_UPDATE_USER = envvar("MREG_AUTH_LDAP_ALWAYS_UPDATE_USER", True)
+# Maps Django user fields to LDAP attributes, e.g. "first_name=givenName,last_name=sn".
+AUTH_LDAP_USER_ATTR_MAP = envvar_pairs("MREG_AUTH_LDAP_USER_ATTR_MAP", {})
+
+# django-auth-ldap treats an unset AUTH_LDAP_MIRROR_GROUPS (mirror all groups)
+# differently from an empty one (mirror no groups), so the setting is only
+# defined when the env var is set to a non-empty list of group names.
+_ldap_mirror_groups = envvar_list("MREG_AUTH_LDAP_MIRROR_GROUPS", [])
+if _ldap_mirror_groups:
+    AUTH_LDAP_MIRROR_GROUPS = _ldap_mirror_groups
+
+# LDAP library options, e.g. "OPT_X_TLS_REQUIRE_CERT=OPT_X_TLS_NEVER".
+_ldap_global_options = envvar("MREG_AUTH_LDAP_GLOBAL_OPTIONS", "")
+if _ldap_global_options:
+    AUTH_LDAP_GLOBAL_OPTIONS = parse_ldap_options(_ldap_global_options)
+
+# Group type class from django_auth_ldap.config, e.g.
+# "NestedActiveDirectoryGroupType".
+_ldap_group_type = envvar("MREG_AUTH_LDAP_GROUP_TYPE", "")
+if _ldap_group_type:
+    LDAP_GROUP_ARGS = envvar_list("MREG_AUTH_LDAP_GROUP_ARGS", [])
+    AUTH_LDAP_GROUP_TYPE = make_ldap_group_type(_ldap_group_type, *LDAP_GROUP_ARGS)
+
+# Group search; activated by setting the base DN, e.g.
+# "OU=filegroups,OU=someou,OU=machines,DC=example,DC=com".
+_ldap_group_search_base_dn = envvar("MREG_AUTH_LDAP_GROUP_SEARCH_BASE_DN", "")
+if _ldap_group_search_base_dn:
+    AUTH_LDAP_GROUP_SEARCH = make_ldap_search(
+        _ldap_group_search_base_dn,
+        scope=envvar("MREG_AUTH_LDAP_GROUP_SEARCH_SCOPE", "SUBTREE"),
+        filterstr=envvar("MREG_AUTH_LDAP_GROUP_SEARCH_FILTER", "(objectClass=group)"),
+    )
 
 # Used by signals.py populate_user_from_ldap to match attributes
 # via a regexp to groups, which are added to the logged in user.
-LDAP_GROUP_ATTR = "memberof"
+LDAP_GROUP_ATTR = envvar("MREG_LDAP_GROUP_ATTR", "memberof")
 # LDAP_GROUP_RE must include a named group with name "group_name".
-LDAP_GROUP_RE = r"""^cn=(?P<group_name>[\w\-]+),cn=netgroups,"""
+LDAP_GROUP_RE = envvar("MREG_LDAP_GROUP_RE", r"""^cn=(?P<group_name>[\w\-]+),cn=netgroups,""")
 
 # Application definition
 
 INSTALLED_APPS = [
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
-    'rest_framework',
-    'rest_framework.authtoken',
-    'django_filters',
-    'netfields',
-    'mreg',
-    'hostpolicy',
-    'drf_standardized_errors',
-    'drf_spectacular',
-    'drf_spectacular_sidecar',  # required for Django collectstatic discovery
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+    "rest_framework",
+    "rest_framework.authtoken",
+    "django_filters",
+    "netfields",
+    "mreg",
+    "hostpolicy",
+    "drf_standardized_errors",
+    "drf_spectacular",
+    "drf_spectacular_sidecar",  # required for Django collectstatic discovery
 ]
 
 MIDDLEWARE = [
@@ -197,7 +248,6 @@ TEMPLATES = [
 WSGI_APPLICATION = "mregsite.wsgi.application"
 
 
-
 # Password validation
 # https://docs.djangoproject.com/en/2.0/ref/settings/#auth-password-validators
 
@@ -220,22 +270,20 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/2.0/topics/i18n/
 
-LANGUAGE_CODE = "en-us"
+LANGUAGE_CODE = envvar("MREG_LANGUAGE_CODE", "en-us")
 
-TIME_ZONE = "Europe/Oslo"
+TIME_ZONE = envvar("MREG_TIME_ZONE", "Europe/Oslo")
 
-USE_I18N = True
+USE_I18N = envvar("MREG_USE_I18N", True)
 
-USE_L10N = True
-
-USE_TZ = True
+USE_TZ = envvar("MREG_USE_TZ", True)
 
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/2.0/howto/static-files/
 
-STATIC_URL = "/static/"
-STATIC_ROOT = os.path.join(BASE_DIR, "static/")
+STATIC_URL = envvar("MREG_STATIC_URL", "/static/")
+STATIC_ROOT = os.path.join(BASE_DIR, envvar("MREG_STATIC_ROOT", "static/"))
 
 
 # Default primary key field type
@@ -245,21 +293,13 @@ DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
 
 REST_FRAMEWORK = {
     # Defaults
-    "DEFAULT_AUTHENTICATION_CLASSES": (
-        "mreg.authentication.ExpiringTokenAuthentication",
-    ),
-    'DEFAULT_FILTER_BACKENDS': (
-        'django_filters.rest_framework.DjangoFilterBackend',
-    ),
-    'DEFAULT_PAGINATION_CLASS':
-        'mreg.api.v1.pagination.StandardResultsSetPagination',
-    'DEFAULT_PERMISSION_CLASSES': (
-        'mreg.api.permissions.IsAuthenticatedAndReadOnly',
-    ),
-    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
-    
+    "DEFAULT_AUTHENTICATION_CLASSES": ("mreg.authentication.ExpiringTokenAuthentication",),
+    "DEFAULT_FILTER_BACKENDS": ("django_filters.rest_framework.DjangoFilterBackend",),
+    "DEFAULT_PAGINATION_CLASS": "mreg.api.v1.pagination.StandardResultsSetPagination",
+    "DEFAULT_PERMISSION_CLASSES": ("mreg.api.permissions.IsAuthenticatedAndReadOnly",),
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     # Other settings
-    "EXCEPTION_HANDLER": "drf_standardized_errors.handler.exception_handler"
+    "EXCEPTION_HANDLER": "drf_standardized_errors.handler.exception_handler",
 }
 
 REST_FRAMEWORK_EXTENSIONS = {
@@ -268,32 +308,57 @@ REST_FRAMEWORK_EXTENSIONS = {
 }
 
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'MREG API',
-    'DESCRIPTION': 'MREG API documentation',
-    'VERSION': mreg.__about__.__version__,
-    'SERVE_INCLUDE_SCHEMA': False,
+    "TITLE": "MREG API",
+    "DESCRIPTION": "MREG API documentation",
+    "VERSION": mreg.__about__.__version__,
+    "SERVE_INCLUDE_SCHEMA": False,
     # Sidecar (static swagger/redoc files) settings
-    'SWAGGER_UI_DIST': 'SIDECAR',  # shorthand to use the sidecar instead
-    'SWAGGER_UI_FAVICON_HREF': 'SIDECAR',
-    'REDOC_DIST': 'SIDECAR',
+    "SWAGGER_UI_DIST": "SIDECAR",  # shorthand to use the sidecar instead
+    "SWAGGER_UI_FAVICON_HREF": "SIDECAR",
+    "REDOC_DIST": "SIDECAR",
 }
 
 
 # TXT record(s) automatically added to a host when added to a ForwardZone.
-TXT_AUTO_RECORDS = {
-    "example.org": ("v=spf1 -all",),
-}
+# Configured as 'zone=record1,record2' entries separated by ';',
+# e.g. MREG_TXT_AUTO_RECORDS="uio.no=v=spf1 -all".
+# Unset variable will result in default record (legacy): "example.org=v=spf1 -all"
+# Opt-out by defining an empty MREG_TXT_AUTO_RECORDS variable.
+TXT_AUTO_RECORDS = parse_txt_auto_records(
+    envvar("MREG_TXT_AUTO_RECORDS", "example.org=v=spf1 -all")
+)
 
-# Example of how MQ settings would look (put yours in local_settings.py)
-# MQ_CONFIG = {
-#    "host": "...",
-#    "ssl": True/False,
-#    "virtual_host": "...",
-#    "exchange": "...",
-#    "declare": True/False,
-#    "username": "...",
-#    "password": "...",
-# }
+
+# MQ (RabbitMQ) event publishing. Enabled only when MREG_MQ_HOST and the
+# other required variables (MREG_MQ_EXCHANGE, MREG_MQ_USERNAME,
+# MREG_MQ_PASSWORD) are set; otherwise MQ is disabled and no events
+# are published.
+_mq_host = envvar("MREG_MQ_HOST", "")
+_mq_exchange = envvar("MREG_MQ_EXCHANGE", "")
+_mq_username = envvar("MREG_MQ_USERNAME", "")
+_mq_password = envvar("MREG_MQ_PASSWORD", "")
+if _mq_host:
+    _mq_missing = [
+        name
+        for name, value in (
+            ("MREG_MQ_EXCHANGE", _mq_exchange),
+            ("MREG_MQ_USERNAME", _mq_username),
+            ("MREG_MQ_PASSWORD", _mq_password),
+        )
+        if not value
+    ]
+    if _mq_missing:
+        logging.error(f"MREG_MQ_HOST is set, but these required MQ variables are missing or empty: {', '.join(_mq_missing)}")
+        sys.exit(1)
+    MQ_CONFIG = {
+        "host": _mq_host,
+        "ssl": envvar("MREG_MQ_SSL", False),
+        "virtual_host": envvar("MREG_MQ_VIRTUAL_HOST", "/"),
+        "exchange": _mq_exchange,
+        "declare": envvar("MREG_MQ_DECLARE", False),
+        "username": _mq_username,
+        "password": _mq_password,
+    }
 
 timestamper = structlog.processors.TimeStamper(fmt="iso")
 # The pre_chain setup here allows us to add support for loggers that aren't
@@ -313,12 +378,31 @@ if TESTING or DEBUG:
         structlog.stdlib.ProcessorFormatter.remove_processors_meta,
         structlog.dev.ConsoleRenderer(colors=True, sort_keys=False),
     ]
-else: # pragma: no cover
+else:  # pragma: no cover
     console_processors = [
         structlog.stdlib.ProcessorFormatter.remove_processors_meta,
         structlog.processors.JSONRenderer(),
     ]
 
+
+_logging_handlers = {
+    "file": {
+        "level": LOG_LEVEL,
+        "class": "logging.handlers.RotatingFileHandler",
+        "maxBytes": LOG_FILE_SIZE,
+        "backupCount": LOG_FILE_COUNT,
+        "filename": LOG_FILE_NAME,
+        "formatter": "plain",
+    },
+}
+_logging_root_handlers = ["file"]
+if LOG_CONSOLE_ENABLED:
+    _logging_handlers["default"] = {
+        "level": LOG_LEVEL,
+        "class": "logging.StreamHandler",
+        "formatter": "colored",
+    }
+    _logging_root_handlers.insert(0, "default")
 
 logging.config.dictConfig(
     {
@@ -339,24 +423,10 @@ logging.config.dictConfig(
                 #                "foreign_pre_chain": pre_chain,
             },
         },
-        "handlers": {
-            "default": {
-                "level": LOG_LEVEL,
-                "class": "logging.StreamHandler",
-                "formatter": "colored",
-            },
-            "file": {
-                "level": LOG_LEVEL,
-                "class": "logging.handlers.RotatingFileHandler",
-                "maxBytes": LOG_FILE_SIZE,
-                "backupCount": LOG_FILE_COUNT,
-                "filename": LOG_FILE_NAME,
-                "formatter": "plain",
-            },
-        },
+        "handlers": _logging_handlers,
         "loggers": {
             "": {
-                "handlers": ["default", "file"],
+                "handlers": _logging_root_handlers,
                 "level": "DEBUG",
                 "propagate": True,
             },
@@ -391,6 +461,7 @@ structlog.configure(
 # Django Silk profiling and request inspection settings
 try:
     import silk  # noqa: F401  # pyright: ignore[reportUnusedImport, reportMissingTypeStubs]
+
     _silk_installed = True
 except ImportError:
     _silk_installed = False
@@ -399,31 +470,40 @@ except ImportError:
 MREG_PROFILING_ENABLED = envvar("MREG_PROFILING_ENABLED", False)
 
 # Use cProfile for profiling of the selected views.
-# If this is disabled, silk will only collect request/response data and timings, 
+# If this is disabled, silk will only collect request/response data and timings,
 # but not detailed profiling information.
 SILKY_PYTHON_PROFILER = envvar("MREG_SILKY_PYTHON_PROFILER", True)
 
 # Save profiler results to disk for later analysis in silk or with other tools.
 SILKY_PYTHON_PROFILER_BINARY = envvar("MREG_SILKY_PYTHON_PROFILER_BINARY", True)
-SILKY_PYTHON_PROFILER_RESULT_PATH = envvar('MREG_SILKY_PYTHON_PROFILER_RESULT_PATH', 'silk/profiles')
+SILKY_PYTHON_PROFILER_RESULT_PATH = envvar("MREG_SILKY_PYTHON_PROFILER_RESULT_PATH", "silk/profiles")
 
 # Meta-profiling of requests (show silk's performance impact)
-SILKY_META = envvar("MREG_SILKY_META", False) # disable meta-profiling by default
+SILKY_META = envvar("MREG_SILKY_META", False)  # disable meta-profiling by default
+
+# Sentry error tracking, enabled when MREG_SENTRY_DSN is set.
+MREG_SENTRY_DSN = envvar("MREG_SENTRY_DSN", "")
+if MREG_SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+
+    sentry_sdk.init(dsn=MREG_SENTRY_DSN, integrations=[DjangoIntegration()])
+
+# Permission group names. The default-* names are placeholders for tests
+# and CI; production deployments should set the MREG_*_GROUP variables.
+SUPERUSER_GROUP = envvar("MREG_SUPERUSER_GROUP", "default-super-group")
+ADMINUSER_GROUP = envvar("MREG_ADMINUSER_GROUP", "default-admin-group")
+GROUPADMINUSER_GROUP = envvar("MREG_GROUPADMINUSER_GROUP", "default-groupadmin-group")
+NETWORK_ADMIN_GROUP = envvar("MREG_NETWORK_ADMIN_GROUP", "default-networkadmin-group")
+HOSTPOLICYADMIN_GROUP = envvar("MREG_HOSTPOLICYADMIN_GROUP", "default-hostpolicyadmin-group")
+DNS_WILDCARD_GROUP = envvar("MREG_DNS_WILDCARD_GROUP", "default-dns-wildcard-group")
+DNS_UNDERSCORE_GROUP = envvar("MREG_DNS_UNDERSCORE_GROUP", "default-dns-underscore-group")
 
 # Import local settings that may override those in this file.
 try:
     from .local_settings import *  # noqa: F401,F403
 except ImportError:
     pass
-
-if TESTING or "CI" in os.environ:
-    SUPERUSER_GROUP = "default-super-group"
-    ADMINUSER_GROUP = "default-admin-group"
-    GROUPADMINUSER_GROUP = "default-groupadmin-group"
-    NETWORK_ADMIN_GROUP = "default-networkadmin-group"
-    HOSTPOLICYADMIN_GROUP = "default-hostpolicyadmin-group"
-    DNS_WILDCARD_GROUP = "default-dns-wildcard-group"
-    DNS_UNDERSCORE_GROUP = "default-dns-underscore-group"
 
 
 def get_pool_settings() -> dict[str, int] | Literal[False]:
@@ -437,6 +517,7 @@ def get_pool_settings() -> dict[str, int] | Literal[False]:
         "max_lifetime": MREG_DB_POOL_MAX_LIFETIME,  # Max connection lifetime (seconds)
     }
 
+
 # Compatibility hack for older local_settings.py files that define the
 # DATABASES setting directly instead of using the MREG_DB_* variables.
 # Thus, we only set DATABASES if it hasn't already been defined.
@@ -447,9 +528,9 @@ if "DATABASES" not in globals():
             "NAME": MREG_DB_NAME,
             "USER": MREG_DB_USER,
             "PASSWORD": MREG_DB_PASSWORD,
-            "HOST": MREG_DB_HOST,        
+            "HOST": MREG_DB_HOST,
             "PORT": MREG_DB_PORT,
-            "CONN_MAX_AGE": 0,  # Let the pool manage connection lifecycle
+            "CONN_MAX_AGE": envvar("MREG_DB_CONN_MAX_AGE", 0),  # Let the pool manage connection lifecycle
             "OPTIONS": {
                 # Native psycopg3 connection pooling (Django 5.2+)
                 "pool": get_pool_settings(),
@@ -469,10 +550,10 @@ if MREG_PROFILING_ENABLED:
             "Install silk with `uv sync --(only-)group profile` or disable profiling."
         )
         sys.exit(1)
-    
+
     # NOTE: logging happens twice here on startup for some reason...
     logger.warning("Profiling is enabled. All requests will be profiled with Silk. This will impact performance.")
-    
+
     # Define views to enable Silk profiling for
     # (Can be overridden by setting SILKY_DYNAMIC_PROFILING in local_settings.py)
     if "SILKY_DYNAMIC_PROFILING" not in globals():
@@ -480,70 +561,70 @@ if MREG_PROFILING_ENABLED:
             {
                 "module": "mreg.api.v1.views",
                 "function": "HostDetail.get",
-                'name': 'Get single host',
+                "name": "Get single host",
             },
             {
                 "module": "mreg.api.v1.views",
                 "function": "HostList.get",
-                'name': 'Get hosts',
+                "name": "Get hosts",
             },
             {
                 "module": "mreg.api.v1.views",
                 "function": "HostList.post",
-                'name': 'Create host',
+                "name": "Create host",
             },
             {
                 "module": "hostpolicy.api.v1.views",
                 "function": "HostPolicyAtomDetail.get",
-                'name': 'Get single Atom',
+                "name": "Get single Atom",
             },
             {
                 "module": "hostpolicy.api.v1.views",
                 "function": "HostPolicyAtomDetail.delete",
-                'name': 'Delete single Atom',
+                "name": "Delete single Atom",
             },
             {
                 "module": "hostpolicy.api.v1.views",
                 "function": "HostPolicyAtomList.get",
-                'name': 'Get Atoms',
+                "name": "Get Atoms",
             },
             {
                 "module": "hostpolicy.api.v1.views",
                 "function": "HostPolicyAtomList.post",
-                'name': 'Create Atom',
+                "name": "Create Atom",
             },
             {
                 "module": "hostpolicy.api.v1.views",
                 "function": "HostPolicyRoleDetail.get",
-                'name': 'Get single Role',
+                "name": "Get single Role",
             },
             {
                 "module": "hostpolicy.api.v1.views",
                 "function": "HostPolicyRoleDetail.delete",
-                'name': 'Delete a single Role',
+                "name": "Delete a single Role",
             },
             {
                 "module": "hostpolicy.api.v1.views",
                 "function": "HostPolicyRoleList.get",
-                'name': 'Get Roles',
+                "name": "Get Roles",
             },
             {
                 "module": "hostpolicy.api.v1.views",
                 "function": "HostPolicyRoleList.post",
-                'name': 'Create Role',
+                "name": "Create Role",
             },
             {
                 "module": "hostpolicy.api.v1.views",
                 "function": "HostPolicyRoleAtomsList.get",
-                'name': 'Get Role Atoms',
+                "name": "Get Role Atoms",
             },
             {
                 "module": "hostpolicy.api.v1.views",
                 "function": "HostPolicyRoleHostsList.get",
-                'name': 'Get Role Hosts',
+                "name": "Get Role Hosts",
             },
         ]
-    
+
     # Ensure the profiler result path exists and is writable before enabling Silk
     if SILKY_PYTHON_PROFILER_RESULT_PATH:
         p = Path(SILKY_PYTHON_PROFILER_RESULT_PATH)
