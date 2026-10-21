@@ -39,7 +39,7 @@ dev = [
     "coverage[toml]",
     "pytest",
     "pytest-django",
-    "uv>=0.9",
+    "uv>=0.13.4",
     "inline-snapshot>=0.35.4",
     {include-group = "profile"},
     {include-group = "lint"},
