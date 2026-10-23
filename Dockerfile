@@ -14,6 +14,11 @@ RUN apk update \
 # The workaround is to copy everything, but limit it with .dockerignore.
 COPY --from=ghcr.io/astral-sh/uv:0.13.5 /uv /uvx /bin/
 COPY . .
+# Tracked files excluded by .dockerignore look deleted to git, which makes
+# setuptools_scm report a dirty version. Hide them from git.
+RUN set -o pipefail \
+    && git ls-files --cached --ignored --exclude-from=.dockerignore -z \
+    | xargs -0 -r git update-index --skip-worktree
 # Build and install dependencies
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-editable --no-dev
