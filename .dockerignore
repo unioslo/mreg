@@ -3,3 +3,4 @@ ci
 logs/*
 .tox
 .venv
+docs
