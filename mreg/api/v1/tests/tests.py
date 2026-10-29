@@ -864,7 +864,7 @@ class APIHostsTestCase(MregAPITestCase):
         data = self.post_data
         data['name'] = data['name'].upper()
         response = self.assert_post_and_201('/hosts/', data)
-        self.assertEqual(response['Location'], '/api/v1/hosts/%s' % self.post_data['name'])
+        self.assertEqual(response['Location'], '/api/v1/hosts/%s' % self.post_data['name'].lower())
 
     def prepare_allocator_data(self, allocation_method):
         network = '10.0.0.0/24'
