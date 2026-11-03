@@ -17,6 +17,7 @@ import sys
 from typing import Literal
 
 import structlog
+from django.core.exceptions import ImproperlyConfigured
 
 import mreg.log_processors
 import mreg.__about__
@@ -160,12 +161,14 @@ AUTH_LDAP_ALWAYS_UPDATE_USER = envvar("MREG_AUTH_LDAP_ALWAYS_UPDATE_USER", True)
 # Maps Django user fields to LDAP attributes, e.g. "first_name=givenName,last_name=sn".
 AUTH_LDAP_USER_ATTR_MAP = envvar_pairs("MREG_AUTH_LDAP_USER_ATTR_MAP", {})
 
-# django-auth-ldap treats an unset AUTH_LDAP_MIRROR_GROUPS (mirror all groups)
-# differently from an empty one (mirror no groups), so the setting is only
-# defined when the env var is set to a non-empty list of group names.
-_ldap_mirror_groups = envvar_list("MREG_AUTH_LDAP_MIRROR_GROUPS", [])
-if _ldap_mirror_groups:
-    AUTH_LDAP_MIRROR_GROUPS = _ldap_mirror_groups
+# True mirrors all groups; a list selects groups. Unset, False and an empty
+# list disable django-auth-ldap's mirroring (mreg's populate_user signal still runs).
+if "MREG_AUTH_LDAP_MIRROR_GROUPS" in os.environ:
+    _ldap_mirror_groups = envvar("MREG_AUTH_LDAP_MIRROR_GROUPS", "").strip().lower()
+    if _ldap_mirror_groups in {"true", "false"}:
+        AUTH_LDAP_MIRROR_GROUPS = envvar("MREG_AUTH_LDAP_MIRROR_GROUPS", False)
+    else:
+        AUTH_LDAP_MIRROR_GROUPS = envvar_list("MREG_AUTH_LDAP_MIRROR_GROUPS", [])
 
 # LDAP library options, e.g. "OPT_X_TLS_REQUIRE_CERT=OPT_X_TLS_NEVER".
 _ldap_global_options = envvar("MREG_AUTH_LDAP_GLOBAL_OPTIONS", "")
@@ -320,13 +323,10 @@ SPECTACULAR_SETTINGS = {
 
 
 # TXT record(s) automatically added to a host when added to a ForwardZone.
-# Configured as 'zone=record1,record2' entries separated by ';',
-# e.g. MREG_TXT_AUTO_RECORDS="uio.no=v=spf1 -all".
-# Unset variable will result in default record (legacy): "example.org=v=spf1 -all"
-# Opt-out by defining an empty MREG_TXT_AUTO_RECORDS variable.
-TXT_AUTO_RECORDS = parse_txt_auto_records(
-    envvar("MREG_TXT_AUTO_RECORDS", "example.org=v=spf1 -all")
-)
+# JSON preserves commas, semicolons and whitespace inside TXT data, e.g.
+# MREG_TXT_AUTO_RECORDS='{"uio.no": ["v=spf1 -all"]}'.
+# An unset variable retains the legacy example.org record; empty input opts out.
+TXT_AUTO_RECORDS = parse_txt_auto_records(envvar("MREG_TXT_AUTO_RECORDS", '{"example.org": ["v=spf1 -all"]}'))
 
 
 # MQ (RabbitMQ) event publishing. Enabled only when MREG_MQ_HOST and the
@@ -540,6 +540,11 @@ if "DATABASES" not in globals():
             },
         }
     }
+
+if DATABASES["default"].get("OPTIONS", {}).get("pool") and DATABASES["default"].get("CONN_MAX_AGE", 0) != 0:
+    raise ImproperlyConfigured(
+        "Database pooling requires CONN_MAX_AGE=0. Set MREG_DB_POOL_ENABLED=false before setting MREG_DB_CONN_MAX_AGE to a nonzero value."
+    )
 
 # Configure Silk profiling if enabled
 if MREG_PROFILING_ENABLED:

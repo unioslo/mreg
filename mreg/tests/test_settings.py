@@ -1,11 +1,13 @@
 import contextlib
 import importlib
+import json
 import os
 import sys
 import tempfile
 from types import ModuleType
 from unittest.mock import patch
 
+from django.core.exceptions import ImproperlyConfigured
 from django.test import SimpleTestCase
 
 import mregsite.settings as app_settings
@@ -147,10 +149,19 @@ class EnvvarListAndPairsTests(SimpleTestCase):
 
 class EnvParserTests(SimpleTestCase):
     def test_parse_txt_auto_records(self):
+        records = {
+            "uio.no": ["v=spf1 -all"],
+            "example.org": ["v=DKIM1; k=rsa; p=KEY", ' owner=IT, location="Oslo"; path=C:\\dns\n '],
+        }
         self.assertEqual(
-            parse_txt_auto_records("uio.no=v=spf1 -all; example.org=a, b ;"),
-            {"uio.no": ("v=spf1 -all",), "example.org": ("a", "b")},
+            parse_txt_auto_records(json.dumps(records)),
+            {zone: tuple(values) for zone, values in records.items()},
         )
+
+    def test_parse_txt_auto_records_rejects_invalid_configuration(self):
+        for raw in ("{", "[]", "null", '{"example.org": "v=spf1 -all"}', '{"example.org": [123]}'):
+            with self.subTest(raw=raw), self.assertRaises(ValueError):
+                parse_txt_auto_records(raw)
 
     def test_parse_header_pair(self):
         self.assertEqual(
@@ -181,14 +192,14 @@ class EnvParserTests(SimpleTestCase):
         self.assertIsInstance(make_ldap_group_type("NestedActiveDirectoryGroupType"), NestedActiveDirectoryGroupType)
         with self.assertRaises(ValueError):
             make_ldap_group_type("NotAGroupType")
-    
+
     def test_make_ldap_group_type_with_args(self):
         from django_auth_ldap.config import MemberDNGroupType
 
         self.assertIsInstance(make_ldap_group_type("MemberDNGroupType", "member_attr_arg", "name_attr_arg"), MemberDNGroupType)
         with self.assertRaises(RuntimeError):
-            make_ldap_group_type("MemberDNGroupType") # fails because of missing argument (member_attr)
-    
+            make_ldap_group_type("MemberDNGroupType")  # fails because of missing argument (member_attr)
+
     def test_make_ldap_search(self):
         import ldap
         from django_auth_ldap.config import LDAPSearch
@@ -211,11 +222,9 @@ class EnvParserTests(SimpleTestCase):
                     elif scope_to_use.upper() == "BASE":
                         self.assertEqual(search.scope, ldap.SCOPE_BASE)
                     self.assertEqual(search.filterstr, "(objectClass=group)")
-        
+
         with self.assertRaises(ValueError):
             make_ldap_search("DC=com", scope="EVERYTHING")
-    
-  
 
 
 class SettingsEnvOverridesTests(SimpleTestCase):
@@ -247,16 +256,25 @@ class SettingsEnvOverridesTests(SimpleTestCase):
             self.assertFalse(hasattr(reloaded, "SECURE_PROXY_SSL_HEADER"))
 
     def test_txt_auto_records_env_override(self):
-        with reload_settings({"MREG_TXT_AUTO_RECORDS": "uio.no=v=spf1 -all"}) as reloaded:
-            self.assertEqual(reloaded.TXT_AUTO_RECORDS, {"uio.no": ("v=spf1 -all",)})
+        records = {"uio.no": ["v=DKIM1; k=rsa; p=KEY", "a,b"]}
+        with reload_settings({"MREG_TXT_AUTO_RECORDS": json.dumps(records)}) as reloaded:
+            self.assertEqual(reloaded.TXT_AUTO_RECORDS, {"uio.no": tuple(records["uio.no"])})
 
     def test_txt_auto_records_default_example_org_when_unset(self):
         with reload_settings() as reloaded:
             self.assertEqual(reloaded.TXT_AUTO_RECORDS, {"example.org": ("v=spf1 -all",)})
-    
+
     def test_txt_auto_records_opt_out_when_empty(self):
         with reload_settings({"MREG_TXT_AUTO_RECORDS": ""}) as reloaded:
             self.assertEqual(reloaded.TXT_AUTO_RECORDS, {})
+
+    def test_persistent_connections_require_pooling_disabled(self):
+        with self.assertRaisesMessage(ImproperlyConfigured, "MREG_DB_POOL_ENABLED=false"):
+            with reload_settings({"MREG_DB_CONN_MAX_AGE": "60", "MREG_DB_POOL_ENABLED": "true"}, drop=("DATABASES",)):
+                pass
+        with reload_settings({"MREG_DB_CONN_MAX_AGE": "60", "MREG_DB_POOL_ENABLED": "false"}, drop=("DATABASES",)) as reloaded:
+            self.assertEqual(reloaded.DATABASES["default"]["CONN_MAX_AGE"], 60)
+            self.assertIs(reloaded.DATABASES["default"]["OPTIONS"]["pool"], False)
 
     def test_mq_disabled_without_host(self):
         with reload_settings(drop=("MQ_CONFIG",)) as reloaded:
@@ -342,10 +360,15 @@ class SettingsEnvOverridesTests(SimpleTestCase):
         with reload_settings(env, drop=("AUTH_LDAP_GROUP_TYPE", "AUTH_LDAP_GROUP_ARGS")) as reloaded:
             self.assertIsInstance(reloaded.AUTH_LDAP_GROUP_TYPE, NestedActiveDirectoryGroupType)
 
-
     def test_ldap_mirror_groups_unset_not_defined(self):
         with reload_settings(drop=("AUTH_LDAP_MIRROR_GROUPS",)) as reloaded:
             self.assertFalse(hasattr(reloaded, "AUTH_LDAP_MIRROR_GROUPS"))
+
+    def test_ldap_mirror_groups_boolean_and_empty_values(self):
+        for raw, expected in (("true", True), ("TRUE", True), ("false", False), ("False", False), ("", [])):
+            with self.subTest(raw=raw):
+                with reload_settings({"MREG_AUTH_LDAP_MIRROR_GROUPS": raw}, drop=("AUTH_LDAP_MIRROR_GROUPS",)) as reloaded:
+                    self.assertEqual(reloaded.AUTH_LDAP_MIRROR_GROUPS, expected)
 
     def test_sentry_initialized_when_dsn_set(self):
         from sentry_sdk.integrations.django import DjangoIntegration

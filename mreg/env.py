@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -121,25 +122,13 @@ def parse_kv_pairs(raw: str) -> dict[str, str]:
 
 
 def parse_txt_auto_records(raw: str) -> dict[str, tuple[str, ...]]:
-    """Parse automatic TXT records from a string.
-
-    Zones are separated by ';' and each zone is on the form
-    'zone=record1,record2', e.g. "uio.no=v=spf1 -all;example.org=a,b".
-
-    Args:
-        raw: The raw string to parse.
-
-    Returns:
-        A dict mapping zone names to tuples of TXT record strings.
-    """
-    out: dict[str, tuple[str, ...]] = {}
-    for zone_entry in raw.split(";"):
-        zone, _, records = zone_entry.partition("=")
-        zone = zone.strip()
-        if not zone:
-            continue
-        out[zone] = tuple(record.strip() for record in records.split(",") if record.strip())
-    return out
+    """Parse a JSON object mapping zones to TXT record lists; empty input disables records."""
+    records = json.loads(raw) if raw.strip() else {}
+    if not isinstance(records, dict) or any(
+        not isinstance(values, list) or any(not isinstance(value, str) for value in values) for values in records.values()
+    ):
+        raise ValueError("MREG_TXT_AUTO_RECORDS must be a JSON object mapping zone names to lists of TXT strings")
+    return {zone: tuple(values) for zone, values in records.items()}
 
 
 def parse_header_pair(raw: str) -> tuple[str, str]:
@@ -186,7 +175,7 @@ def parse_ldap_options(raw: str) -> dict[int, int]:
     for part in raw.split(","):
         part = part.strip()
         if not part:
-            continue # pragma: no cover
+            continue  # pragma: no cover
         name, _, value = part.partition("=")
         name = name.strip()
         option = getattr(ldap, name, None)

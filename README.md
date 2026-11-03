@@ -196,7 +196,7 @@ By default, the dotenv file is expected to be located at the project root with t
 | `MREG_DB_PASSWORD` | `""` | Database password |
 | `MREG_DB_HOST` | `localhost` | Database host |
 | `MREG_DB_PORT` | `5432` | Database port |
-| `MREG_DB_CONN_MAX_AGE` | `0` | Persistent database connection lifetime in seconds (`0` closes the connection after each request) |
+| `MREG_DB_CONN_MAX_AGE` | `0` | Persistent database connection lifetime in seconds (`0` closes or returns the connection to the pool after each request). Nonzero values require `MREG_DB_POOL_ENABLED=false`; conflicting settings prevent startup. |
 
 ### Database Connection Pooling (psycopg3)
 
@@ -243,8 +243,7 @@ By default, the dotenv file is expected to be located at the project root with t
 ### LDAP Configuration
 
 Variables for `django-auth-ldap`. The variables that default to *unset* are only
-passed to django-auth-ldap when they are actually set, since the library treats
-an unset setting differently from an empty one.
+passed to django-auth-ldap when they are actually set.
 
 | Variable | Default | Description |
 | -------- | ------- | ----------- |
@@ -257,7 +256,7 @@ an unset setting differently from an empty one.
 | `MREG_AUTH_LDAP_BIND_AS_AUTHENTICATING_USER` | `False` | Bind as the authenticating user instead of a service account. |
 | `MREG_AUTH_LDAP_ALWAYS_UPDATE_USER` | `True` | Update the Django user from LDAP on every login. |
 | `MREG_AUTH_LDAP_USER_ATTR_MAP` | `""` | Comma-separated `django_field=ldap_attribute` pairs, e.g. `first_name=givenName,last_name=sn`. |
-| `MREG_AUTH_LDAP_MIRROR_GROUPS` | unset | Comma-separated list of LDAP group names to mirror to Django groups. Unset means mirror all groups. |
+| `MREG_AUTH_LDAP_MIRROR_GROUPS` | unset | `True` mirrors all LDAP groups; a comma-separated list mirrors selected group names. `False`, an empty string, or an unset variable disables django-auth-ldap's mirroring. Boolean values are case-insensitive. Mirroring requires the group type and group search settings below. |
 | `MREG_AUTH_LDAP_GLOBAL_OPTIONS` | unset | Comma-separated `OPTION=VALUE` pairs of global LDAP options, e.g. `OPT_X_TLS_REQUIRE_CERT=OPT_X_TLS_NEVER`. Names are resolved from the `ldap` module, values may also be plain integers. |
 | `MREG_AUTH_LDAP_GROUP_TYPE` | unset | Group type class from `django_auth_ldap.config`, e.g. `NestedActiveDirectoryGroupType`. |
 | `MREG_AUTH_LDAP_GROUP_ARGS` | unset | Arguments for the LDAP group type class specified in `MREG_AUTH_LDAP_GROUP_TYPE`. |
@@ -266,6 +265,9 @@ an unset setting differently from an empty one.
 | `MREG_AUTH_LDAP_GROUP_SEARCH_FILTER` | `(objectClass=group)` | LDAP filter of the group search. Requires the base DN to be set. |
 | `MREG_LDAP_GROUP_ATTR` | `memberof` | LDAP attribute on users holding their group memberships. |
 | `MREG_LDAP_GROUP_RE` | `^cn=(?P<group_name>[\w\-]+),cn=netgroups,` | Regexp matched against group DNs; must contain the named group `group_name`. |
+
+Independently of django-auth-ldap's mirroring, mreg's `populate_user` signal
+updates memberships from `MREG_LDAP_GROUP_ATTR` using `MREG_LDAP_GROUP_RE`.
 
 ### Permission Groups
 
@@ -287,7 +289,13 @@ variables to the real group names.
 
 | Variable | Default | Description |
 | -------- | ------- | ----------- |
-| `MREG_TXT_AUTO_RECORDS` | `example.org=v=spf1 -all` | TXT records automatically added to hosts in the listed zones. Entries are on the form `zone=record1,record2`, separated by `;`, e.g. `uio.no=v=spf1 -all`. An unset variable falls back to default. Set to an empty string to opt-out. |
+| `MREG_TXT_AUTO_RECORDS` | `{"example.org": ["v=spf1 -all"]}` | JSON object mapping zone names to lists of TXT strings, automatically added to new hosts in those zones. TXT data is preserved exactly, including commas and semicolons. An unset variable falls back to the default; an empty string or `{}` opts out. |
+
+For example, in a shell or `.env` file:
+
+```sh
+MREG_TXT_AUTO_RECORDS='{"example.org": ["v=spf1 -all", "owner=IT; location=Oslo,NO"]}'
+```
 
 ### MQ Event Publishing (RabbitMQ)
 
