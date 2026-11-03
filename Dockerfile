@@ -12,7 +12,7 @@ RUN apk update \
 # COPY will unpack the contents of source directories into the target directory,
 # and we need to keep the .git directory intact.
 # The workaround is to copy everything, but limit it with .dockerignore.
-COPY --from=ghcr.io/astral-sh/uv:0.13.5 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.13.7 /uv /uvx /bin/
 COPY . .
 # Tracked files excluded by .dockerignore look deleted to git, which makes
 # setuptools_scm report a dirty version. Hide them from git.
@@ -45,7 +45,7 @@ COPY entrypoint* manage.py /app/
 COPY mreg /app/mreg/
 COPY mregsite /app/mregsite/
 COPY hostpolicy /app/hostpolicy/
-COPY --from=ghcr.io/astral-sh/uv:0.13.5 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.13.7 /uv /uvx /bin/
 RUN apk update && apk upgrade \
     && apk add libldap vim findutils \
     && rm -rf /var/cache/apk/* \
