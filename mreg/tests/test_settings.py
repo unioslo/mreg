@@ -159,9 +159,19 @@ class EnvParserTests(SimpleTestCase):
         )
 
     def test_parse_txt_auto_records_rejects_invalid_configuration(self):
-        for raw in ("{", "[]", "null", '{"example.org": "v=spf1 -all"}', '{"example.org": [123]}'):
+        for raw in ("{", '{"example.org": "v=spf1 -all"}', '{"example.org": [123]}'):
             with self.subTest(raw=raw), self.assertRaises(ValueError):
                 parse_txt_auto_records(raw)
+
+    def test_parse_txt_auto_records_legacy_format(self):
+        self.assertEqual(
+            parse_txt_auto_records("uio.no=v=spf1 -all; example.org=a, b ;"),
+            {"uio.no": ("v=spf1 -all",), "example.org": ("a", "b")},
+        )
+        self.assertEqual(
+            parse_txt_auto_records(" example.org = one=two,, value , ; =ignored;empty.example=;bare.example;"),
+            {"example.org": ("one=two", "value"), "empty.example": (), "bare.example": ()},
+        )
 
     def test_parse_header_pair(self):
         self.assertEqual(
@@ -259,6 +269,18 @@ class SettingsEnvOverridesTests(SimpleTestCase):
         records = {"uio.no": ["v=DKIM1; k=rsa; p=KEY", "a,b"]}
         with reload_settings({"MREG_TXT_AUTO_RECORDS": json.dumps(records)}) as reloaded:
             self.assertEqual(reloaded.TXT_AUTO_RECORDS, {"uio.no": tuple(records["uio.no"])})
+
+    def test_txt_auto_records_legacy_env_override(self):
+        with reload_settings({"MREG_TXT_AUTO_RECORDS": "uio.no=v=spf1 -all;example.org=a,b"}) as reloaded:
+            self.assertEqual(reloaded.TXT_AUTO_RECORDS, {"uio.no": ("v=spf1 -all",), "example.org": ("a", "b")})
+
+    def test_txt_auto_records_local_settings_keep_precedence(self):
+        for records in ({"example.org": ("v=spf1 -all", "owner=IT; location=Oslo,NO")}, {"example.org": ["a,b;c"]}, {}, None):
+            with self.subTest(records=records), reload_settings({"MREG_TXT_AUTO_RECORDS": "uio.no=env-record"}):
+                local_settings = ModuleType("mregsite.local_settings")
+                local_settings.TXT_AUTO_RECORDS = records
+                with patch.dict(sys.modules, {"mregsite.local_settings": local_settings}):
+                    self.assertIs(importlib.reload(app_settings).TXT_AUTO_RECORDS, records)
 
     def test_txt_auto_records_default_example_org_when_unset(self):
         with reload_settings() as reloaded:

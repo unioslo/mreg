@@ -323,10 +323,11 @@ SPECTACULAR_SETTINGS = {
 
 
 # TXT record(s) automatically added to a host when added to a ForwardZone.
+# The legacy 'zone=record1,record2;...' environment format remains supported.
 # JSON preserves commas, semicolons and whitespace inside TXT data, e.g.
 # MREG_TXT_AUTO_RECORDS='{"uio.no": ["v=spf1 -all"]}'.
 # An unset variable retains the legacy example.org record; empty input opts out.
-TXT_AUTO_RECORDS = parse_txt_auto_records(envvar("MREG_TXT_AUTO_RECORDS", '{"example.org": ["v=spf1 -all"]}'))
+TXT_AUTO_RECORDS = parse_txt_auto_records(envvar("MREG_TXT_AUTO_RECORDS", "example.org=v=spf1 -all"))
 
 
 # MQ (RabbitMQ) event publishing. Enabled only when MREG_MQ_HOST and the

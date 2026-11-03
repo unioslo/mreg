@@ -289,13 +289,26 @@ variables to the real group names.
 
 | Variable | Default | Description |
 | -------- | ------- | ----------- |
-| `MREG_TXT_AUTO_RECORDS` | `{"example.org": ["v=spf1 -all"]}` | JSON object mapping zone names to lists of TXT strings, automatically added to new hosts in those zones. TXT data is preserved exactly, including commas and semicolons. An unset variable falls back to the default; an empty string or `{}` opts out. |
+| `MREG_TXT_AUTO_RECORDS` | `example.org=v=spf1 -all` | TXT records automatically added to new hosts in the listed zones. Accepts the legacy `zone=record1,record2;...` syntax or a JSON object mapping zones to lists of TXT strings. An unset variable falls back to the default; an empty string or `{}` opts out. |
 
-For example, in a shell or `.env` file:
+The legacy format remains supported so existing environment and `.env`
+configurations keep working. Use JSON when TXT values contain commas or
+semicolons: these characters separate entries in the legacy format, while
+JSON preserves TXT data exactly, including whitespace.
+
+For example, in a shell or `.env` file, either format can be used:
 
 ```sh
+# Legacy format for simple values:
+MREG_TXT_AUTO_RECORDS='uio.no=v=spf1 -all;example.org=a,b'
+
+# JSON for values containing delimiters:
 MREG_TXT_AUTO_RECORDS='{"example.org": ["v=spf1 -all", "owner=IT; location=Oslo,NO"]}'
 ```
+
+Existing `TXT_AUTO_RECORDS` mappings in `local_settings.py`, with lists or
+tuples of TXT values, still override the environment configuration. Setting
+`TXT_AUTO_RECORDS = None` or `{}` there continues to disable automatic records.
 
 ### MQ Event Publishing (RabbitMQ)
 

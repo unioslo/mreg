@@ -122,8 +122,18 @@ def parse_kv_pairs(raw: str) -> dict[str, str]:
 
 
 def parse_txt_auto_records(raw: str) -> dict[str, tuple[str, ...]]:
-    """Parse a JSON object mapping zones to TXT record lists; empty input disables records."""
-    records = json.loads(raw) if raw.strip() else {}
+    """Parse JSON TXT records or the legacy 'zone=record1,record2;...' format."""
+    if not raw.lstrip().startswith("{"):
+        out: dict[str, tuple[str, ...]] = {}
+        for zone_entry in raw.split(";"):
+            zone, _, records = zone_entry.partition("=")
+            zone = zone.strip()
+            if not zone:
+                continue
+            out[zone] = tuple(record.strip() for record in records.split(",") if record.strip())
+        return out
+
+    records = json.loads(raw)
     if not isinstance(records, dict) or any(
         not isinstance(values, list) or any(not isinstance(value, str) for value in values) for values in records.values()
     ):
