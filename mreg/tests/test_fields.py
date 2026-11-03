@@ -8,6 +8,7 @@ from mreg.fields import (
     LowerCaseCharField,
     LowerCaseDNSNameField,
 )
+from mreg.models.network_policy import NetworkPolicy
 from mreg.validators import validate_hostname
 
 
@@ -25,6 +26,13 @@ class LowerCaseCharFieldTest(TestCase):
         field = LowerCaseCharField()
         result = field.get_db_prep_save(None, connection=None)
         self.assertIsNone(result)
+
+
+    def test_save_normalizes_instance_attribute(self):
+        """Test that save() lowercases the value on the instance, not just in the DB."""
+        policy = NetworkPolicy(name="MiXeD")
+        policy.save()
+        self.assertEqual(policy.name, "mixed")
 
 
 class LCICharFieldTest(TestCase):

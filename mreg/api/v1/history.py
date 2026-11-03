@@ -9,6 +9,7 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.db.models import Model
 from django.forms import model_to_dict
 
+from mreg.fields import LCICharField, LowerCaseCharField
 from mreg.models.base import History
 
 log = structlog.get_logger("mreg.history")
@@ -42,6 +43,7 @@ class HistoryLog:
                 return
             model_id = obj.id
             name = obj.name
+        data = self.normalize_lowercase_fields(serializer, data)
         self.manipulate_data(action, serializer, data, orig_data)
         if action == "update":
             data = {"current_data": orig_data, "update": data}
@@ -63,6 +65,18 @@ class HistoryLog:
             log.exception("ValidationError occured during full_clean()", exc_info=True)
             return
         history.save()
+
+    @staticmethod
+    def normalize_lowercase_fields(serializer, data):
+        """Use the saved instance's values for lowercase fields, since validated_data holds the raw input."""
+        instance = serializer.instance
+        if not isinstance(instance, Model):
+            return data
+        data = dict(data)
+        for field in instance._meta.concrete_fields:
+            if isinstance(field, (LowerCaseCharField, LCICharField)) and field.name in data:
+                data[field.name] = getattr(instance, field.attname)
+        return data
 
     @staticmethod
     # Must implement in own inherited class

@@ -1,3 +1,4 @@
+import json
 import urllib.parse
 
 from django.contrib.auth.models import Group
@@ -5,6 +6,7 @@ from django.db import transaction
 from django.test import override_settings
 from unittest_parametrize import ParametrizedTestCase, param, parametrize
 
+from mreg.models.base import History
 from mreg.models.host import Host, Ipaddress
 from mreg.models.network import NetGroupRegexPermission, Network
 from mreg.models.network_policy import (
@@ -316,6 +318,43 @@ class NetworkPolicyTestCase(ParametrizedTestCase, MregAPITestCase):
 
         network.delete()
         self.assertFalse(Community.objects.filter(pk=community_id).exists())  # Cascade delete
+
+    def test_create_and_patch_community_returns_normalized_name(self):
+        """POST and PATCH responses return the lowercased community name."""
+        network = Network.objects.create(network="10.0.0.0/24", description="test_network")
+        ret = self.assert_post_and_201(
+            f"networks/{network.network}/communities/", data={"name": "COMMUPPER", "description": ""}
+        )
+        self.assertEqual(ret.json()["name"], "commupper")
+        self.assertEqual(self.assert_get(ret["Location"]).json()["name"], "commupper")
+
+        community_id = ret.json()["id"]
+        ret = self.assert_patch_and_200(
+            f"networks/{network.network}/communities/{community_id}", data={"name": "NEWNAME"}
+        )
+        self.assertEqual(ret.json()["name"], "newname")
+
+    def test_create_and_patch_community_history_normalized_name(self):
+        """History entries for community create and update record the lowercased name."""
+        network = Network.objects.create(network="10.0.0.0/24", description="test_network")
+        ret = self.assert_post_and_201(
+            f"networks/{network.network}/communities/", data={"name": "COMMUPPER", "description": ""}
+        )
+        community_id = ret.json()["id"]
+        entry = History.objects.get(resource="community", model_id=community_id, action="create")
+        self.assertEqual(entry.name, "commupper")
+        self.assertEqual(json.loads(entry.data)["name"], "commupper")
+
+        self.assert_patch_and_200(f"networks/{network.network}/communities/{community_id}", data={"name": "NEWNAME"})
+        entry = History.objects.get(resource="community", model_id=community_id, action="update")
+        self.assertEqual(entry.name, "newname")
+        self.assertEqual(json.loads(entry.data)["update"]["name"], "newname")
+
+    def test_create_attribute_returns_normalized_name(self):
+        """POST response for a network policy attribute returns the lowercased name."""
+        ret = self.assert_post_and_201(ATTRIBUTE_ENDPOINT, data={"name": "UPPERATTR", "description": ""})
+        self.assertEqual(ret.json()["name"], "upperattr")
+        self.assertEqual(self.assert_get(ret["Location"]).json()["name"], "upperattr")
 
     def test_community_serializer_includes_cidr(self):
         """Community response includes cidr matching the bound network's CIDR."""
