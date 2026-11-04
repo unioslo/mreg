@@ -50,9 +50,12 @@ class BaseZone(BaseModel, ZoneHelpers):
             "retry": self.retry,
             "expire": self.expire,
             "soa_ttl": self.soa_ttl,
-            "zupdated_at": timezone.localtime(self.updated_at),
-            "supdated_at": timezone.localtime(self.serialno_updated_at),
+            "zupdated_at": self.updated_at,
+            "supdated_at": self.serialno_updated_at,
         }
+        for key in ("zupdated_at", "supdated_at"):
+            if timezone.is_aware(data[key]):
+                data[key] = timezone.localtime(data[key])
         zf = """$ORIGIN {origin}
 $TTL {default_ttl}
 {name:30} IN {record_type:6} {mname} {rname} (

@@ -1,11 +1,27 @@
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils import timezone
 from mreg.models.host import Host
 from mreg.models.zone import ForwardZone
 
 from .base import clean_and_save
+
+
+class ZonefileTimezoneTestCase(SimpleTestCase):
+    def test_zonefile_renders_with_and_without_timezone_support(self):
+        for use_tz, expected in ((True, "2026-01-02 13:00:00+01:00"), (False, "2026-01-02 12:00:00")):
+            with self.subTest(use_tz=use_tz), override_settings(USE_TZ=use_tz, TIME_ZONE="Europe/Oslo"):
+                timestamp = datetime(2026, 1, 2, 12, tzinfo=UTC if use_tz else None)
+                zone = ForwardZone(
+                    name="example.org",
+                    primary_ns="ns.example.org",
+                    email="hostmaster@example.org",
+                    updated_at=timestamp,
+                    serialno_updated_at=timestamp,
+                )
+                self.assertIn(f"; zone.updated_at: {expected}\n", zone.zf_string)
+                self.assertIn(f"; zone.serialno_updated_at: {expected}\n", zone.zf_string)
 
 
 class ModelForwardZoneTestCase(TestCase):
