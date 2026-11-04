@@ -195,7 +195,7 @@ def _populate(username: str) -> User:
     return user
 
 
-def refresh_directory_user(username: object) -> User:
+def refresh_directory_user(username: object, *, force: bool = False) -> User:
     """Return a current user or bounded outage fallback, after credential verification.
 
     The username row serializes first provisioning as well as later refreshes.
@@ -206,7 +206,7 @@ def refresh_directory_user(username: object) -> User:
     username = directory_username(username)
     user = _local_user(username)
     state: LDAPUserState | None = LDAPUserState.objects.filter(username=username).first()
-    cached = _cached_user(state, user, timezone.now())
+    cached = None if force else _cached_user(state, user, timezone.now())
     if cached is not None:
         return cached
 
@@ -216,7 +216,7 @@ def refresh_directory_user(username: object) -> User:
         state = LDAPUserState.objects.select_for_update().get(username=username)
         user = _local_user(username, lock=True)
         now = timezone.now()
-        cached = _cached_user(state, user, now)
+        cached = None if force else _cached_user(state, user, now)
         if cached is not None:
             return cached
         try:

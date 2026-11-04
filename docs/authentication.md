@@ -17,6 +17,70 @@ in the database after logout. Local tokens retain their existing expiry behavior
 An in-flight request cannot recreate a token deleted by logout. Requests already
 authenticated before logout may still finish.
 
+### Optional directory refresh for local tokens
+
+Set `MREG_LDAP_REFRESH_LOCAL_TOKENS=true` to apply the shared directory refresh and
+outage-grace policy to local tokens owned by LDAP-managed users. It defaults to
+`false` and works independently of `MREG_OIDC_ENABLED`. Token validity, expiry,
+and local account disabling are checked before refresh; a failed refresh does
+not update token usage. Grace never makes an expired or revoked token valid.
+
+A user is LDAP-managed only when a `LDAPUserState` row is associated with that
+account following a successful directory refresh. A failed first lookup does not
+establish management or a usable permission snapshot. Unmarked local accounts
+remain independent of LDAP. Existing LDAP users must be enrolled through a
+successful password login, OIDC request, or explicit operator refresh.
+
+With the switch enabled, the default Django authentication backends become:
+
+```python
+AUTHENTICATION_BACKENDS = (
+    "mreg.directory_auth.LocalUserBackend",
+    "mreg.directory_auth.LDAPPasswordBackend",
+)
+```
+
+Custom backend configurations must use these entries in this order; startup
+rejects other configurations while the switch is enabled. Local password checks
+run first for unmarked accounts, allowing local/emergency accounts to authenticate
+without contacting LDAP. LDAP-managed accounts cannot use local password fallback.
+Use separate unmarked accounts for emergency access; enrolling an account in LDAP
+refresh makes directory policy authoritative for that account.
+
+LDAP password login always requires a live, successful password bind. The backend
+uses django-auth-ldap for verification without creating or updating a user during
+that phase. It then forces the shared refresher to populate user data and verify
+eligibility. A successful bind alone never advances the refresh timestamp. If
+only the subsequent directory population fails transiently, a previously verified
+account may use grace; an unverified password can never use retained permissions.
+Passwords are not cached or copied into local accounts. Wrong-password attempts
+do not invalidate another session's verified directory eligibility.
+
+A successful refresh through either OIDC or password/local-token authentication
+updates the same metadata and permissions. Normal token requests reuse these data
+for the configured interval. Local logout can revoke a valid token even when the
+directory is unavailable or directory eligibility has been denied; it does not
+perform an LDAP refresh.
+
+Before enabling the switch, explicitly enroll existing LDAP-backed users:
+
+```console
+python manage.py refresh_ldap_users alice bob
+```
+
+The command refreshes only named, existing accounts and requires fresh directory
+information; grace is not reported as successful enrollment. It commits each
+user separately and stops on the first failure. Exclude local/emergency accounts.
+Do not assign a current timestamp to unverified historical memberships. Users
+left unmarked keep the previous local-token behavior until successful enrollment.
+
+**Enabling this policy changes availability for LDAP-managed local-token users:**
+after refresh plus grace expires, LDAP unavailability returns 503. Previously,
+local-token requests did not depend on directory availability. Roll out the flag
+across workers after reviewing the retained-permission window. Disabling the flag
+restores the default legacy backends and token behavior; if you explicitly set
+`AUTHENTICATION_BACKENDS` in `local_settings.py`, restore that override as well.
+
 ## Keycloak user access tokens
 
 This feature is disabled by default. A webapp sends a Keycloak **access token** as
@@ -165,7 +229,8 @@ OIDC rejects `LDAPSearchUnion` in either `AUTH_LDAP_USER_SEARCH` or
 errors and return empty or partial results, which could bypass deny-group checks.
 Configure a single `LDAPSearch` for each search instead. This restriction also
 applies when using nested groups; ordinary `LDAPSearch` errors follow the failure policy above.
-It does not change password-login configuration when OIDC is disabled.
+Legacy password-login configuration is unaffected when both OIDC and local-token
+directory refresh are disabled.
 
 An inactive local user is rejected before LDAP attribute updates can reactivate
 it. An inactive populated user is also rejected. Configure directory account
@@ -183,8 +248,8 @@ authenticated user, which include read access to many mreg resources. Configure
 required-group eligibility if those users must be denied access entirely.
 
 Successful refreshes also change permissions seen by local-token clients sharing
-the user. Local-token requests retain their existing login-based LDAP
-refresh behavior. They do not trigger the new refresh/grace policy.
+the user. Local-token requests trigger this policy only when
+`MREG_LDAP_REFRESH_LOCAL_TOKENS=true` and the user is LDAP-managed.
 
 ### Key rotation, failures, and logout
 
