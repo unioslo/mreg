@@ -172,15 +172,10 @@ By default, the dotenv file is expected to be located at the project root with t
 
 ### Configuration Formats and Python Settings
 
-Process environment variables and `.env` entries use the same value formats.
-Only the documented variables are read; adding `MREG_` to an arbitrary Django
-setting does not make it configurable through the environment. Values are
-parsed for each setting, rather than evaluated as Python expressions.
+Process environment variables and `.env` entries use the same value formats. Unlike `local_settings.py`, the settings defined via `.env` and environment variables are always interpreted as strings and then converted to the appropriate Python types internally.
 
 The examples below use `.env` assignments and show the resulting Python
-settings. When assigning them in a shell, prefix the assignments with `export`
-to pass them to child processes. In `local_settings.py`, use the Python
-setting names and native values shown in the last column.
+settings. The equivalent `local_settings.py` assignments are shown in the last column.
 
 | Value type | Environment / `.env` example | Equivalent Python setting |
 | ---------- | ---------------------------- | ------------------------- |
@@ -189,11 +184,14 @@ setting names and native values shown in the last column.
 | Boolean | `MREG_DEBUG=false` | `DEBUG = False` |
 | Integer | `MREG_AUTH_LDAP_CACHE_TIMEOUT=600` | `AUTH_LDAP_CACHE_TIMEOUT = 600` |
 
-Ordinary boolean fields accept `1`, `true`, `t`, `yes`, `y`, `on` and
-`0`, `false`, `f`, `no`, `n`, `off`, ignoring case and surrounding whitespace.
+Boolean fields accept typical true and false representations:
+
+- `1`, `true`, `t`, `yes`, `y`, `on` for true
+- `0`, `false`, `f`, `no`, `n`, `off` for false
+
 Invalid boolean or integer values fall back to the setting's default.
-The setting's default determines its scalar type: for example, `MREG_DB_PORT`
-is a string even though its value normally contains only digits.
+
+The setting's default type (specified in `settings.py`) determines its scalar type: for example, `MREG_DB_PORT` is a string even though its value normally contains only digits.
 
 Structured fields have their own formats:
 
