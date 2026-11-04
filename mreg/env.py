@@ -1,7 +1,7 @@
 import json
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 from typing import TypeVar
 
 from dotenv import load_dotenv
@@ -28,9 +28,9 @@ def envvar(var: str, default: DefaultT) -> DefaultT:
     if isinstance(default, bool):
         s = raw.strip().lower()
         if s in _TRUE:
-            return True
+            return cast(DefaultT, True)
         if s in _FALSE:
-            return False
+            return cast(DefaultT, False)
         return default
 
     try:
