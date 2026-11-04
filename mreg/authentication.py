@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
+from django.utils import timezone
 
 from rest_framework import exceptions
 from rest_framework.authentication import TokenAuthentication, get_authorization_header
@@ -31,8 +32,11 @@ class ExpiringTokenAuthentication(TokenAuthentication):
         if token.is_expired:
             raise exceptions.AuthenticationFailed('Token has expired')
 
-        # Save the token to update the last_used field.
-        token.save()
+        # An overlapping logout may have deleted the token since we read it.
+        # Model.save() could reinsert it, so only update an existing credential.
+        token.last_used = timezone.now()
+        if not self.get_model().objects.filter(pk=token.pk).update(last_used=token.last_used):
+            raise exceptions.AuthenticationFailed('Invalid token')
 
         return token.user, token
 

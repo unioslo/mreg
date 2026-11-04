@@ -11,7 +11,7 @@ from django.core.exceptions import ImproperlyConfigured, ValidationError
 from django.db import transaction
 from django.dispatch import receiver
 from django_auth_ldap.backend import LDAPBackend, ldap_error
-from django_auth_ldap.config import LDAPGroupQuery
+from django_auth_ldap.config import LDAPGroupQuery, LDAPSearchUnion
 from rest_framework.exceptions import AuthenticationFailed
 
 
@@ -45,6 +45,15 @@ def validate_oidc_settings():
         raise ImproperlyConfigured("OIDC requires LDAP_GROUP_ATTR and LDAP_GROUP_RE for directory authorization.")
     if getattr(settings, "AUTH_LDAP_USER_QUERY_FIELD", None):
         raise ImproperlyConfigured("OIDC requires LDAP users to be looked up by username, not AUTH_LDAP_USER_QUERY_FIELD.")
+    _validate_ldap_searches()
+
+
+def _validate_ldap_searches():
+    # LDAPSearchUnion suppresses asynchronous search errors without emitting
+    # ldap_error. Empty/partial results cannot safely establish user eligibility.
+    for name in ("AUTH_LDAP_USER_SEARCH", "AUTH_LDAP_GROUP_SEARCH"):
+        if isinstance(getattr(settings, name, None), LDAPSearchUnion):
+            raise ImproperlyConfigured(f"OIDC does not support LDAPSearchUnion in {name}; configure a single LDAPSearch.")
 
 
 @lru_cache(maxsize=1)
@@ -96,6 +105,11 @@ def validate_access_token(token):
 class OIDCLDAPBackend(LDAPBackend):
     """Population with the account restrictions normally checked at LDAP login."""
 
+    def __init__(self):
+        super().__init__()
+        # Also guard backend use if settings were changed after application startup.
+        _validate_ldap_searches()
+
     def get_or_build_user(self, username, ldap_user):
         # populate_user() skips LDAPBackend's password-login requirements.
         for requirement, expected in ((self.settings.REQUIRE_GROUP, True), (self.settings.DENY_GROUP, False)):
@@ -104,11 +118,22 @@ class OIDCLDAPBackend(LDAPBackend):
                 if query.resolve(ldap_user) != expected:
                     raise AuthenticationFailed("Directory account is not allowed.")
         user, built = super().get_or_build_user(username, ldap_user)
-        if not built:
-            # Serialize with concurrent provisioning and administrative updates.
-            user = get_user_model().objects.select_for_update().get(pk=user.pk)
-            if not user.is_active:
-                raise AuthenticationFailed("User inactive or deleted.")
+        if built:
+            if self.settings.NO_NEW_USERS:
+                # Let django-auth-ldap reject creation before any insert occurs.
+                return user, built
+            user.set_unusable_password()
+            # get_or_create handles a competing insert using the unique username.
+            # The enclosing population transaction commits the account and groups
+            # together, so a competing request waits for a fully populated user.
+            user, built = get_user_model().objects.get_or_create(
+                username=user.username, defaults={"password": user.password},
+            )
+        # Serialize with concurrent provisioning and administrative updates,
+        # including an account created by a competing first-time request.
+        user = get_user_model().objects.select_for_update().get(pk=user.pk)
+        if not user.is_active:
+            raise AuthenticationFailed("User inactive or deleted.")
         return user, built
 
 

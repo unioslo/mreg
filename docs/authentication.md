@@ -14,6 +14,8 @@ The configured Django authentication backends, including LDAP, remain in use.
 groups, since the same account may also be used with Keycloak. This changes the
 previous behavior, which deleted the user on logout. Local users therefore remain
 in the database after logout. Local tokens retain their existing expiry behavior.
+An in-flight request cannot recreate a token deleted by logout. Requests already
+authenticated before logout may still finish.
 
 ## Keycloak user access tokens
 
@@ -100,6 +102,13 @@ disabled for this path, including checks configured through
 `AUTH_LDAP_NO_NEW_USERS` is respected. `AUTH_LDAP_USER_QUERY_FIELD` is unsupported
 for OIDC; identity resolution must use the directory username.
 
+OIDC rejects `LDAPSearchUnion` in either `AUTH_LDAP_USER_SEARCH` or
+`AUTH_LDAP_GROUP_SEARCH` at startup. Its asynchronous searches can suppress LDAP
+errors and return empty or partial results, which could bypass deny-group checks.
+Configure a single `LDAPSearch` for each search instead. This restriction also
+applies when using nested groups; ordinary `LDAPSearch` errors reject the request.
+It does not change password-login configuration when OIDC is disabled.
+
 An inactive local user is rejected before LDAP attribute updates can reactivate
 it. An inactive populated user is also rejected. Configure directory account
 eligibility explicitly, for example with `AUTH_LDAP_USER_FLAGS_BY_GROUP` mapping
@@ -107,8 +116,12 @@ eligibility explicitly, for example with `AUTH_LDAP_USER_FLAGS_BY_GROUP` mapping
 that password login is still enabled for that entry. Directory-specific lock or
 disable attributes are not inferred automatically.
 
-Provisioning is transactional. Missing/ambiguous accounts and directory failures
-reject the request rather than using stored permissions. A valid user with no
+Provisioning is transactional. Concurrent first requests create one account and
+serialize its group updates; new accounts initially have unusable passwords.
+When `AUTH_LDAP_NO_NEW_USERS` is enabled, no account is inserted.
+
+Missing/ambiguous accounts and directory failures reject the request rather than
+using stored permissions. A valid user with no
 matching groups receives the normal permissions of an authenticated user, which
 include read access to many mreg resources. Configure required-group eligibility
 if those users must be denied access entirely.

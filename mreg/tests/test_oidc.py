@@ -1,8 +1,10 @@
 """Signed-token tests: exercise cryptography, JWKS caching, and the LDAP backend."""
 
 import base64
+from concurrent.futures import ThreadPoolExecutor
 import io
 import json
+from threading import Barrier
 import time
 from unittest.mock import Mock, patch
 from urllib.error import URLError
@@ -13,9 +15,10 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from django.conf import settings
 from django.contrib.auth.models import Group
 from django.core.exceptions import ImproperlyConfigured
-from django.test import SimpleTestCase, override_settings
-from django_auth_ldap.backend import populate_user
-from django_auth_ldap.config import GroupOfNamesType, LDAPGroupQuery, LDAPSearch
+from django.db import connections
+from django.test import SimpleTestCase, TransactionTestCase, override_settings, skipUnlessDBFeature
+from django_auth_ldap.backend import LDAPBackend, populate_user
+from django_auth_ldap.config import GroupOfNamesType, LDAPGroupQuery, LDAPSearch, LDAPSearchUnion, NestedGroupOfNamesType
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.test import APIRequestFactory, APITestCase
 from rest_framework.views import APIView
@@ -224,6 +227,25 @@ class OIDCConfigurationTests(SimpleTestCase):
                     with self.assertRaises(ImproperlyConfigured):
                         validate_oidc_settings()
 
+    def test_union_searches_are_rejected_at_startup_and_backend_initialization(self):
+        search = LDAPSearchUnion(
+            LDAPSearch("ou=one,dc=example", ldap.SCOPE_SUBTREE),
+            LDAPSearch("ou=two,dc=example", ldap.SCOPE_SUBTREE),
+        )
+        for name in ("AUTH_LDAP_USER_SEARCH", "AUTH_LDAP_GROUP_SEARCH"):
+            with self.subTest(setting=name), override_settings(
+                **{name: search}, AUTH_LDAP_GROUP_TYPE=NestedGroupOfNamesType(),
+                AUTH_LDAP_DENY_GROUP="cn=denied,ou=one,dc=example",
+            ), patch("ldap.initialize") as initialize:
+                with self.assertRaisesRegex(ImproperlyConfigured, name):
+                    validate_oidc_settings()
+                with self.assertRaisesRegex(ImproperlyConfigured, name):
+                    OIDCLDAPBackend()
+                initialize.assert_not_called()
+                # Legacy LDAP configurations are unaffected when OIDC is off.
+                with override_settings(MREG_OIDC_ENABLED=False):
+                    validate_oidc_settings()
+
 
 @override_settings(
     **OIDC_SETTINGS,
@@ -334,10 +356,30 @@ class OIDCIntegrationTests(SignedTokenMixin, APITestCase):
         self.assertEqual(self.client.get("/api/token-is-valid/").status_code, 401)
         self.assertFalse(User.objects.exists())
 
+    @override_settings(
+        AUTH_LDAP_DENY_GROUP="cn=denied,ou=groups,dc=example",
+        AUTH_LDAP_GROUP_TYPE=NestedGroupOfNamesType(),
+    )
+    def test_nested_group_search_failure_rejects_authentication(self):
+        user = User.objects.create_user("jsmith")
+        user.groups.add(Group.objects.create(name="existing-membership"))
+
+        def search(base, *args):
+            if base == "ou=groups,dc=example":
+                raise ldap.SERVER_DOWN("group search failed")
+            return [(base, {"uid": [b"jsmith"], "memberOf": []})]
+
+        self.connection.search_s.side_effect = search
+        self.assertEqual(self.client.get("/api/token-is-valid/").status_code, 401)
+        self.assertEqual(list(user.groups.values_list("name", flat=True)), ["existing-membership"])
+
     @override_settings(AUTH_LDAP_NO_NEW_USERS=True)
     def test_no_new_users_restriction(self):
         self.assertEqual(self.client.get("/api/token-is-valid/").status_code, 401)
         self.assertFalse(User.objects.exists())
+        user = User.objects.create_user("jsmith")
+        self.assertEqual(self.client.get("/api/token-is-valid/").status_code, 200)
+        self.assertEqual(User.objects.get(username="jsmith").pk, user.pk)
 
     def test_ambiguous_local_identity_is_rejected(self):
         User.objects.create_user("jsmith")
@@ -423,3 +465,61 @@ class OIDCIntegrationTests(SignedTokenMixin, APITestCase):
         with patch.object(OIDCLDAPBackend, "populate_user", side_effect=ldap.SERVER_DOWN()):
             with self.assertRaises(AuthenticationFailed):
                 resolve_ldap_user(self.claims())
+
+
+@override_settings(
+    **OIDC_SETTINGS,
+    AUTH_LDAP_SERVER_URI="ldap://directory.example",
+    AUTH_LDAP_USER_DN_TEMPLATE="uid=%(user)s,ou=users,dc=example",
+    LDAP_GROUP_ATTR="memberOf", LDAP_GROUP_RE=r"^cn=(?P<group_name>[^,]+),",
+)
+@skipUnlessDBFeature("has_select_for_update")
+class OIDCProvisioningConcurrencyTests(TransactionTestCase):
+    def provision_concurrently(self):
+        both_users_missing = Barrier(2, timeout=20)
+        original_lookup = LDAPBackend.get_or_build_user
+
+        def synchronized_lookup(backend, username, ldap_user):
+            result = original_lookup(backend, username, ldap_user)
+            if result[1]:
+                # Force both transactions to see the account as missing before
+                # either is allowed to create it. No sleeps or mocked inserts.
+                both_users_missing.wait()
+            return result
+
+        def directory_connection(*args, **kwargs):
+            connection = Mock()
+            connection.search_s.side_effect = lambda base, *a: [
+                (base, {"uid": [b"jsmith"], "memberOf": [b"cn=dns-users,ou=groups,dc=example"]}),
+            ]
+            return connection
+
+        def provision(username):
+            try:
+                user = resolve_ldap_user({"ldap_username": username})
+                return user.pk, user.has_usable_password(), user.group_list
+            except AuthenticationFailed as exc:
+                return exc
+            finally:
+                # Django maintains a separate database connection per thread.
+                connections.close_all()
+
+        with patch("ldap.initialize", side_effect=directory_connection), patch.object(
+            LDAPBackend, "get_or_build_user", synchronized_lookup,
+        ), ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [executor.submit(provision, name) for name in ("jsmith", "JSmith")]
+            return [future.result(timeout=40) for future in futures]
+
+    def test_concurrent_first_requests_provision_one_user(self):
+        results = self.provision_concurrently()
+        user = User.objects.get(username="jsmith")
+        self.assertEqual(results, [(user.pk, False, ["dns-users"])] * 2)
+        self.assertEqual(User.objects.count(), 1)
+        self.assertFalse(ExpiringToken.objects.exists())
+
+    @override_settings(AUTH_LDAP_NO_NEW_USERS=True)
+    def test_concurrent_requests_respect_no_new_users(self):
+        results = self.provision_concurrently()
+        self.assertTrue(all(isinstance(result, AuthenticationFailed) for result in results))
+        self.assertFalse(User.objects.exists())
+        self.assertFalse(Group.objects.filter(name="dns-users").exists())
