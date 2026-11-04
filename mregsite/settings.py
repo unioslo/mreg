@@ -144,6 +144,12 @@ LDAP_GROUP_ATTR = "memberof"
 # LDAP_GROUP_RE must include a named group with name "group_name".
 LDAP_GROUP_RE = r"""^cn=(?P<group_name>[\w\-]+),cn=netgroups,"""
 
+# Shared directory refresh policy. Grace is additional time after freshness expires.
+MREG_LDAP_REFRESH_SECONDS = envvar("MREG_LDAP_REFRESH_SECONDS", 300)
+MREG_LDAP_GRACE_SECONDS = envvar("MREG_LDAP_GRACE_SECONDS", 3600)
+MREG_LDAP_RETRY_SECONDS = envvar("MREG_LDAP_RETRY_SECONDS", 30)
+MREG_LDAP_TIMEOUT_SECONDS = envvar("MREG_LDAP_TIMEOUT_SECONDS", 5)
+
 # Optional Keycloak access tokens. Identity claims are explicitly configured per deployment.
 MREG_OIDC_ENABLED = envvar("MREG_OIDC_ENABLED", False)
 MREG_OIDC_ISSUER = envvar("MREG_OIDC_ISSUER", "")

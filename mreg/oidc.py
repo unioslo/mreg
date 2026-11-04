@@ -4,15 +4,11 @@ from functools import lru_cache
 from urllib.parse import urlsplit
 
 import jwt
-import ldap
 from django.conf import settings
-from django.contrib.auth import get_user_model
-from django.core.exceptions import ImproperlyConfigured, ValidationError
-from django.db import transaction
-from django.dispatch import receiver
-from django_auth_ldap.backend import LDAPBackend, ldap_error
-from django_auth_ldap.config import LDAPGroupQuery, LDAPSearchUnion
+from django.core.exceptions import ImproperlyConfigured
 from rest_framework.exceptions import AuthenticationFailed
+
+from mreg.directory import refresh_directory_user, validate_directory_settings
 
 
 def validate_oidc_settings():
@@ -41,19 +37,7 @@ def validate_oidc_settings():
         minimum = 0 if name == "LEEWAY_SECONDS" else 1
         if type(value) is not int or value < minimum:
             raise ImproperlyConfigured(f"MREG_OIDC_{name} must be an integer >= {minimum}.")
-    if not settings.LDAP_GROUP_ATTR or not settings.LDAP_GROUP_RE:
-        raise ImproperlyConfigured("OIDC requires LDAP_GROUP_ATTR and LDAP_GROUP_RE for directory authorization.")
-    if getattr(settings, "AUTH_LDAP_USER_QUERY_FIELD", None):
-        raise ImproperlyConfigured("OIDC requires LDAP users to be looked up by username, not AUTH_LDAP_USER_QUERY_FIELD.")
-    _validate_ldap_searches()
-
-
-def _validate_ldap_searches():
-    # LDAPSearchUnion suppresses asynchronous search errors without emitting
-    # ldap_error. Empty/partial results cannot safely establish user eligibility.
-    for name in ("AUTH_LDAP_USER_SEARCH", "AUTH_LDAP_GROUP_SEARCH"):
-        if isinstance(getattr(settings, name, None), LDAPSearchUnion):
-            raise ImproperlyConfigured(f"OIDC does not support LDAPSearchUnion in {name}; configure a single LDAPSearch.")
+    validate_directory_settings()
 
 
 @lru_cache(maxsize=1)
@@ -102,67 +86,5 @@ def validate_access_token(token):
     return claims
 
 
-class OIDCLDAPBackend(LDAPBackend):
-    """Population with the account restrictions normally checked at LDAP login."""
-
-    def __init__(self):
-        super().__init__()
-        # Also guard backend use if settings were changed after application startup.
-        _validate_ldap_searches()
-
-    def get_or_build_user(self, username, ldap_user):
-        # populate_user() skips LDAPBackend's password-login requirements.
-        for requirement, expected in ((self.settings.REQUIRE_GROUP, True), (self.settings.DENY_GROUP, False)):
-            if requirement is not None:
-                query = LDAPGroupQuery(requirement) if isinstance(requirement, str) else requirement
-                if query.resolve(ldap_user) != expected:
-                    raise AuthenticationFailed("Directory account is not allowed.")
-        user, built = super().get_or_build_user(username, ldap_user)
-        if built:
-            if self.settings.NO_NEW_USERS:
-                # Let django-auth-ldap reject creation before any insert occurs.
-                return user, built
-            user.set_unusable_password()
-            # get_or_create handles a competing insert using the unique username.
-            # The enclosing population transaction commits the account and groups
-            # together, so a competing request waits for a fully populated user.
-            user, built = get_user_model().objects.get_or_create(
-                username=user.username, defaults={"password": user.password},
-            )
-        # Serialize with concurrent provisioning and administrative updates,
-        # including an account created by a competing first-time request.
-        user = get_user_model().objects.select_for_update().get(pk=user.pk)
-        if not user.is_active:
-            raise AuthenticationFailed("User inactive or deleted.")
-        return user, built
-
-
-@receiver(ldap_error, sender=OIDCLDAPBackend)
-def reject_ldap_error(sender, **kwargs):
-    # django-auth-ldap can otherwise swallow a directory error while populating
-    # permissions. A failed lookup must not reuse previously stored privileges.
-    raise AuthenticationFailed("Unable to resolve directory account.")
-
-
-@transaction.atomic
 def resolve_ldap_user(claims):
-    username = claims.get(settings.MREG_OIDC_USERNAME_CLAIM)
-    if not isinstance(username, str) or not username or username != username.strip():
-        raise AuthenticationFailed("Access token lacks a valid directory username.")
-    user_model = get_user_model()
-    try:
-        user_model._meta.get_field("username").run_validators(username)
-    except ValidationError as exc:
-        raise AuthenticationFailed("Invalid directory username.") from exc
-    backend = OIDCLDAPBackend()
-    # Group checks and is_active mappings must use this request's directory state.
-    backend.settings.CACHE_TIMEOUT = 0
-    try:
-        user = backend.populate_user(username)
-    except (ldap.LDAPError, user_model.MultipleObjectsReturned) as exc:
-        raise AuthenticationFailed("Unable to resolve directory account.") from exc
-    if user is None or not user.is_active:
-        raise AuthenticationFailed("Directory account is missing or inactive.")
-    # Permission properties on User are cached per instance; use a fresh instance
-    # after the population signal has replaced group memberships.
-    return user_model.objects.get(pk=user.pk)
+    return refresh_directory_user(claims.get(settings.MREG_OIDC_USERNAME_CLAIM))

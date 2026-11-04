@@ -23,6 +23,27 @@ Comma-separated values must not contain surrounding whitespace. In
 `local_settings.py`, supply lists or tuples for client IDs and algorithms.
 Issuer and JWKS URLs must not contain credentials, query strings, or fragments.
 
+## Directory refresh
+
+These shared settings currently apply to OIDC requests. Local-token authentication
+keeps its existing behavior. All values are seconds and can also be set in
+`local_settings.py`.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `MREG_LDAP_REFRESH_SECONDS` | `300` | Freshness interval for stored user attributes, groups, and eligibility. Zero refreshes on every request. |
+| `MREG_LDAP_GRACE_SECONDS` | `3600` | Additional time after freshness expires during which temporary LDAP failures allow retained permissions. Zero disables grace. |
+| `MREG_LDAP_RETRY_SECONDS` | `30` | Per-user delay between failed refresh attempts, shared across workers. Zero disables backoff. |
+| `MREG_LDAP_TIMEOUT_SECONDS` | `5` | Positive timeout for LDAP connection and individual synchronous operations; not an overall request deadline. |
+
+**Permission changes can take up to the refresh interval to propagate once visible
+in LDAP. During unavailability, old permissions can remain usable for refresh plus
+grace seconds after the last successful refresh, including write/admin access.**
+Failed attempts and new JWTs never reset this clock. A known denial or local
+account disabling cannot use grace. Unknown users require a successful LDAP
+lookup. See [Authentication](authentication.md#ldap-eligibility-and-permissions)
+for error classification, retries, and transaction requirements.
+
 ## `MREG_LOG_LEVEL`
 
 Log level of the application. Default: `CRITICAL`

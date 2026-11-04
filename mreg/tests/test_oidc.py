@@ -2,6 +2,7 @@
 
 import base64
 from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
 import io
 import json
 from threading import Barrier
@@ -17,22 +18,27 @@ from django.contrib.auth.models import Group
 from django.core.exceptions import ImproperlyConfigured
 from django.db import connections
 from django.test import SimpleTestCase, TransactionTestCase, override_settings, skipUnlessDBFeature
-from django_auth_ldap.backend import LDAPBackend, populate_user
+from django.utils import timezone
+from django_auth_ldap.backend import populate_user
 from django_auth_ldap.config import GroupOfNamesType, LDAPGroupQuery, LDAPSearch, LDAPSearchUnion, NestedGroupOfNamesType
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.test import APIRequestFactory, APITestCase
 from rest_framework.views import APIView
 
 from mreg.authentication import ExpiringTokenAuthentication, KeycloakBearerAuthentication
-from mreg.models.auth import User
+from mreg.models.auth import LDAPUserState, User
 from mreg.models.base import ExpiringToken, History
 from mreg.models.host import Host, Ipaddress
 from mreg.models.network import NetGroupRegexPermission, Network
-from mreg.oidc import OIDCLDAPBackend, _jwks_client, resolve_ldap_user, validate_access_token, validate_oidc_settings
+from mreg.directory import DirectoryLDAPBackend, DirectoryUnavailable
+from mreg.oidc import _jwks_client, resolve_ldap_user, validate_access_token, validate_oidc_settings
 
 
 OIDC_SETTINGS = {
     "MREG_OIDC_ENABLED": True,
+    "MREG_LDAP_REFRESH_SECONDS": 0,
+    "MREG_LDAP_GRACE_SECONDS": 0,
+    "MREG_LDAP_RETRY_SECONDS": 0,
     "MREG_OIDC_ISSUER": "https://login.example.org/realms/test",
     "MREG_OIDC_AUDIENCE": "mreg",
     "MREG_OIDC_JWKS_URL": "https://login.example.org/realms/test/protocol/openid-connect/certs",
@@ -220,6 +226,7 @@ class OIDCConfigurationTests(SimpleTestCase):
             "MREG_OIDC_LEEWAY_SECONDS": [-1],
             "LDAP_GROUP_ATTR": [None], "LDAP_GROUP_RE": [None],
             "AUTH_LDAP_USER_QUERY_FIELD": ["email"],
+            "AUTH_LDAP_USER_ATTR_MAP": [{"username": "uid"}],
         }
         for name, values in cases.items():
             for value in values:
@@ -240,7 +247,7 @@ class OIDCConfigurationTests(SimpleTestCase):
                 with self.assertRaisesRegex(ImproperlyConfigured, name):
                     validate_oidc_settings()
                 with self.assertRaisesRegex(ImproperlyConfigured, name):
-                    OIDCLDAPBackend()
+                    DirectoryLDAPBackend()
                 initialize.assert_not_called()
                 # Legacy LDAP configurations are unaffected when OIDC is off.
                 with override_settings(MREG_OIDC_ENABLED=False):
@@ -259,6 +266,8 @@ class OIDCConfigurationTests(SimpleTestCase):
 class OIDCIntegrationTests(SignedTokenMixin, APITestCase):
     def setUp(self):
         super().setUp()
+        # The error formatter emits got_request_exception even for expected 503 responses.
+        self.client.raise_request_exception = False
         self.enterContext(patch.object(APIView, "authentication_classes", (ExpiringTokenAuthentication, KeycloakBearerAuthentication)))
         self.connection = Mock()
         self.initialize = self.enterContext(patch("ldap.initialize", return_value=self.connection))
@@ -291,6 +300,24 @@ class OIDCIntegrationTests(SignedTokenMixin, APITestCase):
         self.assertEqual(self.connection.search_s.call_count, 2)
         self.assertEqual(self.http.call_count, 1)
 
+    @override_settings(MREG_LDAP_REFRESH_SECONDS=300, MREG_LDAP_GRACE_SECONDS=60, MREG_LDAP_RETRY_SECONDS=30)
+    def test_new_tokens_do_not_extend_directory_grace_or_skip_signature_checks(self):
+        now = timezone.now()
+        with patch("mreg.directory.timezone.now", return_value=now) as clock:
+            self.assertEqual(self.client.get("/api/meta/user").status_code, 200)
+            self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.token(key=self.other_key)}")
+            self.assertEqual(self.client.get("/api/meta/user").status_code, 401)
+            self.initialize.assert_called_once()
+            self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.token(jti='new-token')}")
+            self.connection.search_s.side_effect = ldap.SERVER_DOWN()
+            clock.return_value = now + timedelta(seconds=300)
+            self.assertEqual(self.client.get("/api/meta/user").status_code, 200)
+            self.assertEqual(LDAPUserState.objects.get(username="jsmith").last_success_at, now)
+            clock.return_value = now + timedelta(seconds=360)
+            response = self.client.get("/api/meta/user")
+            self.assertEqual(response.status_code, 503)
+            self.assertEqual(response["Retry-After"], "30")
+
     def test_configured_username_claims(self):
         for name in ("username", "preferred_username"):
             with self.subTest(claim=name), override_settings(MREG_OIDC_USERNAME_CLAIM=name):
@@ -317,10 +344,10 @@ class OIDCIntegrationTests(SignedTokenMixin, APITestCase):
     def test_directory_failure_does_not_fall_back_to_existing_user(self):
         user = User.objects.create_user("jsmith")
         user.groups.add(Group.objects.create(name="stale-admins"))
-        for result in ([], ldap.SERVER_DOWN("unavailable")):
+        for result, status in (([], 401), (ldap.SERVER_DOWN("unavailable"), 503)):
             with self.subTest(result=result):
                 self.connection.search_s.side_effect = result if isinstance(result, Exception) else lambda *a: result
-                self.assertEqual(self.client.get("/api/meta/user").status_code, 401)
+                self.assertEqual(self.client.get("/api/meta/user").status_code, status)
                 self.assertEqual(list(user.groups.values_list("name", flat=True)), ["stale-admins"])
 
     def test_inactive_local_user_cannot_be_reactivated_by_population(self):
@@ -353,7 +380,7 @@ class OIDCIntegrationTests(SignedTokenMixin, APITestCase):
     @override_settings(AUTH_LDAP_DENY_GROUP="cn=denied,ou=groups,dc=example")
     def test_group_lookup_failure_is_not_treated_as_absence(self):
         self.connection.compare_s.side_effect = ldap.SERVER_DOWN("unavailable")
-        self.assertEqual(self.client.get("/api/token-is-valid/").status_code, 401)
+        self.assertEqual(self.client.get("/api/token-is-valid/").status_code, 503)
         self.assertFalse(User.objects.exists())
 
     @override_settings(
@@ -370,7 +397,7 @@ class OIDCIntegrationTests(SignedTokenMixin, APITestCase):
             return [(base, {"uid": [b"jsmith"], "memberOf": []})]
 
         self.connection.search_s.side_effect = search
-        self.assertEqual(self.client.get("/api/token-is-valid/").status_code, 401)
+        self.assertEqual(self.client.get("/api/token-is-valid/").status_code, 503)
         self.assertEqual(list(user.groups.values_list("name", flat=True)), ["existing-membership"])
 
     @override_settings(AUTH_LDAP_NO_NEW_USERS=True)
@@ -389,9 +416,9 @@ class OIDCIntegrationTests(SignedTokenMixin, APITestCase):
     def test_failure_after_group_signal_rolls_back(self):
         def fail(sender, **kwargs):
             raise ldap.SERVER_DOWN("failed during population")
-        populate_user.connect(fail, sender=OIDCLDAPBackend)
-        self.addCleanup(populate_user.disconnect, fail, sender=OIDCLDAPBackend)
-        self.assertEqual(self.client.get("/api/token-is-valid/").status_code, 401)
+        populate_user.connect(fail, sender=DirectoryLDAPBackend)
+        self.addCleanup(populate_user.disconnect, fail, sender=DirectoryLDAPBackend)
+        self.assertEqual(self.client.get("/api/token-is-valid/").status_code, 503)
         self.assertFalse(User.objects.exists())
         self.assertFalse(Group.objects.filter(name="dns-users").exists())
 
@@ -462,8 +489,8 @@ class OIDCIntegrationTests(SignedTokenMixin, APITestCase):
         self.assertEqual(self.client.get("/api/token-is-valid/").status_code, 200)
 
     def test_raw_ldap_exception_rejected(self):
-        with patch.object(OIDCLDAPBackend, "populate_user", side_effect=ldap.SERVER_DOWN()):
-            with self.assertRaises(AuthenticationFailed):
+        with patch.object(DirectoryLDAPBackend, "populate_user", side_effect=ldap.SERVER_DOWN()):
+            with self.assertRaises(DirectoryUnavailable):
                 resolve_ldap_user(self.claims())
 
 
@@ -476,16 +503,7 @@ class OIDCIntegrationTests(SignedTokenMixin, APITestCase):
 @skipUnlessDBFeature("has_select_for_update")
 class OIDCProvisioningConcurrencyTests(TransactionTestCase):
     def provision_concurrently(self):
-        both_users_missing = Barrier(2, timeout=20)
-        original_lookup = LDAPBackend.get_or_build_user
-
-        def synchronized_lookup(backend, username, ldap_user):
-            result = original_lookup(backend, username, ldap_user)
-            if result[1]:
-                # Force both transactions to see the account as missing before
-                # either is allowed to create it. No sleeps or mocked inserts.
-                both_users_missing.wait()
-            return result
+        requests_ready = Barrier(2, timeout=20)
 
         def directory_connection(*args, **kwargs):
             connection = Mock()
@@ -496,6 +514,7 @@ class OIDCProvisioningConcurrencyTests(TransactionTestCase):
 
         def provision(username):
             try:
+                requests_ready.wait()
                 user = resolve_ldap_user({"ldap_username": username})
                 return user.pk, user.has_usable_password(), user.group_list
             except AuthenticationFailed as exc:
@@ -504,9 +523,7 @@ class OIDCProvisioningConcurrencyTests(TransactionTestCase):
                 # Django maintains a separate database connection per thread.
                 connections.close_all()
 
-        with patch("ldap.initialize", side_effect=directory_connection), patch.object(
-            LDAPBackend, "get_or_build_user", synchronized_lookup,
-        ), ThreadPoolExecutor(max_workers=2) as executor:
+        with patch("ldap.initialize", side_effect=directory_connection), ThreadPoolExecutor(max_workers=2) as executor:
             futures = [executor.submit(provision, name) for name in ("jsmith", "JSmith")]
             return [future.result(timeout=40) for future in futures]
 
