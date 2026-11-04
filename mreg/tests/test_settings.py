@@ -27,6 +27,23 @@ class SettingsTestCase(SimpleTestCase):
 
 
 class SettingsHelpersTests(SimpleTestCase):
+    def test_oidc_authenticator_registration(self):
+        try:
+            with patch.dict(os.environ, {"MREG_OIDC_ENABLED": "true"}):
+                reloaded = importlib.reload(app_settings)
+                self.assertEqual(
+                    reloaded.REST_FRAMEWORK["DEFAULT_AUTHENTICATION_CLASSES"],
+                    ("mreg.authentication.ExpiringTokenAuthentication", "mreg.authentication.KeycloakBearerAuthentication"),
+                )
+            with patch.dict(os.environ, {"MREG_OIDC_ENABLED": "false"}):
+                reloaded = importlib.reload(app_settings)
+                self.assertEqual(
+                    reloaded.REST_FRAMEWORK["DEFAULT_AUTHENTICATION_CLASSES"],
+                    ("mreg.authentication.ExpiringTokenAuthentication",),
+                )
+        finally:
+            importlib.reload(app_settings)
+
     def test_envvar_bool_and_casting(self):
         os.environ["MREG_TEST_BOOL"] = "original"
         original = os.environ.get("MREG_TEST_BOOL")

@@ -408,6 +408,8 @@ class APITokenAuthenticationTestCase(MregAPITestCase):
     def test_logout(self):
         self.assert_get("/hosts/")
         self.assert_post_and_200("/api/token-logout/")
+        self.assertTrue(User.objects.filter(pk=self.user.pk).exists())
+        self.assertFalse(ExpiringToken.objects.filter(user=self.user).exists())
         self.assert_get_and_401("/hosts/")
 
     def test_logout_without_authentication(self):

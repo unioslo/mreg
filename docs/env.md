@@ -1,5 +1,28 @@
 # Environment Variables
 
+## Keycloak authentication
+
+See [Authentication](authentication.md) for the token contract, LDAP prerequisites,
+and rollout instructions. The feature is disabled by default.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `MREG_OIDC_ENABLED` | `False` | Enable Keycloak bearer authentication alongside local tokens. |
+| `MREG_OIDC_ISSUER` | Empty | Exact trusted HTTPS realm issuer. Required when enabled. |
+| `MREG_OIDC_AUDIENCE` | Empty | Required access-token audience identifying mreg. |
+| `MREG_OIDC_JWKS_URL` | Empty | Trusted HTTPS JWKS endpoint. Required when enabled. |
+| `MREG_OIDC_USERNAME_CLAIM` | Empty | One authoritative LDAP username claim. Required when enabled. |
+| `MREG_OIDC_ALLOWED_CLIENT_IDS` | Empty | Comma-separated permitted `azp` client IDs. Required when enabled. |
+| `MREG_OIDC_ALGORITHMS` | `RS256` | Comma-separated asymmetric JWT signing algorithms. |
+| `MREG_OIDC_JWKS_TIMEOUT` | `5` | Positive HTTPS fetch timeout, in seconds. |
+| `MREG_OIDC_JWKS_CACHE_SECONDS` | `300` | Positive lifetime of each worker's JWKS cache. |
+| `MREG_OIDC_JWKS_COOLDOWN_SECONDS` | `30` | Positive minimum interval between successful fetches and unknown-key refreshes. |
+| `MREG_OIDC_LEEWAY_SECONDS` | `0` | Nonnegative clock tolerance for token time checks. |
+
+Comma-separated values must not contain surrounding whitespace. In
+`local_settings.py`, supply lists or tuples for client IDs and algorithms.
+Issuer and JWKS URLs must not contain credentials, query strings, or fragments.
+
 ## `MREG_LOG_LEVEL`
 
 Log level of the application. Default: `CRITICAL`

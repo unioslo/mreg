@@ -144,6 +144,19 @@ LDAP_GROUP_ATTR = "memberof"
 # LDAP_GROUP_RE must include a named group with name "group_name".
 LDAP_GROUP_RE = r"""^cn=(?P<group_name>[\w\-]+),cn=netgroups,"""
 
+# Optional Keycloak access tokens. Identity claims are explicitly configured per deployment.
+MREG_OIDC_ENABLED = envvar("MREG_OIDC_ENABLED", False)
+MREG_OIDC_ISSUER = envvar("MREG_OIDC_ISSUER", "")
+MREG_OIDC_AUDIENCE = envvar("MREG_OIDC_AUDIENCE", "")
+MREG_OIDC_JWKS_URL = envvar("MREG_OIDC_JWKS_URL", "")
+MREG_OIDC_USERNAME_CLAIM = envvar("MREG_OIDC_USERNAME_CLAIM", "")
+MREG_OIDC_ALLOWED_CLIENT_IDS = envvar("MREG_OIDC_ALLOWED_CLIENT_IDS", "").split(",")
+MREG_OIDC_ALGORITHMS = envvar("MREG_OIDC_ALGORITHMS", "RS256").split(",")
+MREG_OIDC_JWKS_TIMEOUT = envvar("MREG_OIDC_JWKS_TIMEOUT", 5)
+MREG_OIDC_JWKS_CACHE_SECONDS = envvar("MREG_OIDC_JWKS_CACHE_SECONDS", 300)
+MREG_OIDC_JWKS_COOLDOWN_SECONDS = envvar("MREG_OIDC_JWKS_COOLDOWN_SECONDS", 30)
+MREG_OIDC_LEEWAY_SECONDS = envvar("MREG_OIDC_LEEWAY_SECONDS", 0)
+
 # Application definition
 
 INSTALLED_APPS = [
@@ -415,6 +428,14 @@ try:
     from .local_settings import *  # noqa: F401,F403
 except ImportError:
     pass
+
+# Apply after local_settings overrides. Keep local-token authentication first for
+# compatibility; it selects the appropriate challenge for bearer requests too.
+if MREG_OIDC_ENABLED:
+    REST_FRAMEWORK["DEFAULT_AUTHENTICATION_CLASSES"] = (
+        *REST_FRAMEWORK["DEFAULT_AUTHENTICATION_CLASSES"],
+        "mreg.authentication.KeycloakBearerAuthentication",
+    )
 
 if TESTING or "CI" in os.environ:
     SUPERUSER_GROUP = "default-super-group"
