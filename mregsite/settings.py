@@ -164,7 +164,9 @@ AUTH_LDAP_USER_ATTR_MAP = envvar_pairs("MREG_AUTH_LDAP_USER_ATTR_MAP", {})
 # True mirrors all groups, False disables mirroring, list of strings mirrors specific groups
 # list disables django-auth-ldap's mirroring (mreg's populate_user signal still runs).
 # Parse first as string, then parse as either bool or list depending on the value
-if (_mirr_groups_str := envvar("MREG_AUTH_LDAP_MIRROR_GROUPS", "").strip().lower()):
+
+if "MREG_AUTH_LDAP_MIRROR_GROUPS" in os.environ:
+    _mirr_groups_str = envvar("MREG_AUTH_LDAP_MIRROR_GROUPS", "").strip().lower()
     if _mirr_groups_str in {"true", "false"}:
         _mirr_groups_parsed = envvar("MREG_AUTH_LDAP_MIRROR_GROUPS", False)
     else:
