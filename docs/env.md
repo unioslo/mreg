@@ -25,12 +25,13 @@ Issuer and JWKS URLs must not contain credentials, query strings, or fragments.
 
 ## Directory refresh
 
-These shared settings currently apply to OIDC requests. Local-token authentication
-keeps its existing behavior. All values are seconds and can also be set in
-`local_settings.py`.
+These settings apply to OIDC requests and, when explicitly enabled, to local
+tokens owned by LDAP-managed users. They can also be set in `local_settings.py`.
+Intervals and timeouts are in seconds.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
+| `MREG_LDAP_REFRESH_LOCAL_TOKENS` | `False` | Opt into shared LDAP refresh/grace for directory-managed local-token users and the matching password backends. |
 | `MREG_LDAP_REFRESH_SECONDS` | `300` | Freshness interval for stored user attributes, groups, and eligibility. Zero refreshes on every request. |
 | `MREG_LDAP_GRACE_SECONDS` | `3600` | Additional time after freshness expires during which temporary LDAP failures allow retained permissions. Zero disables grace. |
 | `MREG_LDAP_RETRY_SECONDS` | `30` | Per-user delay between failed refresh attempts, shared across workers. Zero disables backoff. |
@@ -42,7 +43,9 @@ grace seconds after the last successful refresh, including write/admin access.**
 Failed attempts and new JWTs never reset this clock. A known denial or local
 account disabling cannot use grace. Unknown users require a successful LDAP
 lookup. See [Authentication](authentication.md#ldap-eligibility-and-permissions)
-for error classification, retries, and transaction requirements.
+for error classification, retries, and transaction requirements. See
+[local-token rollout](authentication.md#optional-directory-refresh-for-local-tokens)
+for account enrollment and the changed outage behavior.
 
 ## `MREG_LOG_LEVEL`
 

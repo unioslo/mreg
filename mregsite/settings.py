@@ -149,6 +149,7 @@ MREG_LDAP_REFRESH_SECONDS = envvar("MREG_LDAP_REFRESH_SECONDS", 300)
 MREG_LDAP_GRACE_SECONDS = envvar("MREG_LDAP_GRACE_SECONDS", 3600)
 MREG_LDAP_RETRY_SECONDS = envvar("MREG_LDAP_RETRY_SECONDS", 30)
 MREG_LDAP_TIMEOUT_SECONDS = envvar("MREG_LDAP_TIMEOUT_SECONDS", 5)
+MREG_LDAP_REFRESH_LOCAL_TOKENS = envvar("MREG_LDAP_REFRESH_LOCAL_TOKENS", False)
 
 # Optional Keycloak access tokens. Identity claims are explicitly configured per deployment.
 MREG_OIDC_ENABLED = envvar("MREG_OIDC_ENABLED", False)
@@ -434,6 +435,13 @@ try:
     from .local_settings import *  # noqa: F401,F403
 except ImportError:
     pass
+
+if MREG_LDAP_REFRESH_LOCAL_TOKENS and tuple(AUTHENTICATION_BACKENDS) == (
+    "django_auth_ldap.backend.LDAPBackend", "django.contrib.auth.backends.ModelBackend",
+):
+    AUTHENTICATION_BACKENDS = (
+        "mreg.directory_auth.LocalUserBackend", "mreg.directory_auth.LDAPPasswordBackend",
+    )
 
 # Apply after local_settings overrides. Keep local-token authentication first for
 # compatibility; it selects the appropriate challenge for bearer requests too.
