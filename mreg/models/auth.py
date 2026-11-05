@@ -16,6 +16,8 @@ import enum
 from django.contrib.auth.models import AbstractUser
 from django.conf import settings
 from django.db import models
+from django.db.models.functions import Greatest
+from django.utils import timezone
 
 from rest_framework import exceptions
 from rest_framework.request import Request
@@ -32,12 +34,21 @@ class LDAPUserState(models.Model):
     username = models.CharField(max_length=150, primary_key=True)
     user = models.OneToOneField(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.CASCADE, related_name="ldap_state")
     last_success_at = models.DateTimeField(null=True, blank=True)
+    # Start a full retention window when an account is enrolled or this field is migrated.
+    last_activity_at = models.DateTimeField(default=timezone.now)
     eligible = models.BooleanField(default=False)
     retry_after = models.DateTimeField(null=True, blank=True)
     last_error = models.CharField(max_length=16, blank=True, default="")
 
     class Meta:
         verbose_name = "LDAP user state"
+
+    @classmethod
+    def record_activity(cls, user_id: int) -> int:
+        """Retain authenticated activity independently of directory freshness and tokens."""
+        return cls.objects.filter(user_id=user_id).update(
+            last_activity_at=Greatest("last_activity_at", timezone.now()),
+        )
 
 
 class MregAdminGroup(enum.Enum):
