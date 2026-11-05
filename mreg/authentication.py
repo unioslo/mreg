@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
@@ -24,7 +24,7 @@ class ExpiringTokenAuthentication(TokenAuthentication):
             return "Bearer"
         return super().authenticate_header(request)
 
-    def __init__(self, *args, refresh_directory=True, **kwargs):
+    def __init__(self, *args: Any, refresh_directory: bool = True, **kwargs: Any) -> None:
         self.model = ExpiringToken
         self.refresh_directory = refresh_directory
         super().__init__(*args, **kwargs)
@@ -51,9 +51,9 @@ class ExpiringTokenAuthentication(TokenAuthentication):
 
         return user, token
 
-    def resolve_user(self, user):
+    def resolve_user(self, user: User) -> User:
         if self.refresh_directory and settings.MREG_LDAP_REFRESH_LOCAL_TOKENS:
-            state = LDAPUserState.objects.filter(user_id=user.pk).first()
+            state: LDAPUserState | None = LDAPUserState.objects.filter(user_id=user.pk).first()
             if state is not None:
                 from mreg.directory import refresh_directory_user
 

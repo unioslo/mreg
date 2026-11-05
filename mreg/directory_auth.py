@@ -1,6 +1,7 @@
 """Password authentication that shares directory state with token authentication."""
 
 from datetime import timedelta
+from typing import TYPE_CHECKING
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -12,8 +13,14 @@ from rest_framework.exceptions import AuthenticationFailed
 from mreg.directory import DirectoryLDAPBackend, directory_username, refresh_directory_user, validate_directory_settings
 from mreg.models.auth import LDAPUserState
 
+if TYPE_CHECKING:
+    from django.http import HttpRequest
+    from django_auth_ldap.backend import _LDAPUser
 
-def validate_local_directory_settings():
+    from mreg.models.auth import User
+
+
+def validate_local_directory_settings() -> None:
     if not settings.MREG_LDAP_REFRESH_LOCAL_TOKENS:
         return
     validate_directory_settings()
@@ -27,12 +34,12 @@ def validate_local_directory_settings():
 class LocalUserBackend(ModelBackend):
     """Local passwords cannot bypass LDAP for explicitly directory-managed users."""
 
-    def user_can_authenticate(self, user):
+    def user_can_authenticate(self, user: User) -> bool:
         return super().user_can_authenticate(user) and not LDAPUserState.objects.filter(user_id=user.pk).exists()
 
 
 class LDAPPasswordBackend(DirectoryLDAPBackend):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         # The inherited backend verifies the password, without persisting a user
         # or checking authorization. The shared refresher handles those afterward.
@@ -43,17 +50,19 @@ class LDAPPasswordBackend(DirectoryLDAPBackend):
         self.settings.MIRROR_GROUPS_EXCEPT = None
         self.settings.PERMIT_EMPTY_PASSWORD = False
 
-    def get_or_build_user(self, username, ldap_user):
+    def get_or_build_user(self, username: str, ldap_user: _LDAPUser) -> tuple[User, bool]:
         # An unsaved identity is sufficient for the password verification phase.
         # built=False and ALWAYS_UPDATE_USER=False prevent population or saving.
         return get_user_model()(username=directory_username(username)), False
 
-    def authenticate_ldap_user(self, ldap_user, password):
+    def authenticate_ldap_user(self, ldap_user: _LDAPUser, password: str) -> User | None:
         if ldap_user.dn is None:
             raise AuthenticationFailed("Directory account is missing or ambiguous.")
         return super().authenticate_ldap_user(ldap_user, password)
 
-    def authenticate(self, request, username=None, password=None, **kwargs):
+    def authenticate(
+        self, request: HttpRequest | None, username: object = None, password: object = None, **kwargs: object,
+    ) -> User | None:
         username = kwargs.get(get_user_model().USERNAME_FIELD, username)
         if username is None or not isinstance(password, str) or not password:
             return None

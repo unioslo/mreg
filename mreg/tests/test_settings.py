@@ -27,7 +27,7 @@ class SettingsTestCase(SimpleTestCase):
 
 
 class SettingsHelpersTests(SimpleTestCase):
-    def test_local_directory_backend_environment_switch(self):
+    def test_local_directory_backend_environment_switch(self) -> None:
         try:
             with patch.dict(os.environ, {"MREG_LDAP_REFRESH_LOCAL_TOKENS": "true"}):
                 reloaded = importlib.reload(app_settings)
