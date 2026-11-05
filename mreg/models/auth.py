@@ -15,6 +15,7 @@ import enum
 
 from django.contrib.auth.models import AbstractUser
 from django.conf import settings
+from django.db import models
 
 from rest_framework import exceptions
 from rest_framework.request import Request
@@ -23,6 +24,20 @@ from structlog import get_logger
 
 
 logger = get_logger(__name__)
+
+
+class LDAPUserState(models.Model):
+    """Shared refresh state; a failed first lookup need not create a local user."""
+
+    username = models.CharField(max_length=150, primary_key=True)
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.CASCADE, related_name="ldap_state")
+    last_success_at = models.DateTimeField(null=True, blank=True)
+    eligible = models.BooleanField(default=False)
+    retry_after = models.DateTimeField(null=True, blank=True)
+    last_error = models.CharField(max_length=16, blank=True, default="")
+
+    class Meta:
+        verbose_name = "LDAP user state"
 
 
 class MregAdminGroup(enum.Enum):
