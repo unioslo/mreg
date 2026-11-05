@@ -27,7 +27,7 @@ class SettingsTestCase(SimpleTestCase):
 
 
 class SettingsHelpersTests(SimpleTestCase):
-    def test_directory_refresh_environment_settings(self):
+    def test_directory_refresh_environment_settings(self) -> None:
         values = {
             "MREG_LDAP_REFRESH_SECONDS": "123", "MREG_LDAP_GRACE_SECONDS": "456",
             "MREG_LDAP_RETRY_SECONDS": "17", "MREG_LDAP_TIMEOUT_SECONDS": "3",
@@ -40,7 +40,7 @@ class SettingsHelpersTests(SimpleTestCase):
         finally:
             importlib.reload(app_settings)
 
-    def test_oidc_authenticator_registration(self):
+    def test_oidc_authenticator_registration(self) -> None:
         try:
             with patch.dict(os.environ, {"MREG_OIDC_ENABLED": "true"}):
                 reloaded = importlib.reload(app_settings)

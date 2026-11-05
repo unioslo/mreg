@@ -137,11 +137,11 @@ class TokenLogout(APIView):
     authentication_classes = (ExpiringTokenAuthentication,)
     permission_classes = (IsAuthenticated,)
 
-    def get_authenticate_header(self, request):
+    def get_authenticate_header(self, request: Request) -> str:
         return "Token"
 
     @extend_schema(request=None, responses={status.HTTP_200_OK: None})
-    def post(self, request: Request):
+    def post(self, request: Request) -> Response:
         # The account can also be in use by Keycloak-authenticated clients.
         # Logout revokes this local credential, not the shared user identity.
         request.auth.delete()

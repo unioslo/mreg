@@ -10,7 +10,7 @@ MAX_GLOBAL_PREFIX_LENGTH = 60
 class MregAppConfig(AppConfig):
     name = 'mreg'
 
-    def ready(self):
+    def ready(self) -> None:
         import mreg.signals # noqa
         import mreg.schema # noqa: F401
         from mreg.oidc import validate_oidc_settings

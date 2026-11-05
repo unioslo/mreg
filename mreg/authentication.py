@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils import timezone
@@ -7,10 +9,15 @@ from rest_framework.authentication import TokenAuthentication, get_authorization
 
 from mreg.models.base import ExpiringToken
 
+if TYPE_CHECKING:
+    from rest_framework.request import Request
+
+    from mreg.models.auth import User
+
 
 class ExpiringTokenAuthentication(TokenAuthentication):
 
-    def authenticate_header(self, request):
+    def authenticate_header(self, request: Request) -> str:
         header = get_authorization_header(request).split()
         if settings.MREG_OIDC_ENABLED and header and header[0].lower() == b"bearer":
             return "Bearer"
@@ -20,9 +27,9 @@ class ExpiringTokenAuthentication(TokenAuthentication):
         self.model = ExpiringToken
         super().__init__(*args, **kwargs)
 
-    def authenticate_credentials(self, key):
+    def authenticate_credentials(self, key: str) -> tuple[User, ExpiringToken]:
         try:
-            token = self.get_model().objects.get(key=key)
+            token: ExpiringToken = self.get_model().objects.get(key=key)
         except ObjectDoesNotExist:
             raise exceptions.AuthenticationFailed('Invalid token')
 
@@ -46,12 +53,12 @@ class KeycloakBearerAuthentication(TokenAuthentication):
 
     keyword = "Bearer"
 
-    def authenticate(self, request):
+    def authenticate(self, request: Request) -> tuple[User, dict[str, object]] | None:
         if not settings.MREG_OIDC_ENABLED:
             return None
         return super().authenticate(request)
 
-    def authenticate_credentials(self, key):
+    def authenticate_credentials(self, key: str) -> tuple[User, dict[str, object]]:
         from mreg.oidc import resolve_ldap_user, validate_access_token
 
         claims = validate_access_token(key)

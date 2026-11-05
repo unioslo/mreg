@@ -16,7 +16,7 @@ MODELS: list[Model] = sorted(
 """All models in both the mreg and hostpolicy apps."""
 
 
-def test_display_name_snapshot():
+def test_display_name_snapshot() -> None:
     """Snapshot test for model display names."""
     result = {f"{m._meta.app_label}.{m.__name__}": display_name(m) for m in MODELS}
     assert result == snapshot(
@@ -59,7 +59,7 @@ def test_display_name_snapshot():
     )
 
 
-def test_display_name_capitalize_snapshot():
+def test_display_name_capitalize_snapshot() -> None:
     """Snapshot test for model display names."""
     result = {f"{m._meta.app_label}.{m.__name__}": display_name(m, capitalize=True) for m in MODELS}
     assert result == snapshot(
@@ -102,7 +102,7 @@ def test_display_name_capitalize_snapshot():
     )
 
 
-def test_verbose_name_snapshot():
+def test_verbose_name_snapshot() -> None:
     """Snapshot test for the verbose names of models."""
     result = {
         f"{m._meta.app_label}.{m.__name__}": {

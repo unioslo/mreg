@@ -3,6 +3,7 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone as dt_timezone
 from threading import Barrier
+from typing import Never
 from unittest.mock import Mock, patch
 
 import ldap
@@ -18,7 +19,7 @@ from mreg.directory import DirectoryFailure, DirectoryLDAPBackend, DirectoryUnav
 from mreg.models.auth import LDAPUserState, User
 
 
-DIRECTORY_SETTINGS = {
+DIRECTORY_SETTINGS: dict[str, object] = {
     "MREG_LDAP_REFRESH_SECONDS": 300,
     "MREG_LDAP_GRACE_SECONDS": 3600,
     "MREG_LDAP_RETRY_SECONDS": 30,
@@ -34,7 +35,7 @@ DIRECTORY_SETTINGS = {
 
 
 class DirectoryFixture:
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
         self.now = datetime(2026, 1, 1, tzinfo=dt_timezone.utc)
         self.clock = self.enterContext(patch("mreg.directory.timezone.now", return_value=self.now))
@@ -45,23 +46,23 @@ class DirectoryFixture:
         self.connection.search_s.side_effect = self.search
         self.initialize = self.enterContext(patch("ldap.initialize", return_value=self.connection))
 
-    def search(self, base, *args):
+    def search(self, base: str, *args: object) -> list[tuple[str, dict[str, list[bytes]]]]:
         return [(base, {
             "uid": [b"jsmith"], "givenName": [self.first_name.encode()], "mail": [self.email.encode()],
             "memberOf": [f"cn={name},ou=groups,dc=example".encode() for name in self.groups],
         })]
 
-    def advance(self, seconds):
+    def advance(self, seconds: float) -> None:
         self.now += timedelta(seconds=seconds)
         self.clock.return_value = self.now
 
-    def state(self):
+    def state(self) -> LDAPUserState:
         return LDAPUserState.objects.get(username="jsmith")
 
 
 @override_settings(**DIRECTORY_SETTINGS)
 class DirectoryRefreshTests(DirectoryFixture, TestCase):
-    def test_fresh_user_and_attributes_refresh_only_when_due(self):
+    def test_fresh_user_and_attributes_refresh_only_when_due(self) -> None:
         first = refresh_directory_user("JSmith")
         self.groups = ["new-group"]
         self.first_name, self.email = "Changed", "changed@example.org"
@@ -76,14 +77,14 @@ class DirectoryRefreshTests(DirectoryFixture, TestCase):
         self.assertEqual(self.initialize.call_count, 2)
         self.assertEqual(self.state().last_success_at, self.now)
 
-    def test_anonymous_bind_and_network_and_operation_timeouts(self):
+    def test_anonymous_bind_and_network_and_operation_timeouts(self) -> None:
         refresh_directory_user("jsmith")
         self.connection.simple_bind_s.assert_called_once_with("", "")
         self.assertEqual(self.connection.timeout, 5)
         self.connection.set_option.assert_any_call(ldap.OPT_NETWORK_TIMEOUT, 5)
         self.connection.set_option.assert_any_call(ldap.OPT_TIMEOUT, 5)
 
-    def test_transient_failures_retain_information_and_retry_after_cooldown(self):
+    def test_transient_failures_retain_information_and_retry_after_cooldown(self) -> None:
         original = refresh_directory_user("jsmith")
         refreshed_at = self.state().last_success_at
         self.advance(300)
@@ -100,7 +101,7 @@ class DirectoryRefreshTests(DirectoryFixture, TestCase):
                 self.advance(1)
         self.assertEqual(self.state().last_error, "unavailable")
 
-    def test_grace_deadline_is_absolute_and_survives_new_backend_instances(self):
+    def test_grace_deadline_is_absolute_and_survives_new_backend_instances(self) -> None:
         refresh_directory_user("jsmith")
         self.advance(300)
         self.connection.search_s.side_effect = ldap.SERVER_DOWN()
@@ -114,7 +115,7 @@ class DirectoryRefreshTests(DirectoryFixture, TestCase):
         self.assertEqual(self.initialize.call_count, calls)  # Grace expired even during retry backoff.
         self.assertEqual(User.objects.get(username="jsmith").group_list, ["dns-users"])
 
-    def test_first_failure_after_long_inactivity_does_not_start_new_grace(self):
+    def test_first_failure_after_long_inactivity_does_not_start_new_grace(self) -> None:
         refresh_directory_user("jsmith")
         self.advance(3900)
         self.connection.search_s.side_effect = ldap.SERVER_DOWN()
@@ -122,7 +123,7 @@ class DirectoryRefreshTests(DirectoryFixture, TestCase):
             refresh_directory_user("jsmith")
 
     @override_settings(MREG_LDAP_GRACE_SECONDS=0)
-    def test_grace_can_be_disabled(self):
+    def test_grace_can_be_disabled(self) -> None:
         refresh_directory_user("jsmith")
         self.advance(300)
         self.connection.search_s.side_effect = ldap.TIMEOUT()
@@ -130,13 +131,13 @@ class DirectoryRefreshTests(DirectoryFixture, TestCase):
             refresh_directory_user("jsmith")
 
     @override_settings(MREG_LDAP_REFRESH_SECONDS=0)
-    def test_zero_refresh_interval_reads_on_every_request(self):
+    def test_zero_refresh_interval_reads_on_every_request(self) -> None:
         refresh_directory_user("jsmith")
         self.groups = []
         self.assertEqual(refresh_directory_user("jsmith").group_list, [])
         self.assertEqual(self.initialize.call_count, 2)
 
-    def test_existing_user_without_verified_state_cannot_use_grace(self):
+    def test_existing_user_without_verified_state_cannot_use_grace(self) -> None:
         user = User.objects.create_user("jsmith", first_name="Local")
         self.connection.search_s.side_effect = ldap.SERVER_DOWN()
         for _ in range(2):
@@ -146,7 +147,7 @@ class DirectoryRefreshTests(DirectoryFixture, TestCase):
         self.assertIsNone(self.state().last_success_at)
         self.assertEqual(User.objects.get(pk=user.pk).first_name, "Local")
 
-    def test_failed_first_population_preserves_only_retry_metadata(self):
+    def test_failed_first_population_preserves_only_retry_metadata(self) -> None:
         self.connection.search_s.side_effect = ldap.SERVER_DOWN()
         with self.assertRaises(DirectoryUnavailable):
             refresh_directory_user("jsmith")
@@ -154,7 +155,7 @@ class DirectoryRefreshTests(DirectoryFixture, TestCase):
         self.assertIsNone(self.state().user_id)
         self.assertFalse(self.state().eligible)
 
-    def test_denial_cannot_be_undone_by_an_outage_and_recovery_can_reenable(self):
+    def test_denial_cannot_be_undone_by_an_outage_and_recovery_can_reenable(self) -> None:
         refresh_directory_user("jsmith")
         self.advance(300)
         self.connection.search_s.side_effect = lambda *a: []
@@ -176,7 +177,7 @@ class DirectoryRefreshTests(DirectoryFixture, TestCase):
         self.assertEqual(refresh_directory_user("jsmith").group_list, ["restored"])
         self.assertTrue(self.state().eligible)
 
-    def test_authoritative_deny_group_cannot_use_grace(self):
+    def test_authoritative_deny_group_cannot_use_grace(self) -> None:
         refresh_directory_user("jsmith")
         self.advance(300)
         with override_settings(AUTH_LDAP_DENY_GROUP="cn=denied,ou=groups,dc=example"):
@@ -185,7 +186,7 @@ class DirectoryRefreshTests(DirectoryFixture, TestCase):
                 refresh_directory_user("jsmith")
         self.assertFalse(self.state().eligible)
 
-    def test_directory_inactive_flag_invalidates_grace_without_changing_local_active_flag(self):
+    def test_directory_inactive_flag_invalidates_grace_without_changing_local_active_flag(self) -> None:
         refresh_directory_user("jsmith")
         self.advance(300)
         with override_settings(AUTH_LDAP_USER_FLAGS_BY_GROUP={"is_active": "cn=enabled,ou=groups,dc=example"}):
@@ -195,7 +196,7 @@ class DirectoryRefreshTests(DirectoryFixture, TestCase):
         self.assertTrue(User.objects.get(username="jsmith").is_active)
         self.assertFalse(self.state().eligible)
 
-    def test_nontransient_errors_never_use_grace(self):
+    def test_nontransient_errors_never_use_grace(self) -> None:
         for error in (ldap.INVALID_CREDENTIALS, ldap.INSUFFICIENT_ACCESS, ldap.FILTER_ERROR):
             with self.subTest(error=error):
                 self.connection.search_s.side_effect = self.search
@@ -210,7 +211,7 @@ class DirectoryRefreshTests(DirectoryFixture, TestCase):
                     refresh_directory_user("jsmith")
                 self.advance(30)
 
-    def test_missing_directory_object_is_a_denial(self):
+    def test_missing_directory_object_is_a_denial(self) -> None:
         refresh_directory_user("jsmith")
         self.advance(300)
         self.connection.search_s.side_effect = ldap.NO_SUCH_OBJECT()
@@ -218,14 +219,14 @@ class DirectoryRefreshTests(DirectoryFixture, TestCase):
             refresh_directory_user("jsmith")
         self.assertFalse(self.state().eligible)
 
-    def test_failed_population_rolls_back_before_grace_is_used(self):
+    def test_failed_population_rolls_back_before_grace_is_used(self) -> None:
         refresh_directory_user("jsmith")
         refreshed_at = self.state().last_success_at
         self.advance(300)
         self.groups = ["partial-update"]
         self.first_name = "Partial"
 
-        def fail(sender, **kwargs):
+        def fail(sender: object, **kwargs: object) -> Never:
             raise ldap.SERVER_DOWN()
 
         populate_user.connect(fail, sender=DirectoryLDAPBackend)
@@ -234,21 +235,21 @@ class DirectoryRefreshTests(DirectoryFixture, TestCase):
         self.assertEqual((user.first_name, user.group_list), ("Original", ["dns-users"]))
         self.assertEqual(self.state().last_success_at, refreshed_at)
 
-    def test_local_disabling_is_immediate_even_with_fresh_information(self):
+    def test_local_disabling_is_immediate_even_with_fresh_information(self) -> None:
         user = refresh_directory_user("jsmith")
         User.objects.filter(pk=user.pk).update(is_active=False)
         with self.assertRaises(AuthenticationFailed):
             refresh_directory_user("jsmith")
         self.initialize.assert_called_once()
 
-    def test_new_ambiguous_local_identity_cannot_use_fresh_information(self):
+    def test_new_ambiguous_local_identity_cannot_use_fresh_information(self) -> None:
         refresh_directory_user("jsmith")
         User.objects.create_user("JSmith")
         with self.assertRaises(AuthenticationFailed):
             refresh_directory_user("jsmith")
         self.initialize.assert_called_once()
 
-    def test_settings_require_nonnegative_intervals_and_positive_timeouts(self):
+    def test_settings_require_nonnegative_intervals_and_positive_timeouts(self) -> None:
         for name in ("REFRESH_SECONDS", "GRACE_SECONDS", "RETRY_SECONDS", "TIMEOUT_SECONDS"):
             for value in (-1, True, "30", None):
                 with self.subTest(setting=name, value=value), override_settings(**{f"MREG_LDAP_{name}": value}):
@@ -264,10 +265,10 @@ class DirectoryRefreshTests(DirectoryFixture, TestCase):
 @override_settings(**DIRECTORY_SETTINGS)
 @skipUnlessDBFeature("has_select_for_update")
 class DirectoryConcurrencyTests(DirectoryFixture, TransactionTestCase):
-    def simultaneous_requests(self):
+    def simultaneous_requests(self) -> list[tuple[int, list[str]]]:
         ready = Barrier(2, timeout=20)
 
-        def refresh():
+        def refresh() -> tuple[int, list[str]]:
             try:
                 ready.wait()
                 user = refresh_directory_user("jsmith")
@@ -279,13 +280,13 @@ class DirectoryConcurrencyTests(DirectoryFixture, TransactionTestCase):
             futures = [executor.submit(refresh) for _ in range(2)]
             return [future.result(timeout=30) for future in futures]
 
-    def test_concurrent_first_requests_share_one_refresh(self):
+    def test_concurrent_first_requests_share_one_refresh(self) -> None:
         results = self.simultaneous_requests()
         self.assertEqual(results[0], results[1])
         self.assertEqual(User.objects.count(), 1)
         self.initialize.assert_called_once()
 
-    def test_concurrent_expired_requests_share_one_refresh(self):
+    def test_concurrent_expired_requests_share_one_refresh(self) -> None:
         refresh_directory_user("jsmith")
         self.advance(300)
         self.groups = ["changed"]
@@ -293,7 +294,7 @@ class DirectoryConcurrencyTests(DirectoryFixture, TransactionTestCase):
         self.assertEqual([groups for _, groups in results], [["changed"], ["changed"]])
         self.assertEqual(self.initialize.call_count, 2)
 
-    def test_concurrent_outage_requests_share_failure_backoff(self):
+    def test_concurrent_outage_requests_share_failure_backoff(self) -> None:
         refresh_directory_user("jsmith")
         self.advance(300)
         self.connection.search_s.side_effect = ldap.SERVER_DOWN()

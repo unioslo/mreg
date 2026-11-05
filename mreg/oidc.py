@@ -1,6 +1,7 @@
 """Validate Keycloak access tokens and resolve users through the LDAP directory."""
 
 from functools import lru_cache
+from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
 import jwt
@@ -10,8 +11,13 @@ from rest_framework.exceptions import AuthenticationFailed
 
 from mreg.directory import refresh_directory_user, validate_directory_settings
 
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
-def validate_oidc_settings():
+    from mreg.models.auth import User
+
+
+def validate_oidc_settings() -> None:
     """Fail startup on incomplete trust configuration; never perform network I/O."""
     if not settings.MREG_OIDC_ENABLED:
         return
@@ -41,16 +47,16 @@ def validate_oidc_settings():
 
 
 @lru_cache(maxsize=1)
-def _jwks_client(url, timeout, lifespan, cooldown):
+def _jwks_client(url: str, timeout: int, lifespan: int, cooldown: int) -> jwt.PyJWKClient:
     # Cache the client across requests, but let its JWKS cache expire. Per-key
     # caching has no time limit and could keep accepting a removed signing key.
     return jwt.PyJWKClient(url, timeout=timeout, lifespan=lifespan, cooldown_duration=cooldown, cache_keys=False)
 
 
-def validate_access_token(token):
+def validate_access_token(token: str) -> dict[str, object]:
     """Return verified claims. No directory or user lookup may precede this."""
     try:
-        header = jwt.get_unverified_header(token)
+        header: dict[str, object] = jwt.get_unverified_header(token)
         if header.get("alg") not in settings.MREG_OIDC_ALGORITHMS:
             raise AuthenticationFailed("Invalid access token.")
         kid = header.get("kid")
@@ -67,7 +73,7 @@ def validate_access_token(token):
         key = client.get_signing_key(kid)
         if key.algorithm_name != header["alg"]:
             raise AuthenticationFailed("Invalid access token signing algorithm.")
-        claims = jwt.decode(
+        claims: dict[str, object] = jwt.decode(
             token,
             key.key,
             algorithms=settings.MREG_OIDC_ALGORITHMS,
@@ -86,5 +92,5 @@ def validate_access_token(token):
     return claims
 
 
-def resolve_ldap_user(claims):
+def resolve_ldap_user(claims: Mapping[str, object]) -> User:
     return refresh_directory_user(claims.get(settings.MREG_OIDC_USERNAME_CLAIM))

@@ -1,6 +1,7 @@
 """Directory authorization shared by credential-specific authentication methods."""
 
 from datetime import timedelta
+from typing import TYPE_CHECKING, Any, Never
 
 import ldap
 from django.conf import settings
@@ -16,6 +17,15 @@ from structlog import get_logger
 
 from mreg.models.auth import LDAPUserState
 
+if TYPE_CHECKING:
+    from datetime import datetime
+    from types import ModuleType
+
+    from django_auth_ldap.backend import _LDAPUser
+    from ldap.ldapobject import LDAPObject
+
+    from mreg.models.auth import User
+
 
 logger = get_logger(__name__)
 
@@ -25,9 +35,9 @@ class DirectoryFailure(APIException):
     default_detail = "Unable to resolve directory account."
     default_code = "directory_failure"
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
-        self.wait = settings.MREG_LDAP_RETRY_SECONDS
+        self.wait: int = settings.MREG_LDAP_RETRY_SECONDS
 
 
 class DirectoryUnavailable(DirectoryFailure):
@@ -35,7 +45,7 @@ class DirectoryUnavailable(DirectoryFailure):
     default_code = "directory_unavailable"
 
 
-def validate_directory_settings():
+def validate_directory_settings() -> None:
     for suffix in ("REFRESH_SECONDS", "GRACE_SECONDS", "RETRY_SECONDS", "TIMEOUT_SECONDS"):
         name = f"MREG_LDAP_{suffix}"
         value = getattr(settings, name)
@@ -58,13 +68,13 @@ def validate_directory_settings():
 class _TimedLDAP:
     """Set python-ldap's result timeout before the backend binds or searches."""
 
-    def __init__(self, module):
+    def __init__(self, module: ModuleType) -> None:
         self.module = module
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self.module, name)
 
-    def initialize(self, *args, **kwargs):
+    def initialize(self, *args: Any, **kwargs: Any) -> LDAPObject:
         connection = self.module.initialize(*args, **kwargs)
         connection.timeout = settings.MREG_LDAP_TIMEOUT_SECONDS
         return connection
@@ -73,7 +83,7 @@ class _TimedLDAP:
 class DirectoryLDAPBackend(LDAPBackend):
     """Population with the account restrictions normally checked at LDAP login."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         validate_directory_settings()
         # Library caches must not make a successful refresh appear newer than its data.
         self.settings.CACHE_TIMEOUT = 0
@@ -85,10 +95,10 @@ class DirectoryLDAPBackend(LDAPBackend):
         }
 
     @property
-    def ldap(self):
+    def ldap(self) -> _TimedLDAP:
         return _TimedLDAP(super().ldap)
 
-    def get_or_build_user(self, username, ldap_user):
+    def get_or_build_user(self, username: str, ldap_user: _LDAPUser) -> tuple[User, bool]:
         # populate_user() skips the requirements normally checked during a password bind.
         for requirement, expected in ((self.settings.REQUIRE_GROUP, True), (self.settings.DENY_GROUP, False)):
             if requirement is not None:
@@ -107,7 +117,7 @@ class DirectoryLDAPBackend(LDAPBackend):
         return user, built
 
 
-def _raise_directory_error(exception):
+def _raise_directory_error(exception: Exception) -> Never:
     if isinstance(exception, (ldap.SERVER_DOWN, ldap.TIMEOUT, ldap.UNAVAILABLE, ldap.BUSY)):
         raise DirectoryUnavailable() from exception
     if isinstance(exception, ldap.NO_SUCH_OBJECT):
@@ -116,13 +126,13 @@ def _raise_directory_error(exception):
 
 
 @receiver(ldap_error)
-def reject_directory_error(sender, exception, **kwargs):
+def reject_directory_error(sender: object, exception: Exception, **kwargs: object) -> None:
     # The library otherwise swallows errors from some group/attribute lookups.
     if isinstance(sender, type) and issubclass(sender, DirectoryLDAPBackend):
         _raise_directory_error(exception)
 
 
-def directory_username(username):
+def directory_username(username: object) -> str:
     if not isinstance(username, str) or not username or username != username.strip():
         raise AuthenticationFailed("Invalid directory username.")
     username = username.lower()
@@ -133,7 +143,7 @@ def directory_username(username):
     return username
 
 
-def _local_user(username, *, lock=False):
+def _local_user(username: str, *, lock: bool = False) -> User | None:
     users = get_user_model().objects
     if lock:
         users = users.select_for_update()
@@ -148,7 +158,7 @@ def _local_user(username, *, lock=False):
     return user
 
 
-def _grace_user(state, user, now):
+def _grace_user(state: LDAPUserState, user: User | None, now: datetime) -> User:
     maximum_age = settings.MREG_LDAP_REFRESH_SECONDS + settings.MREG_LDAP_GRACE_SECONDS
     if (settings.MREG_LDAP_GRACE_SECONDS > 0 and user is not None and state.user_id == user.pk
             and state.eligible and state.last_success_at is not None
@@ -158,7 +168,7 @@ def _grace_user(state, user, now):
     raise DirectoryUnavailable()
 
 
-def _cached_user(state, user, now):
+def _cached_user(state: LDAPUserState | None, user: User | None, now: datetime) -> User | None:
     if state is None:
         return None
     if (user is not None and state.user_id == user.pk and state.eligible and state.last_success_at is not None
@@ -173,7 +183,7 @@ def _cached_user(state, user, now):
     return None
 
 
-def _populate(username):
+def _populate(username: str) -> User:
     try:
         user = DirectoryLDAPBackend().populate_user(username)
     except ldap.LDAPError as exc:
@@ -185,7 +195,7 @@ def _populate(username):
     return user
 
 
-def refresh_directory_user(username):
+def refresh_directory_user(username: object) -> User:
     """Return a current user or bounded outage fallback, after credential verification.
 
     The username row serializes first provisioning as well as later refreshes.
@@ -195,12 +205,12 @@ def refresh_directory_user(username):
     validate_directory_settings()
     username = directory_username(username)
     user = _local_user(username)
-    state = LDAPUserState.objects.filter(username=username).first()
+    state: LDAPUserState | None = LDAPUserState.objects.filter(username=username).first()
     cached = _cached_user(state, user, timezone.now())
     if cached is not None:
         return cached
 
-    error = None
+    error: AuthenticationFailed | DirectoryFailure | None = None
     with transaction.atomic():
         LDAPUserState.objects.get_or_create(username=username)
         state = LDAPUserState.objects.select_for_update().get(username=username)

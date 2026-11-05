@@ -33,7 +33,7 @@ class OpenAPISchemaTest(SimpleTestCase):
         self.assertEqual(username["schema"], {"type": "string"})
 
     @override_settings(MREG_OIDC_ENABLED=True)
-    def test_keycloak_and_local_tokens_are_documented_as_alternatives(self):
+    def test_keycloak_and_local_tokens_are_documented_as_alternatives(self) -> None:
         with patch.object(APIView, "authentication_classes", (ExpiringTokenAuthentication, KeycloakBearerAuthentication)):
             schema = SchemaGenerator().get_schema(request=None, public=True)
         self.assertEqual(
@@ -47,5 +47,5 @@ class OpenAPISchemaTest(SimpleTestCase):
         self.assertEqual(logout["security"], [{"tokenAuth": []}])
         self.assertEqual(schema["paths"]["/api/token-auth/"]["post"].get("security", []), [])
 
-    def test_default_schema_has_no_keycloak_scheme(self):
+    def test_default_schema_has_no_keycloak_scheme(self) -> None:
         self.assertNotIn("keycloakBearer", self.schema["components"]["securitySchemes"])

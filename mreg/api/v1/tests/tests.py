@@ -405,7 +405,7 @@ class APITestInternals(MregAPITestCase):
 class APITokenAuthenticationTestCase(MregAPITestCase):
     """Test various token authentication operations."""
 
-    def test_logout(self):
+    def test_logout(self) -> None:
         self.assert_get("/hosts/")
         self.assert_post_and_200("/api/token-logout/")
         self.assertTrue(User.objects.filter(pk=self.user.pk).exists())
@@ -416,10 +416,10 @@ class APITokenAuthenticationTestCase(MregAPITestCase):
         self.client = APIClient()
         self.assert_post_and_401("/api/token-logout/")
 
-    def test_in_flight_authentication_cannot_resurrect_logged_out_token(self):
+    def test_in_flight_authentication_cannot_resurrect_logged_out_token(self) -> None:
         token = ExpiringToken.objects.get(user=self.user)
 
-        def logout_after_token_is_loaded():
+        def logout_after_token_is_loaded() -> bool:
             # Interleave logout's deletion after authentication has read the
             # token, but before it writes last_used. The user remains present.
             ExpiringToken.objects.filter(pk=token.pk).delete()
