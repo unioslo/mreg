@@ -27,6 +27,21 @@ class SettingsTestCase(SimpleTestCase):
 
 
 class SettingsHelpersTests(SimpleTestCase):
+    def test_local_directory_backend_environment_switch(self) -> None:
+        try:
+            with patch.dict(os.environ, {"MREG_LDAP_REFRESH_LOCAL_TOKENS": "true"}):
+                reloaded = importlib.reload(app_settings)
+                self.assertEqual(reloaded.AUTHENTICATION_BACKENDS, (
+                    "mreg.directory_auth.LocalUserBackend", "mreg.directory_auth.LDAPPasswordBackend",
+                ))
+            with patch.dict(os.environ, {"MREG_LDAP_REFRESH_LOCAL_TOKENS": "false"}):
+                reloaded = importlib.reload(app_settings)
+                self.assertEqual(reloaded.AUTHENTICATION_BACKENDS, (
+                    "django_auth_ldap.backend.LDAPBackend", "django.contrib.auth.backends.ModelBackend",
+                ))
+        finally:
+            importlib.reload(app_settings)
+
     def test_directory_refresh_environment_settings(self) -> None:
         values = {
             "MREG_LDAP_REFRESH_SECONDS": "123", "MREG_LDAP_GRACE_SECONDS": "456",

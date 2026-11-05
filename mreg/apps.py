@@ -14,10 +14,12 @@ class MregAppConfig(AppConfig):
         import mreg.signals # noqa
         import mreg.schema # noqa: F401
         from mreg.oidc import validate_oidc_settings
+        from mreg.directory_auth import validate_local_directory_settings
         from mreg.models.network_policy import NetworkPolicyAttribute
         from mreg.netfields_compat import patch_netfields_for_django52
 
         validate_oidc_settings()
+        validate_local_directory_settings()
         
         # Apply Django 5.2+ compatibility patch for netfields.
         # Django 6.0's BuiltinLookup.process_lhs() explicitly returns list(params)
