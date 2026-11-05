@@ -31,7 +31,7 @@ Intervals and timeouts are in seconds.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `MREG_LDAP_REFRESH_LOCAL_TOKENS` | `False` | Opt into shared LDAP refresh/grace for directory-managed local-token users and the matching password backends. |
+| `MREG_LDAP_REFRESH_LOCAL_TOKENS` | `False` | Opt into shared LDAP refresh/grace for directory-managed local-token users. |
 | `MREG_LDAP_REFRESH_SECONDS` | `300` | Freshness interval for stored user attributes, groups, and eligibility. Zero refreshes on every request. |
 | `MREG_LDAP_GRACE_SECONDS` | `3600` | Additional time after freshness expires during which temporary LDAP failures allow retained permissions. Zero disables grace. |
 | `MREG_LDAP_RETRY_SECONDS` | `30` | Per-user delay between failed refresh attempts, shared across workers. Zero disables backoff. |
