@@ -277,7 +277,7 @@ class DirectoryAuthenticationTests(SignedTokenMixin, DirectoryFixture, APITestCa
         with patch("mreg.directory.refresh_directory_user", return_value=other):
             self.assertEqual(self.client.get("/api/meta/user").status_code, 401)
 
-    def test_oidc_activity_advances_during_cached_permissions_and_grace(self):
+    def test_oidc_activity_advances_during_cached_permissions_and_grace(self) -> None:
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.token()}")
         self.assertEqual(self.client.get("/api/meta/user").status_code, 200)
         LDAPUserState.objects.update(last_activity_at=self.now)
@@ -292,7 +292,7 @@ class DirectoryAuthenticationTests(SignedTokenMixin, DirectoryFixture, APITestCa
         self.assertEqual(self.state().last_activity_at, self.now)
         self.assertEqual(self.state().last_success_at, refreshed_at)
 
-    def test_token_activity_survives_logout_with_refresh_disabled(self):
+    def test_token_activity_survives_logout_with_refresh_disabled(self) -> None:
         self.login()
         LDAPUserState.objects.update(last_activity_at=self.now)
         with override_settings(MREG_LDAP_REFRESH_LOCAL_TOKENS=False):
@@ -304,7 +304,7 @@ class DirectoryAuthenticationTests(SignedTokenMixin, DirectoryFixture, APITestCa
         self.assertEqual(self.state().last_activity_at, self.now)
         self.assertFalse(ExpiringToken.objects.exists())
 
-    def test_failed_authentication_does_not_record_activity(self):
+    def test_failed_authentication_does_not_record_activity(self) -> None:
         token = self.login()
         LDAPUserState.objects.update(last_activity_at=self.now)
         last_activity = self.now
@@ -320,13 +320,13 @@ class DirectoryAuthenticationTests(SignedTokenMixin, DirectoryFixture, APITestCa
         self.assertEqual(self.client.get("/api/meta/user").status_code, 401)
         self.assertEqual(self.state().last_activity_at, last_activity)
 
-    def test_directory_refresh_does_not_overwrite_activity(self):
+    def test_directory_refresh_does_not_overwrite_activity(self) -> None:
         self.login()
         LDAPUserState.objects.update(last_activity_at=self.now)
         self.advance(300)
         from mreg.directory import _populate
 
-        def populate_and_record_activity(username):
+        def populate_and_record_activity(username: str) -> User:
             user = _populate(username)
             LDAPUserState.record_activity(user.pk)
             return user
@@ -335,19 +335,19 @@ class DirectoryAuthenticationTests(SignedTokenMixin, DirectoryFixture, APITestCa
             refresh_directory_user("jsmith", force=True)
         self.assertEqual(self.state().last_activity_at, self.now)
 
-    def test_oidc_cannot_return_a_user_purged_during_authentication(self):
+    def test_oidc_cannot_return_a_user_purged_during_authentication(self) -> None:
         self.login()
         user = User.objects.get(username="jsmith")
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self.token()}")
 
-        def deleted_user(claims):
+        def deleted_user(claims: dict[str, object]) -> User:
             User.objects.filter(pk=user.pk).delete()
             return user
 
         with patch("mreg.oidc.resolve_ldap_user", side_effect=deleted_user):
             self.assertEqual(self.client.get("/api/meta/user").status_code, 401)
 
-    def test_first_enrollment_starts_retention_even_after_an_old_failed_lookup(self):
+    def test_first_enrollment_starts_retention_even_after_an_old_failed_lookup(self) -> None:
         User.objects.create_user("jsmith", date_joined=self.now - timedelta(days=91))
         LDAPUserState.objects.create(
             username="jsmith", last_activity_at=self.now - timedelta(days=91), last_error="denied",
@@ -355,7 +355,7 @@ class DirectoryAuthenticationTests(SignedTokenMixin, DirectoryFixture, APITestCa
         call_command("refresh_ldap_users", "jsmith", stdout=StringIO())
         self.assertEqual(self.state().last_activity_at, self.now)
 
-    def test_activity_does_not_move_backwards_when_requests_finish_out_of_order(self):
+    def test_activity_does_not_move_backwards_when_requests_finish_out_of_order(self) -> None:
         token = self.login()
         later = self.now + timedelta(seconds=10)
         LDAPUserState.objects.update(last_activity_at=later)
