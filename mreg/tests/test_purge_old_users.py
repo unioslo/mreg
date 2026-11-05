@@ -2,6 +2,7 @@
 
 from datetime import timedelta
 from io import StringIO
+from typing import Any
 from unittest.mock import patch
 
 from django.contrib.auth.models import Group
@@ -15,13 +16,13 @@ from mreg.models.base import ExpiringToken, History
 
 
 class PurgeOldUsersTests(TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.now = timezone.now()
         self.old = self.now - timedelta(days=91)
         self.cutoff = self.now - timedelta(days=90)
         self.enterContext(patch("django.utils.timezone.now", return_value=self.now))
 
-    def directory_user(self, username="old-user", **kwargs):
+    def directory_user(self, username: str = "old-user", **kwargs: Any) -> User:
         user = User.objects.create_user(username, date_joined=self.old, **kwargs)
         LDAPUserState.objects.create(
             username=username, user=user, last_success_at=self.old,
@@ -29,12 +30,12 @@ class PurgeOldUsersTests(TestCase):
         )
         return user
 
-    def run_command(self, **kwargs):
+    def run_command(self, **kwargs: Any) -> str:
         output = StringIO()
         call_command("purge_old_users", days=90, stdout=output, **kwargs)
         return output.getvalue()
 
-    def test_preview_is_default_and_does_not_delete(self):
+    def test_preview_is_default_and_does_not_delete(self) -> None:
         user = self.directory_user()
         output = self.run_command()
         self.assertIn("Would delete old-user.", output)
@@ -42,7 +43,7 @@ class PurgeOldUsersTests(TestCase):
         self.assertTrue(User.objects.filter(pk=user.pk).exists())
         self.assertTrue(LDAPUserState.objects.filter(user=user).exists())
 
-    def test_execute_cascades_tokens_and_memberships_but_preserves_history_and_groups(self):
+    def test_execute_cascades_tokens_and_memberships_but_preserves_history_and_groups(self) -> None:
         user = self.directory_user()
         token = ExpiringToken.objects.create(user=user)
         ExpiringToken.objects.filter(pk=token.pk).update(last_used=self.old)
@@ -61,7 +62,7 @@ class PurgeOldUsersTests(TestCase):
         self.assertTrue(Group.objects.filter(pk=group.pk).exists())
         self.assertEqual(History.objects.get(pk=history.pk).user, "old-user")
 
-    def test_local_disabled_and_unenrolled_users_are_preserved(self):
+    def test_local_disabled_and_unenrolled_users_are_preserved(self) -> None:
         local = User.objects.create_user("local-admin", password="password", date_joined=self.old)
         legacy = User.objects.create_user("unenrolled", date_joined=self.old)
         disabled = self.directory_user("disabled", is_active=False)
@@ -72,7 +73,7 @@ class PurgeOldUsersTests(TestCase):
         self.assertSetEqual(set(User.objects.values_list("pk", flat=True)), {local.pk, legacy.pk, disabled.pk})
         self.assertTrue(LDAPUserState.objects.filter(username="unenrolled").exists())
 
-    def test_recent_activity_login_creation_or_token_use_prevents_deletion(self):
+    def test_recent_activity_login_creation_or_token_use_prevents_deletion(self) -> None:
         for signal in ("activity", "login", "creation", "token"):
             for timestamp in (self.cutoff, self.now):
                 with self.subTest(signal=signal, timestamp=timestamp):
@@ -89,18 +90,18 @@ class PurgeOldUsersTests(TestCase):
                     self.assertIn("Deleted 0 user(s).", self.run_command(execute=True))
                     self.assertTrue(User.objects.filter(pk=user.pk).exists())
 
-    def test_newly_enrolled_accounts_get_a_full_retention_window(self):
+    def test_newly_enrolled_accounts_get_a_full_retention_window(self) -> None:
         user = User.objects.create_user("newly-enrolled", date_joined=self.old)
         LDAPUserState.objects.create(username=user.username, user=user, last_success_at=self.now, eligible=True)
         self.assertIn("Deleted 0 user(s).", self.run_command(execute=True))
         self.assertTrue(User.objects.filter(pk=user.pk).exists())
 
-    def test_activity_is_rechecked_after_candidate_selection(self):
+    def test_activity_is_rechecked_after_candidate_selection(self) -> None:
         user = self.directory_user()
         output = StringIO()
         original_write = output.write
 
-        def become_active(message):
+        def become_active(message: str) -> int:
             LDAPUserState.record_activity(user.pk)
             return original_write(message)
 
@@ -109,7 +110,7 @@ class PurgeOldUsersTests(TestCase):
         self.assertIn("Deleted 0 user(s).", output.getvalue())
         self.assertTrue(User.objects.filter(pk=user.pk).exists())
 
-    def test_retention_days_must_be_explicit_and_positive(self):
+    def test_retention_days_must_be_explicit_and_positive(self) -> None:
         for days in (0, -1, 10**20):
             with self.subTest(days=days), self.assertRaises(CommandError):
                 call_command("purge_old_users", days=days, stdout=StringIO())

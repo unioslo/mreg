@@ -44,7 +44,7 @@ class LDAPUserState(models.Model):
         verbose_name = "LDAP user state"
 
     @classmethod
-    def record_activity(cls, user_id):
+    def record_activity(cls, user_id: int) -> int:
         """Retain authenticated activity independently of directory freshness and tokens."""
         return cls.objects.filter(user_id=user_id).update(
             last_activity_at=Greatest("last_activity_at", timezone.now()),
