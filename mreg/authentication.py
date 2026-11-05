@@ -49,6 +49,7 @@ class ExpiringTokenAuthentication(TokenAuthentication):
         if not self.get_model().objects.filter(pk=token.pk).update(last_used=token.last_used):
             raise exceptions.AuthenticationFailed('Invalid token')
 
+        LDAPUserState.record_activity(user.pk)
         return user, token
 
     def resolve_user(self, user: User) -> User:
@@ -79,4 +80,6 @@ class KeycloakBearerAuthentication(TokenAuthentication):
 
         claims = validate_access_token(key)
         user = resolve_ldap_user(claims)
+        if not LDAPUserState.record_activity(user.pk):
+            raise exceptions.AuthenticationFailed("Directory account was removed; retry authentication.")
         return user, {name: claims[name] for name in ("iss", "sub", "azp")}
