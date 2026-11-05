@@ -137,7 +137,7 @@ class TokenLogout(APIView):
     authentication_classes = (ExpiringTokenAuthentication,)
     permission_classes = (IsAuthenticated,)
 
-    def get_authenticators(self):
+    def get_authenticators(self) -> list[ExpiringTokenAuthentication]:
         # Revocation must work even when directory authorization is unavailable or denied.
         return [ExpiringTokenAuthentication(refresh_directory=False)]
 
