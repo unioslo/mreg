@@ -1,7 +1,7 @@
 """Remove inactive directory-managed accounts without touching local accounts."""
 
 from datetime import timedelta
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
@@ -11,13 +11,12 @@ from django.utils import timezone
 from mreg.models.auth import LDAPUserState
 from mreg.models.base import ExpiringToken
 
-if TYPE_CHECKING:
-    from datetime import datetime
+from datetime import datetime
 
-    from django.core.management.base import CommandParser
-    from django.db.models import QuerySet
+from django.core.management.base import CommandParser
+from django.db.models import QuerySet
 
-    from mreg.models.auth import User
+from mreg.models.auth import User
 
 
 class Command(BaseCommand):
@@ -47,9 +46,17 @@ class Command(BaseCommand):
                 state: LDAPUserState | None = candidates.select_for_update().filter(username=username).first()
                 if state is None:
                     continue
-                user: User | None = get_user_model().objects.select_for_update().filter(
-                    pk=state.user_id, is_active=True, date_joined__lt=cutoff,
-                ).exclude(last_login__gte=cutoff).first()
+                user: User | None = (
+                    get_user_model()
+                    .objects.select_for_update()
+                    .filter(
+                        pk=state.user_id,
+                        is_active=True,
+                        date_joined__lt=cutoff,
+                    )
+                    .exclude(last_login__gte=cutoff)
+                    .first()
+                )
                 if user is None or ExpiringToken.objects.filter(user_id=user.pk, last_used__gte=cutoff).exists():
                     continue
                 name = user.username
