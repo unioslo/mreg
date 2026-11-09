@@ -14,6 +14,7 @@ from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.test import APITestCase
 from rest_framework.views import APIView
 
+from mreg.auth_backends import DIRECTORY_BACKENDS
 from mreg.authentication import ExpiringTokenAuthentication, KeycloakBearerAuthentication
 from mreg.directory import DirectoryUnavailable, refresh_directory_user
 from mreg.directory_auth import validate_local_directory_settings
@@ -23,12 +24,9 @@ from mreg.tests.test_directory import DIRECTORY_SETTINGS, DirectoryFixture
 from mreg.tests.test_oidc import OIDC_SETTINGS, SignedTokenMixin
 
 
-BACKENDS = ("mreg.directory_auth.LocalUserBackend", "mreg.directory_auth.LDAPPasswordBackend")
-
-
 @override_settings(**{
     **OIDC_SETTINGS, **DIRECTORY_SETTINGS,
-    "MREG_LDAP_REFRESH_LOCAL_TOKENS": True, "AUTHENTICATION_BACKENDS": BACKENDS,
+    "MREG_LDAP_REFRESH_LOCAL_TOKENS": True, "AUTHENTICATION_BACKENDS": DIRECTORY_BACKENDS,
 })
 class DirectoryAuthenticationTests(SignedTokenMixin, DirectoryFixture, APITestCase):
     def setUp(self) -> None:

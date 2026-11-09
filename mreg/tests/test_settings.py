@@ -8,6 +8,7 @@ from unittest.mock import patch
 from django.test import SimpleTestCase
 
 import mregsite.settings as app_settings
+from mreg.auth_backends import DIRECTORY_BACKENDS, LEGACY_BACKENDS
 from mreg.env import envvar, parse_protected_policy_attrs
 
 
@@ -31,14 +32,10 @@ class SettingsHelpersTests(SimpleTestCase):
         try:
             with patch.dict(os.environ, {"MREG_LDAP_REFRESH_LOCAL_TOKENS": "true"}):
                 reloaded = importlib.reload(app_settings)
-                self.assertEqual(reloaded.AUTHENTICATION_BACKENDS, (
-                    "mreg.directory_auth.LocalUserBackend", "mreg.directory_auth.LDAPPasswordBackend",
-                ))
+                self.assertEqual(reloaded.AUTHENTICATION_BACKENDS, DIRECTORY_BACKENDS)
             with patch.dict(os.environ, {"MREG_LDAP_REFRESH_LOCAL_TOKENS": "false"}):
                 reloaded = importlib.reload(app_settings)
-                self.assertEqual(reloaded.AUTHENTICATION_BACKENDS, (
-                    "django_auth_ldap.backend.LDAPBackend", "django.contrib.auth.backends.ModelBackend",
-                ))
+                self.assertEqual(reloaded.AUTHENTICATION_BACKENDS, LEGACY_BACKENDS)
         finally:
             importlib.reload(app_settings)
 
