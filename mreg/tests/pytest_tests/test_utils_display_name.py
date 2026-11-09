@@ -16,7 +16,7 @@ MODELS: list[Model] = sorted(
 """All models in both the mreg and hostpolicy apps."""
 
 
-def test_display_name_snapshot():
+def test_display_name_snapshot() -> None:
     """Snapshot test for model display names."""
     result = {f"{m._meta.app_label}.{m.__name__}": display_name(m) for m in MODELS}
     assert result == snapshot(
@@ -36,6 +36,7 @@ def test_display_name_snapshot():
             "mreg.HostContact": "host contact",
             "mreg.HostGroup": "host group",
             "mreg.Ipaddress": "IP address",
+            "mreg.LDAPUserState": "LDAP user state",
             "mreg.Label": "label",
             "mreg.Loc": "LOC record",
             "mreg.Mx": "MX record",
@@ -58,7 +59,7 @@ def test_display_name_snapshot():
     )
 
 
-def test_display_name_capitalize_snapshot():
+def test_display_name_capitalize_snapshot() -> None:
     """Snapshot test for model display names."""
     result = {f"{m._meta.app_label}.{m.__name__}": display_name(m, capitalize=True) for m in MODELS}
     assert result == snapshot(
@@ -78,6 +79,7 @@ def test_display_name_capitalize_snapshot():
             "mreg.HostContact": "Host contact",
             "mreg.HostGroup": "Host group",
             "mreg.Ipaddress": "IP address",
+            "mreg.LDAPUserState": "LDAP user state",
             "mreg.Label": "Label",
             "mreg.Loc": "LOC record",
             "mreg.Mx": "MX record",
@@ -100,7 +102,7 @@ def test_display_name_capitalize_snapshot():
     )
 
 
-def test_verbose_name_snapshot():
+def test_verbose_name_snapshot() -> None:
     """Snapshot test for the verbose names of models."""
     result = {
         f"{m._meta.app_label}.{m.__name__}": {
@@ -126,6 +128,10 @@ def test_verbose_name_snapshot():
             "mreg.HostContact": {"verbose_name": "host contact", "verbose_name_plural": "host contacts"},
             "mreg.HostGroup": {"verbose_name": "host group", "verbose_name_plural": "host groups"},
             "mreg.Ipaddress": {"verbose_name": "IP address", "verbose_name_plural": "IP addresses"},
+            "mreg.LDAPUserState": {
+                "verbose_name": "LDAP user state",
+                "verbose_name_plural": "LDAP user states",
+            },
             "mreg.Label": {"verbose_name": "label", "verbose_name_plural": "labels"},
             "mreg.Loc": {"verbose_name": "LOC record", "verbose_name_plural": "LOC records"},
             "mreg.Mx": {"verbose_name": "MX record", "verbose_name_plural": "MX records"},

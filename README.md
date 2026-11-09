@@ -4,6 +4,9 @@ mreg is an API (intended to be as RESTful as possible) for managing DNS.
 An associated project for a command line interface using the mreg API is available at:
 [mreg-cli](https://github.com/unioslo/mreg-cli/)
 
+See [Authentication](docs/authentication.md) for local API tokens and optional
+Keycloak access tokens with LDAP authorization.
+
 ## Getting Started
 
 ### Prerequisites

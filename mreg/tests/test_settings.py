@@ -27,6 +27,36 @@ class SettingsTestCase(SimpleTestCase):
 
 
 class SettingsHelpersTests(SimpleTestCase):
+    def test_directory_refresh_environment_settings(self) -> None:
+        values = {
+            "MREG_LDAP_REFRESH_SECONDS": "123", "MREG_LDAP_GRACE_SECONDS": "456",
+            "MREG_LDAP_RETRY_SECONDS": "17", "MREG_LDAP_TIMEOUT_SECONDS": "3",
+        }
+        try:
+            with patch.dict(os.environ, values):
+                reloaded = importlib.reload(app_settings)
+                for name, value in values.items():
+                    self.assertEqual(getattr(reloaded, name), int(value))
+        finally:
+            importlib.reload(app_settings)
+
+    def test_oidc_authenticator_registration(self) -> None:
+        try:
+            with patch.dict(os.environ, {"MREG_OIDC_ENABLED": "true"}):
+                reloaded = importlib.reload(app_settings)
+                self.assertEqual(
+                    reloaded.REST_FRAMEWORK["DEFAULT_AUTHENTICATION_CLASSES"],
+                    ("mreg.authentication.ExpiringTokenAuthentication", "mreg.authentication.KeycloakBearerAuthentication"),
+                )
+            with patch.dict(os.environ, {"MREG_OIDC_ENABLED": "false"}):
+                reloaded = importlib.reload(app_settings)
+                self.assertEqual(
+                    reloaded.REST_FRAMEWORK["DEFAULT_AUTHENTICATION_CLASSES"],
+                    ("mreg.authentication.ExpiringTokenAuthentication",),
+                )
+        finally:
+            importlib.reload(app_settings)
+
     def test_envvar_bool_and_casting(self):
         os.environ["MREG_TEST_BOOL"] = "original"
         original = os.environ.get("MREG_TEST_BOOL")

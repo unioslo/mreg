@@ -405,14 +405,33 @@ class APITestInternals(MregAPITestCase):
 class APITokenAuthenticationTestCase(MregAPITestCase):
     """Test various token authentication operations."""
 
-    def test_logout(self):
+    def test_logout(self) -> None:
         self.assert_get("/hosts/")
         self.assert_post_and_200("/api/token-logout/")
+        self.assertTrue(User.objects.filter(pk=self.user.pk).exists())
+        self.assertFalse(ExpiringToken.objects.filter(user=self.user).exists())
         self.assert_get_and_401("/hosts/")
 
     def test_logout_without_authentication(self):
         self.client = APIClient()
         self.assert_post_and_401("/api/token-logout/")
+
+    def test_in_flight_authentication_cannot_resurrect_logged_out_token(self) -> None:
+        token = ExpiringToken.objects.get(user=self.user)
+
+        def logout_after_token_is_loaded() -> bool:
+            # Interleave logout's deletion after authentication has read the
+            # token, but before it writes last_used. The user remains present.
+            ExpiringToken.objects.filter(pk=token.pk).delete()
+            return False
+
+        with mock.patch.object(ExpiringToken, "is_expired", new_callable=mock.PropertyMock) as expired:
+            expired.side_effect = logout_after_token_is_loaded
+            self.assert_get_and_401("/api/token-is-valid/")
+
+        self.assertTrue(User.objects.filter(pk=self.user.pk).exists())
+        self.assertFalse(ExpiringToken.objects.filter(pk=token.pk).exists())
+        self.assert_get_and_401("/api/token-is-valid/")
 
     def test_force_expire(self):
         self.assert_get("/hosts/")
