@@ -21,6 +21,7 @@ from django.core.exceptions import ImproperlyConfigured
 
 import mreg.log_processors
 import mreg.__about__
+from mreg.auth_backends import DIRECTORY_BACKENDS, LEGACY_BACKENDS
 from mreg.env import (
     envvar,
     envvar_list,
@@ -145,11 +146,6 @@ if _secure_proxy_ssl_header:
 
 AUTH_USER_MODEL = "mreg.User"
 
-AUTHENTICATION_BACKENDS = [
-    "django_auth_ldap.backend.LDAPBackend",
-    "django.contrib.auth.backends.ModelBackend",
-]
-
 AUTH_LDAP_SERVER_URI = envvar("MREG_AUTH_LDAP_SERVER_URI", "ldap://ldap.example.com")
 AUTH_LDAP_USER_DN_TEMPLATE = envvar("MREG_AUTH_LDAP_USER_DN_TEMPLATE", "uid=%(user)s,ou=users,dc=example,dc=com")
 AUTH_LDAP_START_TLS = envvar("MREG_AUTH_LDAP_START_TLS", True)
@@ -164,7 +160,6 @@ AUTH_LDAP_USER_ATTR_MAP = envvar_pairs("MREG_AUTH_LDAP_USER_ATTR_MAP", {})
 # True mirrors all groups, False disables mirroring, list of strings mirrors specific groups
 # list disables django-auth-ldap's mirroring (mreg's populate_user signal still runs).
 # Parse first as string, then parse as either bool or list depending on the value
-
 if "MREG_AUTH_LDAP_MIRROR_GROUPS" in os.environ:
     _mirr_groups_str = envvar("MREG_AUTH_LDAP_MIRROR_GROUPS", "").strip().lower()
     if _mirr_groups_str in {"true", "false"}:
@@ -200,6 +195,29 @@ if _ldap_group_search_base_dn:
 LDAP_GROUP_ATTR = envvar("MREG_LDAP_GROUP_ATTR", "memberof")
 # LDAP_GROUP_RE must include a named group with name "group_name".
 LDAP_GROUP_RE = envvar("MREG_LDAP_GROUP_RE", r"""^cn=(?P<group_name>[\w\-]+),cn=netgroups,""")
+
+# Shared directory refresh policy. Grace is additional time after freshness expires.
+MREG_LDAP_REFRESH_SECONDS = envvar("MREG_LDAP_REFRESH_SECONDS", 300)
+MREG_LDAP_GRACE_SECONDS = envvar("MREG_LDAP_GRACE_SECONDS", 3600)
+MREG_LDAP_RETRY_SECONDS = envvar("MREG_LDAP_RETRY_SECONDS", 30)
+MREG_LDAP_TIMEOUT_SECONDS = envvar("MREG_LDAP_TIMEOUT_SECONDS", 5)
+MREG_LDAP_REFRESH_LOCAL_TOKENS = envvar("MREG_LDAP_REFRESH_LOCAL_TOKENS", False)
+
+# local_settings may override this; mreg.apps validates it at startup.
+AUTHENTICATION_BACKENDS = DIRECTORY_BACKENDS if MREG_LDAP_REFRESH_LOCAL_TOKENS else LEGACY_BACKENDS
+
+# Optional Keycloak access tokens. Identity claims are explicitly configured per deployment.
+MREG_OIDC_ENABLED = envvar("MREG_OIDC_ENABLED", False)
+MREG_OIDC_ISSUER = envvar("MREG_OIDC_ISSUER", "")
+MREG_OIDC_AUDIENCE = envvar("MREG_OIDC_AUDIENCE", "")
+MREG_OIDC_JWKS_URL = envvar("MREG_OIDC_JWKS_URL", "")
+MREG_OIDC_USERNAME_CLAIM = envvar("MREG_OIDC_USERNAME_CLAIM", "")
+MREG_OIDC_ALLOWED_CLIENT_IDS = envvar("MREG_OIDC_ALLOWED_CLIENT_IDS", "").split(",")
+MREG_OIDC_ALGORITHMS = envvar("MREG_OIDC_ALGORITHMS", "RS256").split(",")
+MREG_OIDC_JWKS_TIMEOUT = envvar("MREG_OIDC_JWKS_TIMEOUT", 5)
+MREG_OIDC_JWKS_CACHE_SECONDS = envvar("MREG_OIDC_JWKS_CACHE_SECONDS", 300)
+MREG_OIDC_JWKS_COOLDOWN_SECONDS = envvar("MREG_OIDC_JWKS_COOLDOWN_SECONDS", 30)
+MREG_OIDC_LEEWAY_SECONDS = envvar("MREG_OIDC_LEEWAY_SECONDS", 0)
 
 # Application definition
 
@@ -509,6 +527,14 @@ try:
 except ImportError:
     pass
 
+
+# Apply after local_settings overrides. Keep local-token authentication first for
+# compatibility; it selects the appropriate challenge for bearer requests too.
+if MREG_OIDC_ENABLED:
+    REST_FRAMEWORK["DEFAULT_AUTHENTICATION_CLASSES"] = (
+        *REST_FRAMEWORK["DEFAULT_AUTHENTICATION_CLASSES"],
+        "mreg.authentication.KeycloakBearerAuthentication",
+    )
 
 def get_pool_settings() -> dict[str, int] | Literal[False]:
     """Get the connection pool settings for psycopg3, or False if pooling is disabled."""

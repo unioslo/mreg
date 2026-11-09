@@ -1,6 +1,11 @@
-from django.test import SimpleTestCase
+from unittest.mock import patch
+
+from django.test import SimpleTestCase, override_settings
 
 from drf_spectacular.generators import SchemaGenerator
+from rest_framework.views import APIView
+
+from mreg.authentication import ExpiringTokenAuthentication, KeycloakBearerAuthentication
 
 
 class OpenAPISchemaTest(SimpleTestCase):
@@ -26,3 +31,21 @@ class OpenAPISchemaTest(SimpleTestCase):
         self.assertEqual(username["in"], "query")
         self.assertFalse(username.get("required", False))
         self.assertEqual(username["schema"], {"type": "string"})
+
+    @override_settings(MREG_OIDC_ENABLED=True)
+    def test_keycloak_and_local_tokens_are_documented_as_alternatives(self) -> None:
+        with patch.object(APIView, "authentication_classes", (ExpiringTokenAuthentication, KeycloakBearerAuthentication)):
+            schema = SchemaGenerator().get_schema(request=None, public=True)
+        self.assertEqual(
+            schema["components"]["securitySchemes"]["keycloakBearer"],
+            {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"},
+        )
+        operation = schema["paths"]["/api/meta/user"]["get"]
+        self.assertIn({"keycloakBearer": []}, operation["security"])
+        self.assertIn({"tokenAuth": []}, operation["security"])
+        logout = schema["paths"]["/api/token-logout/"]["post"]
+        self.assertEqual(logout["security"], [{"tokenAuth": []}])
+        self.assertEqual(schema["paths"]["/api/token-auth/"]["post"].get("security", []), [])
+
+    def test_default_schema_has_no_keycloak_scheme(self) -> None:
+        self.assertNotIn("keycloakBearer", self.schema["components"]["securitySchemes"])

@@ -1,5 +1,52 @@
 # Environment Variables
 
+## Keycloak authentication
+
+See [Authentication](authentication.md) for the token contract, LDAP prerequisites,
+and rollout instructions. The feature is disabled by default.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `MREG_OIDC_ENABLED` | `False` | Enable Keycloak bearer authentication alongside local tokens. |
+| `MREG_OIDC_ISSUER` | Empty | Exact trusted HTTPS realm issuer. Required when enabled. |
+| `MREG_OIDC_AUDIENCE` | Empty | Required access-token audience identifying mreg. |
+| `MREG_OIDC_JWKS_URL` | Empty | Trusted HTTPS JWKS endpoint. Required when enabled. |
+| `MREG_OIDC_USERNAME_CLAIM` | Empty | One authoritative LDAP username claim. Required when enabled. |
+| `MREG_OIDC_ALLOWED_CLIENT_IDS` | Empty | Comma-separated permitted `azp` client IDs. Required when enabled. |
+| `MREG_OIDC_ALGORITHMS` | `RS256` | Comma-separated asymmetric JWT signing algorithms. |
+| `MREG_OIDC_JWKS_TIMEOUT` | `5` | Positive HTTPS fetch timeout, in seconds. |
+| `MREG_OIDC_JWKS_CACHE_SECONDS` | `300` | Positive lifetime of each worker's JWKS cache. |
+| `MREG_OIDC_JWKS_COOLDOWN_SECONDS` | `30` | Positive minimum interval between successful fetches and unknown-key refreshes. |
+| `MREG_OIDC_LEEWAY_SECONDS` | `0` | Nonnegative clock tolerance for token time checks. |
+
+Comma-separated values must not contain surrounding whitespace. In
+`local_settings.py`, supply lists or tuples for client IDs and algorithms.
+Issuer and JWKS URLs must not contain credentials, query strings, or fragments.
+
+## Directory refresh
+
+These settings apply to OIDC requests and, when explicitly enabled, to local
+tokens owned by LDAP-managed users. They can also be set in `local_settings.py`.
+Intervals and timeouts are in seconds.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `MREG_LDAP_REFRESH_LOCAL_TOKENS` | `False` | Opt into shared LDAP refresh/grace for directory-managed local-token users. |
+| `MREG_LDAP_REFRESH_SECONDS` | `300` | Freshness interval for stored user attributes, groups, and eligibility. Zero refreshes on every request. |
+| `MREG_LDAP_GRACE_SECONDS` | `3600` | Additional time after freshness expires during which temporary LDAP failures allow retained permissions. Zero disables grace. |
+| `MREG_LDAP_RETRY_SECONDS` | `30` | Per-user delay between failed refresh attempts, shared across workers. Zero disables backoff. |
+| `MREG_LDAP_TIMEOUT_SECONDS` | `5` | Positive timeout for LDAP connection and individual synchronous operations; not an overall request deadline. |
+
+**Permission changes can take up to the refresh interval to propagate once visible
+in LDAP. During unavailability, old permissions can remain usable for refresh plus
+grace seconds after the last successful refresh, including write/admin access.**
+Failed attempts and new JWTs never reset this clock. A known denial or local
+account disabling cannot use grace. Unknown users require a successful LDAP
+lookup. See [Authentication](authentication.md#ldap-eligibility-and-permissions)
+for error classification, retries, and transaction requirements. See
+[local-token rollout](authentication.md#optional-directory-refresh-for-local-tokens)
+for account enrollment and the changed outage behavior.
+
 ## `MREG_LOG_LEVEL`
 
 Log level of the application. Default: `CRITICAL`
