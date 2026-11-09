@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
@@ -8,6 +8,7 @@ from rest_framework import exceptions
 from rest_framework.authentication import TokenAuthentication, get_authorization_header
 
 from mreg.models.base import ExpiringToken
+from mreg.models.auth import LDAPUserState
 
 if TYPE_CHECKING:
     from rest_framework.request import Request
@@ -23,8 +24,9 @@ class ExpiringTokenAuthentication(TokenAuthentication):
             return "Bearer"
         return super().authenticate_header(request)
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, refresh_directory: bool = True, **kwargs: Any) -> None:
         self.model = ExpiringToken
+        self.refresh_directory = refresh_directory
         super().__init__(*args, **kwargs)
 
     def authenticate_credentials(self, key: str) -> tuple[User, ExpiringToken]:
@@ -39,13 +41,27 @@ class ExpiringTokenAuthentication(TokenAuthentication):
         if token.is_expired:
             raise exceptions.AuthenticationFailed('Token has expired')
 
+        user = self.resolve_user(token.user)
+
         # An overlapping logout may have deleted the token since we read it.
         # Model.save() could reinsert it, so only update an existing credential.
         token.last_used = timezone.now()
         if not self.get_model().objects.filter(pk=token.pk).update(last_used=token.last_used):
             raise exceptions.AuthenticationFailed('Invalid token')
 
-        return token.user, token
+        return user, token
+
+    def resolve_user(self, user: User) -> User:
+        if self.refresh_directory and settings.MREG_LDAP_REFRESH_LOCAL_TOKENS:
+            state: LDAPUserState | None = LDAPUserState.objects.filter(user_id=user.pk).first()
+            if state is not None:
+                from mreg.directory import refresh_directory_user
+
+                refreshed = refresh_directory_user(state.username)
+                if refreshed.pk != user.pk:
+                    raise exceptions.AuthenticationFailed("Directory identity changed.")
+                return refreshed
+        return user
 
 
 class KeycloakBearerAuthentication(TokenAuthentication):
