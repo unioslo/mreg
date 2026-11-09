@@ -65,5 +65,5 @@ class Command(BaseCommand):
             count += 1
             self.stdout.write(f"{action} {name}.")
         self.stdout.write(f"{action} {count} user(s).")
-        if not options["execute"]:
-            self.stdout.write("Preview only; pass --execute to delete these accounts.")
+        if not options["execute"] and count > 0:
+            self.stdout.write("Dry run: use --execute to delete.")
