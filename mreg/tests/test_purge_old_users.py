@@ -39,7 +39,7 @@ class PurgeOldUsersTests(TestCase):
         user = self.directory_user()
         output = self.run_command()
         self.assertIn("Would delete old-user.", output)
-        self.assertIn("Preview only", output)
+        self.assertIn("Dry run", output)
         self.assertTrue(User.objects.filter(pk=user.pk).exists())
         self.assertTrue(LDAPUserState.objects.filter(user=user).exists())
 
