@@ -31,7 +31,7 @@ class ExpiringTokenAuthentication(TokenAuthentication):
 
     def authenticate_credentials(self, key: str) -> tuple[User, ExpiringToken]:
         try:
-            token: ExpiringToken = self.get_model().objects.get(key=key)
+            token: ExpiringToken = self.get_model().objects.select_related("user__ldap_state").get(key=key)
         except ObjectDoesNotExist:
             raise exceptions.AuthenticationFailed('Invalid token')
 
@@ -49,11 +49,13 @@ class ExpiringTokenAuthentication(TokenAuthentication):
         if not self.get_model().objects.filter(pk=token.pk).update(last_used=token.last_used):
             raise exceptions.AuthenticationFailed('Invalid token')
 
+        if getattr(token.user, "ldap_state", None) is not None:
+            LDAPUserState.record_activity(user.pk)
         return user, token
 
     def resolve_user(self, user: User) -> User:
         if self.refresh_directory and settings.MREG_LDAP_REFRESH_LOCAL_TOKENS:
-            state: LDAPUserState | None = LDAPUserState.objects.filter(user_id=user.pk).first()
+            state: LDAPUserState | None = getattr(user, "ldap_state", None)
             if state is not None:
                 from mreg.directory import refresh_directory_user
 
@@ -79,4 +81,6 @@ class KeycloakBearerAuthentication(TokenAuthentication):
 
         claims = validate_access_token(key)
         user = resolve_ldap_user(claims)
+        if not LDAPUserState.record_activity(user.pk):
+            raise exceptions.AuthenticationFailed("Directory account was removed; retry authentication.")
         return user, {name: claims[name] for name in ("iss", "sub", "azp")}

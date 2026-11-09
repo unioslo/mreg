@@ -211,6 +211,7 @@ def refresh_directory_user(username: object, *, force: bool = False) -> User:
         return cached
 
     error: AuthenticationFailed | DirectoryFailure | None = None
+    update_fields = ["user", "last_success_at", "eligible", "last_error", "retry_after"]
     with transaction.atomic():
         LDAPUserState.objects.get_or_create(username=username)
         state = LDAPUserState.objects.select_for_update().get(username=username)
@@ -232,13 +233,17 @@ def refresh_directory_user(username: object, *, force: bool = False) -> User:
             state.retry_after = timezone.now() + timedelta(seconds=settings.MREG_LDAP_RETRY_SECONDS)
             logger.warning("ldap_refresh_failed", username=username, outcome=state.last_error)
         else:
+            if state.user_id is None:
+                state.last_activity_at = now
+                update_fields.append("last_activity_at")
             state.user = populated
             state.last_success_at = now
             state.eligible = True
             state.last_error = ""
             state.retry_after = None
             user = get_user_model().objects.get(pk=populated.pk)
-        state.save()
+        # Authentication can record activity while this refresh is in progress.
+        state.save(update_fields=update_fields)
 
     if isinstance(error, DirectoryUnavailable):
         return _grace_user(state, user, timezone.now())

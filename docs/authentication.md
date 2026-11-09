@@ -81,6 +81,46 @@ across workers after reviewing the retained-permission window. Disabling the fla
 restores the default legacy backends and token behavior; if you explicitly set
 `AUTHENTICATION_BACKENDS` in `local_settings.py`, restore that override as well.
 
+### Removing inactive directory users
+
+LDAP password login and OIDC requests can create local user records. Logout keeps
+these records, so they can be cleaned up separately after a period of inactivity.
+Preview directory-managed accounts unused for more than 90 days:
+
+```console
+python manage.py purge_old_users --days 90
+```
+
+Add `--execute` to delete the listed accounts:
+
+```console
+python manage.py purge_old_users --days 90 --execute
+```
+
+`--days` is required and must be a positive integer. Only accounts linked to an
+`LDAPUserState` are eligible. Local accounts, unenrolled legacy LDAP accounts, and
+locally disabled accounts are preserved. Disabled accounts must remain present
+to prevent a later login from recreating them as active.
+
+Successful OIDC and local-token authentication records activity in the database,
+including requests using cached permissions or outage grace. This activity
+survives token logout and is recorded even when local-token directory refresh is
+disabled. Failed authentication does not extend retention. Recent password
+logins, account creation, and local-token usage also prevent deletion. Activity
+is rechecked before each deletion; each user is deleted in its own transaction.
+
+Run database migrations before deploying this command. Existing directory state
+receives the migration time as its initial activity timestamp, giving accounts a
+full retention window because earlier OIDC activity was not recorded separately.
+Newly enrolled users start a full retention window. Activity timestamps
+are separate from LDAP refresh timestamps and never extend outage grace.
+
+Deletion removes the local user, their tokens, group memberships, and directory
+state. Groups and API history remain; history retains the original username.
+The command does not change LDAP or Keycloak. A later authorized login can
+recreate the user when directory provisioning is enabled; old local tokens stay
+invalid. The command can be run manually or scheduled by the operator.
+
 ## Keycloak user access tokens
 
 This feature is disabled by default. A webapp sends a Keycloak **access token** as
