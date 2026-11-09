@@ -20,6 +20,7 @@ import structlog
 
 import mreg.log_processors
 import mreg.__about__
+from mreg.auth_backends import DIRECTORY_BACKENDS, LEGACY_BACKENDS
 from mreg.env import envvar, parse_protected_policy_attrs
 
 
@@ -126,11 +127,6 @@ ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
 
 AUTH_USER_MODEL = "mreg.User"
 
-AUTHENTICATION_BACKENDS = (
-    "django_auth_ldap.backend.LDAPBackend",
-    "django.contrib.auth.backends.ModelBackend",
-)
-
 AUTH_LDAP_SERVER_URI = "ldap://ldap.example.com"
 AUTH_LDAP_USER_DN_TEMPLATE = "uid=%(user)s,ou=users,dc=example,dc=com"
 AUTH_LDAP_START_TLS = True
@@ -150,6 +146,9 @@ MREG_LDAP_GRACE_SECONDS = envvar("MREG_LDAP_GRACE_SECONDS", 3600)
 MREG_LDAP_RETRY_SECONDS = envvar("MREG_LDAP_RETRY_SECONDS", 30)
 MREG_LDAP_TIMEOUT_SECONDS = envvar("MREG_LDAP_TIMEOUT_SECONDS", 5)
 MREG_LDAP_REFRESH_LOCAL_TOKENS = envvar("MREG_LDAP_REFRESH_LOCAL_TOKENS", False)
+
+# local_settings may override this; mreg.apps validates it at startup.
+AUTHENTICATION_BACKENDS = DIRECTORY_BACKENDS if MREG_LDAP_REFRESH_LOCAL_TOKENS else LEGACY_BACKENDS
 
 # Optional Keycloak access tokens. Identity claims are explicitly configured per deployment.
 MREG_OIDC_ENABLED = envvar("MREG_OIDC_ENABLED", False)
@@ -435,13 +434,6 @@ try:
     from .local_settings import *  # noqa: F401,F403
 except ImportError:
     pass
-
-if MREG_LDAP_REFRESH_LOCAL_TOKENS and tuple(AUTHENTICATION_BACKENDS) == (
-    "django_auth_ldap.backend.LDAPBackend", "django.contrib.auth.backends.ModelBackend",
-):
-    AUTHENTICATION_BACKENDS = (
-        "mreg.directory_auth.LocalUserBackend", "mreg.directory_auth.LDAPPasswordBackend",
-    )
 
 # Apply after local_settings overrides. Keep local-token authentication first for
 # compatibility; it selects the appropriate challenge for bearer requests too.

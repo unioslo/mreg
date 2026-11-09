@@ -10,6 +10,7 @@ from django.core.exceptions import ImproperlyConfigured
 from django.utils import timezone
 from rest_framework.exceptions import AuthenticationFailed
 
+from mreg.auth_backends import DIRECTORY_BACKENDS
 from mreg.directory import DirectoryLDAPBackend, directory_username, refresh_directory_user, validate_directory_settings
 from mreg.models.auth import LDAPUserState
 
@@ -24,10 +25,10 @@ def validate_local_directory_settings() -> None:
     if not settings.MREG_LDAP_REFRESH_LOCAL_TOKENS:
         return
     validate_directory_settings()
-    expected = ("mreg.directory_auth.LocalUserBackend", "mreg.directory_auth.LDAPPasswordBackend")
-    if tuple(settings.AUTHENTICATION_BACKENDS) != expected:
+    # local_settings may define AUTHENTICATION_BACKENDS as a list.
+    if tuple(settings.AUTHENTICATION_BACKENDS) != DIRECTORY_BACKENDS:
         raise ImproperlyConfigured(
-            f"MREG_LDAP_REFRESH_LOCAL_TOKENS requires AUTHENTICATION_BACKENDS={expected!r}."
+            f"MREG_LDAP_REFRESH_LOCAL_TOKENS requires AUTHENTICATION_BACKENDS={DIRECTORY_BACKENDS!r}."
         )
 
 
