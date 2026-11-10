@@ -162,9 +162,9 @@ New snapshots can be created via:
 uv run pytest --inline-snapshot=create
 ```
 
-## Environment Variables
+## Environment variables
 
-mreg supports configuration via environment variables with the `MREG_` prefix. These can be used to override default settings without modifying `settings.py` or creating a `local_settings.py` file. This is especially useful when running mreg in containers or deployment environments. The applications supports reading from a dotenv file (`.env`) to set environment variables. The path to the dotenv file can be overridden by setting the `MREG_DOTENV_PATH` environment variable.
+mreg supports configuration via environment variables with the `MREG_` prefix. These can be used to override default settings without modifying `settings.py` or creating a `local_settings.py` file. This is especially useful when running mreg in containers or deployment environments. The application supports reading from a dotenv file (`.env`) to set environment variables. The path to the dotenv file can be overridden by setting the `MREG_DOTENV_PATH` environment variable.
 
 By default, the dotenv file is expected to be located at the project root with the name `.env`.
 
@@ -172,6 +172,128 @@ By default, the dotenv file is expected to be located at the project root with t
 | -------- | ------- | ----------- |
 | `MREG_DOTENV_PATH` | `.env` | Path to the dotenv file.|
 | `MREG_DOTENV_OVERRIDE` | `False` | Override existing environment variables with values from the dotenv file. Makes the .env file the authoritative source for environment variables.|
+
+### Configuration formats and Python settings
+
+Process environment variables and `.env` entries use the same value formats. Unlike `local_settings.py`, the settings defined via `.env` and environment variables are always interpreted as strings and then converted to the appropriate Python types internally.
+
+The examples below use `.env` assignments and show the resulting Python
+settings. The equivalent `local_settings.py` assignments are shown in the last column.
+
+| Value type | Environment / `.env` example | Equivalent Python setting |
+| ---------- | ---------------------------- | ------------------------- |
+| String | `MREG_LANGUAGE_CODE='en-gb'` | `LANGUAGE_CODE = "en-gb"` |
+| Regular expression (string) | `MREG_LDAP_GROUP_RE='^cn=(?P<group_name>[\w-]+),cn=netgroups,'` | `LDAP_GROUP_RE = r"^cn=(?P<group_name>[\w-]+),cn=netgroups,"` |
+| Boolean | `MREG_DEBUG=false` | `DEBUG = False` |
+| Integer | `MREG_AUTH_LDAP_CACHE_TIMEOUT=600` | `AUTH_LDAP_CACHE_TIMEOUT = 600` |
+
+#### Boolean values
+
+Boolean fields accept typical true and false representations:
+
+- `1`, `true`, `t`, `yes`, `y`, `on` for true
+- `0`, `false`, `f`, `no`, `n`, `off` for false
+
+Invalid boolean or integer values fall back to the setting's default.
+
+#### Variable types
+
+The setting's default type (specified in `settings.py`) determines its scalar type: for example, `MREG_DB_PORT` is a string even though its value normally contains only digits.
+
+#### Structured fields
+
+Some settings require complex configuration, and are exposed through structured environment variables.
+
+| Environment variable | Example value | Equivalent Python setting |
+| -------------------- | ------------- | ------------------------- |
+| `MREG_ALLOWED_HOSTS` | `mreg.example.org,localhost` | `ALLOWED_HOSTS = ["mreg.example.org", "localhost"]` |
+| `MREG_REQUIRED_POLICY_ATTRIBUTES` | `isolated,restricted` | `MREG_CREATING_COMMUNITY_REQUIRES_POLICY_WITH_ATTRIBUTES = ["isolated", "restricted"]` |
+| `MREG_PROTECTED_POLICY_ATTRIBUTES` | `isolated=Client isolation` | `MREG_PROTECTED_POLICY_ATTRIBUTES = [{"name": "isolated", "description": "Client isolation"}]` |
+| `MREG_AUTH_LDAP_USER_ATTR_MAP` | `first_name=givenName,last_name=sn` | `AUTH_LDAP_USER_ATTR_MAP = {"first_name": "givenName", "last_name": "sn"}` |
+| `MREG_SECURE_PROXY_SSL_HEADER` | `HTTP_X_FORWARDED_PROTO,https` | `SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")` |
+| `MREG_TXT_AUTO_RECORDS` (legacy) | `example.org=a,b;uio.no=v=spf1 -all` | `TXT_AUTO_RECORDS = {"example.org": ("a", "b"), "uio.no": ("v=spf1 -all",)}` |
+| `MREG_TXT_AUTO_RECORDS` (JSON) | `{"example.org": ["owner=IT; location=Oslo,NO"]}` | `TXT_AUTO_RECORDS = {"example.org": ("owner=IT; location=Oslo,NO",)}` |
+
+Comma-separated lists strip whitespace and discard empty items. Attribute-map
+pairs also strip whitespace and skip entries missing a key or value.
+
+JSON support is specific to `MREG_TXT_AUTO_RECORDS`; other list and mapping
+fields use the formats above. A JSON format is provided for this variable when a TXT value contains commas, semicolons or significant surrounding whitespace that a regular string cannot represent unambiguously.
+
+LDAP settings also support the following conversions:
+
+| Environment variable | Accepted value format | Equivalent Python setting |
+| -------------------- | --------------------- | ------------------------- |
+| `MREG_AUTH_LDAP_MIRROR_GROUPS` | boolean value (see above), or a comma-separated list such as `admins,operators` | `AUTH_LDAP_MIRROR_GROUPS = True`, `False`, or `["admins", "operators"]` |
+| `MREG_AUTH_LDAP_GLOBAL_OPTIONS` | Comma-separated option/value pairs, e.g. `OPT_REFERRALS=0,OPT_NETWORK_TIMEOUT=30` | `AUTH_LDAP_GLOBAL_OPTIONS = {ldap.OPT_REFERRALS: 0, ldap.OPT_NETWORK_TIMEOUT: 30}` |
+
+For `MREG_AUTH_LDAP_MIRROR_GROUPS`, only `true` and `false` are boolean tokens
+(case-insensitive); other non-empty values are group names. Global-option
+names and named values resolve to integer constants from the `ldap` module;
+values may also be literal integers. String-valued and floating-point LDAP
+options require Python configuration.
+
+Group types and searches are constructed from separate variables. For example:
+
+```sh
+MREG_AUTH_LDAP_GROUP_TYPE=MemberDNGroupType
+MREG_AUTH_LDAP_GROUP_ARGS=member,cn
+MREG_AUTH_LDAP_GROUP_SEARCH_BASE_DN='OU=groups,DC=example,DC=com'
+MREG_AUTH_LDAP_GROUP_SEARCH_SCOPE=SUBTREE
+MREG_AUTH_LDAP_GROUP_SEARCH_FILTER='(objectClass=group)'
+```
+
+is equivalent to:
+
+```python
+import ldap
+from django_auth_ldap.config import LDAPSearch, MemberDNGroupType
+
+AUTH_LDAP_GROUP_TYPE = MemberDNGroupType("member", "cn")
+AUTH_LDAP_GROUP_SEARCH = LDAPSearch(
+    "OU=groups,DC=example,DC=com", ldap.SCOPE_SUBTREE, "(objectClass=group)"
+)
+```
+
+Group classes must be `LDAPGroupType` subclasses from `django_auth_ldap.config`.
+Group arguments are comma-separated positional strings; keyword arguments and
+custom Python classes are available through Python configuration. Search scopes
+are `BASE`, `ONELEVEL` or `SUBTREE`, ignoring case and surrounding whitespace.
+
+`MREG_MQ_*` variables assemble the `MQ_CONFIG` dictionary, using strings for
+`host`, `virtual_host`, `exchange`, `username` and `password`, and booleans for
+`ssl` and `declare`. Permission-group variables such as `MREG_SUPERUSER_GROUP`
+accept one string each; native Python permission-group settings can also use
+lists of group names.
+
+Unset variables retain their documented defaults. Empty values have
+setting-specific meanings: an empty allowed-hosts value produces `[]`, an empty
+TXT value or JSON `{}` disables automatic TXT records, and an empty or unset
+LDAP mirror-groups value disables django-auth-ldap's mirroring. An empty
+protected-policy-attributes value retains the defaults; use `NONE` or
+`MREG_NO_PROTECTED_POLICY_ATTRIBUTES=true` to disable those attributes.
+The string `None` is not interpreted as Python `None`.
+
+Existing `TXT_AUTO_RECORDS` mappings in `local_settings.py` retain their
+precedence and native list/tuple values, including `{}` or `None` to disable
+automatic records. Existing `DATABASES` dictionaries also remain supported.
+Internal Django structures such as `INSTALLED_APPS`, `MIDDLEWARE`, `TEMPLATES`,
+`ROOT_URLCONF` and `WSGI_APPLICATION` remain Python configuration.
+
+### Django Core Configuration
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `MREG_SECRET_KEY` | Bundled development key | Django secret key. Must be set to a unique value in production. |
+| `MREG_DEBUG` | `True` if `CI` is set, else `False` | Django DEBUG mode. Never enable in production. |
+| `MREG_ALLOWED_HOSTS` | `127.0.0.1,localhost` | Comma-separated list of hosts the instance may serve. |
+| `MREG_SECURE_PROXY_SSL_HEADER` | unset | `header,value` pair to trust from the reverse proxy, e.g. `HTTP_X_FORWARDED_PROTO,https`. Left unset by default due to the [security implications](https://docs.djangoproject.com/en/stable/ref/settings/#secure-proxy-ssl-header). |
+| `MREG_LANGUAGE_CODE` | `en-us` | Django language code. |
+| `MREG_TIME_ZONE` | `Europe/Oslo` | Time zone (IANA name). |
+| `MREG_USE_I18N` | `True` | Enable Django translation. |
+| `MREG_USE_TZ` | `True` | Store datetimes as UTC. |
+| `MREG_STATIC_URL` | `/static/` | URL prefix for static files. |
+| `MREG_STATIC_ROOT` | `static/` | Directory for collected static files, relative to `BASE_DIR` (absolute paths win). |
 
 
 ### Database Configuration
@@ -184,6 +306,7 @@ By default, the dotenv file is expected to be located at the project root with t
 | `MREG_DB_PASSWORD` | `""` | Database password |
 | `MREG_DB_HOST` | `localhost` | Database host |
 | `MREG_DB_PORT` | `5432` | Database port |
+| `MREG_DB_CONN_MAX_AGE` | `0` | Persistent database connection lifetime in seconds (`0` closes or returns the connection to the pool after each request). Nonzero values require `MREG_DB_POOL_ENABLED=false`; conflicting settings prevent startup. |
 
 ### Database Connection Pooling (psycopg3)
 
@@ -210,13 +333,14 @@ By default, the dotenv file is expected to be located at the project root with t
 | `MREG_REQUESTS_LOG_LEVEL_SLOW` | `WARNING` | Log level for slow requests |
 | `MREG_REQUESTS_THRESHOLD_VERY_SLOW` | `5000` | Very slow request threshold (ms) |
 | `MREG_REQUESTS_LOG_LEVEL_VERY_SLOW` | `CRITICAL` | Log level for very slow requests |
+| `MREG_LOG_CONSOLE_ENABLED` | `True` | Log to the console (stderr) in addition to the log file |
 
 ### Network Policy Configuration
 
 | Variable | Default | Description |
 | -------- | ------- | ----------- |
 | `MREG_NO_PROTECTED_POLICY_ATTRIBUTES` | `False` | Disable all protected policy attributes |
-| `MREG_PROTECTED_POLICY_ATTRIBUTES` | `""` | key=value comma separated list of protected policy attributes, overrides defaults |
+| `MREG_PROTECTED_POLICY_ATTRIBUTES` | `""` | key=value comma separated list of protected policy attributes, overrides defaults. Omitting a description supplies `Protected attribute <name>.`. |
 | `MREG_REQUIRED_POLICY_ATTRIBUTES` | `""` | comma separated list of required policy attributes |
 | `MREG_MAX_COMMUNITES_PER_NETWORK` | `20` | Maximum communities per network |
 | `MREG_MAP_GLOBAL_COMMUNITY_NAMES` | `False` | Enable global community name mapping |
@@ -225,6 +349,99 @@ By default, the dotenv file is expected to be located at the project root with t
 | `MREG_COMMUNITY_TEMPLATE_PATTERN_MAX_LENGTH` | `100` | Max length for community patterns |
 | `MREG_REQUIRE_MAC_FOR_BINDING_IP_TO_COMMUNITY` | `True` | Require MAC address for an IP to be added to a community |
 | `MREG_REQUIRE_VLAN_FOR_NETWORK_TO_HAVE_COMMUNITY` | `False` | Require VLAN to be set for a network for it to have communities |
+
+### LDAP Configuration
+
+Variables for `django-auth-ldap`. The variables that default to *unset* are only
+passed to django-auth-ldap when they are actually set.
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `MREG_AUTH_LDAP_SERVER_URI` | `ldap://ldap.example.com` | LDAP server URI. |
+| `MREG_AUTH_LDAP_USER_DN_TEMPLATE` | `uid=%(user)s,ou=users,dc=example,dc=com` | DN template used to look up users. |
+| `MREG_AUTH_LDAP_START_TLS` | `True` | Negotiate TLS with the LDAP server. |
+| `MREG_AUTH_LDAP_CACHE_TIMEOUT` | `3600` | Cache timeout in seconds for LDAP lookups. |
+| `MREG_AUTH_LDAP_BIND_DN` | `""` | DN of the service account used for searches. |
+| `MREG_AUTH_LDAP_BIND_PASSWORD` | `""` | Password of the bind service account. |
+| `MREG_AUTH_LDAP_BIND_AS_AUTHENTICATING_USER` | `False` | Bind as the authenticating user instead of a service account. |
+| `MREG_AUTH_LDAP_ALWAYS_UPDATE_USER` | `True` | Update the Django user from LDAP on every login. |
+| `MREG_AUTH_LDAP_USER_ATTR_MAP` | `""` | Comma-separated `django_field=ldap_attribute` pairs, e.g. `first_name=givenName,last_name=sn`. |
+| `MREG_AUTH_LDAP_MIRROR_GROUPS` | unset | `True` mirrors all LDAP groups; a comma-separated list mirrors selected group names. `False`, an empty string, or an unset variable disables django-auth-ldap's mirroring. Boolean values are case-insensitive. Mirroring requires the group type and group search settings below. |
+| `MREG_AUTH_LDAP_GLOBAL_OPTIONS` | unset | Comma-separated `OPTION=VALUE` pairs of global LDAP options, e.g. `OPT_X_TLS_REQUIRE_CERT=OPT_X_TLS_NEVER`. Names are resolved from the `ldap` module, values may also be plain integers. |
+| `MREG_AUTH_LDAP_GROUP_TYPE` | unset | Group type class from `django_auth_ldap.config`, e.g. `NestedActiveDirectoryGroupType`. |
+| `MREG_AUTH_LDAP_GROUP_ARGS` | unset | Arguments for the LDAP group type class specified in `MREG_AUTH_LDAP_GROUP_TYPE`. |
+| `MREG_AUTH_LDAP_GROUP_SEARCH_BASE_DN` | unset | Base DN of the LDAP group search. Setting this variable enables the group search. |
+| `MREG_AUTH_LDAP_GROUP_SEARCH_SCOPE` | `SUBTREE` | Group search scope: `SUBTREE`, `ONELEVEL` or `BASE`. Requires the base DN to be set. |
+| `MREG_AUTH_LDAP_GROUP_SEARCH_FILTER` | `(objectClass=group)` | LDAP filter of the group search. Requires the base DN to be set. |
+| `MREG_LDAP_GROUP_ATTR` | `memberof` | LDAP attribute on users holding their group memberships. |
+| `MREG_LDAP_GROUP_RE` | `^cn=(?P<group_name>[\w\-]+),cn=netgroups,` | Regexp matched against group DNs; must contain the named group `group_name`. |
+
+Independently of django-auth-ldap's mirroring, mreg's `populate_user` signal
+updates memberships from `MREG_LDAP_GROUP_ATTR` using `MREG_LDAP_GROUP_RE`.
+
+### Permission Groups
+
+Group names used by mreg's permission system. The `default-*` names are
+placeholders for tests and CI; production deployments should set these
+variables to the real group names.
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `MREG_SUPERUSER_GROUP` | `default-super-group` | Members get full access to everything. |
+| `MREG_ADMINUSER_GROUP` | `default-admin-group` | Members get a high level of overall control. |
+| `MREG_GROUPADMINUSER_GROUP` | `default-groupadmin-group` | Members may administer hostgroups. |
+| `MREG_NETWORK_ADMIN_GROUP` | `default-networkadmin-group` | Members may administer networks. |
+| `MREG_HOSTPOLICYADMIN_GROUP` | `default-hostpolicyadmin-group` | Members may administer hostpolicy roles and atoms. |
+| `MREG_DNS_WILDCARD_GROUP` | `default-dns-wildcard-group` | Members may create wildcard DNS records. |
+| `MREG_DNS_UNDERSCORE_GROUP` | `default-dns-underscore-group` | Members may create DNS records with underscores. |
+
+### DNS Configuration
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `MREG_TXT_AUTO_RECORDS` | `example.org=v=spf1 -all` | TXT records automatically added to new hosts in the listed zones. Accepts the legacy `zone=record1,record2;...` syntax or a JSON object mapping zones to lists of TXT strings. An unset variable falls back to the default; an empty string or `{}` opts out. |
+
+The legacy format remains supported so existing environment and `.env`
+configurations keep working. Use JSON when TXT values contain commas or
+semicolons: these characters separate entries in the legacy format, while
+JSON preserves TXT data exactly, including whitespace.
+
+For example, in a shell or `.env` file, either format can be used:
+
+```sh
+# Legacy format for simple values:
+MREG_TXT_AUTO_RECORDS='uio.no=v=spf1 -all;example.org=a,b'
+
+# JSON for values containing delimiters:
+MREG_TXT_AUTO_RECORDS='{"example.org": ["v=spf1 -all", "owner=IT; location=Oslo,NO"]}'
+```
+
+Existing `TXT_AUTO_RECORDS` mappings in `local_settings.py`, with lists or
+tuples of TXT values, still override the environment configuration. Setting
+`TXT_AUTO_RECORDS = None` or `{}` there continues to disable automatic records.
+
+### MQ Event Publishing (RabbitMQ)
+
+MQ event publishing is enabled only when `MREG_MQ_HOST` and the other required
+variables (`MREG_MQ_EXCHANGE`, `MREG_MQ_USERNAME`, `MREG_MQ_PASSWORD`) are all
+set. If `MREG_MQ_HOST` is set but a required variable is missing, mreg refuses
+to start. Without `MREG_MQ_HOST`, no events are published.
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `MREG_MQ_HOST` | unset | RabbitMQ host. Enables MQ event publishing when set together with the other required variables. |
+| `MREG_MQ_SSL` | `False` | Use TLS for the RabbitMQ connection. |
+| `MREG_MQ_VIRTUAL_HOST` | `/` | RabbitMQ virtual host. |
+| `MREG_MQ_EXCHANGE` | unset (required) | Exchange to publish events to. |
+| `MREG_MQ_DECLARE` | `False` | Declare the exchange (as a topic exchange) on connect. |
+| `MREG_MQ_USERNAME` | unset (required) | RabbitMQ username. |
+| `MREG_MQ_PASSWORD` | unset (required) | RabbitMQ password. |
+
+### Sentry Error Tracking
+
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `MREG_SENTRY_DSN` | unset | Sentry DSN. When set, Sentry is initialized with the Django integration. |
 
 ### Django Configuration for VS Code
 
@@ -235,7 +452,7 @@ Running tests via the VS Code test runner (or other methods that otherwise bypas
 | `DJANGO_SETTINGS_MODULE` | `""` | Django settings module. Required when not running via `manage.py`|
 | `MANAGE_PY_PATH` | `""` | Path to the `manage.py` file of the Django project. Required when running via VS Code test runner or other methods that bypass `manage.py`|
 
-Copy the bundled `.env.example` file to `.env` to make VS Code automatically source the default settings module.
+Copy the bundled `.env.example` file to `.env` to make VS Code automatically source the default settings module. The file also lists every `MREG_` option, commented out with its default or an example value, so uncomment the ones you need.
 
 ```bash
 cp .env.example .env
@@ -261,7 +478,7 @@ The application supports setting the aforementioned settings persistently via a 
 
 ### `.env`
 
-To override entries in `mregsite/settings.py`, create a file `.env` or rename `.env.example` to `.env`.
+To override entries in `mregsite/settings.py`, create a file `.env` or copy `.env.example` to `.env`. `.env.example` lists every option, including the structured formats, commented out with its default or an example value.
 
 Example `.env` file:
 

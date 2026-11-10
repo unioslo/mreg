@@ -1,12 +1,34 @@
+import json
 import os
-from typing import TypeVar
 from pathlib import Path
+from typing import Any, TypeVar, cast
+
+import django_auth_ldap.config as ldap_config
+import ldap
+from django_auth_ldap.config import LDAPGroupType, LDAPSearch
 from dotenv import load_dotenv
 
 DefaultT = TypeVar("DefaultT", str, int, float, bool)
 
 _TRUE = {"1", "true", "t", "yes", "y", "on"}
 _FALSE = {"0", "false", "f", "no", "n", "off"}
+
+
+def _parse_bool(raw: str) -> bool | None:
+    """Attempt to parse a boolean from common true/false strings.
+
+    Args:
+        raw (str): The raw string to parse, e.g. "true", "no" or "1".
+
+    Returns:
+        bool | None: The parsed bool, or None if the string is not a recognized boolean.
+    """
+    s = raw.strip().lower()
+    if s in _TRUE:
+        return True
+    if s in _FALSE:
+        return False
+    return None
 
 
 def envvar(var: str, default: DefaultT) -> DefaultT:
@@ -20,12 +42,8 @@ def envvar(var: str, default: DefaultT) -> DefaultT:
         return default
 
     if isinstance(default, bool):
-        s = raw.strip().lower()
-        if s in _TRUE:
-            return True
-        if s in _FALSE:
-            return False
-        return default
+        parsed = _parse_bool(raw)
+        return default if parsed is None else cast(DefaultT, parsed)
 
     try:
         return type(default)(raw)
@@ -57,6 +75,223 @@ def parse_protected_policy_attrs(raw: str) -> list[dict[str, str]]:
         desc = value if value else f"Protected attribute {key}."
         out.append({"name": key, "description": desc})
     return out
+
+
+def envvar_list(var: str, default: list[str]) -> list[str]:
+    """Get a comma-separated list of strings from an environment variable.
+
+    Args:
+        var: The name of the environment variable.
+        default: The value to return if the variable is unset.
+
+    Returns:
+        The variable's value split on commas, with each item stripped and
+        empty items dropped, or a copy of the default if the variable is unset.
+    """
+    raw = os.environ.get(var)
+    if raw is None:
+        return list(default)
+    return parse_list(raw)
+
+
+def parse_list(raw: str) -> list[str]:
+    """Parse a comma-separated list of strings.
+
+    Args:
+        raw (str): The raw string to parse, e.g. "a,b,c".
+
+    Returns:
+        list[str]: The items, each stripped, with empty items dropped.
+    """
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+def parse_mirror_groups(raw: str) -> bool | list[str]:
+    """Parse a value for django-auth-ldap's AUTH_LDAP_MIRROR_GROUPS.
+
+    Boolean strings (same as envvar) become a bool, anything else
+    is parsed as a comma-separated list of group names.
+
+    Args:
+        raw (str): The raw string to parse, e.g. "true" or "admins,superusers".
+
+    Returns:
+        bool | list[str]: True/False to mirror all/no groups, or the group names to mirror.
+    """
+    parsed = _parse_bool(raw)
+    return parse_list(raw) if parsed is None else parsed
+
+
+def envvar_pairs(var: str, default: dict[str, str]) -> dict[str, str]:
+    """Get a comma-separated set of key=value pairs from an environment variable.
+
+    Args:
+        var: The name of the environment variable.
+        default: The value to return if the variable is unset.
+
+    Returns:
+        The variable's value parsed as key=value pairs, or a copy of the
+        default if the variable is unset.
+    """
+    raw = os.environ.get(var)
+    if raw is None:
+        return dict(default)
+    return parse_kv_pairs(raw)
+
+
+def parse_kv_pairs(raw: str) -> dict[str, str]:
+    """Parse comma-separated key=value pairs into a dict.
+
+    Malformed entries (missing key or value) are skipped, matching the
+    lenient behavior of parse_protected_policy_attrs.
+
+    Args:
+        raw: The raw string to parse, e.g. "first_name=givenName,last_name=sn".
+
+    Returns:
+        A dict mapping keys to values.
+    """
+    out: dict[str, str] = {}
+    for part in raw.split(","):
+        key, _, value = part.partition("=")
+        key = key.strip()
+        value = value.strip()
+        if key and value:
+            out[key] = value
+    return out
+
+
+def parse_txt_auto_records(raw: str) -> dict[str, tuple[str, ...]]:
+    """Parse JSON TXT records or the legacy 'zone=record1,record2;...' format."""
+    # Parse as legacy text-based format (example.org=owner=IT,location=Oslo,NO;...)
+    if not raw.lstrip().startswith("{"):
+        out: dict[str, tuple[str, ...]] = {}
+        for zone_entry in raw.split(";"):
+            zone, _, records = zone_entry.partition("=")
+            zone = zone.strip()
+            if not zone:
+                continue
+            out[zone] = tuple(record.strip() for record in records.split(",") if record.strip())
+        return out
+
+    # Parse as JSON ({"example.org": ["owner=IT; location=Oslo,NO"], ...})
+    records = json.loads(raw)
+    if not isinstance(records, dict) or any(
+        not isinstance(values, list) or any(not isinstance(value, str) for value in values) for values in records.values()
+    ):
+        raise ValueError("MREG_TXT_AUTO_RECORDS must be a JSON object mapping zone names to lists of TXT strings")
+    return {zone: tuple(values) for zone, values in records.items()}
+
+
+def parse_header_pair(raw: str) -> tuple[str, str]:
+    """Parse a (header, value) pair from a comma-separated string.
+
+    Args:
+        raw: The raw string to parse, e.g. "HTTP_X_FORWARDED_PROTO,https".
+
+    Returns:
+        A (header, value) tuple.
+
+    Raises:
+        ValueError: If the string is not exactly two non-empty, comma-separated parts.
+    """
+    header, sep, value = raw.partition(",")
+    header = header.strip()
+    value = value.strip()
+    if not sep or not header or not value or "," in value:
+        raise ValueError(f"Expected 'header,value' with exactly two parts, got: {raw!r}")
+    return header, value
+
+
+def parse_ldap_options(raw: str) -> dict[int, int]:
+    """Parse LDAP library options from comma-separated OPTION=VALUE pairs.
+
+    Each option name must be the name of a constant from the :mod:`ldap`
+    module, e.g. 'OPT_X_TLS_REQUIRE_CERT'. The value is either the name of
+    a constant from the same module (e.g. 'OPT_X_TLS_NEVER') or a plain integer.
+
+    Args:
+        raw: The raw string to parse,
+            e.g. "OPT_X_TLS_REQUIRE_CERT=OPT_X_TLS_NEVER".
+
+    Returns:
+        A dict mapping LDAP option constants to integer values.
+
+    Raises:
+        ValueError: If an option or value name is not an integer constant
+            in the ldap module.
+    """
+    out: dict[int, int] = {}
+    for part in raw.split(","):
+        part = part.strip()
+        if not part:
+            continue  # pragma: no cover
+        name, _, value = part.partition("=")
+        name = name.strip()
+        option = getattr(ldap, name, None)
+        if not isinstance(option, int):
+            raise ValueError(f"Unknown LDAP option: {name!r}")
+        value = value.strip()
+        if value.lstrip("-").isdigit():
+            resolved: int = int(value)
+        else:
+            resolved = getattr(ldap, value, None)
+            if not isinstance(resolved, int):
+                raise ValueError(f"Unknown LDAP option value: {value!r}")
+        out[option] = resolved
+    return out
+
+
+def make_ldap_group_type(name: str, *args: Any) -> LDAPGroupType:
+    """Create a django-auth-ldap group type instance from a class name.
+
+    The name must be a class from django_auth_ldap.config that subclasses
+    LDAPGroupType and that can be constructed without required arguments,
+    e.g. 'NestedActiveDirectoryGroupType'.
+
+    Args:
+        name: The name of the group type class.
+
+    Returns:
+        A new group type instance.
+
+    Raises:
+        ValueError: If the name is not a supported group type class, or the
+            class cannot be constructed without arguments.
+    """
+    cls = getattr(ldap_config, name, None)
+    if not isinstance(cls, type) or not issubclass(cls, LDAPGroupType):
+        raise ValueError(f"Unsupported AUTH_LDAP_GROUP_TYPE: {name!r}")
+    try:
+        return cls(*args)
+    except Exception as exc:
+        raise RuntimeError(f"Failed to instantiate group {name!r} with arguments {args!r}") from exc
+
+
+def make_ldap_search(base_dn: str, scope: str, filterstr: str = "(objectClass=*)") -> LDAPSearch:
+    """Create a django-auth-ldap LDAPSearch object.
+
+    Args:
+        base_dn: The base DN to search from,
+            e.g. "OU=filegroups,DC=example,DC=com".
+        scope: The LDAP search scope: "SUBTREE", "ONELEVEL" or "BASE".
+        filterstr: The LDAP search filter, e.g. "(objectClass=group)".
+
+    Returns:
+        A configured LDAPSearch object.
+
+    Raises:
+        ValueError: If the scope is not one of "SUBTREE", "ONELEVEL" or "BASE".
+    """
+    scopes: dict[str, int] = {
+        "SUBTREE": ldap.SCOPE_SUBTREE,
+        "ONELEVEL": ldap.SCOPE_ONELEVEL,
+        "BASE": ldap.SCOPE_BASE,
+    }
+    resolved = scopes.get(scope.strip().upper())
+    if resolved is None:
+        raise ValueError(f"Unsupported LDAP search scope: {scope!r}")
+    return LDAPSearch(base_dn, resolved, filterstr)
 
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]

@@ -328,7 +328,7 @@ def add_auto_txt_records_on_new_host(sender, instance, created, **kwargs):
     records in settings.TXT_AUTO_RECORDS."""
     if created:
         autozones = getattr(settings, "TXT_AUTO_RECORDS", None)
-        if autozones is None:
+        if not autozones:
             return
         if instance.zone is None:
             return
