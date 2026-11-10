@@ -1,13 +1,12 @@
 import json
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
-from typing import TypeVar
+from typing import Any, TypeVar, cast
 
+import django_auth_ldap.config as ldap_config
+import ldap
+from django_auth_ldap.config import LDAPGroupType, LDAPSearch
 from dotenv import load_dotenv
-
-if TYPE_CHECKING:  # pragma: no cover
-    from django_auth_ldap.config import LDAPGroupType, LDAPSearch
 
 DefaultT = TypeVar("DefaultT", str, int, float, bool)
 
@@ -222,8 +221,6 @@ def parse_ldap_options(raw: str) -> dict[int, int]:
         ValueError: If an option or value name is not an integer constant
             in the ldap module.
     """
-    import ldap
-
     out: dict[int, int] = {}
     for part in raw.split(","):
         part = part.strip()
@@ -245,7 +242,7 @@ def parse_ldap_options(raw: str) -> dict[int, int]:
     return out
 
 
-def make_ldap_group_type(name: str, *args: Any) -> "LDAPGroupType":
+def make_ldap_group_type(name: str, *args: Any) -> LDAPGroupType:
     """Create a django-auth-ldap group type instance from a class name.
 
     The name must be a class from django_auth_ldap.config that subclasses
@@ -262,10 +259,8 @@ def make_ldap_group_type(name: str, *args: Any) -> "LDAPGroupType":
         ValueError: If the name is not a supported group type class, or the
             class cannot be constructed without arguments.
     """
-    import django_auth_ldap.config as ldap_config
-
     cls = getattr(ldap_config, name, None)
-    if not isinstance(cls, type) or not issubclass(cls, ldap_config.LDAPGroupType):
+    if not isinstance(cls, type) or not issubclass(cls, LDAPGroupType):
         raise ValueError(f"Unsupported AUTH_LDAP_GROUP_TYPE: {name!r}")
     try:
         return cls(*args)
@@ -273,7 +268,7 @@ def make_ldap_group_type(name: str, *args: Any) -> "LDAPGroupType":
         raise RuntimeError(f"Failed to instantiate group {name!r} with arguments {args!r}") from exc
 
 
-def make_ldap_search(base_dn: str, scope: str, filterstr: str = "(objectClass=*)") -> "LDAPSearch":
+def make_ldap_search(base_dn: str, scope: str, filterstr: str = "(objectClass=*)") -> LDAPSearch:
     """Create a django-auth-ldap LDAPSearch object.
 
     Args:
@@ -288,9 +283,6 @@ def make_ldap_search(base_dn: str, scope: str, filterstr: str = "(objectClass=*)
     Raises:
         ValueError: If the scope is not one of "SUBTREE", "ONELEVEL" or "BASE".
     """
-    import ldap
-    from django_auth_ldap.config import LDAPSearch
-
     scopes: dict[str, int] = {
         "SUBTREE": ldap.SCOPE_SUBTREE,
         "ONELEVEL": ldap.SCOPE_ONELEVEL,
