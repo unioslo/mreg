@@ -162,7 +162,7 @@ New snapshots can be created via:
 uv run pytest --inline-snapshot=create
 ```
 
-## Environment Variables
+## Environment variables
 
 mreg supports configuration via environment variables with the `MREG_` prefix. These can be used to override default settings without modifying `settings.py` or creating a `local_settings.py` file. This is especially useful when running mreg in containers or deployment environments. The application supports reading from a dotenv file (`.env`) to set environment variables. The path to the dotenv file can be overridden by setting the `MREG_DOTENV_PATH` environment variable.
 
@@ -173,7 +173,7 @@ By default, the dotenv file is expected to be located at the project root with t
 | `MREG_DOTENV_PATH` | `.env` | Path to the dotenv file.|
 | `MREG_DOTENV_OVERRIDE` | `False` | Override existing environment variables with values from the dotenv file. Makes the .env file the authoritative source for environment variables.|
 
-### Configuration Formats and Python Settings
+### Configuration formats and Python settings
 
 Process environment variables and `.env` entries use the same value formats. Unlike `local_settings.py`, the settings defined via `.env` and environment variables are always interpreted as strings and then converted to the appropriate Python types internally.
 
@@ -187,6 +187,8 @@ settings. The equivalent `local_settings.py` assignments are shown in the last c
 | Boolean | `MREG_DEBUG=false` | `DEBUG = False` |
 | Integer | `MREG_AUTH_LDAP_CACHE_TIMEOUT=600` | `AUTH_LDAP_CACHE_TIMEOUT = 600` |
 
+#### Boolean values
+
 Boolean fields accept typical true and false representations:
 
 - `1`, `true`, `t`, `yes`, `y`, `on` for true
@@ -194,9 +196,13 @@ Boolean fields accept typical true and false representations:
 
 Invalid boolean or integer values fall back to the setting's default.
 
+#### Variable types
+
 The setting's default type (specified in `settings.py`) determines its scalar type: for example, `MREG_DB_PORT` is a string even though its value normally contains only digits.
 
-Structured fields have their own formats:
+#### Structured fields
+
+Some settings require complex configuration, and are exposed through structured environment variables.
 
 | Environment variable | Example value | Equivalent Python setting |
 | -------------------- | ------------- | ------------------------- |
@@ -210,21 +216,15 @@ Structured fields have their own formats:
 
 Comma-separated lists strip whitespace and discard empty items. Attribute-map
 pairs also strip whitespace and skip entries missing a key or value.
-Protected-policy attributes accept multiple comma-separated `name=description`
-entries; omitting a description supplies `Protected attribute <name>.`.
-The proxy header requires exactly two non-empty parts.
 
 JSON support is specific to `MREG_TXT_AUTO_RECORDS`; other list and mapping
-fields use the formats above. The legacy TXT syntax remains supported for
-compatibility. Use JSON when a TXT value contains commas, semicolons or
-significant surrounding whitespace. JSON objects must map zone names to lists
-of strings; malformed JSON objects fail explicitly.
+fields use the formats above. A JSON format is provided for this variable when a TXT value contains commas, semicolons or significant surrounding whitespace that a regular string cannot represent unambiguously.
 
 LDAP settings also support the following conversions:
 
 | Environment variable | Accepted value format | Equivalent Python setting |
 | -------------------- | --------------------- | ------------------------- |
-| `MREG_AUTH_LDAP_MIRROR_GROUPS` | `true`, `false`, or a comma-separated list such as `admins,operators` | `AUTH_LDAP_MIRROR_GROUPS = True`, `False`, or `["admins", "operators"]` |
+| `MREG_AUTH_LDAP_MIRROR_GROUPS` | boolean value (see above), or a comma-separated list such as `admins,operators` | `AUTH_LDAP_MIRROR_GROUPS = True`, `False`, or `["admins", "operators"]` |
 | `MREG_AUTH_LDAP_GLOBAL_OPTIONS` | Comma-separated option/value pairs, e.g. `OPT_REFERRALS=0,OPT_NETWORK_TIMEOUT=30` | `AUTH_LDAP_GLOBAL_OPTIONS = {ldap.OPT_REFERRALS: 0, ldap.OPT_NETWORK_TIMEOUT: 30}` |
 
 For `MREG_AUTH_LDAP_MIRROR_GROUPS`, only `true` and `false` are boolean tokens
@@ -340,7 +340,7 @@ Internal Django structures such as `INSTALLED_APPS`, `MIDDLEWARE`, `TEMPLATES`,
 | Variable | Default | Description |
 | -------- | ------- | ----------- |
 | `MREG_NO_PROTECTED_POLICY_ATTRIBUTES` | `False` | Disable all protected policy attributes |
-| `MREG_PROTECTED_POLICY_ATTRIBUTES` | `""` | key=value comma separated list of protected policy attributes, overrides defaults |
+| `MREG_PROTECTED_POLICY_ATTRIBUTES` | `""` | key=value comma separated list of protected policy attributes, overrides defaults. Omitting a description supplies `Protected attribute <name>.`. |
 | `MREG_REQUIRED_POLICY_ATTRIBUTES` | `""` | comma separated list of required policy attributes |
 | `MREG_MAX_COMMUNITES_PER_NETWORK` | `20` | Maximum communities per network |
 | `MREG_MAP_GLOBAL_COMMUNITY_NAMES` | `False` | Enable global community name mapping |

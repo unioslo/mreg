@@ -30,6 +30,7 @@ from mreg.env import (
     make_ldap_search,
     parse_header_pair,
     parse_ldap_options,
+    parse_mirror_groups,
     parse_protected_policy_attrs,
     parse_txt_auto_records,
 )
@@ -157,16 +158,10 @@ AUTH_LDAP_ALWAYS_UPDATE_USER = envvar("MREG_AUTH_LDAP_ALWAYS_UPDATE_USER", True)
 # Maps Django user fields to LDAP attributes, e.g. "first_name=givenName,last_name=sn".
 AUTH_LDAP_USER_ATTR_MAP = envvar_pairs("MREG_AUTH_LDAP_USER_ATTR_MAP", {})
 
-# True mirrors all groups, False disables mirroring, list of strings mirrors specific groups
-# list disables django-auth-ldap's mirroring (mreg's populate_user signal still runs).
-# Parse first as string, then parse as either bool or list depending on the value
-if "MREG_AUTH_LDAP_MIRROR_GROUPS" in os.environ:
-    _mirr_groups_str = envvar("MREG_AUTH_LDAP_MIRROR_GROUPS", "").strip().lower()
-    if _mirr_groups_str in {"true", "false"}:
-        _mirr_groups_parsed = envvar("MREG_AUTH_LDAP_MIRROR_GROUPS", False)
-    else:
-        _mirr_groups_parsed = envvar_list("MREG_AUTH_LDAP_MIRROR_GROUPS", [])
-    AUTH_LDAP_MIRROR_GROUPS: list[str] | bool = _mirr_groups_parsed
+# Unset: django-auth-ldap default. Bool: mirror all/no groups. Otherwise: comma-separated group names.
+_mirror_groups = os.environ.get("MREG_AUTH_LDAP_MIRROR_GROUPS")
+if _mirror_groups is not None:
+    AUTH_LDAP_MIRROR_GROUPS = parse_mirror_groups(_mirror_groups)
 
 # LDAP library options, e.g. "OPT_X_TLS_REQUIRE_CERT=OPT_X_TLS_NEVER".
 _ldap_global_options = envvar("MREG_AUTH_LDAP_GLOBAL_OPTIONS", "")

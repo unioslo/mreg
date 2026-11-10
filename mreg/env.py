@@ -15,6 +15,23 @@ _TRUE = {"1", "true", "t", "yes", "y", "on"}
 _FALSE = {"0", "false", "f", "no", "n", "off"}
 
 
+def _parse_bool(raw: str) -> bool | None:
+    """Attempt to parse a boolean from common true/false strings.
+
+    Args:
+        raw (str): The raw string to parse, e.g. "true", "no" or "1".
+
+    Returns:
+        bool | None: The parsed bool, or None if the string is not a recognized boolean.
+    """
+    s = raw.strip().lower()
+    if s in _TRUE:
+        return True
+    if s in _FALSE:
+        return False
+    return None
+
+
 def envvar(var: str, default: DefaultT) -> DefaultT:
     """Get the value of an environment variable as a specific type.
 
@@ -26,12 +43,8 @@ def envvar(var: str, default: DefaultT) -> DefaultT:
         return default
 
     if isinstance(default, bool):
-        s = raw.strip().lower()
-        if s in _TRUE:
-            return cast(DefaultT, True)
-        if s in _FALSE:
-            return cast(DefaultT, False)
-        return default
+        parsed = _parse_bool(raw)
+        return default if parsed is None else cast(DefaultT, parsed)
 
     try:
         return type(default)(raw)
@@ -79,7 +92,35 @@ def envvar_list(var: str, default: list[str]) -> list[str]:
     raw = os.environ.get(var)
     if raw is None:
         return list(default)
+    return parse_list(raw)
+
+
+def parse_list(raw: str) -> list[str]:
+    """Parse a comma-separated list of strings.
+
+    Args:
+        raw (str): The raw string to parse, e.g. "a,b,c".
+
+    Returns:
+        list[str]: The items, each stripped, with empty items dropped.
+    """
     return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+def parse_mirror_groups(raw: str) -> bool | list[str]:
+    """Parse a value for django-auth-ldap's AUTH_LDAP_MIRROR_GROUPS.
+
+    Boolean strings (same as envvar) become a bool, anything else
+    is parsed as a comma-separated list of group names.
+
+    Args:
+        raw (str): The raw string to parse, e.g. "true" or "admins,superusers".
+
+    Returns:
+        bool | list[str]: True/False to mirror all/no groups, or the group names to mirror.
+    """
+    parsed = _parse_bool(raw)
+    return parse_list(raw) if parsed is None else parsed
 
 
 def envvar_pairs(var: str, default: dict[str, str]) -> dict[str, str]:

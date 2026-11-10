@@ -20,6 +20,7 @@ from mreg.env import (
     make_ldap_search,
     parse_header_pair,
     parse_ldap_options,
+    parse_mirror_groups,
     parse_protected_policy_attrs,
     parse_txt_auto_records,
 )
@@ -224,6 +225,21 @@ class EnvParserTests(SimpleTestCase):
             parse_header_pair("HTTP_X_FORWARDED_PROTO")
         with self.assertRaises(ValueError):
             parse_header_pair("a,b,c")
+
+    def test_parse_mirror_groups(self):
+        for raw, expected in (
+            ("true", True),
+            ("YES", True),
+            ("1", True),
+            ("false", False),
+            ("off", False),
+            ("0", False),
+            (" a, b ,", ["a", "b"]),
+            ("", []),
+            ("y,admins", ["y", "admins"]),
+        ):
+            with self.subTest(raw=raw):
+                self.assertEqual(parse_mirror_groups(raw), expected)
 
     def test_parse_ldap_options(self):
         import ldap
