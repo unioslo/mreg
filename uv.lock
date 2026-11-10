@@ -493,6 +493,18 @@ formatting = [
 ]
 
 [[package]]
+name = "django-types"
+version = "0.24.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "types-psycopg2" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d7/7b/8e05b8631fa7de84038d4f24fa57e983107aff889a6d88a9c40a21e15d1c/django_types-0.24.0.tar.gz", hash = "sha256:af903de8b9ee963b7594459a7a20cb8eaaab176ae2b3244ecaa089e0c570b0d1", size = 208426, upload-time = "2026-04-22T22:19:01.999Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2f/ab/f5c37ecc08c396df62579246597796697b58253c8b30206870e8d0f644d0/django_types-0.24.0-py3-none-any.whl", hash = "sha256:ddb478ca733e0dde5475118dd59ab340156980f9659fd92de2083326ae96100a", size = 379436, upload-time = "2026-04-22T22:19:03.368Z" },
+]
+
+[[package]]
 name = "djangorestframework"
 version = "3.18.3"
 source = { registry = "https://pypi.org/simple" }
@@ -740,6 +752,7 @@ ci = [
     { name = "coverage" },
     { name = "coveralls" },
     { name = "django-silk", extra = ["formatting"] },
+    { name = "django-types" },
     { name = "inline-snapshot" },
     { name = "pytest" },
     { name = "pytest-django" },
@@ -751,6 +764,7 @@ ci = [
 dev = [
     { name = "coverage" },
     { name = "django-silk", extra = ["formatting"] },
+    { name = "django-types" },
     { name = "inline-snapshot" },
     { name = "pytest" },
     { name = "pytest-django" },
@@ -795,6 +809,7 @@ ci = [
     { name = "coverage", extras = ["toml"] },
     { name = "coveralls" },
     { name = "django-silk", extras = ["formatting"], specifier = ">=5.5.0" },
+    { name = "django-types", specifier = ">=0.24.0" },
     { name = "inline-snapshot", specifier = ">=0.35.4" },
     { name = "pytest" },
     { name = "pytest-django" },
@@ -806,6 +821,7 @@ ci = [
 dev = [
     { name = "coverage", extras = ["toml"] },
     { name = "django-silk", extras = ["formatting"], specifier = ">=5.5.0" },
+    { name = "django-types", specifier = ">=0.24.0" },
     { name = "inline-snapshot", specifier = ">=0.35.4" },
     { name = "pytest" },
     { name = "pytest-django" },
@@ -1381,6 +1397,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/03/51/d33db42cc72ffd8c30777547b42d01f0cbf9d95a770457698d0174b3ed71/typer-0.27.3.tar.gz", hash = "sha256:d0396f770a560ab1b0a8504e13b5f254b728cedb05c61cf0359e944e50ce8901", size = 205303, upload-time = "2026-10-06T17:24:16.61Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/07/ea/2e31b67051e91a133189e9c000c222502ddc6969856416de0d095de4c0b0/typer-0.27.3-py3-none-any.whl", hash = "sha256:e50022f28b82a86313e54501317a1db64bf8f8d036ff8cfe5ca7e47675454aff", size = 123312, upload-time = "2026-10-06T17:24:15.054Z" },
+]
+
+[[package]]
+name = "types-psycopg2"
+version = "2.9.21.20261030"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/99/9d/3d22bd79e5777d6bb11042d5853cfe41617e40aebea5272b048aef070872/types_psycopg2-2.9.21.20261030.tar.gz", hash = "sha256:7850716d731d6bf45c53f2d26179e2bcf7273d1d3acfd56b0201adc1dec4ba20", size = 27973, upload-time = "2026-10-30T07:50:27.642Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8f/23/eb7f937f9f9346097a31d243b74cc3d23e4d8cc777916cef4a89bfafa6b5/types_psycopg2-2.9.21.20261030-py3-none-any.whl", hash = "sha256:e51ed54722bc7bc3cfb635a8623d9915d1816ed789c926c40b5f61d5f417a4ab", size = 25041, upload-time = "2026-10-30T07:50:26.781Z" },
 ]
 
 [[package]]

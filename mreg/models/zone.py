@@ -1,6 +1,6 @@
 import ipaddress
 from collections import defaultdict, namedtuple
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from django.db import DatabaseError, models, transaction
 from django.utils import timezone
@@ -14,7 +14,25 @@ from mreg.utils import create_serialno, encode_mail, get_network_from_zonename, 
 from mreg.validators import validate_32bit_uint, validate_reverse_zone_name, validate_ttl
 
 
+def localize_dt(dt: datetime) -> datetime:
+    """Convert a datetime object to the local timezone.
+
+    Does nothing if the datetime object is timezone-naive.
+
+    Args:
+        dt (datetime): The datetime to convert.
+
+    Returns:
+        datetime: The localized datetime, or `dt` unchanged if naive.
+    """
+    if timezone.is_aware(dt):
+        return timezone.localtime(dt)
+    return dt
+
+
 class BaseZone(BaseModel, ZoneHelpers):
+    name: "models.CharField[str]"  # concrete implementations define the actual fields
+
     updated = models.BooleanField(default=True)
     primary_ns = LowerCaseDNSNameField()
     nameservers = models.ManyToManyField(NameServer, db_column="ns")
@@ -50,12 +68,9 @@ class BaseZone(BaseModel, ZoneHelpers):
             "retry": self.retry,
             "expire": self.expire,
             "soa_ttl": self.soa_ttl,
-            "zupdated_at": self.updated_at,
-            "supdated_at": self.serialno_updated_at,
+            "zupdated_at": localize_dt(self.updated_at),
+            "supdated_at": localize_dt(self.serialno_updated_at),
         }
-        for key in ("zupdated_at", "supdated_at"):
-            if timezone.is_aware(data[key]):
-                data[key] = timezone.localtime(data[key])
         zf = """$ORIGIN {origin}
 $TTL {default_ttl}
 {name:30} IN {record_type:6} {mname} {rname} (

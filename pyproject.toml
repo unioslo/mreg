@@ -42,6 +42,7 @@ dev = [
     "pytest-django",
     "uv>=0.13.5",
     "inline-snapshot>=0.35.4",
+    "django-types>=0.24.0",
     {include-group = "profile"},
     {include-group = "lint"},
 ]
