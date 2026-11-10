@@ -452,7 +452,7 @@ Running tests via the VS Code test runner (or other methods that otherwise bypas
 | `DJANGO_SETTINGS_MODULE` | `""` | Django settings module. Required when not running via `manage.py`|
 | `MANAGE_PY_PATH` | `""` | Path to the `manage.py` file of the Django project. Required when running via VS Code test runner or other methods that bypass `manage.py`|
 
-Copy the bundled `.env.example` file to `.env` to make VS Code automatically source the default settings module.
+Copy the bundled `.env.example` file to `.env` to make VS Code automatically source the default settings module. The file also lists every `MREG_` option, commented out with its default or an example value, so uncomment the ones you need.
 
 ```bash
 cp .env.example .env
@@ -478,7 +478,7 @@ The application supports setting the aforementioned settings persistently via a 
 
 ### `.env`
 
-To override entries in `mregsite/settings.py`, create a file `.env` or rename `.env.example` to `.env`.
+To override entries in `mregsite/settings.py`, create a file `.env` or copy `.env.example` to `.env`. `.env.example` lists every option, including the structured formats, commented out with its default or an example value.
 
 Example `.env` file:
 

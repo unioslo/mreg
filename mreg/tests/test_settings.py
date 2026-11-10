@@ -1,13 +1,17 @@
 import contextlib
 import importlib
+import io
 import json
 import os
+import re
 import sys
 import tempfile
+from pathlib import Path
 from types import ModuleType
 from unittest.mock import patch
 
 from django.core.exceptions import ImproperlyConfigured
+from dotenv import dotenv_values
 from django.test import SimpleTestCase
 
 import mregsite.settings as app_settings
@@ -578,3 +582,43 @@ class SettingsEnvOverridesTests(SimpleTestCase):
                             importlib.reload(app_settings)
             finally:
                 importlib.reload(app_settings)
+
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_EXAMPLE_LINE = re.compile(r"^# (MREG_[A-Z0-9_]+=.*)$", re.MULTILINE)
+_DOCUMENTED_VAR = re.compile(r"`(MREG_[A-Z0-9_]*[A-Z0-9])`")
+
+
+def _env_example_entries() -> list[str]:
+    """Return the commented-out `MREG_X=value` lines of `.env.example`, uncommented."""
+    return _EXAMPLE_LINE.findall((_REPO_ROOT / ".env.example").read_text())
+
+
+class EnvExampleTests(SimpleTestCase):
+    """Keep `.env.example` in sync with the docs and parseable by the settings."""
+
+    def test_env_example_lists_every_documented_option(self):
+        names = [line.split("=", 1)[0] for line in _env_example_entries()]
+        self.assertEqual(len(names), len(set(names)), "duplicate `# MREG_X=` lines in .env.example")
+        documented = set()
+        for doc in ("README.md", "docs/env.md"):
+            documented |= set(_DOCUMENTED_VAR.findall((_REPO_ROOT / doc).read_text()))
+        # Read before the dotenv file is loaded, so they cannot be set from it.
+        documented -= {"MREG_DOTENV_PATH", "MREG_DOTENV_OVERRIDE"}
+        self.assertEqual(set(names), documented)
+
+    def test_env_example_values_load(self):
+        env = dotenv_values(stream=io.StringIO("\n".join(_env_example_entries())))
+        drop = ("SECURE_PROXY_SSL_HEADER", "MQ_CONFIG", "AUTH_LDAP_MIRROR_GROUPS", "AUTH_LDAP_GLOBAL_OPTIONS",
+                "AUTH_LDAP_GROUP_TYPE", "LDAP_GROUP_ARGS", "AUTH_LDAP_GROUP_SEARCH")
+        with patch("sentry_sdk.init"), reload_settings(env, drop=drop) as reloaded:
+            self.assertEqual(reloaded.SECURE_PROXY_SSL_HEADER, ("HTTP_X_FORWARDED_PROTO", "https"))
+            self.assertEqual(reloaded.TXT_AUTO_RECORDS, {"example.org": ("v=spf1 -all",)})
+            self.assertEqual(reloaded.AUTH_LDAP_MIRROR_GROUPS, ["admins", "operators"])
+            self.assertEqual(reloaded.AUTH_LDAP_USER_ATTR_MAP["first_name"], "givenName")
+            self.assertEqual(len(reloaded.AUTH_LDAP_GLOBAL_OPTIONS), 2)
+            self.assertIsNotNone(reloaded.AUTH_LDAP_GROUP_TYPE)
+            self.assertIsNotNone(reloaded.AUTH_LDAP_GROUP_SEARCH)
+            self.assertEqual(reloaded.MQ_CONFIG["host"], "rabbitmq.example.com")
+            self.assertEqual([a["name"] for a in reloaded.MREG_PROTECTED_POLICY_ATTRIBUTES], ["isolated", "restricted"])
+            self.assertEqual(reloaded.LDAP_GROUP_RE, r"^cn=(?P<group_name>[\w\-]+),cn=netgroups,")
