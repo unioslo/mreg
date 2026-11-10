@@ -6,6 +6,7 @@ import os
 import re
 import sys
 import tempfile
+import unittest
 from pathlib import Path
 from types import ModuleType
 from unittest.mock import patch
@@ -594,6 +595,13 @@ def _env_example_entries() -> list[str]:
     return _EXAMPLE_LINE.findall((_REPO_ROOT / ".env.example").read_text())
 
 
+_ENV_EXAMPLE_FILES = (".env.example", "README.md", "docs/env.md")
+
+
+@unittest.skipUnless(
+    all((_REPO_ROOT / f).is_file() for f in _ENV_EXAMPLE_FILES),
+    "repository files not present (e.g. in the container image)",
+)
 class EnvExampleTests(SimpleTestCase):
     """Keep `.env.example` in sync with the docs and parseable by the settings."""
 
@@ -601,7 +609,7 @@ class EnvExampleTests(SimpleTestCase):
         names = [line.split("=", 1)[0] for line in _env_example_entries()]
         self.assertEqual(len(names), len(set(names)), "duplicate `# MREG_X=` lines in .env.example")
         documented = set()
-        for doc in ("README.md", "docs/env.md"):
+        for doc in _ENV_EXAMPLE_FILES[1:]:
             documented |= set(_DOCUMENTED_VAR.findall((_REPO_ROOT / doc).read_text()))
         # Read before the dotenv file is loaded, so they cannot be set from it.
         documented -= {"MREG_DOTENV_PATH", "MREG_DOTENV_OVERRIDE"}
