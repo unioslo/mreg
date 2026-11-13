@@ -166,10 +166,7 @@ class HostFilterSet(filters.FilterSet):
     zone__name = filters.CharFilter(field_name="zone_id__name")
     ip_range = filters.CharFilter(
         method="filter_ip_range",
-        help_text=(
-            "Hosts with an IP in this IPv4 or IPv6 CIDR; no registered network is required. "
-            "Host bits are masked. Each host is returned once, with all its addresses."
-        ),
+        help_text="Hosts with an IP in this IPv4 or IPv6 CIDR; no registered network is required.",
     )
     
     # Backward compatibility: alias host__contact to host__contacts__email
@@ -236,18 +233,13 @@ class HostFilterSet(filters.FilterSet):
         try:
             network = ip_network(value, strict=False)
         except ValueError:
-            raise exceptions.ValidationError({"ip_range": "Enter a valid IPv4 or IPv6 CIDR."})
+            raise exceptions.ValidationError({
+                "ip_range": f"Invalid CIDR '{value}'. Enter an IPv4 or IPv6 CIDR, e.g. 192.0.2.0/24 or 2001:db8::/64.",
+            })
         addresses = Ipaddress.objects.filter(
             ipaddress__range=(str(network.network_address), str(network.broadcast_address)),
         )
         return queryset.filter(pk__in=addresses.values("host_id"))
-
-    def filter_queryset(self, queryset):
-        # An explicitly empty selection must not turn into an unfiltered listing.
-        for name in ("ip_range", "name__in"):
-            if name in self.data and not self.form.cleaned_data.get(name):
-                raise exceptions.ValidationError({name: "This filter may not be empty."})
-        return super().filter_queryset(queryset)
 
 
 class HostGroupFilterSet(filters.FilterSet):

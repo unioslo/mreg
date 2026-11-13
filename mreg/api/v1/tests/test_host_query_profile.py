@@ -116,12 +116,6 @@ class HostQueryProfileTestCase(MregAPITestCase):
         full = self._count_get("hosts/", expected_results=NUM_HOSTS)
         self.assertLessEqual(full, small)
 
-    def test_ip_range_host_list_query_count(self):
-        path = "hosts/?ip_range=10.0.0.0/24"
-        small = self._count_get(path + "&page_size=1", expected_results=1)
-        full = self._count_get(path, expected_results=NUM_HOSTS // NUM_NETWORKS)
-        self.assertLessEqual(full, small)
-
     def test_host_detail_query_count(self):
         path = f"hosts/{self.first_host_name}"
         full = self._count_get(path)

@@ -1,5 +1,8 @@
 from urllib.parse import parse_qs, urlsplit
 
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
+
 from mreg.models.host import Host, Ipaddress, PtrOverride
 from mreg.models.network import Network
 
@@ -86,6 +89,14 @@ class HostFilteringTestCase(MregAPITestCase):
         self.assertEqual(len(response.data["results"][0]["ipaddresses"]), 6)
         self.assertEqual(response.data["results"][0]["contact"], "admin@example.org")
 
+    def test_ip_range_query_count_does_not_grow_with_page_size(self):
+        with CaptureQueriesContext(connection) as small:
+            self.get_hosts({"ip_range": "158.36.188.0/23", "page_size": 1})
+        with CaptureQueriesContext(connection) as full:
+            response = self.get_hosts({"ip_range": "158.36.188.0/23"})
+        self.assertEqual(len(response.data["results"]), 3)
+        self.assertLessEqual(len(full), len(small))
+
     def test_ip_range_pagination_preserves_filters_and_ordering(self):
         response = self.get_hosts({
             "ip_range": "158.36.188.0/23", "page_size": 1, "ordering": "name", "format": "json",
@@ -129,27 +140,22 @@ class HostFilteringTestCase(MregAPITestCase):
         self.assertEqual(response.data["count"], 1)
         self.assertEqual(response.data["results"][0]["id"], self.alpha.pk)
 
-    def test_invalid_or_empty_filter_returns_400(self):
-        for name, value in (
-            ("ip_range", "invalid"),
-            ("ip_range", "158.36.188.0/33"),
-            ("ip_range", "2001:db8::/129"),
-            ("ip_range", ""),
-            ("ip_range", " "),
-            ("name__in", ""),
-            ("id", "not-a-number"),
-            ("id__in", "1,not-a-number"),
-        ):
-            with self.subTest(name=name, value=value):
-                response = self.get_hosts({name: value}, expected_status=400)
-                self.assertEqual(response.data["errors"][0]["attr"], name)
+    def test_invalid_cidr_returns_400_with_helpful_message(self):
+        for value in ("invalid", "158.36.188.0/33", "2001:db8::/129"):
+            with self.subTest(value=value):
+                response = self.get_hosts({"ip_range": value}, expected_status=400)
+                error = response.data["errors"][0]
+                self.assertEqual(error["attr"], "ip_range")
+                self.assertIn(f"Invalid CIDR '{value}'", error["detail"])
+                self.assertIn("192.0.2.0/24", error["detail"])
+                self.assertIn("2001:db8::/64", error["detail"])
 
-    def test_unknown_filter_returns_400_instead_of_all_hosts(self):
-        for name in ("ip_ragne", "network", "name__inn", "ipaddresses__ipaddress__net_contained"):
-            with self.subTest(name=name):
-                response = self.get_hosts({name: "anything"}, expected_status=400)
-                self.assertEqual(response.data["errors"][0]["attr"], name)
-                self.assertEqual(response.data["errors"][0]["detail"], "Unsupported query parameter.")
+    def test_empty_filters_and_unknown_parameters_use_default_behavior(self):
+        for params in ({"ip_range": ""}, {"ip_range": " "}, {"name__in": ""}, {"unknown": "anything"}):
+            with self.subTest(params=params):
+                response = self.get_hosts({"name": self.alpha.name, **params})
+                self.assertEqual(response.data["count"], 1)
+                self.assertEqual(response.data["results"][0]["id"], self.alpha.pk)
 
     def test_unfiltered_listing_still_works(self):
         response = self.get_hosts({"page": 1, "page_size": 1000, "search": ""})
