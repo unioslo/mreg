@@ -21,10 +21,11 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 # Printed inside the booted Django process; the tests assert on this exact output format.
 _PRINT_LOG_LEVEL = "from django.conf import settings; print(f'{settings.LOG_LEVEL=}')"
 
-# Both ways of booting Django must load the .env file on their own.
+# Each entry point must load the .env file before reading Django settings.
 BOOT_COMMANDS = [
     pytest.param([sys.executable, "manage.py", "shell", "-c", _PRINT_LOG_LEVEL], id="manage.py"),
     pytest.param([sys.executable, "-c", f"import mregsite.wsgi; {_PRINT_LOG_LEVEL}"], id="wsgi"),
+    pytest.param([sys.executable, "-c", f"import mregsite.gunicorn; {_PRINT_LOG_LEVEL}"], id="gunicorn"),
 ]
 
 

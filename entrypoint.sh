@@ -14,5 +14,5 @@ function sigterm()
 trap sigterm SIGTERM
 
 # doing it this way to be able to forward signals
-uv run gunicorn --workers=3 --bind=0.0.0.0 mregsite.wsgi --pid /var/run/gunicorn.pid &
+uv run gunicorn --config python:mregsite.gunicorn --workers=3 --bind=0.0.0.0 mregsite.wsgi --pid /var/run/gunicorn.pid &
 wait $!
