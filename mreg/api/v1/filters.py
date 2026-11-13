@@ -1,5 +1,6 @@
 import operator
 from functools import reduce
+from ipaddress import ip_network
 import re
 from typing import List
 
@@ -163,6 +164,10 @@ class HistoryFilterSet(filters.FilterSet):
 class HostFilterSet(filters.FilterSet):
     zone = filters.NumberFilter(field_name="zone_id")
     zone__name = filters.CharFilter(field_name="zone_id__name")
+    ip_range = filters.CharFilter(
+        method="filter_ip_range",
+        help_text="Hosts with an IP in this IPv4 or IPv6 CIDR; no registered network is required.",
+    )
     
     # Backward compatibility: alias host__contact to host__contacts__email
     contact = filters.CharFilter(field_name="contacts__email", lookup_expr="exact")
@@ -180,7 +185,7 @@ class HostFilterSet(filters.FilterSet):
         model = Host
         fields = {
             "id": INT_OPERATORS,
-            "name": STRING_OPERATORS,
+            "name": [*STRING_OPERATORS, "in"],
             "contacts": INT_OPERATORS,
             "contacts__email": STRING_OPERATORS,
             "ttl": INT_OPERATORS,
@@ -223,6 +228,18 @@ class HostFilterSet(filters.FilterSet):
             "zone_id__name": STRING_OPERATORS,
             **CREATED_UPDATED,
         }
+
+    def filter_ip_range(self, queryset, name, value):
+        try:
+            network = ip_network(value, strict=False)
+        except ValueError:
+            raise exceptions.ValidationError({
+                "ip_range": f"Invalid CIDR '{value}'. Enter an IPv4 or IPv6 CIDR, e.g. 192.0.2.0/24 or 2001:db8::/64.",
+            })
+        addresses = Ipaddress.objects.filter(
+            ipaddress__range=(str(network.network_address), str(network.broadcast_address)),
+        )
+        return queryset.filter(pk__in=addresses.values("host_id"))
 
 
 class HostGroupFilterSet(filters.FilterSet):

@@ -7,6 +7,9 @@ An associated project for a command line interface using the mreg API is availab
 See [Authentication](docs/authentication.md) for local API tokens and optional
 Keycloak access tokens with LDAP authorization.
 
+See [Filtering host records](docs/host_filtering.md) to retrieve complete hosts
+by IPv4 or IPv6 CIDR, or by a list of names.
+
 ## Getting Started
 
 ### Prerequisites

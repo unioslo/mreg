@@ -388,7 +388,8 @@ def _host_prefetcher(qs):
 class HostList(HostPermissionsListCreateAPIView):
     """
     get:
-    Lists all hostnames.
+    Lists complete host records. Filter by ip_range (any IPv4 or IPv6 CIDR)
+    or name__in (comma-separated hostnames).
 
     post:
     Create a new host object. Allows posting with IP address in data.
@@ -396,15 +397,10 @@ class HostList(HostPermissionsListCreateAPIView):
 
     queryset = Host.objects.get_queryset().order_by("id")
     serializer_class = HostSerializer
-    # We manipulate the query set with _host_prefetcher in get_queryset,
-    # so HostFilterSet would need to implement these changes.
-    # However, we also reuse _host_prefetcher in the HostDetail view below
-    # so this would all require a bit of careful refactoring...
-    # filterset_class = HostFilterSet
+    filterset_class = HostFilterSet
 
     def get_queryset(self):
-        qs = _host_prefetcher(super().get_queryset())
-        return HostFilterSet(data=self.request.GET, queryset=qs).qs
+        return _host_prefetcher(super().get_queryset())
 
     def post(self, request, *args, **kwargs):
         community = None
