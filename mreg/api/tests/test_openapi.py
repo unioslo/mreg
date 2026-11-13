@@ -32,6 +32,18 @@ class OpenAPISchemaTest(SimpleTestCase):
         self.assertFalse(username.get("required", False))
         self.assertEqual(username["schema"], {"type": "string"})
 
+    def test_host_list_documents_ip_range_and_name_in_filters(self):
+        operation = self.schema["paths"]["/api/v1/hosts/"]["get"]
+        parameters = {parameter["name"]: parameter for parameter in operation["parameters"]}
+        self.assertNotIn("network", parameters)
+        self.assertEqual(parameters["ip_range"]["schema"], {"type": "string"})
+        self.assertIn("no registered network is required", parameters["ip_range"]["description"])
+        self.assertEqual(parameters["name__in"]["schema"]["type"], "array")
+        self.assertEqual(parameters["name__in"]["schema"]["items"]["type"], "string")
+        self.assertFalse(parameters["name__in"]["explode"])
+        self.assertIn("page", parameters)
+        self.assertIn("page_size", parameters)
+
     @override_settings(MREG_OIDC_ENABLED=True)
     def test_keycloak_and_local_tokens_are_documented_as_alternatives(self) -> None:
         with patch.object(APIView, "authentication_classes", (ExpiringTokenAuthentication, KeycloakBearerAuthentication)):

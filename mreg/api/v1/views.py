@@ -13,6 +13,7 @@ from rest_framework.exceptions import (ErrorDetail, MethodNotAllowed, NotFound,
                                         ParseError, UnsupportedMediaType, ValidationError)
 from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
+from rest_framework.settings import api_settings
 from rest_framework.views import APIView
 
 from mreg.api.errors import Conflict, ErrorCode
@@ -388,7 +389,8 @@ def _host_prefetcher(qs):
 class HostList(HostPermissionsListCreateAPIView):
     """
     get:
-    Lists all hostnames.
+    Lists complete host records. Filter by ip_range (any IPv4 or IPv6 CIDR)
+    or name__in (comma-separated hostnames). Unknown filters return HTTP 400.
 
     post:
     Create a new host object. Allows posting with IP address in data.
@@ -396,15 +398,21 @@ class HostList(HostPermissionsListCreateAPIView):
 
     queryset = Host.objects.get_queryset().order_by("id")
     serializer_class = HostSerializer
-    # We manipulate the query set with _host_prefetcher in get_queryset,
-    # so HostFilterSet would need to implement these changes.
-    # However, we also reuse _host_prefetcher in the HostDetail view below
-    # so this would all require a bit of careful refactoring...
-    # filterset_class = HostFilterSet
+    filterset_class = HostFilterSet
 
     def get_queryset(self):
-        qs = _host_prefetcher(super().get_queryset())
-        return HostFilterSet(data=self.request.GET, queryset=qs).qs
+        return _host_prefetcher(super().get_queryset())
+
+    def filter_queryset(self, queryset):
+        controls = {
+            self.paginator.page_query_param, self.paginator.page_size_query_param,
+            filters.SearchFilter.search_param, filters.OrderingFilter.ordering_param,
+            api_settings.URL_FORMAT_OVERRIDE,
+        }
+        unknown = self.request.query_params.keys() - self.filterset_class.base_filters.keys() - controls
+        if unknown:
+            raise ValidationError({name: "Unsupported query parameter." for name in sorted(unknown)})
+        return super().filter_queryset(queryset)
 
     def post(self, request, *args, **kwargs):
         community = None

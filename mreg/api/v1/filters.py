@@ -1,5 +1,6 @@
 import operator
 from functools import reduce
+from ipaddress import ip_network
 import re
 from typing import List
 
@@ -163,6 +164,13 @@ class HistoryFilterSet(filters.FilterSet):
 class HostFilterSet(filters.FilterSet):
     zone = filters.NumberFilter(field_name="zone_id")
     zone__name = filters.CharFilter(field_name="zone_id__name")
+    ip_range = filters.CharFilter(
+        method="filter_ip_range",
+        help_text=(
+            "Hosts with an IP in this IPv4 or IPv6 CIDR; no registered network is required. "
+            "Host bits are masked. Each host is returned once, with all its addresses."
+        ),
+    )
     
     # Backward compatibility: alias host__contact to host__contacts__email
     contact = filters.CharFilter(field_name="contacts__email", lookup_expr="exact")
@@ -180,7 +188,7 @@ class HostFilterSet(filters.FilterSet):
         model = Host
         fields = {
             "id": INT_OPERATORS,
-            "name": STRING_OPERATORS,
+            "name": [*STRING_OPERATORS, "in"],
             "contacts": INT_OPERATORS,
             "contacts__email": STRING_OPERATORS,
             "ttl": INT_OPERATORS,
@@ -223,6 +231,23 @@ class HostFilterSet(filters.FilterSet):
             "zone_id__name": STRING_OPERATORS,
             **CREATED_UPDATED,
         }
+
+    def filter_ip_range(self, queryset, name, value):
+        try:
+            network = ip_network(value, strict=False)
+        except ValueError:
+            raise exceptions.ValidationError({"ip_range": "Enter a valid IPv4 or IPv6 CIDR."})
+        addresses = Ipaddress.objects.filter(
+            ipaddress__range=(str(network.network_address), str(network.broadcast_address)),
+        )
+        return queryset.filter(pk__in=addresses.values("host_id"))
+
+    def filter_queryset(self, queryset):
+        # An explicitly empty selection must not turn into an unfiltered listing.
+        for name in ("ip_range", "name__in"):
+            if name in self.data and not self.form.cleaned_data.get(name):
+                raise exceptions.ValidationError({name: "This filter may not be empty."})
+        return super().filter_queryset(queryset)
 
 
 class HostGroupFilterSet(filters.FilterSet):
